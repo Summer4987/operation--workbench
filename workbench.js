@@ -119,6 +119,16 @@ function shortStore(value) {
     .slice(0, 18);
 }
 
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[char]);
+}
+
 function rows(id, items, render) {
   const el = document.querySelector(`#${id}`);
   if (!el) return;
@@ -253,10 +263,10 @@ function renderReviews() {
     store,
     review_count: Number(item.review_count || 0),
     negative_count: Number(item.negative_count || 0),
-    avg_rating: Number(item.avg_rating || 0),
+    review_avg_rating: Number(item.review_avg_rating || item.avg_rating || 0),
     platforms: item.platforms || {},
     top_keywords: item.top_keywords || [],
-    examples: item.examples || [],
+    bad_review_examples: item.bad_review_examples || item.examples || [],
   }));
   const totalReviews = stores.reduce((sum, item) => sum + item.review_count, 0);
   const totalIssues = stores.reduce((sum, item) => sum + item.negative_count, 0);
@@ -278,18 +288,22 @@ function renderReviews() {
       .slice(0, 8),
     (item) => {
       const keywords = item.top_keywords.length ? item.top_keywords.join("、") : "无集中关键词";
-      const example = item.examples[0] ? `；${item.examples[0]}` : "";
+      const badReviews = item.bad_review_examples
+        .filter(Boolean)
+        .map((content, index) => `<span class="bad-review">${index + 1}. ${escapeHtml(content)}</span>`)
+        .join("");
+      const badReviewText = badReviews ? `<br><b class="bad-review-title">差评内容</b>${badReviews}` : "";
       const platformText = ["美团", "饿了么"]
         .map((platform) => {
           const detail = item.platforms[platform] || {};
           const count = Number(detail.review_count || 0);
           const negative = Number(detail.negative_count || 0);
-          const rating = Number(detail.avg_rating || 0);
-          return `${platform} ${count} 条 / 差评 ${negative} / ${rating ? rating.toFixed(2) : "-"} 分`;
+          const rating = Number(detail.review_avg_rating || detail.avg_rating || 0);
+          return `${platform} ${count} 条 / 差评 ${negative} / 评价均分 ${rating ? rating.toFixed(2) : "-"}`;
         })
         .join("；");
       const cls = item.negative_count ? "warn-row" : "good-row";
-      return `<div class="${cls}"><span>${item.store}</span><strong>${item.negative_count}/${item.review_count} 条</strong><em>${platformText}<br>合计 ${item.avg_rating.toFixed(2)} 分 · ${keywords}${example}</em></div>`;
+      return `<div class="${cls}"><span>${escapeHtml(item.store)}</span><strong>${item.negative_count}/${item.review_count} 条</strong><em>${escapeHtml(platformText)}<br>合计评价均分 ${item.review_avg_rating.toFixed(2)} · ${escapeHtml(keywords)}${badReviewText}</em></div>`;
     }
   );
 }

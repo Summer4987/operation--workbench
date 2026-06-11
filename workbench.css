@@ -692,6 +692,20 @@ h2 {
   line-height: 1.45;
 }
 
+.review-list .bad-review-title {
+  display: block;
+  margin-top: 6px;
+  color: var(--red);
+  font-size: 12px;
+}
+
+.review-list .bad-review {
+  display: block;
+  margin-top: 4px;
+  color: #374151;
+  white-space: normal;
+}
+
 .review-list div {
   grid-template-columns: minmax(84px, 0.45fr) auto;
 }

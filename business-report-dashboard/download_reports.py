@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -10,6 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "download_config.json"
+WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+if Path(WORKING_NODE).exists():
+    os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
 
 
 def load_config() -> dict:

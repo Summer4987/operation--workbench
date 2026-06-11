@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -20,6 +21,9 @@ ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "chrome_cdp_config.json"
 ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/chain/93331264/comments#app.chainshop.comments"
 MEITUAN_COMMENTS_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw"
+WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+if Path(WORKING_NODE).exists():
+    os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
 
 
 def load_config() -> dict:
@@ -1196,6 +1200,7 @@ def download_reviews_and_process() -> None:
     if failures:
         raise RuntimeError("评价下载未全部完成：" + "；".join(failures))
     print("双平台评价下载完成。")
+    process_reports()
 
 
 def local_report_candidate(target_date: str, platform: str) -> Path | None:

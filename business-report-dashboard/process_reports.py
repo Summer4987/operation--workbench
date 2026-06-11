@@ -200,6 +200,7 @@ def read_review_files(alias_lookup: dict[str, list[tuple[str, str]]]) -> pd.Data
         store_col = find_column(columns, ["门店名称", "门店", "商家名称", "店铺名称", "店名"])
         rating_col = find_column(columns, ["综合评分", "总体评分", "商家评分", "评分", "星级"])
         content_col = find_column(columns, ["评价内容", "评论内容", "顾客评价", "用户评价", "内容"])
+        review_id_col = find_column(columns, ["评价id", "评价ID", "评论id", "评论ID", "订单评价id", "id"])
         if not date_col or not store_col or (not rating_col and not content_col):
             continue
         REVIEW_RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -219,6 +220,7 @@ def read_review_files(alias_lookup: dict[str, list[tuple[str, str]]]) -> pd.Data
             content = "" if not content_col or pd.isna(source.get(content_col, "")) else str(source.get(content_col, "")).strip()
             rating = to_number(source.get(rating_col), default=0.0) if rating_col else 0.0
             keywords = review_issue_keywords(content)
+            review_id = "" if not review_id_col or pd.isna(source.get(review_id_col, "")) else str(source.get(review_id_col, "")).strip()
             rows.append(
                 {
                     "date": parse_date(source.get(date_col)),
@@ -227,12 +229,27 @@ def read_review_files(alias_lookup: dict[str, list[tuple[str, str]]]) -> pd.Data
                     "store_raw": str(source.get(store_col, "")),
                     "rating": rating,
                     "content": content,
+                    "review_id": review_id,
                     "negative": bool((rating and rating <= 3) or keywords),
                     "keywords": keywords,
                     "source_file": path.name,
                 }
             )
-    return pd.DataFrame(rows)
+    review_df = pd.DataFrame(rows)
+    if review_df.empty:
+        return review_df
+    with_id = review_df["review_id"].astype(str).str.strip() != ""
+    deduped_parts = []
+    if with_id.any():
+        deduped_parts.append(review_df[with_id].drop_duplicates(subset=["platform", "review_id"], keep="last"))
+    if (~with_id).any():
+        deduped_parts.append(
+            review_df[~with_id].drop_duplicates(
+                subset=["date", "platform", "store", "rating", "content"],
+                keep="last",
+            )
+        )
+    return pd.concat(deduped_parts, ignore_index=True) if deduped_parts else review_df.iloc[0:0].copy()
 
 
 def summarize_reviews(review_df: pd.DataFrame, target_stores: list[str], report_date: str) -> dict:
@@ -256,10 +273,11 @@ def summarize_reviews(review_df: pd.DataFrame, target_stores: list[str], report_
     for store in target_stores:
         group = selected[selected["store"] == store]
         negative = group[group["negative"]]
+        bad_reviews = group[(group["rating"] > 0) & (group["rating"] <= 3)]
         keyword_counter: Counter[str] = Counter()
         for keywords in negative["keywords"].tolist():
             keyword_counter.update(keywords or [])
-        examples = [text for text in negative["content"].dropna().astype(str).tolist() if text][:3]
+        examples = [text for text in bad_reviews["content"].dropna().astype(str).tolist() if text][:3]
         platform_summary = {}
         for platform in ["美团", "饿了么"]:
             platform_group = group[group["platform"] == platform]
@@ -267,16 +285,19 @@ def summarize_reviews(review_df: pd.DataFrame, target_stores: list[str], report_
             platform_summary[platform] = {
                 "review_count": int(len(platform_group)),
                 "negative_count": int(len(platform_negative)),
+                "review_avg_rating": round(float(platform_group["rating"].mean()), 2) if len(platform_group) else 0,
                 "avg_rating": round(float(platform_group["rating"].mean()), 2) if len(platform_group) else 0,
             }
         stores[store] = {
             "date": used_date,
             "review_count": int(len(group)),
             "negative_count": int(len(negative)),
+            "review_avg_rating": round(float(group["rating"].mean()), 2) if len(group) else 0,
             "avg_rating": round(float(group["rating"].mean()), 2) if len(group) else 0,
             "platforms": platform_summary,
             "top_keywords": [keyword for keyword, _ in keyword_counter.most_common(4)],
             "examples": examples,
+            "bad_review_examples": examples,
         }
     message = f"已接入 {used_date} 评价导出" if status == "ready" else f"暂无 {report_date} 评价导出，当前展示最近一次 {used_date} 评价"
     return {
@@ -297,20 +318,22 @@ def store_review_note(review_summary: dict, store: str) -> str:
     if not item or not item.get("review_count"):
         return f"{prefix}：暂无评价记录。"
     keywords = "、".join(item.get("top_keywords") or []) or "未集中出现明确差评关键词"
-    base = f"{prefix} {item['review_count']} 条，疑似差评/问题评价 {item['negative_count']} 条，平均评分 {item['avg_rating']:.2f}，关键词：{keywords}。"
+    review_avg = float(item.get("review_avg_rating") or item.get("avg_rating") or 0)
+    base = f"{prefix} {item['review_count']} 条，疑似差评/问题评价 {item['negative_count']} 条，评价明细均分 {review_avg:.2f}，关键词：{keywords}。"
     platforms = item.get("platforms") or {}
     platform_parts = []
     for platform in ["美团", "饿了么"]:
         detail = platforms.get(platform) or {}
         count = int(detail.get("review_count") or 0)
         negative = int(detail.get("negative_count") or 0)
-        rating = float(detail.get("avg_rating") or 0)
-        platform_parts.append(f"{platform} {count} 条/差评 {negative}/评分 {rating:.2f}" if count else f"{platform} 0 条")
+        rating = float(detail.get("review_avg_rating") or detail.get("avg_rating") or 0)
+        platform_parts.append(f"{platform} {count} 条/差评 {negative}/评价均分 {rating:.2f}" if count else f"{platform} 0 条")
     base += " 平台拆分：" + "；".join(platform_parts) + "。"
     examples = item.get("examples") or []
     if examples:
-        snippet = re.sub(r"\s+", " ", examples[0]).strip()
-        base += f" 典型反馈：{snippet[:56]}{'...' if len(snippet) > 56 else ''}"
+        snippets = [re.sub(r"\s+", " ", text).strip() for text in examples if str(text).strip()]
+        if snippets:
+            base += " 差评内容：" + " / ".join(snippets)
     return base
 
 

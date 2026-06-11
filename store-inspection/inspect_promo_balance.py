@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,6 +20,9 @@ LATEST_DATA_JS = ROOT / "latest-data.js"
 OUTPUT_DIR = WORKSPACE / "outputs" / "store_inspection"
 STORE_CHROME_CONFIG = ROOT / "chrome_config.json"
 BUSINESS_CHROME_CONFIG = WORKSPACE / "business-report-dashboard" / "chrome_cdp_config.json"
+WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+if Path(WORKING_NODE).exists():
+    os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
 
 
 def load_json(path: Path) -> dict:

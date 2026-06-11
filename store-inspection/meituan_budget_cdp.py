@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import time
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from playwright.sync_api import sync_playwright
-
 from one_click_meituan_balance import recent_meituan_promo_url
 
 
 ROOT = Path(__file__).resolve().parent
+WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+if Path(WORKING_NODE).exists():
+    os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
+
+from playwright.sync_api import sync_playwright
+
 WORKSPACE = ROOT.parent
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
