@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>运营总看板</title>
+    <link rel="stylesheet" href="./workbench.css?v=20260611-restore-realtime" />
+  </head>
+  <body>
+    <main class="app">
+      <aside class="side">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <b>🧸</b>
+          </span>
+          <div>
+            <strong>运营总看板</strong>
+            <span>熊小小牛排饭</span>
+          </div>
+        </div>
+        <nav class="nav" aria-label="工作台模块">
+          <a class="nav-home active" href="#overview">总览</a>
+
+          <section class="nav-section" aria-labelledby="nav-ops">
+            <h2 id="nav-ops">运营</h2>
+            <div class="nav-subgroup">
+              <span>数据</span>
+              <a href="#daily">日报</a>
+              <a href="#anomalies">异常情况分析</a>
+              <a href="#reviews">评价</a>
+            </div>
+            <div class="nav-subgroup">
+              <span>推广</span>
+              <a href="#balances">余额巡检</a>
+              <a href="#budget">预算初始化</a>
+              <span class="nav-future">推广自动化</span>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-flow">
+            <h2 id="nav-flow">货流</h2>
+            <div class="nav-subgroup">
+              <a href="#inventory">库存管理</a>
+              <a href="#sales-receipts">销售单生成</a>
+            </div>
+          </section>
+        </nav>
+      </aside>
+
+      <section class="main">
+        <header class="topbar" id="overview">
+          <div>
+            <p class="kicker" id="generatedAt">等待数据</p>
+            <h1>运营总看板</h1>
+          </div>
+        </header>
+
+        <article class="module module-realtime realtime-card" id="realtime">
+          <div class="module-head">
+            <div>
+              <p>实时</p>
+              <h2>实时单量与收入</h2>
+            </div>
+            <span class="tag testing" id="realtimeStatus">待采集</span>
+          </div>
+          <div class="realtime-summary">
+            <div><span>当前收入</span><strong id="realtimeIncome">-</strong></div>
+            <div><span>当前单量</span><strong id="realtimeOrders">-</strong></div>
+            <div><span>覆盖情况</span><strong id="realtimeCoverage">-</strong></div>
+          </div>
+          <p class="realtime-meta" id="realtimeMeta">等待实时数据。</p>
+          <div class="realtime-store-grid" id="realtimeStoreRows"></div>
+          <div class="module-actions">
+            <a href="./workbench-data.js">实时数据</a>
+            <a href="./store-inspection/index.html">饿了么实时页</a>
+            <a href="http://139.155.148.169/business-report-dashboard/">美团实时页</a>
+          </div>
+        </article>
+
+        <section class="metrics" aria-label="核心指标">
+          <article class="metric-daily">
+            <span id="metricIncomeLabel">实时数据</span>
+            <strong id="metricIncome">-</strong>
+            <div class="metric-meta">
+              <em id="metricOrders">等待实时单量</em>
+              <em id="metricYesterdayCompare" class="pending">昨日同时段 暂无历史数据</em>
+            </div>
+          </article>
+          <article class="metric-alert" id="balanceMetricCard">
+            <span>余额预警</span>
+            <strong id="metricWarnings">-</strong>
+            <em id="metricLowest">双平台余额</em>
+          </article>
+          <article class="metric-inventory" id="inventoryMetricCard">
+            <span>库存预警</span>
+            <strong id="metricInventory">-</strong>
+            <em id="metricInventoryValue">库存看板</em>
+          </article>
+          <article class="metric-budget">
+            <span>初始预算</span>
+            <strong id="metricBudget">-</strong>
+            <em id="metricBudgetMeta">饿了么自动，美团人工清单</em>
+          </article>
+        </section>
+
+        <section class="work-grid" aria-label="运营模块">
+          <article class="module module-daily" id="daily">
+            <div class="module-head">
+              <div>
+                <p>日报</p>
+                <h2>最新日报</h2>
+              </div>
+              <span class="tag ready">已接入</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="dailyStoreCount">-</div>
+              <p id="dailySummary">等待日报数据。</p>
+              <div class="mini-table" id="dailyRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="http://139.155.148.169/business-report-dashboard/">打开日报</a>
+              <a href="http://139.155.148.169/business-report-dashboard/data/latest.json">日报数据</a>
+            </div>
+          </article>
+
+          <article class="module module-anomaly" id="anomalies">
+            <div class="module-head">
+              <div>
+                <p>异常</p>
+                <h2>异常门店</h2>
+              </div>
+              <span class="tag danger" id="anomalyStatus">待检查</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="anomalyCount">-</div>
+              <p id="anomalySummary">等待最新日报异常数据。</p>
+              <div class="mini-table anomaly-list" id="anomalyRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="http://139.155.148.169/business-report-dashboard/">打开日报</a>
+              <a href="http://139.155.148.169/business-report-dashboard/data/latest.json">异常数据</a>
+            </div>
+          </article>
+
+          <article class="module module-review" id="reviews">
+            <div class="module-head">
+              <div>
+                <p>评价</p>
+                <h2>评价预览</h2>
+              </div>
+              <span class="tag testing" id="reviewStatus">待同步</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="reviewCount">-</div>
+              <p id="reviewSummary">等待评价数据。</p>
+              <div class="mini-table review-list" id="reviewRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="http://139.155.148.169/business-report-dashboard/">打开日报</a>
+              <a href="http://139.155.148.169/business-report-dashboard/data/unified_reviews.csv">评价明细</a>
+            </div>
+          </article>
+
+          <article class="module module-balance" id="balances">
+            <div class="module-head">
+              <div>
+                <p>余额</p>
+                <h2>双平台推广余额</h2>
+              </div>
+              <span class="tag testing" id="balanceStatus">巡检</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="balanceWarningCount">-</div>
+              <p id="balanceSummary">等待余额巡检数据。</p>
+              <div class="mini-table" id="balanceRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="./store-inspection/index.html">打开余额页</a>
+              <a href="./store-inspection/latest.json">余额数据</a>
+            </div>
+          </article>
+
+          <article class="module module-inventory" id="inventory">
+            <div class="module-head">
+              <div>
+                <p>库存</p>
+                <h2>库存余量快照</h2>
+              </div>
+              <span class="tag ready">已接入</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="inventoryProductCount">-</div>
+              <p id="inventorySummary">等待库存数据。</p>
+              <div class="mini-table" id="inventoryRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="http://139.155.148.169/">云端库存</a>
+              <a href="http://139.155.148.169/api/summary">库存数据</a>
+            </div>
+          </article>
+
+          <article class="module module-budget" id="budget">
+            <div class="module-head">
+              <div>
+                <p>预算</p>
+                <h2>推广初始预算</h2>
+              </div>
+              <span class="tag ready">上午按钮</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="budgetCount">-</div>
+              <p id="budgetSummary">等待预算预览。</p>
+              <div class="mini-table" id="budgetRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="./store-inspection/budget-editor.html?v=20260605-2250">录入预算</a>
+              <a href="./dianjin-prototype/index.html">饿了么点金</a>
+              <a href="./store-inspection/meituan-budget.html">美团预算</a>
+              <a href="./outputs/promo_budget_preview/latest.json">预算预览</a>
+            </div>
+          </article>
+
+          <article class="module module-receipt" id="sales-receipts">
+            <div class="module-head">
+              <div>
+                <p>销售单</p>
+                <h2>销售单据生成器</h2>
+              </div>
+              <span class="tag ready">已接入</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number">一页打印</div>
+              <p>输入收货单位、销售时间、项目、数量和单位即可生成销售单；金额可留空，公章已内置，打印时自动适配一页。</p>
+              <div class="mini-table">
+                <div class="good-row"><span>销售单位</span><strong>成都熊小小餐饮管理有限公司</strong><em>固定</em></div>
+                <div><span>金额</span><strong>可选填写</strong><em>留空时不显示金额列</em></div>
+              </div>
+            </div>
+            <div class="module-actions">
+              <a href="./sales-receipt-generator/index.html">打开销售单</a>
+            </div>
+          </article>
+        </section>
+
+      </section>
+    </main>
+    <script src="./workbench-data.js?v=20260606-1358"></script>
+    <script src="./workbench.js?v=20260611-restore-realtime"></script>
+  </body>
+</html>

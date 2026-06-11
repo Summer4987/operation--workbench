@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>采购后台总览预览</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shot">
+    <section class="shell">
+      <aside class="side">
+        <div class="brand">订货采购台</div>
+        <nav class="nav">
+          <div class="active">今日汇总</div>
+          <div>门店提交</div>
+          <div>品项维护</div>
+          <div>供应平台</div>
+          <div>历史记录</div>
+        </nav>
+      </aside>
+      <section class="main">
+        <div class="topline">
+          <div>
+            <div class="kicker">2026-06-03 周三</div>
+            <h1>今日采购汇总</h1>
+          </div>
+          <div class="toolbar">
+            <div class="chip">按平台分组</div>
+            <div class="chip">导出 Excel</div>
+            <div class="primary-chip">生成采购单</div>
+          </div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><div class="label">已提交门店</div><div class="value">3 / 5</div><div class="hint">2 家待提醒</div></div>
+          <div class="metric"><div class="label">订货品项</div><div class="value">18</div><div class="hint">自动合并同名品项</div></div>
+          <div class="metric"><div class="label">采购平台</div><div class="value">4</div><div class="hint">按平台拆单</div></div>
+          <div class="metric"><div class="label">异常备注</div><div class="value">3</div><div class="hint">需要人工确认</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><span>平台采购清单</span><span class="tag">自动汇总</span></div>
+            <table>
+              <thead><tr><th>平台</th><th>品项</th><th>总数量</th><th>涉及门店</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td>平台A</td><td>鸡蛋</td><td><b>78斤</b></td><td>金融街、朝阳、望京</td><td><span class="status ok">可采购</span></td></tr>
+                <tr><td>平台B</td><td>生菜</td><td><b>42斤</b></td><td>金融街、望京</td><td><span class="status warn">有备注</span></td></tr>
+                <tr><td>平台C</td><td>牛肉卷</td><td><b>23包</b></td><td>金融街、朝阳</td><td><span class="status ok">可采购</span></td></tr>
+                <tr><td>平台A</td><td>西红柿</td><td><b>35斤</b></td><td>朝阳、望京</td><td><span class="status ok">可采购</span></td></tr>
+                <tr><td>平台D</td><td>一次性餐盒</td><td><b>6箱</b></td><td>望京</td><td><span class="status warn">库存低</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span>门店提交进度</span><span class="tag">16:00 截止</span></div>
+            <div class="store-list">
+              <div class="store-row"><div><div class="store-name">金融街店</div><div class="store-meta">15:27 提交，3 个品项</div></div><span class="status ok">已提交</span></div>
+              <div class="store-row"><div><div class="store-name">朝阳店</div><div class="store-meta">15:31 提交，6 个品项</div></div><span class="status ok">已提交</span></div>
+              <div class="store-row"><div><div class="store-name">望京店</div><div class="store-meta">15:44 提交，9 个品项</div></div><span class="status ok">已提交</span></div>
+              <div class="store-row"><div><div class="store-name">国贸店</div><div class="store-meta">未提交，已自动提醒</div></div><span class="status bad">待提交</span></div>
+              <div class="store-row"><div><div class="store-name">三里屯店</div><div class="store-meta">未提交，店长未读</div></div><span class="status bad">待提交</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

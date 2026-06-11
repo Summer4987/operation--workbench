@@ -1,0 +1,90 @@
+[
+  {
+    "sku": "CWXXX0003",
+    "name": "熊小小牛排饭-寿司调味汁",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 255
+  },
+  {
+    "sku": "CWXXX0002",
+    "name": "熊小小牛排饭-双椒酱",
+    "spec": "12kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 276
+  },
+  {
+    "sku": "CWXXX0001",
+    "name": "熊小小牛排饭-拌饭汁",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 327
+  },
+  {
+    "sku": "LDXXX0009",
+    "name": "熊小小牛排饭-藤椒酱（冻）",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 240
+  },
+  {
+    "sku": "LDXXX0008",
+    "name": "熊小小牛排饭-拌鱼酱（冻）",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 175
+  },
+  {
+    "sku": "LDXXX0006",
+    "name": "熊小小牛排饭-冷冻菠菜（冻）",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 60
+  },
+  {
+    "sku": "LDXXX0005",
+    "name": "熊小小牛排饭-冷冻西兰花（冻）",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 56
+  },
+  {
+    "sku": "LDXXX0004",
+    "name": "熊小小牛排饭-调理手枪腿（冻）",
+    "spec": "15kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 253.5
+  },
+  {
+    "sku": "LDXXX0003",
+    "name": "熊小小牛排饭-调理鸡胸肉（冻）",
+    "spec": "14.4kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 249.12
+  },
+  {
+    "sku": "LDXXX0002",
+    "name": "熊小小牛排饭-三文鱼块（冻）",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 700
+  },
+  {
+    "sku": "LDXXX0001",
+    "name": "熊小小牛排饭-牛五花牛排（冻）",
+    "spec": "20kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "unit_cost": 1316.510638
+  }
+]

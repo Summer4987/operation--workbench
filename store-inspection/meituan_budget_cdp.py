@@ -1,0 +1,308 @@
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import time
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from playwright.sync_api import sync_playwright
+
+from one_click_meituan_balance import recent_meituan_promo_url
+
+
+ROOT = Path(__file__).resolve().parent
+WORKSPACE = ROOT.parent
+PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
+LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
+
+WM_POI_IDS = {
+    "第3档口": "30703865",
+    "川湘府": "32346101",
+    "金融街": "31264210",
+    "光谷": "33283802",
+    "双井": "32949755",
+    "第13档口": "32914406",
+    "保利中心": "32022526",
+    "安贞": "28944820",
+    "五一广场": "32744963",
+}
+
+
+def load_tasks(period: str) -> list[dict]:
+    payload = json.loads(PREVIEW_PATH.read_text(encoding="utf-8"))
+    key = "meituan_dinner" if period == "晚餐" else "meituan_lunch"
+    return [item for item in payload.get(key, []) if item.get("status") == "auto"]
+
+
+def resolve_period(period: str) -> str:
+    if period in {"午餐", "晚餐"}:
+        return period
+    return "午餐" if time.localtime().tm_hour < 15 else "晚餐"
+
+
+def wm_poi_id(task: dict) -> str:
+    joined = " ".join(str(task.get(key, "")) for key in ["keyword", "store", "sourceStore"])
+    for keyword, value in WM_POI_IDS.items():
+        if keyword in joined:
+            return value
+    raise RuntimeError(f"没有门店 wmPoiId：{joined}")
+
+
+def url_for_store(base_url: str, wm_id: str) -> str:
+    parts = urlsplit(base_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["wmPoiId"] = wm_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), "/index"))
+
+
+def page_text(page) -> str:
+    return page.locator("body").inner_text(timeout=10000)
+
+
+def read_budget(page) -> float | None:
+    text = page_text(page)
+    patterns = [
+        r"(?:推广预算|每日预算)\s*(?:预算已耗尽|已消耗\s*\d+%)?\s*(\d+(?:\.\d+)?)\s*元",
+        r"(?:推广预算|每日预算).*?\n(\d+(?:\.\d+)?)\n元",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.S)
+        if match:
+            return float(match.group(1))
+    return None
+
+
+def wait_budget(page, *, timeout_seconds: int = 15) -> float | None:
+    last_value = None
+    for _ in range(timeout_seconds):
+        value = read_budget(page)
+        if value and value > 0:
+            return value
+        last_value = value
+        time.sleep(1)
+    return last_value
+
+
+def click_visible_text(page, label: str) -> bool:
+    locator = page.get_by_text(label)
+    for index in range(locator.count()):
+        item = locator.nth(index)
+        try:
+            if item.is_visible():
+                item.click(timeout=5000)
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def enter_dianjin(page) -> None:
+    if not click_visible_text(page, "点金推广"):
+        raise RuntimeError("没有可见的点金推广入口")
+    for _ in range(15):
+        time.sleep(1)
+        text = page_text(page)
+        if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
+            return
+    raise RuntimeError("进入点金推广后没有预算区域")
+
+
+def open_budget_modal(page) -> None:
+    def opened() -> bool:
+        return (
+            page.get_by_text("预算设置").count() > 0
+            and page.locator('input[type="number"]').count() > 0
+            and page.get_by_role("button", name="确定").count() > 0
+        )
+
+    def budget_click_boxes() -> list[dict]:
+        return page.evaluate(
+            """() => {
+                const visible = (el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0
+                        && style.display !== 'none'
+                        && style.visibility !== 'hidden';
+                };
+                const boxes = [];
+                const lines = [
+                    ...document.querySelectorAll(
+                        '.isomor-cpc-fresh-budget-line, .isomor-cpc-fresh-budget-lines, [class*=budget]'
+                    )
+                ];
+                for (const line of lines) {
+                    const text = (line.innerText || '').trim();
+                    if (!/(推广预算|每日预算|预算已耗尽|已消耗)/.test(text)) {
+                        continue;
+                    }
+                    const candidates = [
+                        ...line.querySelectorAll(
+                            '.isomor-cpc-fresh-right-wrapper, [class*=right-wrapper], [class*=cursor], [class*=arrow], [class*=action]'
+                        )
+                    ].filter(visible);
+                    const target = candidates[0] || line;
+                    if (!visible(target)) {
+                        continue;
+                    }
+                    const rect = target.getBoundingClientRect();
+                    boxes.push({x: rect.x, y: rect.y, w: rect.width, h: rect.height});
+                }
+                return boxes;
+            }"""
+        )
+
+    for _ in range(4):
+        for box in budget_click_boxes():
+            page.mouse.click(box["x"] + box["w"] / 2, box["y"] + box["h"] / 2)
+            time.sleep(1)
+            if opened():
+                return
+
+    for label in ["推广预算", "每日预算"]:
+        locator = page.get_by_text(label)
+        for index in range(locator.count()):
+            item = locator.nth(index)
+            try:
+                if not item.is_visible():
+                    continue
+                box = item.bounding_box()
+                if not box:
+                    continue
+                for dx in [20, 120, 250, 340]:
+                    page.mouse.click(box["x"] + dx, box["y"] + 8)
+                    time.sleep(1)
+                    if opened():
+                        return
+            except Exception:
+                pass
+    raise RuntimeError("未打开预算设置弹窗，可能当前门店预算区域不可编辑")
+
+
+def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
+    target = float(task["targetBudget"])
+    wm_id = wm_poi_id(task)
+    page = context.new_page()
+    record = {
+        "store": task.get("store"),
+        "keyword": task.get("keyword"),
+        "wmPoiId": wm_id,
+        "targetBudget": target,
+        "ok": False,
+    }
+    try:
+        page.goto(url_for_store(base_url, wm_id), wait_until="domcontentloaded", timeout=30000)
+        time.sleep(5)
+        enter_dianjin(page)
+        record["beforeBudget"] = wait_budget(page)
+        if not commit:
+            record["ok"] = True
+            record["message"] = "预览模式：已打开门店并读取当前预算，未保存修改"
+            return record
+        if record["beforeBudget"] is not None and abs(record["beforeBudget"] - target) <= 0.01:
+            record["afterBudget"] = record["beforeBudget"]
+            record["ok"] = True
+            record["message"] = "页面预算已是目标值，无需重复保存"
+            return record
+        open_budget_modal(page)
+        input_box = page.locator('input[type="number"]').first
+        record["beforeInput"] = input_box.input_value(timeout=3000)
+        value = str(int(target) if target.is_integer() else target)
+        input_box.fill(value)
+        time.sleep(0.3)
+        record["afterInput"] = input_box.input_value(timeout=3000)
+        if float(record["afterInput"]) != target:
+            raise RuntimeError(f"输入框未变为目标预算：{record['afterInput']}")
+        page.get_by_role("button", name="确定").click(timeout=5000)
+        time.sleep(6)
+        final_budget = read_budget(page)
+        record["afterBudget"] = final_budget
+        if final_budget is None or abs(final_budget - target) > 0.01:
+            raise RuntimeError(f"保存后预算={final_budget}，目标={target}")
+        record["ok"] = True
+        record["message"] = "已保存并读回确认"
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+    return record
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--period", default="auto", choices=["auto", "午餐", "晚餐"])
+    parser.add_argument("--mode", default="commit", choices=["preview", "commit"])
+    parser.add_argument("--limit", default="all", help="执行数量；默认 all。预览时可用 1 快速验证。")
+    parser.add_argument("--stores", default="", help="只执行指定门店关键词，逗号分隔，例如：第3档口,川湘府")
+    args = parser.parse_args()
+    period = resolve_period(args.period)
+    commit = args.mode == "commit"
+
+    base_url = recent_meituan_promo_url()
+    if not base_url:
+        raise RuntimeError("没有找到本地 Chrome 最近的美团推广 URL，请先在本地 Chrome 打开一次美团点金推广页。")
+
+    tasks = load_tasks(period)
+    if args.stores.strip():
+        keywords = [item.strip() for item in args.stores.split(",") if item.strip()]
+        tasks = [
+            task for task in tasks
+            if any(keyword in " ".join(str(task.get(key, "")) for key in ["keyword", "store", "sourceStore"]) for keyword in keywords)
+        ]
+        if not tasks:
+            raise RuntimeError(f"没有匹配到指定门店：{args.stores}")
+    if args.limit != "all":
+        try:
+            limit = int(args.limit)
+        except ValueError as exc:
+            raise RuntimeError("--limit 必须是 all 或正整数") from exc
+        if limit < 1:
+            raise RuntimeError("--limit 必须是 all 或正整数")
+        tasks = tasks[:limit]
+
+    results = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
+        for task in tasks:
+            try:
+                print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode})", flush=True)
+                results.append(execute_task(context, base_url, task, commit=commit))
+            except Exception as exc:
+                results.append({
+                    "store": task.get("store"),
+                    "keyword": task.get("keyword"),
+                    "targetBudget": task.get("targetBudget"),
+                    "ok": False,
+                    "error": str(exc),
+                })
+                print(f"失败：{task.get('keyword')}：{exc}", flush=True)
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    output = LOG_DIR / f"meituan_cdp_{period}_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    output.write_text(
+        json.dumps(
+            {
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "period": period,
+                "requestedPeriod": args.period,
+                "mode": args.mode,
+                "results": results,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    ok_count = sum(1 for item in results if item.get("ok"))
+    fail_count = len(results) - ok_count
+    print(f"美团预算执行日志：{output}")
+    print(f"任务数：{len(results)}，成功：{ok_count}，失败：{fail_count}")
+    return 0 if fail_count == 0 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

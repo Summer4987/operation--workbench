@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>点金推广规则原型</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>点金推广规则原型</h1>
+          <p>先验证预算任务和出价判断，暂不操作后台。</p>
+        </div>
+        <div class="status-pill">
+          <span id="taskCount">0</span>
+          <span>条任务</span>
+        </div>
+      </header>
+
+      <section class="control-panel" aria-label="筛选任务">
+        <label>
+          时段
+          <select id="periodFilter">
+            <option value="all">全部</option>
+            <option value="午餐">午餐</option>
+            <option value="晚餐">晚餐</option>
+          </select>
+        </label>
+        <label>
+          时间
+          <select id="timeFilter">
+            <option value="all">全部</option>
+          </select>
+        </label>
+        <label>
+          门店
+          <select id="storeFilter">
+            <option value="all">全部门店</option>
+          </select>
+        </label>
+        <label>
+          任务类型
+          <select id="typeFilter">
+            <option value="all">全部</option>
+            <option value="budget">预算初始化</option>
+            <option value="bid-check">消耗检查</option>
+          </select>
+        </label>
+        <label>
+          状态
+          <select id="statusFilter">
+            <option value="all">全部状态</option>
+            <option value="pending">未执行</option>
+            <option value="done">已完成</option>
+            <option value="skipped">已跳过</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="workspace">
+        <div class="task-list-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>任务清单</h2>
+              <p id="progressText" class="panel-subtitle">未执行 0 · 已完成 0 · 已跳过 0</p>
+            </div>
+            <div class="heading-actions">
+              <button id="showNextTask" type="button">下一条未执行</button>
+              <button id="exportLog" type="button">导出日志</button>
+              <button id="resetLog" type="button">清空</button>
+            </div>
+          </div>
+          <div id="taskList" class="task-list"></div>
+        </div>
+
+        <aside class="detail-panel">
+          <div class="panel-heading">
+            <h2>当前任务</h2>
+            <span id="selectedType" class="muted">未选择</span>
+          </div>
+
+          <div id="taskDetail" class="task-detail empty-state">
+            选择左侧任务后，这里会显示预算或出价判断。
+          </div>
+
+          <div id="taskActions" class="task-actions hidden">
+            <button id="markDone" type="button">记录完成</button>
+            <button id="markSkipped" type="button">跳过任务</button>
+            <button id="markPending" type="button">恢复未执行</button>
+          </div>
+
+          <div id="automationPreview" class="automation-preview hidden"></div>
+
+          <div id="simulator" class="simulator hidden">
+            <label>
+              实际消耗金额
+              <input id="actualSpend" type="number" min="0" step="0.01" placeholder="例如 8" />
+            </label>
+            <button id="calculateBtn" type="button">计算出价动作</button>
+            <div id="calcResult" class="calc-result"></div>
+          </div>
+
+          <div class="log-panel">
+            <h2>模拟日志</h2>
+            <div id="actionLog" class="action-log">暂无记录</div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./rules.js"></script>
+    <script src="./logic.js"></script>
+    <script src="./current_state.js"></script>
+    <script src="./execution_preview.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

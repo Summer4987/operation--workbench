@@ -1,0 +1,32 @@
+{
+  "chrome": {
+    "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "user_data_dir": "/Users/summer/Documents/mac-mini-operation-migration/New project/business-report-dashboard/chrome-profile",
+    "profile_directory": "Default",
+    "debug_port": 9222
+  },
+  "platforms": {
+    "eleme": {
+      "name": "饿了么",
+      "entry_url": "https://melody.shop.ele.me/",
+      "download_url": "https://melody.shop.ele.me/app/chain/93331264/downloadCenter#app.chainshop.downloadCenter",
+      "ready_texts": [
+        "数据下载",
+        "报表下载",
+        "下载管理",
+        "商家版"
+      ]
+    },
+    "meituan": {
+      "name": "美团",
+      "entry_url": "https://e.waimai.meituan.com/",
+      "download_url": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
+      "ready_texts": [
+        "报表下载",
+        "下载数据",
+        "经营分析",
+        "美团外卖"
+      ]
+    }
+  }
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>门店线上巡检</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+            <p class="kicker">每天 10:00</p>
+          <h1>门店线上巡检</h1>
+          <p class="sub">先巡检推广余额，低于 100 元提醒。</p>
+        </div>
+        <a class="back" href="../index.html">返回工作台</a>
+      </header>
+
+      <section class="stats">
+        <article>
+          <span>巡检平台</span>
+          <strong id="platformCount">-</strong>
+          <em>饿了么 + 美团</em>
+        </article>
+        <article>
+          <span>门店范围</span>
+          <strong id="storeCount">-</strong>
+          <em>总账号内所有门店</em>
+        </article>
+        <article>
+          <span>低余额提醒</span>
+          <strong id="warningCount">-</strong>
+          <em>只在工作台显示</em>
+        </article>
+        <article>
+          <span>最低余额</span>
+          <strong id="lowestBalance">-</strong>
+          <em id="generatedAt">等待巡检</em>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>推广余额巡检</h2>
+            <p>按平台和门店展示余额，低于阈值自动标红。</p>
+          </div>
+          <div class="tools">
+            <select id="statusFilter" aria-label="筛选状态">
+              <option value="all">全部状态</option>
+              <option value="warning">只看提醒</option>
+              <option value="normal">只看正常</option>
+            </select>
+            <input id="searchInput" type="search" placeholder="搜索门店或ID" />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>平台</th>
+                <th>门店</th>
+                <th>门店ID</th>
+                <th>推广余额</th>
+                <th>状态</th>
+                <th>来源</th>
+              </tr>
+            </thead>
+            <tbody id="inspectionRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel next">
+        <div class="panel-head">
+          <div>
+            <h2>采集规则</h2>
+            <p>第一版采集饿了么和美团推广余额，低于阈值只在工作台提醒。</p>
+          </div>
+        </div>
+        <div class="rule-grid">
+          <div><span>饿了么余额页</span><strong>https://e.ele.me/#/iframe/home</strong></div>
+          <div><span>饿了么路径</span><strong>立即充值 → 分店账户 → 账户明细及转账</strong></div>
+          <div><span>美团路径</span><strong>门店推广 → 推广首页 → 我的账户 → 逐店切换</strong></div>
+          <div><span>提醒阈值</span><strong>低于 100 元</strong></div>
+          <div><span>提醒方式</span><strong>只在工作台显示</strong></div>
+        </div>
+      </section>
+    </main>
+    <script src="./latest-data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

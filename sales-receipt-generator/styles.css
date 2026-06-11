@@ -1,0 +1,521 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #18202a;
+  background: #f4f5f1;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(340px, 480px) 1fr;
+}
+
+.editor {
+  padding: 28px;
+  background: #ffffff;
+  border-right: 1px solid #dcded6;
+}
+
+.editor-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 26px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #75806f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.field {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.field span,
+.items-head h2 {
+  display: block;
+  margin-bottom: 8px;
+  color: #465143;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #cfd5ca;
+  border-radius: 7px;
+  background: #fbfcfa;
+  color: #18202a;
+  padding: 11px 12px;
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #54714c;
+  box-shadow: 0 0 0 3px rgba(84, 113, 76, .15);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 86px;
+}
+
+.seal-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.seal-controls input {
+  min-height: 42px;
+}
+
+.items-head,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0 10px;
+}
+
+.item-table {
+  margin-bottom: 18px;
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 74px 72px 100px 36px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.item-row-head {
+  margin-bottom: 6px;
+  color: #697365;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.primary-btn,
+.secondary-btn,
+.icon-btn {
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.primary-btn {
+  width: 100%;
+  min-height: 46px;
+  color: #fff;
+  background: #405d3b;
+}
+
+.secondary-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  color: #324030;
+  background: #e8ece2;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  color: #8d332b;
+  background: #f4e5e1;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.preview-wrap {
+  padding: 34px;
+  overflow: auto;
+}
+
+.receipt {
+  width: min(850px, 100%);
+  min-height: 760px;
+  margin: 0 auto;
+  padding: 42px;
+  background: #fff;
+  border: 1px solid #d8dacf;
+  box-shadow: 0 18px 55px rgba(35, 44, 31, .12);
+}
+
+.receipt-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-end;
+  padding-bottom: 18px;
+  border-bottom: 3px solid #263526;
+}
+
+.receipt-title h2 {
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+.receipt-title p {
+  color: #50594d;
+  font-size: 14px;
+}
+
+.receipt-meta {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr .8fr;
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.receipt-meta div,
+.receipt-note {
+  padding: 12px;
+  border: 1px solid #d9ded3;
+  background: #fbfcf9;
+}
+
+.receipt-meta span,
+.receipt-note span {
+  display: block;
+  margin-bottom: 6px;
+  color: #65705f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.receipt-meta strong {
+  display: block;
+  min-height: 22px;
+  font-size: 16px;
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 4px 0 18px;
+}
+
+.receipt-table th,
+.receipt-table td {
+  border: 1px solid #283328;
+  padding: 12px 10px;
+  text-align: center;
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+.receipt-table th {
+  background: #edf1e7;
+}
+
+.receipt-table th:nth-child(1),
+.receipt-table td:nth-child(1) {
+  width: 70px;
+}
+
+.receipt-table th:nth-child(3),
+.receipt-table td:nth-child(3),
+.receipt-table th:nth-child(4),
+.receipt-table td:nth-child(4),
+.receipt-table th:nth-child(5),
+.receipt-table td:nth-child(5) {
+  width: 112px;
+}
+
+.receipt-table td:nth-child(2) {
+  text-align: left;
+}
+
+.receipt-table tfoot td {
+  font-weight: 900;
+}
+
+.receipt-table.no-amounts th:nth-child(5),
+.receipt-table.no-amounts td:nth-child(5),
+.receipt-table.no-amounts tfoot {
+  display: none;
+}
+
+.receipt-note {
+  min-height: 86px;
+}
+
+.receipt-note p {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.signature-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 58px;
+  color: #30382d;
+  font-weight: 800;
+}
+
+.signature-box {
+  position: relative;
+  min-height: 108px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.seal-image {
+  position: absolute;
+  left: 74px;
+  bottom: 12px;
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  opacity: .88;
+  transform: rotate(-6deg);
+  pointer-events: none;
+}
+
+.seal-image[hidden] {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .editor {
+    padding: 18px;
+    border-right: 0;
+    border-bottom: 1px solid #dcded6;
+  }
+
+  .field-grid,
+  .receipt-meta,
+  .signature-row {
+    grid-template-columns: 1fr;
+  }
+
+  .item-row {
+    grid-template-columns: minmax(120px, 1fr) 68px 68px 92px 34px;
+  }
+
+  .preview-wrap {
+    padding: 18px;
+  }
+
+  .receipt {
+    padding: 18px;
+  }
+
+  .seal-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .receipt-title h2 {
+    font-size: 28px;
+  }
+
+  .receipt-table th,
+  .receipt-table td {
+    padding: 10px 6px;
+    font-size: 14px;
+  }
+
+  .receipt-table th:nth-child(1),
+  .receipt-table td:nth-child(1) {
+    width: 48px;
+  }
+
+  .receipt-table th:nth-child(3),
+  .receipt-table td:nth-child(3),
+  .receipt-table th:nth-child(4),
+  .receipt-table td:nth-child(4),
+  .receipt-table th:nth-child(5),
+  .receipt-table td:nth-child(5) {
+    width: 68px;
+  }
+
+  .receipt-table th:nth-child(5),
+  .receipt-table td:nth-child(5) {
+    width: 80px;
+  }
+
+  .seal-image {
+    left: 56px;
+    width: 110px;
+    height: 110px;
+  }
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .editor {
+    display: none;
+  }
+
+  .app-shell {
+    display: block;
+    min-height: 0;
+  }
+
+  .preview-wrap {
+    padding: 0;
+    overflow: visible;
+  }
+
+  .receipt {
+    width: 194mm;
+    min-height: auto;
+    margin: 0 auto;
+    padding: 7mm 8mm;
+    border: 0;
+    box-shadow: none;
+    zoom: var(--print-zoom, 1);
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .receipt-title {
+    padding-bottom: 7mm;
+    border-bottom-width: 2px;
+  }
+
+  .receipt-title h2 {
+    font-size: 28px;
+  }
+
+  .receipt-title p {
+    font-size: 12px;
+  }
+
+  .receipt-meta {
+    gap: 8px;
+    margin: 8mm 0 5mm;
+  }
+
+  .receipt-meta div,
+  .receipt-note {
+    padding: 8px 10px;
+  }
+
+  .receipt-meta span,
+  .receipt-note span {
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+
+  .receipt-meta strong {
+    min-height: 18px;
+    font-size: 14px;
+  }
+
+  .receipt-table {
+    margin: 0 0 5mm;
+  }
+
+  .receipt-table th,
+  .receipt-table td {
+    padding: 7px 6px;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  .receipt-table th:nth-child(1),
+  .receipt-table td:nth-child(1) {
+    width: 48px;
+  }
+
+  .receipt-table th:nth-child(3),
+  .receipt-table td:nth-child(3),
+  .receipt-table th:nth-child(4),
+  .receipt-table td:nth-child(4) {
+    width: 72px;
+  }
+
+  .receipt-table th:nth-child(5),
+  .receipt-table td:nth-child(5) {
+    width: 92px;
+  }
+
+  .receipt-note {
+    min-height: 50px;
+  }
+
+  .receipt-note p {
+    line-height: 1.4;
+  }
+
+  .signature-row {
+    gap: 22px;
+    margin-top: 9mm;
+    font-size: 13px;
+  }
+
+  .signature-box {
+    min-height: 72px;
+  }
+
+  .seal-image {
+    left: 54px;
+    bottom: 0;
+    width: 90px;
+    height: 90px;
+  }
+
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+}

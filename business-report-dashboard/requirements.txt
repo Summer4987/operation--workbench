@@ -1,0 +1,3 @@
+pandas
+openpyxl
+playwright==1.55.0

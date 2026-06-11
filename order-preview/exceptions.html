@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>异常提醒预览</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shot">
+    <section class="shell">
+      <aside class="side">
+        <div class="brand">订货采购台</div>
+        <nav class="nav">
+          <div>今日汇总</div>
+          <div class="active">异常提醒</div>
+          <div>门店提交</div>
+          <div>品项维护</div>
+          <div>历史记录</div>
+        </nav>
+      </aside>
+      <section class="main">
+        <div class="topline">
+          <div>
+            <div class="kicker">截止前检查</div>
+            <h1>需要你处理的事项</h1>
+          </div>
+          <div class="toolbar">
+            <div class="chip">一键提醒未提交</div>
+            <div class="primary-chip">确认并采购</div>
+          </div>
+        </div>
+        <div class="wide-grid">
+          <div>
+            <div class="alert-card callout">
+              <h2>2 家门店还没提交</h2>
+              <p>国贸店、三里屯店超过 15:45 仍未提交。系统可以自动在微信群里点名提醒，也可以单独发给店长。</p>
+            </div>
+            <div class="alert-card">
+              <h2>3 条备注需要确认</h2>
+              <p>例如“生菜尽量新鲜”“牛肉卷晚点送也可以”，这些会单独标出来，避免被埋在聊天里。</p>
+            </div>
+            <div class="alert-card">
+              <h2>1 个品项名称疑似重复</h2>
+              <p>“西红柿”和“番茄”可能是同一个品项，确认一次后以后会自动合并。</p>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span>按平台拆好的采购单</span><span class="tag">可直接照单下单</span></div>
+            <div class="purchase-card">
+              <div class="purchase-top"><span class="platform">平台A</span><span class="status ok">4 个品项</span></div>
+              <div class="purchase-line"><span>鸡蛋：金融街 30斤、朝阳 28斤、望京 20斤</span><span class="count">78斤</span></div>
+              <div class="purchase-line"><span>西红柿：朝阳 15斤、望京 20斤</span><span class="count">35斤</span></div>
+            </div>
+            <div class="purchase-card">
+              <div class="purchase-top"><span class="platform">平台B</span><span class="status warn">有备注</span></div>
+              <div class="purchase-line"><span>生菜：金融街 12斤、望京 30斤</span><span class="count">42斤</span></div>
+              <div class="purchase-line"><span>黄瓜：朝阳 16斤</span><span class="count">16斤</span></div>
+            </div>
+            <div class="purchase-card">
+              <div class="purchase-top"><span class="platform">平台C</span><span class="status ok">2 个品项</span></div>
+              <div class="purchase-line"><span>牛肉卷：金融街 8包、朝阳 15包</span><span class="count">23包</span></div>
+              <div class="purchase-line"><span>鸡腿肉：望京 12袋</span><span class="count">12袋</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

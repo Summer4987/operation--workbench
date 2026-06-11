@@ -1,0 +1,118 @@
+{
+  "stores": {
+    "安贞店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      },
+      "美团": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      }
+    },
+    "保利中心店": {
+      "饿了么": {
+        "lunchBudget": 80,
+        "dinnerBudget": 120
+      },
+      "美团": {
+        "lunchBudget": 80,
+        "dinnerBudget": 120
+      }
+    },
+    "朝阳门店": {
+      "饿了么": {
+        "lunchBudget": 120,
+        "dinnerBudget": 200
+      }
+    },
+    "第2号档口利康金桥美食城": {
+      "饿了么": {
+        "lunchBudget": 120,
+        "dinnerBudget": 200
+      },
+      "美团": {
+        "lunchBudget": 120,
+        "dinnerBudget": 200
+      }
+    },
+    "第5号档口川湘府美食城店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      },
+      "美团": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      }
+    },
+    "光谷店": {
+      "饿了么": {
+        "lunchBudget": 65,
+        "dinnerBudget": 100
+      },
+      "美团": {
+        "lunchBudget": 65,
+        "dinnerBudget": 100
+      }
+    },
+    "金融城店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      }
+    },
+    "金融街店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      },
+      "美团": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      }
+    },
+    "丽泽店": {
+      "饿了么": {
+        "lunchBudget": 80,
+        "dinnerBudget": 120
+      },
+      "美团": {
+        "lunchBudget": 80,
+        "dinnerBudget": 120
+      }
+    },
+    "双井店": {
+      "饿了么": {
+        "lunchBudget": 80,
+        "dinnerBudget": 150
+      },
+      "美团": {
+        "lunchBudget": 80,
+        "dinnerBudget": 150
+      }
+    },
+    "万象城店": {
+      "饿了么": {
+        "lunchBudget": 60,
+        "dinnerBudget": 120
+      }
+    },
+    "五一广场店": {
+      "饿了么": {
+        "lunchBudget": 50,
+        "dinnerBudget": 100
+      },
+      "美团": {
+        "lunchBudget": 50,
+        "dinnerBudget": 100
+      }
+    },
+    "银泰城店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150
+      }
+    }
+  }
+}
