@@ -559,6 +559,7 @@ h2 {
 
 .realtime-primary div {
   min-width: 0;
+  overflow: hidden;
   padding: 10px;
   border: 1px solid #e7edf4;
   border-radius: 8px;
@@ -580,6 +581,10 @@ h2 {
   font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
+}
+
+.realtime-primary div:first-child strong {
+  font-size: 18px;
 }
 
 .platform-breakdown {
