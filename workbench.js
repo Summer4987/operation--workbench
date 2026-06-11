@@ -150,18 +150,48 @@ function realtimeStoreOrders(item) {
   return Number(item.orders ?? item.total_orders ?? 0);
 }
 
-function realtimeStoreDetail(item) {
+function realtimePlatformMetrics(item) {
   const platforms = item.platforms || {};
   const eleme = platforms["饿了么"] || item.eleme || {};
   const meituan = platforms["美团"] || item.meituan || {};
-  const elemeOrders = Number(item.eleme_orders ?? eleme.orders ?? 0);
-  const elemeIncome = Number(item.eleme_income ?? eleme.income ?? 0);
-  const meituanOrders = Number(item.meituan_orders ?? meituan.orders ?? 0);
-  const meituanIncome = Number(item.meituan_income ?? meituan.income ?? 0);
-  const parts = [];
-  if (elemeOrders || elemeIncome) parts.push(`饿了么 ${num(elemeOrders)} 单 / ${yuan(elemeIncome)}`);
-  if (meituanOrders || meituanIncome) parts.push(`美团 ${num(meituanOrders)} 单 / ${yuan(meituanIncome)}`);
+  return [
+    {
+      key: "eleme",
+      name: "饿了么",
+      orders: Number(item.eleme_orders ?? eleme.orders ?? 0),
+      income: Number(item.eleme_income ?? eleme.income ?? 0),
+    },
+    {
+      key: "meituan",
+      name: "美团",
+      orders: Number(item.meituan_orders ?? meituan.orders ?? 0),
+      income: Number(item.meituan_income ?? meituan.income ?? 0),
+    },
+  ];
+}
+
+function realtimeStoreDetail(item) {
+  const parts = realtimePlatformMetrics(item)
+    .filter((platform) => platform.orders || platform.income)
+    .map((platform) => `${platform.name} ${num(platform.orders)} 单 / ${yuan(platform.income)}`);
   return parts.join(" · ") || "等待平台拆分";
+}
+
+function renderRealtimePlatformRows(item) {
+  const activePlatforms = realtimePlatformMetrics(item).filter((platform) => platform.orders || platform.income);
+  if (!activePlatforms.length) return '<div class="platform-empty">等待平台拆分</div>';
+  return activePlatforms
+    .map(
+      (platform) => `
+        <div class="platform-row platform-${platform.key}">
+          <span>${platform.name}</span>
+          <div class="platform-figures">
+            <strong>${yuan(platform.income)}</strong>
+            <em>${num(platform.orders)} 单</em>
+          </div>
+        </div>`
+    )
+    .join("");
 }
 
 function realtimeStoreCompare(item, compareMap) {
@@ -205,7 +235,24 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
       .slice(0, 8),
     (item) => {
       const store = item.store || item.store_name || item.name || "未命名门店";
-      return `<div class="realtime-store"><span>${store}</span><strong>${yuan(realtimeStoreIncome(item))}</strong><em>${num(realtimeStoreOrders(item))} 单</em><em class="realtime-compare">${realtimeStoreCompare(item, compareMap)}</em><em>${realtimeStoreDetail(item)}</em></div>`;
+      return `
+        <div class="realtime-store">
+          <div class="realtime-store-head">
+            <span>${escapeHtml(store)}</span>
+            <em class="realtime-compare">${escapeHtml(realtimeStoreCompare(item, compareMap))}</em>
+          </div>
+          <div class="realtime-primary">
+            <div>
+              <span>收入</span>
+              <strong>${yuan(realtimeStoreIncome(item))}</strong>
+            </div>
+            <div>
+              <span>单量</span>
+              <strong>${num(realtimeStoreOrders(item))} 单</strong>
+            </div>
+          </div>
+          <div class="platform-breakdown">${renderRealtimePlatformRows(item)}</div>
+        </div>`;
     }
   );
 }
