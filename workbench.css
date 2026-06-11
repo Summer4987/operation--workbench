@@ -553,7 +553,7 @@ h2 {
 
 .realtime-primary {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(74px, 0.65fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(82px, 0.75fr);
   gap: 8px;
 }
 
@@ -575,11 +575,14 @@ h2 {
 }
 
 .realtime-primary strong {
+  min-width: 0;
   color: #0f172a;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 950;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
