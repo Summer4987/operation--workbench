@@ -553,14 +553,14 @@ h2 {
 
 .realtime-primary {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(82px, 0.75fr);
+  grid-template-columns: minmax(118px, 1.45fr) minmax(82px, 0.55fr);
   gap: 8px;
 }
 
 .realtime-primary div {
   min-width: 0;
   overflow: hidden;
-  padding: 10px;
+  padding: 9px 10px;
   border: 1px solid #e7edf4;
   border-radius: 8px;
   background: #f8fafc;
@@ -587,7 +587,7 @@ h2 {
 }
 
 .realtime-primary div:first-child strong {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .platform-breakdown {
