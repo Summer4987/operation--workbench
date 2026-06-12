@@ -20,7 +20,7 @@ OUTPUT_DIR = WORKSPACE / "outputs" / "store_inspection"
 SCREEN_TOOL = ROOT / "screen_tool.swift"
 OCR_TOOL = ROOT / "ocr_image.swift"
 URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
-THRESHOLD = 100.0
+THRESHOLD = 200.0
 
 STORES = [
     {"name": "熊小小牛排饭POKEBEAR（安贞店）", "keyword": "安贞"},

@@ -4,7 +4,7 @@
     "frequency": "daily"
   },
   "rules": {
-    "promotion_balance_warning": 100
+    "promotion_balance_warning": 200
   },
   "platforms": {
     "eleme": {

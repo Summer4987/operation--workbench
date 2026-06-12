@@ -275,7 +275,7 @@ def write_failure(message: str) -> None:
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "status": "failed",
         "message": message,
-        "threshold": 100.0,
+        "threshold": 200.0,
         "summary": {
             "platform_count": 1,
             "store_count": 0,
