@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[1]
 CENTER_ROOT = Path(__file__).resolve().parent
+DEFAULT_ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(os.environ.get("OPERATION_CENTER_ROOT", str(DEFAULT_ROOT))).expanduser().resolve()
 CONFIG_PATH = CENTER_ROOT / "config" / "tasks.json"
 STATE_DIR = CENTER_ROOT / "state"
 RUN_DIR = STATE_DIR / "runs"

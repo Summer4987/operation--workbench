@@ -20,6 +20,15 @@ python3 ai-business-center/center.py health
 python3 ai-business-center/center.py dashboard
 ```
 
+如果要在干净 GitHub 副本中旁路检查生产目录的真实产物，可以指定生产根目录：
+
+```bash
+OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-center/center.py health
+OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-center/center.py dashboard
+```
+
+这种方式只改变产物和脚本路径的检查根目录；状态文件仍然写入当前 `ai-business-center/state/`，不会写入生产目录。
+
 生成的状态页在：
 
 ```text
