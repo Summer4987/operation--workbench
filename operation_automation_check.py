@@ -12,7 +12,8 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 
-ROOT = Path(__file__).resolve().parent
+DEFAULT_ROOT = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get("OPERATION_CENTER_ROOT", str(DEFAULT_ROOT))).expanduser().resolve()
 CDP_PORT = 9222
 CDP_URL = f"http://127.0.0.1:{CDP_PORT}/json/version"
 WORKBENCH_HOST = os.environ.get("OPERATION_CLOUD_SERVER", "ubuntu@139.155.148.169")

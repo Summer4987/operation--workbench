@@ -29,6 +29,14 @@ OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-
 
 这种方式只改变产物和脚本路径的检查根目录；状态文件仍然写入当前 `ai-business-center/state/`，不会写入生产目录。
 
+生成每日守护报告：
+
+```bash
+OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-center/guardian.py
+```
+
+守护器会同时运行系统体检、任务健康检查和状态页生成，并把 Markdown/JSON 报告写入当前 `ai-business-center/state/reports/`。
+
 生成的状态页在：
 
 ```text
