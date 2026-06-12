@@ -11,13 +11,21 @@ from parse_balance_ocr import merge_results, write_outputs
 ROOT = Path(__file__).resolve().parent
 LATEST_JSON = ROOT / "latest.json"
 PYTHON = sys.executable
+REPORT_VENV_PYTHON = ROOT.parent / "business-report-dashboard" / ".venv" / "bin" / "python"
+
+
+def python_for_script(script_name: str) -> str:
+    if script_name == "one_click_meituan_balance.py" and REPORT_VENV_PYTHON.exists():
+        return str(REPORT_VENV_PYTHON)
+    return PYTHON
 
 
 def run_platform(script_name: str, platform_name: str, *, timeout_seconds: int = 300) -> dict:
     print(f"开始{platform_name}余额巡检...", flush=True)
     before_mtime = LATEST_JSON.stat().st_mtime if LATEST_JSON.exists() else 0
+    python = python_for_script(script_name)
     try:
-        result = subprocess.run([PYTHON, str(ROOT / script_name)], cwd=ROOT.parent, text=True, timeout=timeout_seconds)
+        result = subprocess.run([python, str(ROOT / script_name)], cwd=ROOT.parent, text=True, timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         if LATEST_JSON.exists() and LATEST_JSON.stat().st_mtime > before_mtime:
             data = json.loads(LATEST_JSON.read_text(encoding="utf-8"))
@@ -57,8 +65,7 @@ def main() -> int:
     data = merge_results(results)
     if errors:
         data["message"] = "；".join(errors)
-        if not data.get("items"):
-            data["status"] = "failed"
+        data["status"] = "partial" if data.get("items") else "failed"
     write_outputs(data)
 
     summary = data["summary"]
