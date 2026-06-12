@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import html
 import json
 import os
+import re
+import sqlite3
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -74,6 +77,134 @@ def newest_mtime(path: Path) -> float | None:
     return newest
 
 
+def json_summary(payload: Any) -> str:
+    if isinstance(payload, dict):
+        pieces = []
+        for key in ("generated_at", "status", "message"):
+            value = payload.get(key)
+            if value:
+                pieces.append(f"{key}: {value}")
+        for key in ("store_summary", "items", "stores", "tasks"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                pieces.append(f"{key}: {len(value)} 条")
+        return "；".join(pieces) or "JSON 可解析"
+    if isinstance(payload, list):
+        return f"JSON 可解析，{len(payload)} 条"
+    return "JSON 可解析"
+
+
+def validate_json(path: Path) -> tuple[str, str]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        return "invalid", f"JSON 解析失败：{exc}"
+
+    if isinstance(payload, dict):
+        status = str(payload.get("status", "")).lower()
+        if status in {"failed", "error", "blocked"}:
+            message = payload.get("message") or payload.get("error") or "产物声明失败"
+            return "invalid", f"JSON 状态异常：{message}"
+        if "store_summary" in payload and not payload.get("store_summary"):
+            return "invalid", "经营日报没有门店汇总数据"
+        if "items" in payload and status == "ok" and not payload.get("items"):
+            return "invalid", "JSON 状态为 ok，但明细为空"
+    elif isinstance(payload, list) and not payload:
+        return "invalid", "JSON 列表为空"
+
+    return "ok", json_summary(payload)
+
+
+def validate_csv(path: Path) -> tuple[str, str]:
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fieldnames = reader.fieldnames or []
+            row_count = 0
+            for row_count, _row in enumerate(reader, start=1):
+                if row_count >= 100000:
+                    break
+    except Exception as exc:
+        return "invalid", f"CSV 解析失败：{exc}"
+    if not fieldnames:
+        return "invalid", "CSV 缺少表头"
+    if row_count == 0:
+        return "invalid", "CSV 没有数据行"
+    return "ok", f"CSV 可解析，{len(fieldnames)} 列，至少 {row_count} 行"
+
+
+def validate_sqlite(path: Path) -> tuple[str, str]:
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
+            integrity = conn.execute("pragma integrity_check").fetchone()
+            if not integrity or integrity[0] != "ok":
+                return "invalid", f"SQLite 完整性异常：{integrity[0] if integrity else '无结果'}"
+            table_count = conn.execute(
+                "select count(*) from sqlite_master where type = 'table'"
+            ).fetchone()[0]
+    except Exception as exc:
+        return "invalid", f"SQLite 打开失败：{exc}"
+    if table_count == 0:
+        return "invalid", "SQLite 没有数据表"
+    return "ok", f"SQLite 可打开，{table_count} 个数据表"
+
+
+def validate_html(path: Path) -> tuple[str, str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception as exc:
+        return "invalid", f"HTML 读取失败：{exc}"
+    if len(text.strip()) < 100:
+        return "invalid", "HTML 内容过短"
+    lowered = text.lower()
+    if "<html" not in lowered and "<!doctype" not in lowered:
+        return "invalid", "HTML 缺少页面结构"
+    return "ok", "HTML 页面结构可读"
+
+
+def validate_javascript_data(path: Path) -> tuple[str, str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception as exc:
+        return "invalid", f"JS 数据读取失败：{exc}"
+    if len(text) < 20:
+        return "invalid", "JS 数据内容过短"
+    match = re.match(r"window\.[A-Z0-9_]+\s*=\s*(.*?);?\s*$", text, flags=re.S)
+    if not match:
+        return "ok", "JS 数据文件存在且非空"
+    try:
+        payload = json.loads(match.group(1))
+    except Exception as exc:
+        return "invalid", f"JS 内嵌 JSON 解析失败：{exc}"
+    if isinstance(payload, dict) and str(payload.get("status", "")).lower() in {"failed", "error", "blocked"}:
+        return "invalid", f"JS 数据状态异常：{payload.get('message') or payload.get('status')}"
+    return "ok", json_summary(payload)
+
+
+def validate_content(path: Path, expected_type: str) -> tuple[str, str]:
+    if expected_type == "directory":
+        try:
+            has_child = any(path.iterdir())
+        except Exception as exc:
+            return "invalid", f"目录读取失败：{exc}"
+        return ("ok", "目录存在且非空") if has_child else ("invalid", "目录为空")
+
+    if path.stat().st_size == 0:
+        return "invalid", "文件为空"
+    suffix = path.suffix.lower()
+    if suffix == ".json":
+        return validate_json(path)
+    if suffix == ".csv":
+        return validate_csv(path)
+    if suffix in {".sqlite", ".sqlite3", ".db"}:
+        return validate_sqlite(path)
+    if suffix == ".html":
+        return validate_html(path)
+    if suffix == ".js":
+        return validate_javascript_data(path)
+    return "ok", "文件存在且非空"
+
+
 def check_evidence(item: dict[str, Any]) -> EvidenceStatus:
     rel_path = item["path"]
     expected_type = item.get("type", "file")
@@ -90,6 +221,10 @@ def check_evidence(item: dict[str, Any]) -> EvidenceStatus:
     if mtime is None:
         return EvidenceStatus(rel_path, "empty", "没有可用更新时间", None, None)
 
+    content_status, content_message = validate_content(path, expected_type)
+    if content_status != "ok":
+        return EvidenceStatus(rel_path, "invalid", content_message, format_time(mtime), None)
+
     age_hours = (datetime.now().timestamp() - mtime) / 3600
     if freshness_hours is not None and age_hours > float(freshness_hours):
         return EvidenceStatus(
@@ -99,7 +234,13 @@ def check_evidence(item: dict[str, Any]) -> EvidenceStatus:
             format_time(mtime),
             round(age_hours, 2),
         )
-    return EvidenceStatus(rel_path, "ok", "产物存在且更新时间在阈值内", format_time(mtime), round(age_hours, 2))
+    return EvidenceStatus(
+        rel_path,
+        "ok",
+        f"产物可信：{content_message}；更新时间在阈值内",
+        format_time(mtime),
+        round(age_hours, 2),
+    )
 
 
 def task_health(task: dict[str, Any]) -> dict[str, Any]:
@@ -119,6 +260,8 @@ def task_health(task: dict[str, Any]) -> dict[str, Any]:
         status = "broken"
     elif any(item.status in {"missing", "wrong_type", "empty"} for item in evidence):
         status = "missing_evidence"
+    elif any(item.status == "invalid" for item in evidence):
+        status = "invalid_evidence"
     elif any(item.status == "stale" for item in evidence):
         status = "stale"
     else:
@@ -241,6 +384,7 @@ def status_badge(status: str) -> str:
         "ok": "正常",
         "stale": "过旧",
         "missing_evidence": "缺产物",
+        "invalid_evidence": "产物异常",
         "broken": "命令缺失",
         "planned": "待接入",
     }
@@ -343,7 +487,7 @@ def render_dashboard(health: dict[str, Any]) -> None:
       border-left-width: 5px;
     }}
     .task.ok {{ border-left-color: var(--ok); }}
-    .task.stale, .task.missing_evidence {{ border-left-color: var(--warn); }}
+    .task.stale, .task.missing_evidence, .task.invalid_evidence {{ border-left-color: var(--warn); }}
     .task.broken {{ border-left-color: var(--bad); }}
     .task.planned {{ border-left-color: var(--planned); }}
     .task-title {{ font-size: 16px; font-weight: 750; margin-bottom: 4px; }}
