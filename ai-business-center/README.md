@@ -37,6 +37,14 @@ OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-
 
 守护器会同时运行系统体检、任务健康检查和状态页生成，并把 Markdown/JSON 报告写入当前 `ai-business-center/state/reports/`。
 
+在 Mac mini 上安装每天 10:25 的守护报告定时任务：
+
+```bash
+./scripts/install_ai_center_guardian_launchd.zsh
+```
+
+这个定时任务只运行 clean 仓库里的守护器，并旁路读取生产目录；不会替换现有自动化任务。
+
 生成的状态页在：
 
 ```text
