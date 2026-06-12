@@ -105,6 +105,9 @@ def validate_json(path: Path) -> tuple[str, str]:
         if status in {"failed", "error", "blocked"}:
             message = payload.get("message") or payload.get("error") or "产物声明失败"
             return "invalid", f"JSON 状态异常：{message}"
+        if status in {"partial", "degraded", "warning"}:
+            message = payload.get("message") or "产物声明部分成功"
+            return "partial", f"JSON 部分成功：{message}"
         if "store_summary" in payload and not payload.get("store_summary"):
             return "invalid", "经营日报没有门店汇总数据"
         if "items" in payload and status == "ok" and not payload.get("items"):
@@ -176,8 +179,12 @@ def validate_javascript_data(path: Path) -> tuple[str, str]:
         payload = json.loads(match.group(1))
     except Exception as exc:
         return "invalid", f"JS 内嵌 JSON 解析失败：{exc}"
-    if isinstance(payload, dict) and str(payload.get("status", "")).lower() in {"failed", "error", "blocked"}:
-        return "invalid", f"JS 数据状态异常：{payload.get('message') or payload.get('status')}"
+    if isinstance(payload, dict):
+        status = str(payload.get("status", "")).lower()
+        if status in {"failed", "error", "blocked"}:
+            return "invalid", f"JS 数据状态异常：{payload.get('message') or payload.get('status')}"
+        if status in {"partial", "degraded", "warning"}:
+            return "partial", f"JS 数据部分成功：{payload.get('message') or payload.get('status')}"
     return "ok", json_summary(payload)
 
 
@@ -222,6 +229,8 @@ def check_evidence(item: dict[str, Any]) -> EvidenceStatus:
         return EvidenceStatus(rel_path, "empty", "没有可用更新时间", None, None)
 
     content_status, content_message = validate_content(path, expected_type)
+    if content_status == "partial":
+        return EvidenceStatus(rel_path, "partial", content_message, format_time(mtime), None)
     if content_status != "ok":
         return EvidenceStatus(rel_path, "invalid", content_message, format_time(mtime), None)
 
@@ -262,6 +271,8 @@ def task_health(task: dict[str, Any]) -> dict[str, Any]:
         status = "missing_evidence"
     elif any(item.status == "invalid" for item in evidence):
         status = "invalid_evidence"
+    elif any(item.status == "partial" for item in evidence):
+        status = "partial_evidence"
     elif any(item.status == "stale" for item in evidence):
         status = "stale"
     else:
@@ -385,6 +396,7 @@ def status_badge(status: str) -> str:
         "stale": "过旧",
         "missing_evidence": "缺产物",
         "invalid_evidence": "产物异常",
+        "partial_evidence": "部分成功",
         "broken": "命令缺失",
         "planned": "待接入",
     }
@@ -487,7 +499,7 @@ def render_dashboard(health: dict[str, Any]) -> None:
       border-left-width: 5px;
     }}
     .task.ok {{ border-left-color: var(--ok); }}
-    .task.stale, .task.missing_evidence, .task.invalid_evidence {{ border-left-color: var(--warn); }}
+    .task.stale, .task.missing_evidence, .task.invalid_evidence, .task.partial_evidence {{ border-left-color: var(--warn); }}
     .task.broken {{ border-left-color: var(--bad); }}
     .task.planned {{ border-left-color: var(--planned); }}
     .task-title {{ font-size: 16px; font-weight: 750; margin-bottom: 4px; }}
