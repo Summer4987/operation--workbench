@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "centers": [
+    {
+      "id": "operations",
+      "name": "运营中心",
+      "description": "自动化任务、运营看板、智能提醒、AI 运营建议。"
+    },
+    {
+      "id": "promotion",
+      "name": "推广中心",
+      "description": "推广预算、出价调整、投产分析和执行审批。"
+    },
+    {
+      "id": "inventory",
+      "name": "货流中心",
+      "description": "订货、库存、销量预测、缺货和滞销提醒。"
+    },
+    {
+      "id": "finance",
+      "name": "财务中心",
+      "description": "账单解析、费用归因、利润报表和异常扣费提醒。"
+    },
+    {
+      "id": "franchise",
+      "name": "加盟业务中心",
+      "description": "合同、加盟资料、流程清单、文件生成和提醒。"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "ops.morning_one_click",
+      "center": "operations",
+      "name": "上午运营一键采集",
+      "risk": "high",
+      "mode": "manual_run",
+      "description": "串联经营日报、评价下载、余额巡检、推广预算预览/执行和云端发布。",
+      "command": ["{python}", "morning-ops/run_morning_ops.py"],
+      "evidence": [
+        {"path": "morning-ops/logs", "type": "directory", "freshness_hours": 36},
+        {"path": "business-report-dashboard/data/latest.json", "type": "file", "freshness_hours": 36},
+        {"path": "workbench-data.js", "type": "file", "freshness_hours": 36}
+      ],
+      "blockers": ["login", "captcha", "platform_verification", "timeout", "publish_failure"]
+    },
+    {
+      "id": "ops.daily_report_publish",
+      "center": "operations",
+      "name": "经营日报采集并发布",
+      "risk": "high",
+      "mode": "manual_run",
+      "description": "采集双平台经营日报，生成看板数据并发布。",
+      "command": ["/bin/zsh", "business-report-dashboard/run_daily_publish.command"],
+      "evidence": [
+        {"path": "business-report-dashboard/data/latest.json", "type": "file", "freshness_hours": 36},
+        {"path": "business-report-dashboard/data/unified_daily.csv", "type": "file", "freshness_hours": 36},
+        {"path": "business-report-dashboard/dashboard/index.html", "type": "file", "freshness_hours": 36}
+      ],
+      "blockers": ["download_failure", "login", "captcha", "publish_failure"]
+    },
+    {
+      "id": "ops.reviews_download",
+      "center": "operations",
+      "name": "双平台评价下载和处理",
+      "risk": "medium",
+      "mode": "manual_run",
+      "description": "通过 Chrome CDP 下载饿了么/美团评价，并写入经营看板数据。",
+      "command": ["{python}", "business-report-dashboard/chrome_cdp_reports.py", "download-reviews-and-process"],
+      "evidence": [
+        {"path": "business-report-dashboard/data/unified_reviews.csv", "type": "file", "freshness_hours": 36},
+        {"path": "business-report-dashboard/debug-reviews", "type": "directory", "freshness_hours": 72}
+      ],
+      "blockers": ["login", "captcha", "page_changed", "api_changed"]
+    },
+    {
+      "id": "ops.balance_inspection",
+      "center": "operations",
+      "name": "推广余额总巡检",
+      "risk": "medium",
+      "mode": "manual_run",
+      "description": "巡检饿了么和美团推广余额，生成低余额提醒。",
+      "command": ["{python}", "store-inspection/run_all_balances.py"],
+      "evidence": [
+        {"path": "store-inspection/latest.json", "type": "file", "freshness_hours": 36},
+        {"path": "store-inspection/latest-data.js", "type": "file", "freshness_hours": 36}
+      ],
+      "blockers": ["login", "captcha", "ocr_failure", "platform_verification"]
+    },
+    {
+      "id": "promotion.sync_budget_config",
+      "center": "promotion",
+      "name": "同步云端预算配置",
+      "risk": "medium",
+      "mode": "manual_run",
+      "description": "把推广预算覆盖配置同步到本地执行数据。",
+      "command": ["{python}", "scripts/sync_promo_budget_overrides.py"],
+      "evidence": [
+        {"path": "outputs/promo_budget_preview", "type": "directory", "freshness_hours": 72}
+      ],
+      "blockers": ["network", "remote_permission", "config_parse_failure"]
+    },
+    {
+      "id": "promotion.preview_budget",
+      "center": "promotion",
+      "name": "推广预算初始化预览",
+      "risk": "low",
+      "mode": "manual_run",
+      "description": "生成推广预算预览，不直接改平台预算。",
+      "command": ["{node}", "scripts/build_promo_budget_preview.mjs"],
+      "evidence": [
+        {"path": "outputs/promo_budget_preview", "type": "directory", "freshness_hours": 72}
+      ],
+      "blockers": ["data_missing", "config_parse_failure"]
+    },
+    {
+      "id": "promotion.workbench_build",
+      "center": "promotion",
+      "name": "运营工作台数据生成",
+      "risk": "low",
+      "mode": "manual_run",
+      "description": "汇总运营、推广、余额等数据，生成工作台数据文件。",
+      "command": ["{python}", "scripts/build_workbench_data.py"],
+      "evidence": [
+        {"path": "workbench-data.js", "type": "file", "freshness_hours": 36}
+      ],
+      "blockers": ["data_missing", "schema_changed"]
+    },
+    {
+      "id": "promotion.workbench_deploy",
+      "center": "promotion",
+      "name": "运营工作台云端发布",
+      "risk": "high",
+      "mode": "manual_run",
+      "description": "把本地工作台页面和数据发布到云服务器。",
+      "command": ["/bin/zsh", "scripts/deploy_workbench_to_cloud.zsh"],
+      "evidence": [
+        {"path": "outputs/cloud_workbench_republished_after_other_mac.png", "type": "file", "freshness_hours": 168}
+      ],
+      "blockers": ["network", "ssh_permission", "remote_conflict", "publish_failure"]
+    },
+    {
+      "id": "inventory.sync_orders",
+      "center": "inventory",
+      "name": "同步云端出库单到本地",
+      "risk": "medium",
+      "mode": "manual_run",
+      "description": "同步订货/出库相关产物，为货流中心提供基础数据。",
+      "command": ["{python}", "inventory-board/scripts/sync_order_outputs.py"],
+      "evidence": [
+        {"path": "inventory-board/data/inventory.sqlite3", "type": "file", "freshness_hours": 168}
+      ],
+      "blockers": ["network", "remote_permission", "data_missing"]
+    },
+    {
+      "id": "finance.placeholder",
+      "center": "finance",
+      "name": "财务账单分析",
+      "risk": "low",
+      "mode": "planned",
+      "description": "待接入平台账单下载、解析、利润报表和费用异常分析。",
+      "command": [],
+      "evidence": [],
+      "blockers": ["source_not_connected"]
+    },
+    {
+      "id": "franchise.placeholder",
+      "center": "franchise",
+      "name": "加盟合同和流程文档",
+      "risk": "low",
+      "mode": "planned",
+      "description": "待接入合同模板、加盟资料、流程清单和 AI 文档生成。",
+      "command": [],
+      "evidence": [],
+      "blockers": ["template_not_connected"]
+    }
+  ]
+}
