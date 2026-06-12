@@ -1,98 +1,42 @@
 # Mac mini 下一步任务
 
-## 任务：让生产目录知晓推广余额 200 元提醒阈值
+## 当前状态：待命
 
-目标：
+当前没有新的生产变更任务需要执行。
 
-- 让旧生产目录 `/Users/summer/Documents/New project` 使用最新的推广余额阈值规则：低于 200 元提醒。
-- 现在不运行余额巡检。
-- 现在不发布云端看板。
-- 不触碰已有定时任务。
-- 不提交、不推送。
+这个文件是 MacBook 侧 Codex 给 Mac mini 生产线程的固定任务入口。以后有新任务时，MacBook 侧会更新本文件并推送到 GitHub；Mac mini 只需要拉取 clean 仓库后读取本文件。
 
-## 执行脚本
+## Mac mini 固定读取方式
 
-请在 Mac mini 上执行：
+在 Mac mini 生产线程里，可以固定执行：
 
 ```zsh
-cat > /tmp/apply_balance_threshold_200.zsh <<'ZSH'
-#!/bin/zsh
-set -euo pipefail
-
-CLEAN="/Users/summer/Documents/operation-workbench-clean"
-PROD="/Users/summer/Documents/New project"
-
-cd "$CLEAN"
+cd "/Users/summer/Documents/operation-workbench-clean"
 git pull --ff-only origin main
-
-FILES=(
-  "store-inspection/config.json"
-  "store-inspection/app.js"
-  "store-inspection/index.html"
-  "store-inspection/parse_balance_ocr.py"
-  "store-inspection/one_click_meituan_balance.py"
-  "store-inspection/one_click_eleme_balance.py"
-)
-
-for file in "${FILES[@]}"; do
-  cp "$CLEAN/$file" "$PROD/$file"
-  echo "已同步：$file"
-done
-
-cd "$PROD"
-
-python3 -m py_compile \
-  store-inspection/parse_balance_ocr.py \
-  store-inspection/one_click_meituan_balance.py \
-  store-inspection/one_click_eleme_balance.py
-
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-config = json.loads(Path("store-inspection/config.json").read_text(encoding="utf-8"))
-threshold = config["rules"]["promotion_balance_warning"]
-if threshold != 200:
-    raise SystemExit(f"阈值未生效：{threshold}")
-
-print("推广余额提醒阈值已设为 200 元。")
-print("本次只同步规则，不运行巡检，不发布云端。")
-PY
-
-cd "$CLEAN"
-OPERATION_CENTER_ROOT="$PROD" python3 ai-business-center/guardian.py
-
-echo
-echo "完成：明早正常巡检会按 200 元阈值生成结果。"
-ZSH
-
-zsh /tmp/apply_balance_threshold_200.zsh
+cat docs/MACMINI_NEXT_TASK.md
 ```
 
-## 输出要求
+## 当前可做的只读检查
 
-执行后请输出：
-
-1. 脚本完整输出。
-2. `/Users/summer/Documents/New project/store-inspection/config.json` 里的 `promotion_balance_warning`。
-3. clean 仓库 `git status --short --branch`。
-4. 旧生产目录中以下文件的 diff：
+如果需要确认收件箱机制正常，可以只做下面的只读检查：
 
 ```zsh
-cd "/Users/summer/Documents/New project"
-git diff -- \
-  store-inspection/config.json \
-  store-inspection/app.js \
-  store-inspection/index.html \
-  store-inspection/parse_balance_ocr.py \
-  store-inspection/one_click_meituan_balance.py \
-  store-inspection/one_click_eleme_balance.py
+cd "/Users/summer/Documents/operation-workbench-clean"
+git status --short --branch
+test -f docs/MACMINI_TASK_INBOX.md && echo "任务收件箱说明存在"
+test -f docs/MACMINI_NEXT_TASK.md && echo "下一步任务文件存在"
 ```
 
-## 成功标准
+## 禁止事项
 
-- `promotion_balance_warning` 等于 `200`。
-- Python 语法检查通过。
-- 没有运行余额巡检。
-- 没有发布云端。
-- 没有触碰已有定时任务。
+当前待命状态下：
+
+- 不要修改 `/Users/summer/Documents/New project`。
+- 不要触碰已有定时任务。
+- 不要运行余额巡检、日报采集、预算执行或云端发布。
+- 不要提交或推送。
+- 不要重复执行历史任务。
+
+## 等待下一次任务
+
+当 MacBook 侧完成新代码或规则调整后，会把明确任务写入本文件。届时再按本文件的新内容执行。
