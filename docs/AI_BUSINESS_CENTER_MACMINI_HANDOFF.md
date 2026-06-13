@@ -10,6 +10,14 @@
 cd "/Users/summer/Documents/New project"
 ```
 
+如果你在 Mac mini Finder 里打开项目目录，也可以直接双击：
+
+```text
+Mac mini AI业务中心生产交接.command
+```
+
+这会自动执行拉取、只读检查、只读冒烟和生产定时任务安装复查；如果生产现场有未提交改动，它会拒绝继续，不会覆盖文件。
+
 先查看现场状态：
 
 ```zsh
