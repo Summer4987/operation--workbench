@@ -241,8 +241,12 @@ def main() -> int:
                 ensure_backend_chrome(report_python)
                 if run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720).returncode != 0:
                     failures.append("门店日报")
-                if run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420).returncode != 0:
-                    failures.append("推广余额总巡检")
+                balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
+                if balance_result.returncode != 0:
+                    if args.source == "scheduled":
+                        print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
+                    else:
+                        failures.append("推广余额总巡检")
             if run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False).returncode != 0:
                 failures.append("预算配置同步")
             node = str(NODE if NODE.exists() else "node")
