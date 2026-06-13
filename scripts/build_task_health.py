@@ -15,6 +15,7 @@ OUTPUT_DIR = ROOT / "outputs" / "task_health"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
+ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -369,6 +370,22 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                 row["evidence"] = payload["evidence"]
         elif row["status"] == "unknown":
             row.update(status="warn", reason="库存服务待通过 workbench 数据生成脚本确认。")
+
+    elif task_id == "flow.auto_ordering":
+        payload = read_json(ORDER_SUGGESTIONS_PATH, {})
+        generated_at = parse_time(payload.get("generated_at"))
+        summary = payload.get("summary") or {}
+        if payload.get("status") == "ready":
+            row.update(
+                status="warn",
+                reason=f"订货建议已生成，{summary.get('suggestion_count', 0)} 项，需人工确认后再下单。",
+                human_action="先人工确认订货建议，不要自动下单或付款。",
+                evidence="outputs/inventory_order_suggestions/latest.json",
+            )
+        elif payload.get("status") == "failed":
+            row.update(status="danger", reason=payload.get("message") or "订货建议生成失败。", evidence="outputs/inventory_order_suggestions/latest.json")
+        if generated_at:
+            row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
 
     elif task_id == "tools.sales_receipt":
         page = ROOT / "sales-receipt-generator" / "index.html"

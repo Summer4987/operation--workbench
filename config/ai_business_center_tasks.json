@@ -240,11 +240,13 @@
       "schedule": "云端库存服务持续运行",
       "entrypoints": [
         "scripts/check_inventory_cloud_health.py",
+        "scripts/build_inventory_order_suggestions.py",
         "inventory-board/app/main.py",
         "inventory-board/scripts/sync_order_outputs.py"
       ],
       "outputs": [
         "outputs/inventory_health/latest.json",
+        "outputs/inventory_order_suggestions/latest.json",
         "inventory-board/data/inventory.sqlite3",
         "云端 /api/summary",
         "~/Desktop/库存管理/出库记录"
@@ -253,6 +255,7 @@
         "outputs/inventory_health/latest.json 最近一次检查成功",
         "云端 /api/summary 可访问",
         "库存预警数量可读取",
+        "低库存商品可生成只读订货建议",
         "出库单可同步到本地"
       ],
       "human_needed_when": [
@@ -260,29 +263,33 @@
         "出库单需要打印或补录",
         "供应商变更"
       ],
-      "next_integration_step": "把库存预警拆成可操作补货建议，并和订货建议打通。"
+      "next_integration_step": "把订货建议按供应渠道分组，并加入人工确认入口。"
     },
     {
       "id": "flow.auto_ordering",
       "name": "订货全自动",
       "center": "货流中心",
       "module": "订货全自动",
-      "status": "planned",
+      "status": "running_unstable",
       "risk": "high",
       "schedule": "待定，先建议后下单",
-      "entrypoints": [],
-      "outputs": [],
+      "entrypoints": [
+        "scripts/build_inventory_order_suggestions.py"
+      ],
+      "outputs": [
+        "outputs/inventory_order_suggestions/latest.json"
+      ],
       "health_checks": [
-        "门店订单收集完整",
-        "按商品和供应渠道分类",
-        "远控安卓下单前有付款确认"
+        "根据库存预警生成只读订货建议",
+        "执行前必须人工确认，不自动下单付款",
+        "后续再按商品和供应渠道分类"
       ],
       "human_needed_when": [
         "首次确认供应渠道映射",
         "付款确认",
         "缺货替代品选择"
       ],
-      "next_integration_step": "先做订货建议表，不自动下单。"
+      "next_integration_step": "按供应渠道分组订货建议，并设计人工确认后再生成下单清单。"
     },
     {
       "id": "finance.bill_analysis",
