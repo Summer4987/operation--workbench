@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import csv
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "latest.json"
+REVIEWS_CSV_PATH = Path(os.environ.get("REVIEW_HISTORY_CSV_PATH", ROOT / "business-report-dashboard" / "data" / "unified_reviews.csv"))
 REPLY_RECORDS_PATH = Path(os.environ.get("REVIEW_REPLY_RECORDS_PATH", ROOT / "data" / "review_reply_records.json"))
 RECAP_RECORDS_PATH = Path(os.environ.get("REVIEW_RECAP_RECORDS_PATH", ROOT / "data" / "review_recap_records.json"))
 OUTPUT_DIR = ROOT / "outputs" / "review_action_status"
@@ -25,6 +27,16 @@ def read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_date(value: str | None) -> datetime | None:
+    text = str(value or "").strip()
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(text[:10], fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def reply_suggestion(store: str, keywords: list[str], examples: list[str]) -> str:
@@ -219,6 +231,43 @@ def review_recap_action(store: str, issue_type: str) -> str:
     return f"{store}查看差评订单、出餐和售后记录；把共性问题写入门店班后复盘。"
 
 
+def keyword_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item]
+    text = str(value or "").strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed if item]
+    except Exception:
+        pass
+    return [item.strip() for item in text.replace("，", ",").split(",") if item.strip()]
+
+
+def read_review_history(path: Path) -> list[dict[str, Any]]:
+    try:
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except Exception:
+        return []
+    normalized = []
+    for row in rows:
+        normalized.append(
+            {
+                "date": str(row.get("date") or "").strip(),
+                "platform": str(row.get("platform") or "").strip(),
+                "store": str(row.get("store") or "").strip(),
+                "rating": row.get("rating"),
+                "content": str(row.get("content") or "").strip(),
+                "negative": str(row.get("negative") or "").strip().lower() in {"true", "1", "yes", "y"},
+                "keywords": keyword_list(row.get("keywords")),
+            }
+        )
+    return normalized
+
+
 def recap_record_index(records: dict[str, Any], target_date: str) -> dict[tuple[str, str, str], dict[str, Any]]:
     index = {}
     for record in records.get("records") or []:
@@ -234,6 +283,76 @@ def recap_record_index(records: dict[str, Any], target_date: str) -> dict[tuple[
         if key[0] and key[1]:
             index[key] = record
     return index
+
+
+def followup_matches_issue(row: dict[str, Any], issue_type: str) -> bool:
+    return review_issue_type(row.get("keywords") or [], [row.get("content", "")]) == issue_type
+
+
+def build_followup_plan(recap_records: dict[str, Any], review_history: list[dict[str, Any]]) -> dict[str, Any]:
+    items = []
+    for record in recap_records.get("records") or []:
+        if record.get("status") not in {"recorded", "done", "closed"}:
+            continue
+        store = str(record.get("store") or "").strip()
+        issue_type = str(record.get("issue_type") or "").strip()
+        start = parse_date(record.get("date"))
+        if not store or not issue_type or not start:
+            continue
+        recurrences = []
+        observed_dates = set()
+        for row in review_history:
+            row_date = parse_date(row.get("date"))
+            if not row_date or row_date <= start or (row_date - start).days > 7:
+                continue
+            if str(row.get("store") or "").strip() != store:
+                continue
+            observed_dates.add(row_date.strftime("%Y-%m-%d"))
+            if row.get("negative") and followup_matches_issue(row, issue_type):
+                recurrences.append(
+                    {
+                        "date": row_date.strftime("%Y-%m-%d"),
+                        "platform": row.get("platform", ""),
+                        "content": row.get("content", "")[:120],
+                        "keywords": row.get("keywords") or [],
+                    }
+                )
+        status = "recurred" if recurrences else ("watching" if len(observed_dates) < 7 else "clear")
+        action = (
+            f"{store}{issue_type}复盘后又出现同类差评，建议升级为门店 SOP 检查。"
+            if recurrences
+            else f"{store}{issue_type}复盘后继续观察至第 7 天。"
+            if status == "watching"
+            else f"{store}{issue_type}7 天内未发现同类差评复发。"
+        )
+        items.append(
+            {
+                "store": store,
+                "date": record.get("date", ""),
+                "issue_type": issue_type,
+                "status": status,
+                "days_observed": len(observed_dates),
+                "recurrence_count": len(recurrences),
+                "recurrences": recurrences[:3],
+                "action": action,
+                "record": record,
+            }
+        )
+    recurred = [item for item in items if item.get("status") == "recurred"]
+    watching = [item for item in items if item.get("status") == "watching"]
+    clear = [item for item in items if item.get("status") == "clear"]
+    return {
+        "status": "recurred" if recurred else ("watching" if watching else ("clear" if clear else "empty")),
+        "item_count": len(items),
+        "recurred_count": len(recurred),
+        "watching_count": len(watching),
+        "clear_count": len(clear),
+        "items": items[:8],
+        "next_action": recurred[0]["action"] if recurred else (watching[0]["action"] if watching else "暂无需要跟踪的评价复盘。"),
+        "message": f"{len(recurred)} 条复盘出现同类差评复发，{len(watching)} 条仍在 7 天观察期。"
+        if items
+        else "暂无已记录复盘可进入 7 天观察。",
+    }
 
 
 def recap_command(item: dict[str, Any]) -> str:
@@ -350,6 +469,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     target_date = review.get("used_date") or review.get("target_date") or ""
     records_payload = read_json(REPLY_RECORDS_PATH, {"records": []})
     recap_records_payload = read_json(RECAP_RECORDS_PATH, {"records": []})
+    review_history = read_review_history(REVIEWS_CSV_PATH)
     completed = completed_records(records_payload, target_date)
     completed_with_evidence = enrich_completed_records(completed)
     missing_evidence = [record for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "missing"]
@@ -357,6 +477,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     plan = reply_plan(items)
     evidence = evidence_plan(missing_evidence, completed_with_evidence)
     recap = build_recap_plan(items, completed_with_evidence, recap_records_payload, target_date)
+    followup = build_followup_plan(recap_records_payload, review_history)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -387,6 +508,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "source": "business-report-dashboard/data/latest.json",
         "reply_records_source": "data/review_reply_records.json",
         "recap_records_source": "data/review_recap_records.json",
+        "review_history_source": "business-report-dashboard/data/unified_reviews.csv",
         "review_status": review.get("status", ""),
         "target_date": review.get("target_date", ""),
         "used_date": review.get("used_date", ""),
@@ -399,12 +521,15 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "missing_evidence_count": len(missing_evidence),
             "recap_pending_count": int(recap.get("pending_count") or 0),
             "recap_recorded_count": int(recap.get("recorded_count") or 0),
+            "followup_recurred_count": int(followup.get("recurred_count") or 0),
+            "followup_watching_count": int(followup.get("watching_count") or 0),
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
         "reply_plan": plan,
         "evidence_plan": evidence,
         "recap_plan": recap,
+        "followup_plan": followup,
         "workflow": workflow,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],

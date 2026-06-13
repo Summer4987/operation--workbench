@@ -195,6 +195,22 @@ def build_payload() -> dict[str, Any]:
             )
         )
 
+    followup_plan = review_actions.get("followup_plan") or {}
+    recurred_count = int(followup_plan.get("recurred_count") or 0)
+    if recurred_count:
+        items.append(
+            action_item(
+                item_id="ops.review_followup_recurred",
+                title="评价复盘后同类差评复发",
+                center="运营数据中心",
+                priority="medium",
+                reason=followup_plan.get("message") or f"当前有 {recurred_count} 条评价复盘后出现同类差评复发。",
+                action=followup_plan.get("next_action") or "复查门店 SOP、出品和打包流程，必要时升级为专项整改。",
+                source="ops.review_followup",
+                evidence="outputs/review_action_status/latest.json",
+            )
+        )
+
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
         intake_messages = [

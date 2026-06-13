@@ -348,6 +348,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
 def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     review_recap_rows: list[dict] = []
+    review_followup_rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
 
@@ -438,6 +439,28 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     review_summary = review_actions.get("summary") or {}
     missing_review_evidence_count = int(review_summary.get("missing_evidence_count") or 0)
     review_recap_plan = review_actions.get("recap_plan") or {}
+    review_followup_plan = review_actions.get("followup_plan") or {}
+    for item in (review_followup_plan.get("items") or [])[:2]:
+        if item.get("status") == "recurred":
+            level = "建议"
+            reason = f"{item.get('store')} {item.get('issue_type')} 复盘后同类差评复发 {item.get('recurrence_count', 0)} 条。"
+        elif item.get("status") == "watching":
+            level = "提醒"
+            reason = f"{item.get('store')} {item.get('issue_type')} 正在 7 天观察期，已观察 {item.get('days_observed', 0)} 天。"
+        else:
+            continue
+        review_followup_rows.append(
+            {
+                "level": level,
+                "center": "运营数据中心",
+                "title": f"{item.get('store', '门店')}复盘跟踪",
+                "reason": reason,
+                "action": item.get("action") or "继续观察评价、转化和售后反馈。",
+                "source": "ops.review_followup",
+                "store": item.get("store", ""),
+            }
+        )
+    rows.extend(review_followup_rows)
     for item in (review_recap_plan.get("items") or [])[:2]:
         keywords = "、".join(item.get("keywords") or [])
         review_recap_rows.append(
@@ -744,6 +767,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             rows[replacement_index] = review_recap_rows[0]
         elif len(rows) < 8:
             rows.append(review_recap_rows[0])
+    if review_followup_rows and not any(item.get("source") == "ops.review_followup" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = review_followup_rows[0]
+        elif len(rows) < 8:
+            rows.append(review_followup_rows[0])
     if not rows:
         rows.append(
             {
