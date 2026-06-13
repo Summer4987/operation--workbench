@@ -341,6 +341,7 @@ function priorityItems() {
   const inventory = data.inventory || {};
   const daily = data.daily || {};
   const taskHealth = data.task_health || {};
+  const userActionQueue = data.user_action_queue || {};
   const balanceWarnings = promoBalanceStatus.low_balance_items || (balances.items || []).filter((item) => item.status === "warning");
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const inventoryWarnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
@@ -348,6 +349,14 @@ function priorityItems() {
   const taskWarnings = (taskHealth.tasks || []).filter((item) => item.status === "danger").slice(0, 3);
   const items = [];
 
+  (userActionQueue.items || []).slice(0, 3).forEach((item) => {
+    items.push({
+      type: "用户待办",
+      title: item.title || "待处理事项",
+      detail: item.action || item.reason || "请查看 AI 运营建议。",
+      level: item.priority === "high" ? "danger" : "warning",
+    });
+  });
   if (inventoryWarnings.length) {
     items.push({
       type: "库存不足",

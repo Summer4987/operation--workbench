@@ -1,0 +1,176 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = ROOT / "outputs" / "user_action_queue"
+LATEST_PATH = OUTPUT_DIR / "latest.json"
+TASK_HEALTH_PATH = ROOT / "outputs" / "task_health" / "latest.json"
+ANDROID_CONFIG_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
+FINANCE_CENTER_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
+TOOL_WAREHOUSE_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
+PROMO_BID_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
+
+
+def now_text() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+
+def action_item(
+    *,
+    item_id: str,
+    title: str,
+    center: str,
+    priority: str,
+    reason: str,
+    action: str,
+    source: str,
+    evidence: str,
+    owner: str = "用户",
+    environment: str = "",
+) -> dict[str, Any]:
+    return {
+        "id": item_id,
+        "title": title,
+        "center": center,
+        "priority": priority,
+        "owner": owner,
+        "environment": environment,
+        "reason": reason,
+        "action": action,
+        "source": source,
+        "evidence": evidence,
+    }
+
+
+def build_payload() -> dict[str, Any]:
+    task_health = read_json(TASK_HEALTH_PATH, {})
+    android_config = read_json(ANDROID_CONFIG_PATH, {})
+    finance = read_json(FINANCE_CENTER_PATH, {})
+    tools = read_json(TOOL_WAREHOUSE_PATH, {})
+    bid_queue = read_json(PROMO_BID_QUEUE_PATH, {})
+
+    items: list[dict[str, Any]] = []
+    environment = (task_health.get("environment") or {}).get("role") or "development"
+    tasks_by_id = {item.get("id"): item for item in task_health.get("tasks") or []}
+    promo_balance = tasks_by_id.get("growth.promo_balance") or {}
+    promo_next = promo_balance.get("next_step") or ""
+    if "Mac mini" in promo_next and "冒烟" in promo_next:
+        items.append(
+            action_item(
+                item_id="macmini.smoke_check",
+                title="Mac mini 冒烟检查待回传",
+                center="系统交接",
+                priority="high",
+                reason="证据上传和上午定时流程已经接入，需要生产机只读冒烟输出确认。",
+                action='在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`，把完整输出发给 Codex。',
+                source="growth.promo_balance",
+                evidence="scripts/run_macmini_ai_center_smoke.zsh",
+                environment="Mac mini 生产环境",
+            )
+        )
+
+    android_summary = android_config.get("summary") or {}
+    if android_config.get("status") == "missing_config":
+        missing = "、".join(android_config.get("missing") or []) or f"{android_summary.get('missing_count', 0)} 项配置"
+        items.append(
+            action_item(
+                item_id="flow.android_config",
+                title="远控安卓真实设备配置待补齐",
+                center="货流中心",
+                priority="high",
+                reason=f"订货自动化真实执行前缺少：{missing}。",
+                action="在 Mac mini 确认 adb 设备号、操作员、付款确认人和供应渠道后，用 init_android_execution_config.py 向导生成配置。",
+                source="flow.auto_ordering",
+                evidence="outputs/android_execution_config/latest.json",
+                environment="Mac mini 生产环境",
+            )
+        )
+
+    if finance.get("status") == "waiting_samples":
+        missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
+        items.append(
+            action_item(
+                item_id="finance.samples",
+                title="财务账单样例待提供",
+                center="财务中心",
+                priority="medium",
+                reason=f"财务字段字典已建立，当前缺少：{missing}。",
+                action="提供银行账单、美团账单、饿了么账单样例后，再进入字段映射和利润表生成。",
+                source="finance.bill_analysis",
+                evidence="outputs/finance_center_status/latest.json",
+            )
+        )
+
+    contract = tools.get("franchise_contract") or {}
+    if contract.get("status") == "waiting_template":
+        items.append(
+            action_item(
+                item_id="tools.franchise_template",
+                title="加盟合同模板待提供",
+                center="小工具仓库",
+                priority="medium",
+                reason=contract.get("message") or "合同生成器等待现用模板和关键字段。",
+                action="提供现用加盟合同模板，并确认加盟费、保证金、期限、授权范围等关键字段。",
+                source="tools.franchise_contract",
+                evidence="outputs/tool_warehouse_status/latest.json",
+            )
+        )
+
+    bid_summary = bid_queue.get("summary") or {}
+    queue_count = int(bid_summary.get("queue_count") or bid_summary.get("approval_required_count") or 0)
+    if bid_queue.get("status") == "waiting_approval" and queue_count:
+        items.append(
+            action_item(
+                item_id="growth.promo_bid_approval",
+                title="推广出价审批队列待确认",
+                center="商业化推广中心",
+                priority="medium",
+                reason=f"当前有 {queue_count} 项出价建议等待确认，确认前系统不会自动提交。",
+                action="打开推广出价审批队列，核对预算消耗、预期消耗和门店状态后再决定是否执行。",
+                source="growth.promo_bid",
+                evidence="outputs/promo_bid_approval_queue/latest.json",
+            )
+        )
+
+    priority_order = {"high": 0, "medium": 1, "low": 2}
+    items = sorted(items, key=lambda item: (priority_order.get(item["priority"], 9), item["center"], item["title"]))
+    return {
+        "generated_at": now_text(),
+        "status": "waiting_user" if items else "clear",
+        "environment": environment,
+        "summary": {
+            "action_count": len(items),
+            "high_count": sum(1 for item in items if item["priority"] == "high"),
+            "medium_count": sum(1 for item in items if item["priority"] == "medium"),
+            "low_count": sum(1 for item in items if item["priority"] == "low"),
+        },
+        "items": items,
+        "message": f"当前有 {len(items)} 项需要用户参与。"
+        if items
+        else "当前没有需要用户立即参与的事项。",
+    }
+
+
+def main() -> int:
+    payload = build_payload()
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    LATEST_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    LATEST_PATH.chmod(0o644)
+    print(payload["message"])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

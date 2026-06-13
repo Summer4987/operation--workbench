@@ -57,6 +57,7 @@ echo "== 配置与语法检查 =="
   scripts/build_promo_bid_approval_queue.py \
   scripts/build_store_inspection_evidence_manifest.py \
   scripts/build_promo_balance_status.py \
+  scripts/build_user_action_queue.py \
   scripts/build_tool_warehouse_status.py \
   scripts/build_finance_center_status.py \
   scripts/build_task_health.py \
@@ -96,6 +97,7 @@ echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/build_promo_bid_approval_queue.py
 "$PYTHON" scripts/build_store_inspection_evidence_manifest.py --days 7
 "$PYTHON" scripts/build_promo_balance_status.py
+"$PYTHON" scripts/build_user_action_queue.py
 if command -v "$NODE" >/dev/null 2>&1; then
   "$NODE" scripts/check_sales_receipt_print_layout.mjs
 else

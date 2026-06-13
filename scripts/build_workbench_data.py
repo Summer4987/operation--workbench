@@ -28,6 +28,7 @@ PROMO_BID_APPROVAL_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / 
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
+USER_ACTION_QUEUE_PATH = ROOT / "outputs" / "user_action_queue" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -344,10 +345,22 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
+
+    for item in (user_action_queue.get("items") or [])[:3]:
+        rows.append(
+            {
+                "level": "需人工处理" if item.get("priority") == "high" else "提醒",
+                "center": item.get("center", ""),
+                "title": item.get("title", ""),
+                "reason": item.get("reason", ""),
+                "action": item.get("action", ""),
+                "source": item.get("source", ""),
+            }
+        )
 
     for task_id in ("ops.daily_report", "ops.review_dashboard", "growth.promo_budget"):
         task = tasks.get(task_id) or {}
@@ -697,6 +710,7 @@ def main() -> None:
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
+    user_action_queue = read_json(USER_ACTION_QUEUE_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
@@ -708,7 +722,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, user_action_queue, morning_collection, realtime_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -727,6 +741,7 @@ def main() -> None:
         "promo_balance_status": promo_balance_status,
         "tool_warehouse": tool_warehouse,
         "finance_center": finance_center,
+        "user_action_queue": user_action_queue,
         "inventory": inventory,
         "order_suggestions": order_suggestions,
         "order_lists": order_lists,
