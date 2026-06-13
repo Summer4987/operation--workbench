@@ -336,7 +336,10 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         else:
             retry_text = ""
             if retry_plan.get("status") == "ready":
+                affected = int(retry_summary.get("affected_by_latest_run_count") or 0)
                 retry_text = f"，可安全重试 {retry_summary.get('safe_retry_count', 0)} 项，需人工处理 {retry_summary.get('manual_count', 0)} 项"
+                if affected:
+                    retry_text = f"{retry_text}，最近执行影响 {affected} 项"
             row.update(status="ok", reason=f"预算预览可用，午餐 {summary.get('total_initial_budget_items') or 0} 项，晚餐 {summary.get('total_dinner_budget_items') or 0} 项{retry_text}。")
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
         row["evidence"] = "outputs/promo_budget_retry_plan/latest.json" if retry_plan else "outputs/promo_budget_preview/latest.json"

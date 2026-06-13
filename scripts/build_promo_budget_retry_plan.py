@@ -9,6 +9,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PREVIEW_PATH = ROOT / "outputs" / "promo_budget_preview" / "latest.json"
 OVERRIDES_PATH = ROOT / "config" / "promo_budget_overrides.json"
+TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_budget_retry_plan"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 
@@ -70,7 +71,69 @@ def override_for(overrides: dict[str, Any], store: str, platform: str) -> dict[s
     return store_config.get(platform) or store_config.get("all") or {}
 
 
-def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+def latest_budget_run(run_state: dict[str, Any]) -> dict[str, Any]:
+    task = (run_state.get("tasks") or {}).get("growth.promo_budget")
+    return task if isinstance(task, dict) else {}
+
+
+def run_affects_item(item: dict[str, Any], run: dict[str, Any]) -> bool:
+    if not run:
+        return False
+    step = str(run.get("step") or "")
+    platform = str(item.get("platform") or "")
+    period = str(item.get("period") or "")
+    if platform and platform not in step:
+        return False
+    if period and period not in step:
+        return False
+    return True
+
+
+def store_result_for(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+    extra = run.get("extra") or {}
+    results = extra.get("store_results") or extra.get("stores") or []
+    if not isinstance(results, list):
+        return {}
+    names = {str(name) for name in (item.get("store"), item.get("source_store")) if name}
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        if str(result.get("store") or result.get("source_store") or "") in names:
+            return result
+    return {}
+
+
+def runtime_feedback_for(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+    result = store_result_for(item, run)
+    if result:
+        status = str(result.get("status") or "")
+        failure_type = str(result.get("failure_type") or "")
+        message = str(result.get("message") or result.get("error") or "")
+        return {
+            "scope": "store",
+            "status": status,
+            "failure_type": failure_type,
+            "message": message,
+            "updated_at": run.get("updated_at", ""),
+        }
+    if run_affects_item(item, run):
+        return {
+            "scope": "platform_period",
+            "status": run.get("status", ""),
+            "failure_type": run.get("failure_type", ""),
+            "message": run.get("message", ""),
+            "updated_at": run.get("updated_at", ""),
+        }
+    return {
+        "scope": "",
+        "status": "",
+        "failure_type": "",
+        "message": "",
+        "updated_at": "",
+    }
+
+
+def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any], latest_run: dict[str, Any] | None = None) -> dict[str, Any]:
     platform = item["platform"]
     target_budget = float(item.get("target_budget") or 0)
     store_override = override_for(overrides, item.get("source_store") or item.get("store"), platform)
@@ -84,6 +147,10 @@ def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any]) -> dict[st
         manual_reasons.append("目标预算为空")
     if target_budget > budget_cap:
         manual_reasons.append(f"目标预算 {target_budget:g} 超过安全上限 {budget_cap:g}")
+    runtime_feedback = runtime_feedback_for(item, latest_run or {})
+    failure_type = runtime_feedback.get("failure_type") or ""
+    if runtime_feedback.get("status") == "failed" and failure_type in MANUAL_FAILURE_TYPES:
+        manual_reasons.append(f"最近执行失败需人工处理：{failure_type}")
 
     return {
         "platform": platform,
@@ -98,6 +165,7 @@ def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any]) -> dict[st
         "safe_failure_types": sorted(SAFE_RETRY_FAILURE_TYPES),
         "manual_failure_types": sorted(MANUAL_FAILURE_TYPES),
         "manual_reasons": manual_reasons,
+        "last_run": runtime_feedback,
         "next_action": "仅限超时或普通执行失败时重试；登录、权限、页面结构、预算安全和门店映射问题必须人工处理。"
         if safe_to_retry and not manual_reasons
         else "进入人工处理，不自动重试。",
@@ -107,10 +175,13 @@ def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any]) -> dict[st
 def build_payload() -> dict[str, Any]:
     preview = read_json(PREVIEW_PATH, {})
     overrides = read_json(OVERRIDES_PATH, {"stores": {}})
+    run_state = read_json(TASK_RUNS_PATH, {"tasks": {}})
+    latest_run = latest_budget_run(run_state)
     items = normalized_items(preview)
-    retry_rows = [retry_policy_for(item, overrides) for item in items]
+    retry_rows = [retry_policy_for(item, overrides, latest_run) for item in items]
     safe_count = sum(1 for item in retry_rows if item["safe_to_retry"])
     manual_count = len(retry_rows) - safe_count
+    affected_count = sum(1 for item in retry_rows if item.get("last_run", {}).get("scope"))
     return {
         "generated_at": now_text(),
         "status": "ready" if preview else "missing_preview",
@@ -122,7 +193,15 @@ def build_payload() -> dict[str, Any]:
             "item_count": len(retry_rows),
             "safe_retry_count": safe_count,
             "manual_count": manual_count,
+            "affected_by_latest_run_count": affected_count,
             "platforms": sorted({item["platform"] for item in retry_rows if item.get("platform")}),
+        },
+        "latest_run": {
+            "status": latest_run.get("status", ""),
+            "step": latest_run.get("step", ""),
+            "failure_type": latest_run.get("failure_type", ""),
+            "message": latest_run.get("message", ""),
+            "updated_at": latest_run.get("updated_at", ""),
         },
         "global_policy": {
             "auto_retry_allowed_failure_types": sorted(SAFE_RETRY_FAILURE_TYPES),
