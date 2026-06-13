@@ -587,10 +587,14 @@ function renderReviews() {
       if (item.kind === "completed") {
         const platform = item.platform ? `${item.platform} · ` : "";
         const evidence = item.evidence || {};
-        const evidenceText = evidence.status === "ready" ? `证据：${evidence.url || evidence.path}` : "待补平台截图或链接证据";
+        const evidenceTarget = evidence.url || evidence.web_path || evidence.path || "";
+        const evidenceLink = evidence.status === "ready" && evidenceTarget ? `<a class="evidence-link" href="${escapeHtml(evidenceTarget)}" target="_blank" rel="noreferrer">查看证据</a>` : "";
+        const evidencePreview = evidence.status === "ready" && evidence.type === "image" && evidence.web_path ? `<img class="evidence-preview" src="${escapeHtml(evidence.web_path)}" alt="评价回复证据截图" />` : "";
+        const uploadCommand = evidence.attach_command || `python3 scripts/attach_review_reply_evidence.py --store ${item.store} --date ${item.date || ""}${item.platform ? ` --platform ${item.platform}` : ""} --file '<平台截图路径>'`;
+        const evidenceText = evidence.status === "ready" ? `证据：${evidenceTarget}` : `待补平台截图或链接证据；上传：${uploadCommand}`;
         const note = item.note || item.operator || item.recorded_at || "已人工回复";
         const cls = evidence.status === "ready" ? "good-row" : "warn-row";
-        return `<div class="${cls}"><span>${escapeHtml(item.store)}</span><strong>${escapeHtml(platform)}已回复</strong><em>${escapeHtml(`${item.date || ""} ${note} · ${evidenceText}`.trim())}</em></div>`;
+        return `<div class="${cls}"><span>${escapeHtml(item.store)}</span><strong>${escapeHtml(platform)}已回复</strong><em>${escapeHtml(`${item.date || ""} ${note} · ${evidenceText}`.trim())}${evidenceLink ? `<br>${evidenceLink}` : ""}${evidencePreview}</em></div>`;
       }
       const keywords = item.top_keywords.length ? item.top_keywords.join("、") : "无集中关键词";
       const badReviews = item.bad_review_examples

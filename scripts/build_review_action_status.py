@@ -12,6 +12,7 @@ DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "latest.json"
 REPLY_RECORDS_PATH = Path(os.environ.get("REVIEW_REPLY_RECORDS_PATH", ROOT / "data" / "review_reply_records.json"))
 OUTPUT_DIR = ROOT / "outputs" / "review_action_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
 def read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
@@ -66,11 +67,31 @@ def completion_index(records: list[dict[str, Any]]) -> dict[str, Any]:
 def evidence_for(record: dict[str, Any]) -> dict[str, Any]:
     url = str(record.get("evidence_url") or record.get("reply_url") or "").strip()
     path = str(record.get("evidence_path") or record.get("screenshot") or "").strip()
+    path_obj = Path(path).expanduser() if path else None
+    if path_obj and not path_obj.is_absolute():
+        path_obj = ROOT / path_obj
+    path_exists = bool(path_obj and path_obj.exists())
+    web_path = ""
+    if path_exists and path_obj:
+        try:
+            web_path = path_obj.resolve().relative_to(ROOT).as_posix()
+        except ValueError:
+            web_path = ""
+    platform_arg = f" --platform {record.get('platform')}" if record.get("platform") else ""
+    attach_command = (
+        f"python3 scripts/attach_review_reply_evidence.py --store {record.get('store')} --date {record.get('date')}"
+        f"{platform_arg} --file '<平台截图路径>'"
+    )
+    evidence_type = "image" if path_obj and path_obj.suffix.lower() in IMAGE_SUFFIXES else ("link" if url else "")
     return {
-        "status": "ready" if url or path else "missing",
+        "status": "ready" if url or path_exists else "missing",
         "url": url,
         "path": path,
-        "message": "已记录回复证据。" if url or path else "已回复但缺平台截图或链接证据。",
+        "path_exists": path_exists,
+        "web_path": web_path,
+        "type": evidence_type,
+        "attach_command": attach_command,
+        "message": "已记录回复证据。" if url or path_exists else "已回复但缺平台截图或链接证据。",
     }
 
 

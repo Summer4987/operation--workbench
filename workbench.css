@@ -1043,6 +1043,31 @@ h2 {
   white-space: normal;
 }
 
+.review-list .evidence-link {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.review-list .evidence-link:hover {
+  text-decoration: underline;
+}
+
+.review-list .evidence-preview {
+  display: block;
+  width: min(320px, 100%);
+  max-height: 180px;
+  margin-top: 8px;
+  border: 1px solid #d5efe6;
+  border-radius: 7px;
+  object-fit: contain;
+  background: #fff;
+}
+
 .review-list div {
   grid-template-columns: minmax(84px, 0.45fr) auto;
 }

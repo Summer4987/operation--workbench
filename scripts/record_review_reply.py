@@ -64,6 +64,13 @@ def main() -> int:
     write_json(RECORDS_PATH, payload)
     platform_text = f"{record['platform']} " if record["platform"] else ""
     print(f"已记录：{record['date']} {platform_text}{record['store']} 评价已人工回复。")
+    if not record["evidence_url"] and not record["evidence_path"]:
+        platform_arg = f" --platform {record['platform']}" if record["platform"] else ""
+        print(
+            "补证据命令："
+            f"python3 scripts/attach_review_reply_evidence.py --store {record['store']} --date {record['date']}"
+            f"{platform_arg} --file '<平台截图路径>'"
+        )
     print("下一步运行：python3 scripts/build_review_action_status.py && python3 scripts/build_workbench_data.py")
     return 0
 

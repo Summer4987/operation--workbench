@@ -136,11 +136,13 @@
       "entrypoints": [
         "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process",
         "scripts/record_review_reply.py",
+        "scripts/attach_review_reply_evidence.py",
         "scripts/build_review_action_status.py"
       ],
       "outputs": [
         "business-report-dashboard/data/unified_reviews.csv",
         "business-report-dashboard/data/latest.json",
+        "outputs/review_reply_evidence/<date>/*",
         "outputs/review_action_status/latest.json"
       ],
       "health_checks": [
@@ -151,13 +153,15 @@
         "待回复评价进入统一用户待办",
         "回复后记录命令可读取并提示补证据",
         "人工回复完成记录可扣减待处理队列",
-        "已回复记录可标记平台截图或链接证据"
+        "已回复记录可标记平台截图或链接证据",
+        "本地截图可复制到证据目录并回写回复记录",
+        "看板可展示证据链接和截图预览"
       ],
       "human_needed_when": [
         "评价下载需要登录或验证码",
         "差评需要人工回复或赔付判断"
       ],
-      "next_integration_step": "评价待回复计划已接入统一待办和评价页，下一步做平台截图或链接的上传/预览入口。"
+      "next_integration_step": "评价回复证据上传/预览入口已接入，下一步把评价回复完成动作接入更明确的用户操作队列。"
     },
     {
       "id": "growth.promo_budget",
