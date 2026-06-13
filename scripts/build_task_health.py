@@ -375,11 +375,14 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         payload = read_json(ORDER_SUGGESTIONS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
+        confirmation = payload.get("confirmation") or {}
         if payload.get("status") == "ready":
+            channel_count = int(summary.get("channel_count") or 0)
+            confirm_text = "需人工确认后再下单" if confirmation.get("status") == "pending" else "当前无需订货"
             row.update(
                 status="warn",
-                reason=f"订货建议已生成，{summary.get('suggestion_count', 0)} 项，需人工确认后再下单。",
-                human_action="先人工确认订货建议，不要自动下单或付款。",
+                reason=f"订货建议已生成，{summary.get('suggestion_count', 0)} 项，{channel_count} 个供应渠道，{confirm_text}。",
+                human_action=confirmation.get("message") or "先人工确认订货建议，不要自动下单或付款。",
                 evidence="outputs/inventory_order_suggestions/latest.json",
             )
         elif payload.get("status") == "failed":

@@ -379,12 +379,13 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     suggestion_summary = order_suggestions.get("summary") or {}
     suggestion_count = int(suggestion_summary.get("suggestion_count") or 0)
     if order_suggestions.get("status") == "ready" and suggestion_count:
+        channel_count = int(suggestion_summary.get("channel_count") or 0)
         rows.append(
             {
                 "level": "需人工处理",
                 "center": "货流中心",
                 "title": "订货建议待确认",
-                "reason": f"库存预警已生成 {suggestion_count} 项订货建议，预估 {float(suggestion_summary.get('estimated_cost') or 0):.0f} 元。",
+                "reason": f"库存预警已生成 {suggestion_count} 项订货建议，{channel_count} 个供应渠道，预估 {float(suggestion_summary.get('estimated_cost') or 0):.0f} 元。",
                 "action": "先人工确认品项、数量和供应渠道；确认前不自动下单、不付款。",
                 "source": "flow.auto_ordering",
             }

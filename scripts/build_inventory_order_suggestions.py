@@ -69,12 +69,34 @@ def build_suggestions(items: list[dict[str, Any]], buffer_units: float) -> list[
     return sorted(suggestions, key=lambda item: (item["balance"] - item["warning_threshold"], item["sku"]))
 
 
+def group_by_channel(suggestions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in suggestions:
+        channel = str(item.get("warehouse") or "未配置供应渠道")
+        group = grouped.setdefault(
+            channel,
+            {
+                "channel": channel,
+                "status": "待人工确认",
+                "item_count": 0,
+                "estimated_cost": 0.0,
+                "items": [],
+                "next_action": "人工确认品项、数量和供应渠道后，再生成下单清单。",
+            },
+        )
+        group["items"].append(item)
+        group["item_count"] += 1
+        group["estimated_cost"] = round(float(group["estimated_cost"]) + float(item.get("estimated_cost") or 0), 2)
+    return sorted(grouped.values(), key=lambda item: (-int(item["item_count"]), item["channel"]))
+
+
 def build_payload(server: str, timeout: int, buffer_units: float) -> dict[str, Any]:
     summary = fetch_inventory_summary(server, timeout)
     items = summary.get("items")
     if not isinstance(items, list):
         raise ValueError("库存 /api/summary 缺少 items 列表。")
     suggestions = build_suggestions(items, buffer_units)
+    groups = group_by_channel(suggestions)
     estimated_cost = round(sum(float(item.get("estimated_cost") or 0) for item in suggestions), 2)
     return {
         "generated_at": now_text(),
@@ -85,11 +107,19 @@ def build_payload(server: str, timeout: int, buffer_units: float) -> dict[str, A
             "method": "低于或等于预警线时补货",
             "buffer_units": buffer_units,
             "requires_human_confirm": True,
+            "group_by": "warehouse",
+        },
+        "confirmation": {
+            "status": "pending" if suggestions else "not_required",
+            "required_before": ["生成渠道下单清单", "远控安卓下单", "付款"],
+            "message": "订货建议只用于人工确认；确认前不会自动下单或付款。",
         },
         "summary": {
             "suggestion_count": len(suggestions),
+            "channel_count": len(groups),
             "estimated_cost": estimated_cost,
         },
+        "groups": groups,
         "items": suggestions,
         "message": f"订货建议已生成：{len(suggestions)} 项，预估金额 {estimated_cost:.2f} 元。",
     }
