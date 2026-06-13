@@ -515,14 +515,17 @@ function renderBalances() {
 
 function renderBudget() {
   const budget = data.budget || {};
+  const retry = data.promo_budget_retry || {};
   const summary = budget.summary || {};
+  const retrySummary = retry.summary || {};
   const eleme = budget.eleme_lunch || [];
   const meituan = budget.meituan_lunch || [];
   text("metricBudget", `${summary.total_initial_budget_items || eleme.length + meituan.length} 项`);
   text("metricBudgetMeta", `饿了么 ${eleme.length} 自动 · 美团 ${meituan.length} 自动`);
   text("budgetCount", `${eleme.length + meituan.length} 项`);
   const weekend = budget.weekend_preset || {};
-  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekend.enabled ? weekend.name || "已启用" : "未启用"}。`);
+  const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工。` : "门店级重试策略待生成。";
+  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekend.enabled ? weekend.name || "已启用" : "未启用"}。${retryText}`);
   rows(
     "budgetRows",
     [
@@ -531,6 +534,17 @@ function renderBudget() {
       ...meituan.slice(0, 4),
     ],
     (item) => `<div><span>${item.platform} · ${shortStore(item.store)}</span><strong>${yuan(item.targetBudget)}</strong><em>${item.status === "auto" ? "自动" : item.status === "preset" ? "预设" : "人工"}</em></div>`
+  );
+  const retryRows = retry.status === "ready"
+    ? [
+        { label: "可安全重试", value: `${retrySummary.safe_retry_count || 0} 项`, detail: "仅超时/普通执行失败" },
+        { label: "需人工处理", value: `${retrySummary.manual_count || 0} 项`, detail: "登录/权限/页面/映射/预算安全" },
+      ]
+    : [{ label: "重试策略", value: "待生成", detail: "先生成预算预览" }];
+  rows(
+    "budgetRetryRows",
+    retryRows,
+    (item) => `<div class="${item.label === "需人工处理" && Number.parseInt(item.value, 10) ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 }
 

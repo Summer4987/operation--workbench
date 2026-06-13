@@ -20,6 +20,7 @@ ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
 ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_plan" / "latest.json"
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
+PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -324,16 +325,21 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "growth.promo_budget":
         payload = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
+        retry_plan = read_json(PROMO_BUDGET_RETRY_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
+        retry_summary = retry_plan.get("summary") or {}
         if not generated_at:
             row.update(status="warn", reason="推广预算预览尚未生成。")
         elif now - generated_at > timedelta(days=2):
             row.update(status="warn", reason=f"推广预算预览偏旧：{age_text(generated_at, now)}。")
         else:
-            row.update(status="ok", reason=f"预算预览可用，午餐 {summary.get('total_initial_budget_items') or 0} 项，晚餐 {summary.get('total_dinner_budget_items') or 0} 项。")
+            retry_text = ""
+            if retry_plan.get("status") == "ready":
+                retry_text = f"，可安全重试 {retry_summary.get('safe_retry_count', 0)} 项，需人工处理 {retry_summary.get('manual_count', 0)} 项"
+            row.update(status="ok", reason=f"预算预览可用，午餐 {summary.get('total_initial_budget_items') or 0} 项，晚餐 {summary.get('total_dinner_budget_items') or 0} 项{retry_text}。")
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
-        row["evidence"] = "outputs/promo_budget_preview/latest.json"
+        row["evidence"] = "outputs/promo_budget_retry_plan/latest.json" if retry_plan else "outputs/promo_budget_preview/latest.json"
 
     elif task_id == "growth.promo_balance":
         payload = read_json(ROOT / "store-inspection" / "latest.json", {})
