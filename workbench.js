@@ -1,6 +1,8 @@
 const data = window.WORKBENCH_DATA || {};
 
-const sections = [...document.querySelectorAll(".module, .topbar")];
+const mainView = document.querySelector(".main");
+const commandBoard = document.querySelector(".command-board");
+const pageSections = [...document.querySelectorAll(".center-section")];
 const navLinks = [...document.querySelectorAll(".nav a")];
 
 const yuan = (value) =>
@@ -1330,21 +1332,36 @@ function renderFinance() {
   );
 }
 
-function activateNav() {
-  const anchorLinks = navLinks.filter((link) => (link.getAttribute("href") || "").startsWith("#"));
-  if (!anchorLinks.length) return;
-  const hash = window.location.hash.replace("#", "");
-  const hashSection = hash ? sections.find((section) => section.id === hash) : null;
-  const current = hashSection || sections
-    .map((section) => ({
-      id: section.id,
-      top: Math.abs(section.getBoundingClientRect().top - 90),
-    }))
-    .sort((a, b) => a.top - b.top)[0];
+function sectionForHash(hash) {
+  if (!hash || hash === "overview") return null;
+  const target = document.getElementById(hash);
+  if (!target) return null;
+  return target.classList.contains("center-section") ? target : target.closest(".center-section");
+}
 
-  if (!current) return;
+function activatePage() {
+  const anchorLinks = navLinks.filter((link) => (link.getAttribute("href") || "").startsWith("#"));
+  const requestedHash = window.location.hash.replace("#", "");
+  const activeSection = sectionForHash(requestedHash);
+  const activeHash = activeSection ? requestedHash : "overview";
+  const showOverview = !activeSection;
+
+  if (commandBoard) commandBoard.hidden = !showOverview;
+  pageSections.forEach((section) => {
+    section.hidden = section !== activeSection;
+  });
+  mainView?.classList.toggle("is-overview", showOverview);
+  mainView?.classList.toggle("is-detail", !showOverview);
+
+  document.querySelectorAll(".module.is-focused").forEach((module) => {
+    module.classList.remove("is-focused");
+  });
+  if (activeSection && requestedHash && requestedHash !== activeSection.id) {
+    document.getElementById(requestedHash)?.classList.add("is-focused");
+  }
+
   anchorLinks.forEach((link) => {
-    link.classList.toggle("active", link.getAttribute("href") === `#${current.id}`);
+    link.classList.toggle("active", link.getAttribute("href") === `#${activeHash}`);
   });
 }
 
@@ -1363,5 +1380,5 @@ renderOrdering();
 renderInventory();
 renderTools();
 renderFinance();
-window.addEventListener("scroll", activateNav, { passive: true });
-activateNav();
+window.addEventListener("hashchange", activatePage);
+activatePage();

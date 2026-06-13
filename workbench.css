@@ -213,6 +213,19 @@ a {
   margin-bottom: 26px;
 }
 
+.command-board[hidden],
+.center-section[hidden] {
+  display: none !important;
+}
+
+.main.is-overview .topbar {
+  margin-bottom: 16px;
+}
+
+.main.is-detail .topbar {
+  margin-bottom: 18px;
+}
+
 .hero-card,
 .summary-card {
   background: var(--surface);
