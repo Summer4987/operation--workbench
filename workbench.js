@@ -1551,8 +1551,19 @@ async function loadDailyReportFrame() {
   const frame = document.querySelector(".daily-report-frame");
   if (!frame) return;
   const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
-  const reportUrl = new URL(reportSrc, window.location.href).href;
-  frame.srcdoc = '<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">正在加载经营日报...</body></html>';
+  await loadEmbeddedFrame(frame, reportSrc, "正在加载经营日报...", "经营日报加载失败", "打开经营日报");
+}
+
+async function loadInventoryBoardFrame() {
+  const frame = document.querySelector(".inventory-board-frame");
+  if (!frame) return;
+  const inventorySrc = frame.dataset.inventorySrc || "/";
+  await loadEmbeddedFrame(frame, inventorySrc, "正在加载库存管理...", "库存管理加载失败", "打开库存管理");
+}
+
+async function loadEmbeddedFrame(frame, source, loadingText, failureTitle, linkText) {
+  const reportUrl = new URL(source, window.location.href).href;
+  frame.srcdoc = `<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">${escapeHtml(loadingText)}</body></html>`;
   try {
     const response = await fetch(reportUrl, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1566,11 +1577,11 @@ async function loadDailyReportFrame() {
     frame.srcdoc = html;
   } catch (error) {
     frame.srcdoc = `<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">
-      <strong style="display:block;color:#172033;margin-bottom:8px;">经营日报加载失败</strong>
-      <span>请刷新页面，或临时打开经营日报独立页。</span>
-      <a style="display:inline-block;margin-left:8px;color:#2563eb;" href="${escapeHtml(reportUrl)}" target="_blank" rel="noreferrer">打开经营日报</a>
+      <strong style="display:block;color:#172033;margin-bottom:8px;">${escapeHtml(failureTitle)}</strong>
+      <span>请刷新页面，或临时打开独立页面。</span>
+      <a style="display:inline-block;margin-left:8px;color:#2563eb;" href="${escapeHtml(reportUrl)}" target="_blank" rel="noreferrer">${escapeHtml(linkText)}</a>
     </body></html>`;
-    console.error("Failed to load daily report dashboard", error);
+    console.error("Failed to load embedded frame", error);
   }
 }
 
@@ -1590,3 +1601,4 @@ renderFinance();
 window.addEventListener("hashchange", activatePage);
 activatePage();
 loadDailyReportFrame();
+loadInventoryBoardFrame();

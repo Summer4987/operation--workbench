@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260614-tool-pages" />
+    <link rel="stylesheet" href="./workbench.css?v=20260614-inventory-sidebar" />
   </head>
   <body>
     <main class="app">
@@ -41,7 +41,7 @@
             <h2 id="nav-flow">货流中心</h2>
             <div class="nav-subgroup">
               <a href="#ordering">订货管理</a>
-              <a href="http://139.155.148.169/">库存管理</a>
+              <a href="#inventory">库存管理</a>
             </div>
           </section>
 
@@ -341,6 +341,19 @@
           </div>
         </section>
 
+        <section class="center-section inventory-section" id="inventory">
+          <div class="section-head">
+            <p>货流中心</p>
+            <h2>库存管理</h2>
+          </div>
+          <iframe
+            class="inventory-board-frame"
+            data-inventory-src="/"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            title="库存管理"
+          ></iframe>
+        </section>
+
         <section class="center-section" id="finance">
           <div class="section-head">
             <p>财务中心</p>
@@ -433,7 +446,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260614-tool-pages"></script>
-    <script src="./workbench.js?v=20260614-tool-pages"></script>
+    <script src="./workbench-data.js?v=20260614-inventory-sidebar"></script>
+    <script src="./workbench.js?v=20260614-inventory-sidebar"></script>
   </body>
 </html>
