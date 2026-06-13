@@ -26,7 +26,7 @@ REQUIRED_LAUNCHD_JOBS = {
     "com.summer.operation.morning": {
         "plist": LAUNCH_AGENTS / "com.summer.operation.morning.plist",
         "runner": Path.home() / "Library" / "Scripts" / "xiong-operation" / "run_morning_ops.zsh",
-        "schedule": {"Hour": 9, "Minute": 30},
+        "schedule": {"Hour": 8, "Minute": 0},
     },
     "com.summer.operation.evening": {
         "plist": LAUNCH_AGENTS / "com.summer.operation.evening.plist",

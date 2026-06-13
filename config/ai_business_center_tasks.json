@@ -28,7 +28,7 @@
       "module": "自动化任务健康报告",
       "status": "running",
       "risk": "high",
-      "schedule": "每天 09:30",
+      "schedule": "每天 08:00",
       "entrypoints": [
         "morning-ops/run_morning_ops_if_10am.command",
         "morning-ops/run_morning_ops.py"

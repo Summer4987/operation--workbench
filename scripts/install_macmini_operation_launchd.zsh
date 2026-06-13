@@ -193,8 +193,8 @@ export MORNING_OPS_LOG_DIR="\$LOG_DIR"
 export AI_BUSINESS_CENTER_ENV="production"
 
 now_hhmm="\$(date +%H%M)"
-if [ "\$now_hhmm" -lt 900 ] || [ "\$now_hhmm" -gt 1050 ]; then
-  echo "[\$(date '+%F %T')] 跳过：当前不在 09:00-10:50 窗口内。" >> "\$LOG_DIR/scheduler.log"
+if [ "\$now_hhmm" -lt 800 ] || [ "\$now_hhmm" -gt 1050 ]; then
+  echo "[\$(date '+%F %T')] 跳过：当前不在 08:00-10:50 窗口内。" >> "\$LOG_DIR/scheduler.log"
   exit 0
 fi
 
@@ -356,13 +356,13 @@ do
   rm -f "$LAUNCH_DIR/${old_label}.plist"
 done
 
-write_plist "com.summer.operation.morning" 9 30 "$SCRIPT_DIR/run_morning_ops.zsh" "$ROOT"
+write_plist "com.summer.operation.morning" 8 0 "$SCRIPT_DIR/run_morning_ops.zsh" "$ROOT"
 write_realtime_plist
 write_plist "com.summer.operation.evening" 16 30 "$SCRIPT_DIR/run_evening_budget.zsh" "$ROOT"
 
 echo
 echo "Mac mini 定时任务已安装。"
-echo "上午：每天 9:30 一键运营，采集完成后立即提交午餐推广预算"
+echo "上午：每天 8:00 一键运营，采集完成后立即提交午餐推广预算"
 echo "实时：每天 10:30-13:00 每半小时、13:00-17:00 每小时、17:00-20:00 每半小时"
 echo "库存：已改为云端主流程，不再安装 10:10 本地同步"
 echo "晚间：每天 16:30 推广预算真实提交"
