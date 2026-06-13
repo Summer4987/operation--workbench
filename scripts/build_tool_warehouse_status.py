@@ -35,6 +35,7 @@ FRANCHISE_REQUIRED_FIELDS = [
 ]
 
 FRANCHISE_TEMPLATE_DIR = ROOT / "franchise-contract-generator"
+FRANCHISE_FIELD_TEMPLATE_PATH = FRANCHISE_TEMPLATE_DIR / "templates" / "field_template.csv"
 FRANCHISE_ACCEPTED_EXTENSIONS = [".docx", ".pdf", ".pages", ".txt", ".md"]
 
 
@@ -124,6 +125,14 @@ def franchise_contract_status() -> dict[str, Any]:
         "status": "ready_for_mapping" if has_template else "waiting_template",
         "status_text": "待字段映射" if has_template else "待模板",
         "entrypoint": "franchise-contract-generator/",
+        "setup": {
+            "init_command": "python3 scripts/init_franchise_contract_inbox.py",
+            "template_dir": "franchise-contract-generator/",
+            "field_template_path": str(FRANCHISE_FIELD_TEMPLATE_PATH.relative_to(ROOT)),
+            "directory_ready": FRANCHISE_TEMPLATE_DIR.exists(),
+            "field_template_ready": FRANCHISE_FIELD_TEMPLATE_PATH.exists(),
+            "note": "正式合同模板放在 franchise-contract-generator/ 根目录；templates/ 只放字段清单，不作为正式合同模板。",
+        },
         "template_files": [str(path.relative_to(ROOT)) for path in template_files if path.is_file()],
         "accepted_extensions": FRANCHISE_ACCEPTED_EXTENSIONS,
         "required_fields": FRANCHISE_REQUIRED_FIELDS,
@@ -131,9 +140,10 @@ def franchise_contract_status() -> dict[str, Any]:
             {
                 "label": "模板目录",
                 "path": "franchise-contract-generator/",
+                "field_template_path": str(FRANCHISE_FIELD_TEMPLATE_PATH.relative_to(ROOT)),
                 "accepted_extensions": FRANCHISE_ACCEPTED_EXTENSIONS,
                 "required_fields": FRANCHISE_REQUIRED_FIELDS,
-                "message": intake_message,
+                "message": f"{intake_message} 字段清单可参考 {FRANCHISE_FIELD_TEMPLATE_PATH.relative_to(ROOT)}。",
             }
         ],
         "missing": [] if has_template else ["合同模板文件", "加盟条款字段确认"],

@@ -461,16 +461,22 @@
       "name": "加盟合同生成器",
       "center": "小工具仓库",
       "module": "加盟合同生成器",
-      "status": "planned",
+      "status": "running_unstable",
       "risk": "medium",
       "schedule": "人工触发",
-      "entrypoints": [],
+      "entrypoints": [
+        "scripts/init_franchise_contract_inbox.py",
+        "scripts/build_tool_warehouse_status.py",
+        "franchise-contract-generator/"
+      ],
       "outputs": [
-        "outputs/tool_warehouse_status/latest.json"
+        "outputs/tool_warehouse_status/latest.json",
+        "franchise-contract-generator/templates/field_template.csv"
       ],
       "health_checks": [
         "合同模板版本明确",
         "模板接收清单列出目录、格式和必需字段",
+        "加盟合同字段清单模板可读取",
         "加盟商资料字段完整",
         "生成前预览并人工确认",
         "工具仓库状态列出缺失模板和字段"
@@ -480,7 +486,7 @@
         "确认加盟条款和费用口径",
         "确认生成后的合同内容"
       ],
-      "next_integration_step": "合同模板接收清单已接入工具仓库、健康报告和统一待办，下一步在模板到位后做字段映射。"
+      "next_integration_step": "合同模板接收清单、初始化脚本和字段清单模板已接入，下一步在模板到位后做字段映射。"
     }
   ]
 }
