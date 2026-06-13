@@ -966,18 +966,27 @@ function renderTools() {
   const sales = warehouse.sales_receipt || {};
   const contract = warehouse.franchise_contract || {};
   const salesChecks = sales.checks || [];
+  const printCheck = sales.print_check || {};
   const salesReadyCount = salesChecks.filter((item) => item.exists).length;
   text("salesReceiptStatus", sales.status_text || (sales.status === "ready" ? "已接入" : "待检查"));
-  text("salesReceiptCount", sales.status === "ready" ? "可用" : `${salesReadyCount}/${salesChecks.length || 4}`);
+  text("salesReceiptCount", sales.status === "ready" ? "可用" : sales.status === "needs_print_check" ? "待校验" : `${salesReadyCount}/${salesChecks.length || 4}`);
   text("salesReceiptSummary", sales.message || "销售单生成器等待状态检查。");
   document.querySelector(".module-receipt")?.classList.toggle("alert", sales.status && sales.status !== "ready");
   rows(
     "salesReceiptRows",
-    salesChecks.length ? salesChecks : [
-      { label: "页面", exists: false, path: "sales-receipt-generator/index.html" },
-      { label: "脚本", exists: false, path: "sales-receipt-generator/app.js" },
+    [
+      ...(salesChecks.length ? salesChecks : [
+        { label: "页面", exists: false, path: "sales-receipt-generator/index.html" },
+        { label: "脚本", exists: false, path: "sales-receipt-generator/app.js" },
+      ]),
+      ...(printCheck.status ? [{
+        label: "打印校验",
+        exists: printCheck.status === "ok",
+        path: printCheck.screenshot || "",
+        detail: printCheck.message || "",
+      }] : []),
     ],
-    (item) => `<div class="${item.exists ? "good-row" : "warn-row"}"><span>${escapeHtml(item.label)}</span><strong>${item.exists ? "存在" : "缺失"}</strong><em>${escapeHtml(item.path || "")}</em></div>`
+    (item) => `<div class="${item.exists ? "good-row" : "warn-row"}"><span>${escapeHtml(item.label)}</span><strong>${item.exists ? "通过" : "缺失"}</strong><em>${escapeHtml(item.detail || item.path || "")}</em></div>`
   );
 
   const requiredFields = contract.required_fields || [];

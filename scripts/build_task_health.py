@@ -655,6 +655,12 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         generated_at = parse_time(payload.get("generated_at"))
         if sales.get("status") == "ready":
             row.update(status="ok", reason=sales.get("message") or "销售单生成器资源完整。", evidence="outputs/tool_warehouse_status/latest.json")
+        elif sales.get("status") == "needs_print_check":
+            row.update(status="warn", reason=sales.get("message") or "销售单生成器等待打印版式校验。", evidence="outputs/tool_warehouse_status/latest.json")
+            row["human_action"] = "运行 node scripts/check_sales_receipt_print_layout.mjs 生成截图校验。"
+        elif sales.get("status") == "print_check_failed":
+            row.update(status="danger", reason=sales.get("message") or "销售单打印版式校验失败。", evidence="outputs/sales_receipt_print_check/latest.json")
+            row["human_action"] = "检查销售单样式和打印缩放，确保样例单据可压入一页。"
         elif sales:
             row.update(status="danger", reason=sales.get("message") or "销售单生成器资源缺失。", evidence="outputs/tool_warehouse_status/latest.json")
         else:

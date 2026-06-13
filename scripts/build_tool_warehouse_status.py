@@ -11,6 +11,7 @@ from task_run_state import classify_failure_text, record_task_event
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "tool_warehouse_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+SALES_PRINT_CHECK_PATH = ROOT / "outputs" / "sales_receipt_print_check" / "latest.json"
 SALES_TASK_ID = "tools.sales_receipt"
 
 SALES_RECEIPT_REQUIRED = [
@@ -54,18 +55,34 @@ def file_status(label: str, path: Path) -> dict[str, Any]:
     }
 
 
+def read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+
 def sales_receipt_status() -> dict[str, Any]:
     checks = [file_status(label, path) for label, path in SALES_RECEIPT_REQUIRED]
     missing = [item for item in checks if not item["exists"]]
-    status = "ready" if not missing else "missing_assets"
+    print_check = read_json(SALES_PRINT_CHECK_PATH, {})
+    if missing:
+        status = "missing_assets"
+    elif print_check.get("status") == "failed":
+        status = "print_check_failed"
+    elif print_check.get("status") == "ok":
+        status = "ready"
+    else:
+        status = "needs_print_check"
     return {
         "id": "sales_receipt",
         "name": "销售单生成器",
         "status": status,
-        "status_text": "已接入" if status == "ready" else "缺资源",
+        "status_text": "已接入" if status == "ready" else "待校验" if status == "needs_print_check" else "版式异常" if status == "print_check_failed" else "缺资源",
         "entrypoint": "sales-receipt-generator/index.html",
         "checks": checks,
         "missing": missing,
+        "print_check": print_check,
         "capabilities": [
             "销售日期和单据编号",
             "收货单位",
@@ -73,8 +90,12 @@ def sales_receipt_status() -> dict[str, Any]:
             "默认公章或临时上传公章",
             "一页打印或保存 PDF",
         ],
-        "message": "销售单生成器资源完整，可从工具仓库打开。"
+        "message": "销售单生成器资源完整，打印版式校验通过，可从工具仓库打开。"
         if status == "ready"
+        else "销售单生成器等待打印版式自动截图校验。"
+        if status == "needs_print_check"
+        else print_check.get("message", "销售单打印版式校验失败。")
+        if status == "print_check_failed"
         else f"销售单生成器缺少 {len(missing)} 个资源。",
     }
 

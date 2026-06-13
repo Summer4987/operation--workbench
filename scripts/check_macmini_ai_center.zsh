@@ -71,6 +71,7 @@ echo "== 配置与语法检查 =="
 /bin/zsh -n scripts/install_macmini_operation_launchd.zsh
 if command -v "$NODE" >/dev/null 2>&1; then
   "$NODE" --check workbench.js
+  "$NODE" --check scripts/check_sales_receipt_print_layout.mjs
 else
   echo "提示：未找到 Node，跳过 workbench.js 语法检查。"
 fi
@@ -91,6 +92,11 @@ echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/build_promo_bid_advice.py
 "$PYTHON" scripts/build_promo_bid_approval_queue.py
 "$PYTHON" scripts/build_promo_balance_status.py
+if command -v "$NODE" >/dev/null 2>&1; then
+  "$NODE" scripts/check_sales_receipt_print_layout.mjs
+else
+  echo "提示：未找到 Node，跳过销售单打印版式校验。"
+fi
 "$PYTHON" scripts/build_tool_warehouse_status.py
 "$PYTHON" scripts/build_finance_center_status.py
 "$PYTHON" scripts/build_task_health.py

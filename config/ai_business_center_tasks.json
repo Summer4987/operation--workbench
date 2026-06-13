@@ -384,21 +384,25 @@
       "schedule": "人工打开使用",
       "entrypoints": [
         "scripts/build_tool_warehouse_status.py",
+        "scripts/check_sales_receipt_print_layout.mjs",
         "sales-receipt-generator/index.html"
       ],
       "outputs": [
         "outputs/tool_warehouse_status/latest.json",
+        "outputs/sales_receipt_print_check/latest.json",
+        "outputs/sales_receipt_print_check/latest.png",
         "浏览器打印销售单"
       ],
       "health_checks": [
         "页面可打开",
         "脚本、样式和默认公章资源存在",
+        "打印版式自动截图校验通过",
         "打印布局保持一页"
       ],
       "human_needed_when": [
         "销售单字段或公章模板变化"
       ],
-      "next_integration_step": "工具仓库状态卡已接入，下一步补销售单打印版式自动截图校验。"
+      "next_integration_step": "销售单打印版式自动截图校验已接入，下一步补字段变化时的样例单据回归集。"
     },
     {
       "id": "tools.franchise_contract",
