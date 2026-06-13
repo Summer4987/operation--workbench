@@ -129,7 +129,9 @@
       "risk": "low",
       "schedule": "上午一键采集触发",
       "entrypoints": [
-        "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process"
+        "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process",
+        "scripts/record_review_reply.py",
+        "scripts/build_review_action_status.py"
       ],
       "outputs": [
         "business-report-dashboard/data/unified_reviews.csv",
@@ -140,13 +142,14 @@
         "饿了么和美团评价下载分别写入运行状态",
         "评价汇总 review_summary 状态为 ready",
         "差评数量和关键词可读取",
-        "待回复差评门店和回复建议可读取"
+        "待回复差评门店和回复建议可读取",
+        "人工回复完成记录可扣减待处理队列"
       ],
       "human_needed_when": [
         "评价下载需要登录或验证码",
         "差评需要人工回复或赔付判断"
       ],
-      "next_integration_step": "评价独立页已增加差评处理状态和回复建议，下一步接入回复完成记录。"
+      "next_integration_step": "评价回复完成记录已接入，下一步补回复完成后的平台截图或链接证据。"
     },
     {
       "id": "growth.promo_budget",

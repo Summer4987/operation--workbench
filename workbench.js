@@ -507,6 +507,7 @@ function renderReviews() {
   const review = daily.review_summary || {};
   const reviewActions = data.review_actions || {};
   const actionItems = reviewActions.items || [];
+  const completedItems = reviewActions.completed_items || [];
   const actionSummary = reviewActions.summary || {};
   const stores = Object.entries(review.stores || {}).map(([store, item]) => ({
     store,
@@ -519,19 +520,28 @@ function renderReviews() {
   }));
   const totalReviews = stores.reduce((sum, item) => sum + item.review_count, 0);
   const totalIssues = stores.reduce((sum, item) => sum + item.negative_count, 0);
-  const statusText = review.status === "ready" ? "已同步" : review.status === "stale" ? "旧数据" : "待同步";
+  const pendingNegative = Number(actionSummary.negative_count || totalIssues || 0);
+  const completedNegative = Number(actionSummary.completed_negative_count || 0);
+  const statusText = pendingNegative ? "待回复" : completedNegative ? "已处理" : review.status === "ready" ? "已同步" : review.status === "stale" ? "旧数据" : "待同步";
 
   text("reviewStatus", statusText);
   text("reviewCount", `${totalReviews} 条`);
   text(
     "reviewSummary",
-    reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`
+    `${reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`}${completedNegative ? ` 已记录回复 ${completedNegative} 条。` : ""}`
   );
-  document.querySelector("#reviews")?.classList.toggle("alert", Number(actionSummary.negative_count || totalIssues) > 0);
+  document.querySelector("#reviews")?.classList.toggle("alert", pendingNegative > 0);
 
   rows(
     "reviewRows",
-    (actionItems.length ? actionItems.map((item) => ({ ...item, kind: "action" })) : stores)
+    (actionItems.length
+      ? [
+          ...actionItems.map((item) => ({ ...item, kind: "action" })),
+          ...completedItems.slice(0, 3).map((item) => ({ ...item, kind: "completed" })),
+        ]
+      : completedItems.length
+        ? completedItems.slice(0, 8).map((item) => ({ ...item, kind: "completed" }))
+        : stores)
       .slice()
       .sort((a, b) => Number(b.negative_count || 0) - Number(a.negative_count || 0) || Number(b.review_count || 0) - Number(a.review_count || 0))
       .slice(0, 8),
@@ -542,6 +552,11 @@ function renderReviews() {
         const examples = (item.examples || []).map((content, index) => `<span class="bad-review">${index + 1}. ${escapeHtml(content)}</span>`).join("");
         const exampleText = examples ? `<br><b class="bad-review-title">差评内容</b>${examples}` : "";
         return `<div class="warn-row"><span>${escapeHtml(item.store)}</span><strong>待回复 ${num(item.negative_count)} 条</strong><em>${escapeHtml(platforms)} · 关键词：${escapeHtml(keywords)}<br>${escapeHtml(item.reply_suggestion || item.human_action || "先查看平台评价详情后回复。")}${exampleText}</em></div>`;
+      }
+      if (item.kind === "completed") {
+        const platform = item.platform ? `${item.platform} · ` : "";
+        const note = item.note || item.operator || item.recorded_at || "已人工回复";
+        return `<div class="good-row"><span>${escapeHtml(item.store)}</span><strong>${escapeHtml(platform)}已回复</strong><em>${escapeHtml(`${item.date || ""} ${note}`.trim())}</em></div>`;
       }
       const keywords = item.top_keywords.length ? item.top_keywords.join("、") : "无集中关键词";
       const badReviews = item.bad_review_examples

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "latest.json"
+REPLY_RECORDS_PATH = Path(os.environ.get("REVIEW_REPLY_RECORDS_PATH", ROOT / "data" / "review_reply_records.json"))
 OUTPUT_DIR = ROOT / "outputs" / "review_action_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 
@@ -34,15 +36,51 @@ def reply_suggestion(store: str, keywords: list[str], examples: list[str]) -> st
     return f"{store}先查看平台评价详情；回复前确认订单、出餐、配送和售后记录。"
 
 
-def build_action_items(review: dict[str, Any]) -> list[dict[str, Any]]:
+def completed_records(records: dict[str, Any], target_date: str) -> list[dict[str, Any]]:
+    completed = []
+    for record in records.get("records") or []:
+        if record.get("status") not in {"replied", "done", "closed"}:
+            continue
+        if target_date and record.get("date") and record.get("date") != target_date:
+            continue
+        completed.append(record)
+    return completed
+
+
+def completion_index(records: list[dict[str, Any]]) -> dict[str, Any]:
+    index: dict[str, Any] = {}
+    for record in records:
+        store = str(record.get("store") or "").strip()
+        if not store:
+            continue
+        entry = index.setdefault(store, {"store_done": False, "platforms": set(), "records": []})
+        platform = str(record.get("platform") or "").strip()
+        if platform:
+            entry["platforms"].add(platform)
+        else:
+            entry["store_done"] = True
+        entry["records"].append(record)
+    return index
+
+
+def build_action_items(review: dict[str, Any], completed: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     items: list[dict[str, Any]] = []
+    completed_index = completion_index(completed)
+    completed_negative_count = 0
     for store, payload in (review.get("stores") or {}).items():
         negative_count = int(payload.get("negative_count") or 0)
         if negative_count <= 0:
             continue
+        completion = completed_index.get(store) or {}
+        if completion.get("store_done"):
+            completed_negative_count += negative_count
+            continue
         platforms = []
         for platform, detail in (payload.get("platforms") or {}).items():
             platform_negative = int(detail.get("negative_count") or 0)
+            if platform in (completion.get("platforms") or set()):
+                completed_negative_count += platform_negative
+                continue
             if platform_negative:
                 platforms.append(
                     {
@@ -52,6 +90,10 @@ def build_action_items(review: dict[str, Any]) -> list[dict[str, Any]]:
                         "avg_rating": float(detail.get("review_avg_rating") or detail.get("avg_rating") or 0),
                     }
                 )
+        if platforms:
+            negative_count = sum(int(item["negative_count"]) for item in platforms)
+        elif completion.get("platforms"):
+            continue
         keywords = [str(item) for item in payload.get("top_keywords") or [] if item]
         examples = [str(item) for item in payload.get("bad_review_examples") or payload.get("examples") or [] if item]
         items.append(
@@ -69,12 +111,15 @@ def build_action_items(review: dict[str, Any]) -> list[dict[str, Any]]:
                 "human_action": "先在对应平台查看评价和订单，再回复顾客；涉及漏放、糊焦、口味问题时同步门店复盘。",
             }
         )
-    return sorted(items, key=lambda item: (-int(item["negative_count"]), item["store"]))
+    return sorted(items, key=lambda item: (-int(item["negative_count"]), item["store"])), completed_negative_count
 
 
 def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     review = daily.get("review_summary") or {}
-    items = build_action_items(review)
+    target_date = review.get("used_date") or review.get("target_date") or ""
+    records_payload = read_json(REPLY_RECORDS_PATH, {"records": []})
+    completed = completed_records(records_payload, target_date)
+    items, completed_negative_count = build_action_items(review, completed)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -93,15 +138,19 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "message": message,
         "source": "business-report-dashboard/data/latest.json",
+        "reply_records_source": "data/review_reply_records.json",
         "review_status": review.get("status", ""),
         "target_date": review.get("target_date", ""),
         "used_date": review.get("used_date", ""),
         "summary": {
             "store_action_count": len(items),
             "negative_count": total_negative,
+            "completed_record_count": len(completed),
+            "completed_negative_count": completed_negative_count,
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
+        "completed_items": completed[:20],
         "human_action": items[0]["reply_suggestion"] if items else "",
     }
 

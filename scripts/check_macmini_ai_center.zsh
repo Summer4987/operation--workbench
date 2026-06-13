@@ -43,6 +43,7 @@ echo "== 配置与语法检查 =="
   scripts/build_morning_collection_status.py \
   scripts/build_realtime_collection_status.py \
   scripts/build_daily_focus_status.py \
+  scripts/record_review_reply.py \
   scripts/build_review_action_status.py \
   scripts/check_inventory_cloud_health.py \
   scripts/build_inventory_order_suggestions.py \
