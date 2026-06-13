@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen
@@ -44,6 +45,31 @@ def read_json(path: Path, fallback: dict) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return fallback
+
+
+def git_metadata() -> dict:
+    def run_git(args: list[str]) -> str:
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                timeout=3,
+            )
+            if result.returncode == 0:
+                return (result.stdout or "").strip()
+        except Exception:
+            return ""
+        return ""
+
+    commit = run_git(["rev-parse", "--short", "HEAD"])
+    branch = run_git(["branch", "--show-current"])
+    return {
+        "branch": branch,
+        "commit": commit,
+        "label": f"{branch} {commit}".strip(),
+    }
 
 
 def inventory_snapshot() -> dict:
@@ -1158,6 +1184,9 @@ def main() -> None:
     ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, user_action_queue, morning_collection, realtime_collection, realtime_comparison, daily_trends, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "system": {
+            "git": git_metadata(),
+        },
         "realtime": realtime,
         "realtime_history": realtime_history,
         "realtime_comparison": realtime_comparison,

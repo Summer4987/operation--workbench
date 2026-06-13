@@ -1348,7 +1348,8 @@ function activateNav() {
   });
 }
 
-text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}`);
+const gitLabel = data.system?.git?.commit ? ` · 版本 ${data.system.git.commit}` : "";
+text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}${gitLabel}`);
 renderDaily();
 renderPriority();
 renderHealth();
