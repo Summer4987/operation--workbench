@@ -1,12 +1,16 @@
 {
   "weekendPreset": {
-    "enabled": true,
-    "name": "周末保守方案",
-    "activeDays": [0, 6],
-    "lunchMultiplier": 0.75,
-    "dinnerMultiplier": 0.85,
-    "minBudget": 50,
-    "roundTo": 5
+    "enabled": false,
+    "name": "周末保守预设（待确认）",
+    "activeDays": [
+      0,
+      6
+    ],
+    "lunchMultiplier": 1,
+    "dinnerMultiplier": 1,
+    "minBudget": 0,
+    "roundTo": 10,
+    "notes": "待确认周末预算规则后启用；当前不会改变任何门店预算。"
   },
   "stores": {
     "安贞店": {

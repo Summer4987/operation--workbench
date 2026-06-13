@@ -141,17 +141,44 @@ function buildWeekendPreset(config) {
   const today = new Date();
   const day = today.getDay();
   const activeDays = Array.isArray(preset.activeDays) ? preset.activeDays : [0, 6];
-  const enabled = Boolean(preset.enabled) && activeDays.includes(day);
+  const configured = Object.keys(preset).length > 0;
+  const enabledSetting = Boolean(preset.enabled);
+  const isActiveDay = activeDays.includes(day);
+  const enabled = enabledSetting && isActiveDay;
+  const name = preset.name || "周末预设方案";
+  const status = enabled ? "active" : configured ? "configured_inactive" : "not_configured";
+  const activeDayNames = activeDays.map(dayName).filter(Boolean);
+  const message = enabled
+    ? `${name}今日生效，预算将按周末规则预览。`
+    : configured
+      ? enabledSetting
+        ? `${name}已启用，但今日不在启用日，当前不会改变任何门店预算。`
+        : `${name}已配置但未启用，当前不会改变任何门店预算。`
+      : "周末预设待配置，当前不会改变任何门店预算。";
   return {
     enabled,
-    configured: Boolean(preset.enabled),
-    name: preset.name || "周末预设方案",
+    configured,
+    enabled_setting: enabledSetting,
+    status,
+    message,
+    next_action: enabledSetting
+      ? "如需调整周末规则，修改 config/promo_budget_overrides.json 的 weekendPreset 倍率、最低预算或启用日。"
+      : "确认周末预算规则后，把 config/promo_budget_overrides.json 的 weekendPreset.enabled 改为 true，并设置倍率、最低预算和取整规则。",
+    name,
+    today_day: day,
+    is_active_day: isActiveDay,
     active_days: activeDays,
+    active_day_names: activeDayNames,
     lunch_multiplier: Number(preset.lunchMultiplier || 1),
     dinner_multiplier: Number(preset.dinnerMultiplier || 1),
     min_budget: Number(preset.minBudget || 0),
     round_to: Number(preset.roundTo || 1),
+    notes: preset.notes || "",
   };
+}
+
+function dayName(day) {
+  return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][day] || "";
 }
 
 function applyWeekendPreset(budget, period) {

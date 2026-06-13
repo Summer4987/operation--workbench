@@ -823,15 +823,21 @@ function renderBudget() {
   const retryGuide = (retry.repair_guides || [])[0] || {};
   const retryGuideStep = (retryGuide.checklist || [])[0] || "";
   const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工${affectedByLatestRun ? `，最近执行影响 ${affectedByLatestRun} 项` : ""}${retryGuide.title ? `，修复向导 ${retrySummary.repair_guide_count || (retry.repair_guides || []).length} 个` : ""}。` : "门店级重试策略待生成。";
-  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekend.enabled ? weekend.name || "已启用" : "未启用"}。${retryText}`);
+  const weekendStatusText = weekend.status === "active" ? "今日生效" : weekend.status === "configured_inactive" ? "待启用" : "待配置";
+  const weekendMessage = weekend.message || (weekend.enabled ? `${weekend.name || "周末预设"}今日生效。` : "周末预设待配置，当前不会改变任何门店预算。");
+  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekendStatusText}，${weekendMessage}${retryText}`);
   rows(
     "budgetRows",
     [
-      ...(weekend.enabled ? [{ platform: "周末预设", store: weekend.name || "周末方案", targetBudget: weekend.total_budget || 0, status: "preset" }] : []),
+      ...(weekend.status ? [{ platform: "周末预设", store: weekend.name || "周末方案", targetBudget: weekend.total_budget || 0, status: weekend.status, action: weekend.next_action || weekendMessage }] : []),
       ...eleme.slice(0, 4),
       ...meituan.slice(0, 4),
     ],
-    (item) => `<div><span>${item.platform} · ${shortStore(item.store)}</span><strong>${yuan(item.targetBudget)}</strong><em>${item.status === "auto" ? "自动" : item.status === "preset" ? "预设" : "人工"}</em></div>`
+    (item) => {
+      const statusLabel = item.status === "auto" ? "自动" : item.status === "active" ? "今日生效" : item.status === "configured_inactive" ? "待启用" : item.status === "not_configured" ? "待配置" : "人工";
+      const detail = item.platform === "周末预设" && item.action ? `<small>${escapeHtml(item.action)}</small>` : "";
+      return `<div><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store))}</span><strong>${yuan(item.targetBudget)}</strong><em>${escapeHtml(statusLabel)}</em>${detail}</div>`;
+    }
   );
   const retryRows = retry.status === "ready"
     ? [

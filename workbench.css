@@ -1179,6 +1179,13 @@ h2 {
   color: #1f2937;
 }
 
+.mini-table small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .empty-line {
   color: var(--muted);
   font-size: 13px;
