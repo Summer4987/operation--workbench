@@ -676,6 +676,12 @@ h2 {
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
+.realtime-store-alert {
+  background: var(--soft-red-bg);
+  border-color: var(--soft-red-line);
+  border-left: 4px solid var(--red);
+}
+
 .realtime-store-head {
   min-height: 42px;
   display: grid;
@@ -703,6 +709,15 @@ h2 {
   display: grid;
   grid-template-columns: minmax(118px, 1.45fr) minmax(82px, 0.55fr);
   gap: 8px;
+}
+
+.realtime-primary > em {
+  color: #7f1d1d;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .realtime-primary div {

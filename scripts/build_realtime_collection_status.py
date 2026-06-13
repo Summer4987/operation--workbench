@@ -19,6 +19,27 @@ TASK_ID = "ops.realtime_order_income"
 ACTIVE_STALE_AFTER = timedelta(minutes=95)
 
 
+def normalize_failure_type(message: str, fallback: str = "") -> str:
+    body = str(message or "")
+    if "Target page, context or browser has been closed" in body or "browser has been closed" in body:
+        return "browser_closed"
+    return fallback or classify_failure_text(body)
+
+
+def human_action_for(failure_type: str, platform: str) -> str:
+    if failure_type == "auth_block":
+        return f"在 Mac mini 的 Chrome 恢复{platform}登录或验证码后，重跑实时单量采集。"
+    if failure_type == "browser_closed":
+        return f"确认 Mac mini 的 Chrome/CDP 窗口保持打开并已登录{platform}；如反复关闭，重启 Chrome 后重跑实时采集。"
+    if failure_type == "timeout":
+        return f"先确认{platform}后台页面能打开，再重跑实时采集；连续超时再重启 Chrome/CDP。"
+    if failure_type == "page_structure":
+        return f"{platform}页面结构可能变化，先人工核对后台页面，再调整实时采集识别规则。"
+    if failure_type == "missing_platform_store":
+        return f"检查{platform}门店映射和接口返回，确认缺失门店是否仍在营业或是否改名。"
+    return f"先查看{platform}实时采集日志，确认登录、页面、接口和门店映射是否正常。"
+
+
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -66,6 +87,65 @@ def classify_payload_failure(payload: dict[str, Any], task_run: dict[str, Any]) 
     return ""
 
 
+def build_platform_failures(payload: dict[str, Any], fallback_failure_type: str) -> list[dict[str, Any]]:
+    errors = [str(item) for item in payload.get("errors") or [] if item]
+    missing = payload.get("missing") or []
+    by_platform: dict[str, dict[str, Any]] = {}
+    for item in missing:
+        if not isinstance(item, dict):
+            continue
+        platform = str(item.get("platform") or "未知平台")
+        row = by_platform.setdefault(
+            platform,
+            {
+                "platform": platform,
+                "status": "failed",
+                "missing_count": 0,
+                "stores": [],
+                "message": "",
+                "failure_type": fallback_failure_type or "missing_platform_store",
+                "human_action": "",
+            },
+        )
+        row["missing_count"] += 1
+        if item.get("store"):
+            row["stores"].append(str(item["store"]))
+
+    for error in errors:
+        platform = "未知平台"
+        detail = error
+        if "采集失败：" in error:
+            platform, detail = error.split("采集失败：", 1)
+            platform = platform.strip()
+            detail = detail.strip()
+        failure_type = normalize_failure_type(detail, fallback_failure_type)
+        row = by_platform.setdefault(
+            platform,
+            {
+                "platform": platform,
+                "status": "failed",
+                "missing_count": 0,
+                "stores": [],
+                "message": "",
+                "failure_type": failure_type,
+                "human_action": "",
+            },
+        )
+        row["message"] = detail
+        row["failure_type"] = failure_type
+
+    failures = []
+    for row in by_platform.values():
+        if not row["message"]:
+            store_text = "、".join(row["stores"][:4])
+            if len(row["stores"]) > 4:
+                store_text += f"等 {len(row['stores'])} 家"
+            row["message"] = f"缺失 {row['missing_count']} 个平台门店：{store_text or '待确认'}。"
+        row["human_action"] = human_action_for(row["failure_type"], row["platform"])
+        failures.append(row)
+    return sorted(failures, key=lambda item: (item.get("platform") or "", item.get("missing_count") or 0), reverse=True)
+
+
 def build_payload(now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now()
     latest = read_json(LATEST_PATH, {})
@@ -78,6 +158,9 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
     failed_summary = failed.get("summary") or {}
     latest_success = latest.get("status") in {"ok", "ready", "success"} and int(latest_summary.get("missing_count") or 0) == 0
     failure_type = classify_payload_failure(failed, task_run)
+    platform_failures = build_platform_failures(failed, failure_type)
+    platform_failure_count = len(platform_failures)
+    failed_store_count = sum(int(item.get("missing_count") or 0) for item in platform_failures)
     stale = bool(latest_time and active_realtime_window(now) and now - latest_time > ACTIVE_STALE_AFTER)
     if not latest:
         status = "missing_latest"
@@ -101,6 +184,8 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
         "last_success_at": latest.get("generated_at", "") if latest_success else "",
         "last_failure_at": failed.get("generated_at", "") if failed else "",
         "failure_type": failure_type,
+        "platform_failures": platform_failures,
+        "human_action": platform_failures[0]["human_action"] if platform_failures else "",
         "latest": {
             "status": latest.get("status", ""),
             "summary": latest_summary,
@@ -122,6 +207,8 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
             "platform_store_count": int(latest_summary.get("platform_store_count") or 0),
             "missing_count": int(latest_summary.get("missing_count") or 0),
             "failed_missing_count": int(failed_summary.get("missing_count") or 0),
+            "platform_failure_count": platform_failure_count,
+            "failed_platform_store_count": failed_store_count,
             "total_orders": int(latest_summary.get("total_orders") or 0),
             "total_income": float(latest_summary.get("total_income") or 0),
         },

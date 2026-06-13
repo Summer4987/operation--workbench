@@ -223,6 +223,8 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const generatedAt = realtimeCollection.last_success_at || realtime.generated_at || realtime.collected_at || data.generated_at || "-";
   const collectionStatus = realtimeCollection.status || realtime.status;
   const collectionIssue = realtimeCollection.message || "";
+  const realtimeFailures = realtimeCollection.platform_failures || [];
+  const failedPlatformStoreCount = Number(realtimeCollection.summary?.failed_platform_store_count || 0);
   const realtimeStatusText = collectionStatus === "stale"
     ? "偏旧"
     : collectionStatus === "failed_after_success"
@@ -236,16 +238,38 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace("较昨日同时段 ", ""));
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtimeStatusText);
-  text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，缺失 ${missing} 个平台门店。${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
+  text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
   document.querySelector("#realtime")?.classList.toggle("alert", ["stale", "failed_after_success", "partial", "missing_latest"].includes(collectionStatus));
 
   rows(
     "realtimeStoreRows",
-    sourceStores
-      .slice()
-      .sort((a, b) => realtimeStoreIncome(b) - realtimeStoreIncome(a))
-      .slice(0, 8),
+    [
+      ...realtimeFailures.map((item) => ({ ...item, kind: "platform_failure" })),
+      ...sourceStores
+        .slice()
+        .sort((a, b) => realtimeStoreIncome(b) - realtimeStoreIncome(a))
+        .slice(0, 8)
+        .map((item) => ({ ...item, kind: "store" })),
+    ],
     (item) => {
+      if (item.kind === "platform_failure") {
+        const stores = (item.stores || []).slice(0, 4).join("、");
+        const storeText = stores ? `${stores}${(item.stores || []).length > 4 ? "等" : ""}` : "待确认";
+        return `
+        <div class="realtime-store realtime-store-alert">
+          <div class="realtime-store-head">
+            <span>${escapeHtml(item.platform)}采集失败</span>
+            <em class="realtime-compare">${escapeHtml(item.failure_type || "需处理")}</em>
+          </div>
+          <div class="realtime-primary">
+            <div>
+              <span>缺失</span>
+              <strong>${num(item.missing_count || 0)} 个门店</strong>
+            </div>
+            <em>${escapeHtml(item.message || storeText)}<br>${escapeHtml(item.human_action || "先处理平台状态后重跑实时采集。")}</em>
+          </div>
+        </div>`;
+      }
       const store = item.store || item.store_name || item.name || "未命名门店";
       return `
         <div class="realtime-store">
@@ -303,6 +327,9 @@ function priorityItems() {
   const balances = data.balances || {};
   const promoBalanceStatus = data.promo_balance_status || {};
   const promoBalanceSummary = promoBalanceStatus.summary || {};
+  const realtimeCollection = data.realtime_collection || {};
+  const realtimeFailures = realtimeCollection.platform_failures || [];
+  const realtimeSummary = realtimeCollection.summary || {};
   const inventory = data.inventory || {};
   const daily = data.daily || {};
   const taskHealth = data.task_health || {};
@@ -327,6 +354,14 @@ function priorityItems() {
       title: `${promoBalanceSummary.platform_failure_count || platformFailures.length} 个平台失败`,
       detail: platformFailures.map((item) => `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
       level: "danger",
+    });
+  }
+  if (realtimeFailures.length) {
+    items.push({
+      type: "实时采集失败",
+      title: `${realtimeSummary.platform_failure_count || realtimeFailures.length} 个平台失败`,
+      detail: realtimeFailures.map((item) => `${item.platform}：缺 ${item.missing_count || 0} 个门店`).join("；"),
+      level: realtimeCollection.status === "missing_latest" ? "danger" : "warning",
     });
   }
   if (balanceWarnings.length) {

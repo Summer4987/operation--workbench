@@ -337,13 +337,24 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         source_status = classify_from_json_status(payload.get("status"))
         summary = payload.get("summary") or {}
         missing = int(summary.get("missing_count") or 0)
+        status_summary = status_payload.get("summary") or {}
+        platform_failures = status_payload.get("platform_failures") or []
+        platform_failure_count = int(status_summary.get("platform_failure_count") or 0)
+        failed_platform_store_count = int(status_summary.get("failed_platform_store_count") or 0)
+        realtime_failure_type = (platform_failures[0] or {}).get("failure_type") if platform_failures else status_payload.get("failure_type", "")
         if status_payload.get("status") == "failed_after_success":
-            row.update(status="warn", reason=status_payload.get("message") or "最近一次实时采集失败，但保留上一份成功数据。")
-            row["failure_type"] = status_payload.get("failure_type", "")
+            detail = f"，{platform_failure_count} 个平台失败，缺失 {failed_platform_store_count} 个平台门店" if platform_failure_count else ""
+            row.update(status="warn", reason=(status_payload.get("message") or "最近一次实时采集失败，但保留上一份成功数据。") + detail + "。")
+            row["failure_type"] = realtime_failure_type
+            row["human_action"] = status_payload.get("human_action", "")
         elif status_payload.get("status") == "stale":
-            row.update(status="warn", reason=status_payload.get("message") or "实时采集最近成功时间偏旧。")
+            detail = f" 最近失败记录显示 {platform_failure_count} 个平台失败，缺失 {failed_platform_store_count} 个平台门店。" if platform_failure_count else ""
+            row.update(status="warn", reason=(status_payload.get("message") or "实时采集最近成功时间偏旧。") + detail)
+            row["failure_type"] = realtime_failure_type
+            row["human_action"] = status_payload.get("human_action", "")
         elif status_payload.get("status") == "missing_latest":
             row.update(status="warn", reason=status_payload.get("message") or "实时采集尚未生成成功数据。")
+            row["human_action"] = status_payload.get("human_action", "")
         elif source_status == "danger":
             row.update(status="danger", reason=payload.get("message") or "实时采集失败。")
         elif generated_at and active_realtime_window(now) and now - generated_at > timedelta(minutes=95):

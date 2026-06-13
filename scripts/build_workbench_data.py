@@ -341,7 +341,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -370,6 +370,20 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "reason": "；".join(f"{item.get('name')}：{item.get('failure_type') or item.get('message')}" for item in morning_failed[:2]),
                 "action": "先处理失败子步骤对应的平台登录、页面结构或脚本日志，再重跑一键采集。",
                 "source": "ops.morning_collection",
+            }
+        )
+
+    realtime_failures = realtime_collection.get("platform_failures") or []
+    if realtime_failures:
+        summary_realtime = realtime_collection.get("summary") or {}
+        rows.append(
+            {
+                "level": "需人工处理" if realtime_collection.get("status") == "missing_latest" else "建议",
+                "center": "运营数据中心",
+                "title": "实时采集平台失败",
+                "reason": f"最近失败记录显示 {summary_realtime.get('platform_failure_count', len(realtime_failures))} 个平台失败，缺失 {summary_realtime.get('failed_platform_store_count', 0)} 个平台门店。",
+                "action": realtime_collection.get("human_action") or "先恢复平台登录、Chrome/CDP 状态或门店映射，再重跑实时采集。",
+                "source": "ops.realtime_order_income",
             }
         )
 
@@ -628,7 +642,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, tool_warehouse, finance_center, morning_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
