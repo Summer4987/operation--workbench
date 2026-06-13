@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+HOSTNAME_TEXT="$(hostname | tr '[:upper:]' '[:lower:]')"
+if [[ -z "${AI_BUSINESS_CENTER_ENV:-}" && "$HOSTNAME_TEXT" == *mini* ]]; then
+  export AI_BUSINESS_CENTER_ENV="production"
+fi
+if [[ -z "${AI_BUSINESS_CENTER_ENV:-}" ]]; then
+  export AI_BUSINESS_CENTER_ENV="development"
+fi
+
 PYTHON="$ROOT/business-report-dashboard/.venv/bin/python"
 if [ ! -x "$PYTHON" ]; then
   PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
@@ -20,6 +28,7 @@ fi
 echo "== 熊小小AI业务中心生产检查 =="
 echo "目录：$ROOT"
 echo "主机：$(hostname)"
+echo "环境：$AI_BUSINESS_CENTER_ENV"
 echo
 
 echo "== Git 状态 =="

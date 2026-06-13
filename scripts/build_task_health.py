@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -102,6 +104,24 @@ def within_today(value: datetime | None, now: datetime) -> bool:
 
 def active_realtime_window(now: datetime) -> bool:
     return 10 <= now.hour < 20
+
+
+def runtime_environment() -> dict[str, str]:
+    hostname = socket.gethostname()
+    normalized = hostname.lower()
+    role = os.environ.get("AI_BUSINESS_CENTER_ENV", "").strip().lower()
+    if not role:
+        if "macbook" in normalized:
+            role = "development"
+        elif "mini" in normalized:
+            role = "production"
+        else:
+            role = "development"
+    return {
+        "role": role,
+        "hostname": hostname,
+        "label": "Mac mini 生产环境" if role == "production" else "MacBook 开发环境",
+    }
 
 
 def base_task_state(task: dict[str, Any], now: datetime) -> dict[str, Any]:
@@ -312,6 +332,7 @@ def build_task_health(now: datetime | None = None, runtime: dict[str, Any] | Non
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "registry_updated_at": registry.get("updated_at", ""),
+        "environment": runtime_environment(),
         "summary": summary,
         "tasks": rows,
     }

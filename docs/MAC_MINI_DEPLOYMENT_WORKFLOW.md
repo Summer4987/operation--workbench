@@ -81,6 +81,7 @@ MacBook 或 Codex 所在设备：
 - 检查 Python 和 zsh 脚本语法。
 - 生成 `outputs/task_health/latest.json` 和 `workbench-data.js`。
 - 查看生产 launchd 标签是否已加载。
+- 标记健康数据来源环境；生产判断以 Mac mini 的 `production` 运行记录为准。
 
 它不会采集平台数据、不会提交推广预算、不会付款、不会上传云端。
 

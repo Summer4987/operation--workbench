@@ -20,6 +20,7 @@ cat > "$SCRIPT_DIR/run_realtime_order_income.zsh" <<EOF
 set -euo pipefail
 
 ROOT="${ROOT}"
+export AI_BUSINESS_CENTER_ENV="production"
 exec /bin/zsh "\$ROOT/scripts/run_realtime_order_income.zsh"
 EOF
 chmod +x "$SCRIPT_DIR/run_realtime_order_income.zsh"
@@ -29,6 +30,7 @@ cat > "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh" <<EOF
 set -euo pipefail
 
 ROOT="${ROOT}"
+export AI_BUSINESS_CENTER_ENV="production"
 SERVER="\${OPERATION_CLOUD_SERVER:-ubuntu@139.155.148.169}"
 REMOTE_DIR="\${OPERATION_CLOUD_REMOTE_DIR:-/var/www/html/operation-workbench}"
 PUBLIC_URL="\${OPERATION_CLOUD_PUBLIC_URL:-http://139.155.148.169/operation-workbench/}"
@@ -126,7 +128,7 @@ write_plist() {
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd '${workdir}' &amp;&amp; /bin/zsh '${runner}'</string>
+    <string>cd '${workdir}' &amp;&amp; AI_BUSINESS_CENTER_ENV=production /bin/zsh '${runner}'</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${workdir}</string>

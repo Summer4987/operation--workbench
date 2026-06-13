@@ -357,15 +357,17 @@ function renderPriority() {
 function renderHealth() {
   const taskHealth = data.task_health || {};
   const summary = taskHealth.summary || {};
+  const environment = taskHealth.environment || {};
   const tasks = (taskHealth.tasks || []).filter((task) => task.status !== "planned").slice(0, 8);
   const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
-  text("healthStatus", abnormalCount ? "注意" : "正常");
+  const statusPrefix = environment.role === "production" ? "生产" : "开发";
+  text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
   rows(
     "healthRows",
     tasks,
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
-      const meta = [task.reason, task.last_seen_at ? `最近：${task.last_seen_at}` : ""].filter(Boolean).join(" · ");
+      const meta = [task.reason, task.last_seen_at ? `最近：${task.last_seen_at}` : "", environment.label || ""].filter(Boolean).join(" · ");
       return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
     }
   );

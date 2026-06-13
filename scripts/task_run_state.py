@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -28,6 +30,20 @@ AUTH_BLOCK_PATTERNS = [
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def runtime_environment() -> dict[str, str]:
+    hostname = socket.gethostname()
+    normalized = hostname.lower()
+    role = os.environ.get("AI_BUSINESS_CENTER_ENV", "").strip().lower()
+    if not role:
+        if "macbook" in normalized:
+            role = "development"
+        elif "mini" in normalized:
+            role = "production"
+        else:
+            role = "development"
+    return {"role": role, "hostname": hostname}
 
 
 def read_state() -> dict[str, Any]:
@@ -74,6 +90,7 @@ def record_task_event(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = read_state()
+    environment = runtime_environment()
     tasks = payload.setdefault("tasks", {})
     events = deque(payload.setdefault("events", []), maxlen=MAX_EVENTS)
     timestamp = now_text()
@@ -87,6 +104,7 @@ def record_task_event(
         "log_path": str(log_path) if log_path else previous.get("log_path", ""),
         "returncode": returncode,
         "failure_type": failure_type,
+        "environment": environment,
         "updated_at": timestamp,
     }
     if status == "running":
@@ -107,6 +125,7 @@ def record_task_event(
             "log_path": str(log_path) if log_path else "",
             "returncode": returncode,
             "failure_type": failure_type,
+            "environment": environment,
             "created_at": timestamp,
         }
     )
