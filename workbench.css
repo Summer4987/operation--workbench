@@ -1233,6 +1233,21 @@ h2 {
   gap: 10px;
 }
 
+.health-block-title {
+  margin-top: 12px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.health-block-title:first-of-type {
+  margin-top: 4px;
+}
+
+.health-run-list div {
+  grid-template-columns: minmax(130px, 0.24fr) minmax(72px, auto) minmax(0, 1fr);
+}
+
 .health-task-list div {
   min-width: 0;
   min-height: 54px;

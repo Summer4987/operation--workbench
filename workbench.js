@@ -628,11 +628,12 @@ function renderPriority() {
 
 function renderHealth() {
   const taskHealth = data.task_health || {};
+  const taskRuns = data.task_runs || {};
   const macminiSmoke = data.macmini_smoke_status || {};
   const operationCheck = data.operation_automation_check || {};
   const summary = taskHealth.summary || {};
   const environment = taskHealth.environment || {};
-  const tasks = (taskHealth.tasks || []).filter((task) => task.status !== "planned").slice(0, 8);
+  const tasks = taskHealth.tasks || [];
   const smokeStatus = macminiSmoke.status || "waiting_log";
   const operationBlockers = operationCheck.blockers || [];
   const operationWarnings = operationCheck.warnings || [];
@@ -662,7 +663,10 @@ function renderHealth() {
   const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
   const statusPrefix = environment.role === "production" ? "生产" : "开发";
   text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
-  text("healthSummary", `展示所有已接入自动化任务的最近运行记录、成功/失败状态和处理建议。${taskHealth.generated_at ? `任务健康生成：${taskHealth.generated_at}。` : ""}`);
+  text(
+    "healthSummary",
+    `共 ${summary.total || tasks.length || 0} 个自动化任务：正常 ${summary.ok || 0}，注意 ${summary.warn || 0}，需处理 ${summary.danger || 0}，规划中 ${summary.planned || 0}。${taskHealth.generated_at ? `任务健康生成：${taskHealth.generated_at}。` : ""}`
+  );
   const healthRows = operationEnvironment.role === "production" || operationBlockers.length
     ? [operationRow, smokeRow, ...tasks]
     : [smokeRow, ...tasks, operationRow];
@@ -673,12 +677,34 @@ function renderHealth() {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
       const meta = [
         task.reason,
+        task.last_run_status ? `最近运行：${task.last_run_status}` : "",
+        task.last_run_step ? `步骤：${task.last_run_step}` : "",
         task.repair_guide ? `向导：${task.repair_guide}` : "",
         task.human_action ? `处理：${task.human_action}` : "",
         task.last_seen_at ? `最近：${task.last_seen_at}` : "",
+        task.evidence ? `记录：${task.evidence}` : "",
         task.environment_label || environment.label || "",
       ].filter(Boolean).join(" · ");
       return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
+    }
+  );
+  const taskNames = new Map(tasks.map((task) => [task.id, task.name]));
+  const events = (taskRuns.events || []).slice(-18).reverse();
+  rows(
+    "healthRunRows",
+    events,
+    (event) => {
+      const ok = event.status === "success";
+      const cls = ok ? "good-row" : "warn-row";
+      const statusText = event.status === "success" ? "成功" : event.status === "failed" ? "失败" : event.status === "running" ? "运行中" : event.status === "skipped" ? "跳过" : event.status || "-";
+      const meta = [
+        event.created_at ? `时间：${event.created_at}` : "",
+        event.step ? `步骤：${event.step}` : "",
+        event.message || "",
+        event.failure_type ? `原因：${event.failure_type}` : "",
+        event.log_path ? `日志：${event.log_path}` : "",
+      ].filter(Boolean).join(" · ");
+      return `<div class="${cls}"><span>${escapeHtml(taskNames.get(event.task_id) || event.task_id || "未知任务")}</span><strong>${escapeHtml(statusText)}</strong><em>${escapeHtml(meta || "-")}</em></div>`;
     }
   );
 }
@@ -875,6 +901,8 @@ function isReliableBalance(item) {
   if (!Number.isFinite(balance)) return false;
   if (balance !== 0) return true;
   if (item.confirmed_zero === true) return true;
+  if (/CDP|接口读取|api/i.test(String(item.source || ""))) return true;
+  if (item.api_seen === true || item.account_response_url || item.page_url) return true;
   return false;
 }
 
@@ -908,7 +936,7 @@ function renderBalances() {
   text("balanceWarningCount", `${lowBalanceCount} 个`);
   text(
     "balanceSummary",
-    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedItems.length} 个，阈值 ${yuan(threshold)}，证据清单 ${evidenceSync.file_count || 0} 个。未可靠读到的 0 元不会当作真实余额。`
+    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedItems.length} 个，阈值 ${yuan(threshold)}，证据清单 ${evidenceSync.file_count || 0} 个。CDP/API 读到的 0 元按已确认余额处理。`
   );
   text("balanceStatus", statusText);
   cls("balanceMetricCard", "alert", needsAttention);
