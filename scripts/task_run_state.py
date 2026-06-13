@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from atomic_io import atomic_write_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_STATE_DIR = ROOT / "outputs" / "task_runs"
@@ -78,10 +80,8 @@ def read_state() -> dict[str, Any]:
 
 
 def write_state(payload: dict[str, Any]) -> None:
-    RUN_STATE_DIR.mkdir(parents=True, exist_ok=True)
     payload["generated_at"] = now_text()
-    LATEST_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    LATEST_PATH.chmod(0o644)
+    atomic_write_text(LATEST_PATH, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def classify_failure_text(text: str | None, returncode: int | None = None) -> str:

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen
 
+from atomic_io import atomic_write_text
 from build_task_health import build_task_health, write_task_health
 
 
@@ -161,11 +162,7 @@ def merge_realtime_history(realtime: dict) -> list[dict]:
         by_time[generated_at] = item
 
     merged = sorted(by_time.values(), key=lambda item: item.get("generated_at", ""))
-    REALTIME_HISTORY_PATH.write_text(
-        json.dumps({"snapshots": merged}, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    REALTIME_HISTORY_PATH.chmod(0o644)
+    atomic_write_text(REALTIME_HISTORY_PATH, json.dumps({"snapshots": merged}, ensure_ascii=False, indent=2) + "\n")
     return merged
 
 
@@ -1160,11 +1157,7 @@ def main() -> None:
         "task_health": task_health,
         "ai_advice": ai_advice,
     }
-    OUTPUT_PATH.write_text(
-        "window.WORKBENCH_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n",
-        encoding="utf-8",
-    )
-    OUTPUT_PATH.chmod(0o644)
+    atomic_write_text(OUTPUT_PATH, "window.WORKBENCH_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n")
     print(f"运营总看板数据已更新：{OUTPUT_PATH}")
 
 

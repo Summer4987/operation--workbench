@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
+from atomic_io import atomic_write_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS_PATH = ROOT / "config" / "ai_business_center_tasks.json"
@@ -806,9 +808,7 @@ def build_task_health(now: datetime | None = None, runtime: dict[str, Any] | Non
 
 
 def write_task_health(payload: dict[str, Any]) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    LATEST_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    LATEST_PATH.chmod(0o644)
+    atomic_write_text(LATEST_PATH, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def main() -> int:
