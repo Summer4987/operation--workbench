@@ -20,26 +20,7 @@ cat > "$SCRIPT_DIR/run_realtime_order_income.zsh" <<EOF
 set -euo pipefail
 
 ROOT="${ROOT}"
-LOG_DIR="\$HOME/Library/Logs/xiong-operation/realtime_order_income"
-mkdir -p "\$LOG_DIR"
-
-PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
-if [ ! -x "\$PYTHON" ]; then
-  PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
-fi
-if [ ! -x "\$PYTHON" ]; then
-  PYTHON="python3"
-fi
-
-LOG_FILE="\$LOG_DIR/\$(date +%F).log"
-{
-  echo
-  echo "[\$(date '+%F %T')] 实时单量收入采集开始"
-  "\$PYTHON" "\$ROOT/scripts/realtime_order_income.py"
-  "\$PYTHON" "\$ROOT/scripts/build_workbench_data.py"
-  /bin/zsh "\$HOME/Library/Scripts/xiong-operation/deploy_workbench_to_cloud.zsh"
-  echo "[\$(date '+%F %T')] 实时单量收入采集完成"
-} >> "\$LOG_FILE" 2>&1
+exec /bin/zsh "\$ROOT/scripts/run_realtime_order_income.zsh"
 EOF
 chmod +x "$SCRIPT_DIR/run_realtime_order_income.zsh"
 

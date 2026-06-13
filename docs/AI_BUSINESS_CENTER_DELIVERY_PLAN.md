@@ -121,4 +121,4 @@
 
 ## 当前下一步
 
-从第 1 阶段继续：基于 `config/ai_business_center_tasks.json` 增加统一任务状态生成脚本，并让 AI 业务中心首页读取真实任务健康状态。
+从第 1 阶段继续：让 Mac mini 生产环境拉取后能通过 `scripts/check_macmini_ai_center.zsh` 做只读检查，并在需要时重新安装生产定时任务。

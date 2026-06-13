@@ -67,6 +67,31 @@ MacBook 或 Codex 所在设备：
 
 5. 拉取完成后，先做轻量验证，再决定是否重新安装定时任务。
 
+### AI 业务中心生产检查
+
+拉取包含 AI 业务中心改动的代码后，先在 Mac mini 项目目录运行：
+
+```zsh
+/bin/zsh scripts/check_macmini_ai_center.zsh
+```
+
+这个检查只做只读验证：
+
+- 校验任务注册表。
+- 检查 Python 和 zsh 脚本语法。
+- 生成 `outputs/task_health/latest.json` 和 `workbench-data.js`。
+- 查看生产 launchd 标签是否已加载。
+
+它不会采集平台数据、不会提交推广预算、不会付款、不会上传云端。
+
+如果检查输出里出现 `未安装或未加载`，并且本次改动涉及定时任务入口、触发时间或安装脚本，再运行：
+
+```zsh
+/bin/zsh scripts/install_macmini_operation_launchd.zsh
+```
+
+如果检查里出现 Python、Node、Git、权限或 launchd 错误，把完整输出发给 Codex，不要强行重置或覆盖现场。
+
 ## 生产热修复流程
 
 Mac mini 是生产环境，不代表它永远不能产生代码改动。遇到只在生产现场复现、或必须立刻修复的 bug 时，可以在 Mac mini 上修复，但修复必须回到 GitHub。
