@@ -292,9 +292,11 @@ function priorityItems() {
   const balances = data.balances || {};
   const inventory = data.inventory || {};
   const daily = data.daily || {};
+  const taskHealth = data.task_health || {};
   const balanceWarnings = (balances.items || []).filter((item) => item.status === "warning");
   const inventoryWarnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
   const automationWarnings = groupedAnomalies(daily.focus_items || []).slice(0, 3);
+  const taskWarnings = (taskHealth.tasks || []).filter((item) => item.status === "danger").slice(0, 3);
   const items = [];
 
   if (inventoryWarnings.length) {
@@ -322,6 +324,14 @@ function priorityItems() {
       level: "danger",
     });
   });
+  taskWarnings.forEach((task) => {
+    items.push({
+      type: "任务健康",
+      title: `${task.name} ${task.status_text || "需处理"}`,
+      detail: task.reason || task.human_action || "请查看自动化任务健康报告。",
+      level: "danger",
+    });
+  });
   if (!items.length) {
     items.push({
       type: "今日状态",
@@ -345,44 +355,19 @@ function renderPriority() {
 }
 
 function renderHealth() {
-  const realtime = data.realtime || {};
-  const balances = data.balances || {};
-  const inventory = data.inventory || {};
-  const budget = data.budget || {};
-  const daily = data.daily || {};
-  const tasks = [
-    {
-      name: "实时单量采集",
-      status: realtime.status === "ok" || realtime.status === "ready" ? "正常" : "待采集",
-      meta: realtime.generated_at || realtime.collected_at || data.generated_at || "-",
-    },
-    {
-      name: "日报生成",
-      status: latestDailyRows(daily).length ? "正常" : "待同步",
-      meta: latestDailyDate(daily) || "-",
-    },
-    {
-      name: "推广余额巡检",
-      status: balances.status === "ok" ? "正常" : "注意",
-      meta: balances.generated_at || "-",
-    },
-    {
-      name: "预算预览生成",
-      status: budget.generated_at ? "正常" : "待生成",
-      meta: budget.generated_at || "-",
-    },
-    {
-      name: "库存同步",
-      status: inventory.product_count ? "正常" : "待同步",
-      meta: inventory.source === "cloud" ? "云端库存" : "本地备用数据",
-    },
-  ];
-  const abnormalCount = tasks.filter((task) => task.status !== "正常").length;
+  const taskHealth = data.task_health || {};
+  const summary = taskHealth.summary || {};
+  const tasks = (taskHealth.tasks || []).filter((task) => task.status !== "planned").slice(0, 8);
+  const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
   text("healthStatus", abnormalCount ? "注意" : "正常");
   rows(
     "healthRows",
     tasks,
-    (task) => `<div class="${task.status === "正常" ? "good-row" : "warn-row"}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status)}</strong><em>${escapeHtml(task.meta)}</em></div>`
+    (task) => {
+      const cls = task.status === "ok" ? "good-row" : "warn-row";
+      const meta = [task.reason, task.last_seen_at ? `最近：${task.last_seen_at}` : ""].filter(Boolean).join(" · ");
+      return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
+    }
   );
 }
 

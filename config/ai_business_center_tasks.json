@@ -5,6 +5,16 @@
     "system": "Codex",
     "business_decision": "用户"
   },
+  "environments": {
+    "development": {
+      "machine": "MacBook",
+      "purpose": "代码开发、脚本改造、本地验证、提交和推送 GitHub。"
+    },
+    "production": {
+      "machine": "Mac mini",
+      "purpose": "生产定时任务、平台登录态、真实预算提交、云端发布和长期运行。"
+    }
+  },
   "risk_levels": {
     "low": "只读采集、看板生成、数据同步，不直接改变平台或财务结果。",
     "medium": "会发布数据、生成业务单据或影响经营判断，需要运行日志和产物校验。",

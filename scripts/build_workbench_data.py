@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen
 
+from build_task_health import build_task_health, write_task_health
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_PATH = ROOT / "workbench-data.js"
@@ -147,6 +149,7 @@ def merge_realtime_history(realtime: dict) -> list[dict]:
         json.dumps({"snapshots": merged}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    REALTIME_HISTORY_PATH.chmod(0o644)
     return merged
 
 
@@ -234,8 +237,11 @@ def main() -> None:
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     realtime = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
+    inventory = inventory_snapshot()
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
+    task_health = build_task_health(runtime={"inventory": inventory})
+    write_task_health(task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -244,12 +250,14 @@ def main() -> None:
         "daily": daily,
         "balances": balances,
         "budget": budget,
-        "inventory": inventory_snapshot(),
+        "inventory": inventory,
+        "task_health": task_health,
     }
     OUTPUT_PATH.write_text(
         "window.WORKBENCH_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n",
         encoding="utf-8",
     )
+    OUTPUT_PATH.chmod(0o644)
     print(f"运营总看板数据已更新：{OUTPUT_PATH}")
 
 
