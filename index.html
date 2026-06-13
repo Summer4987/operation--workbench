@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-all-stores" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-ops-review-cleanup" />
   </head>
   <body>
     <main class="app">
@@ -25,7 +25,6 @@
               <a href="#ops-health">自动化任务健康报告</a>
               <a href="#daily">日报看板</a>
               <a href="#reviews">评价看板</a>
-              <a href="#ai-advice">AI运营建议</a>
             </div>
           </section>
 
@@ -70,11 +69,6 @@
             <p class="kicker" id="generatedAt">等待数据</p>
             <h1>熊小小AI业务中心</h1>
           </div>
-          <div class="top-actions">
-            <a class="primary-action" href="http://139.155.148.169/business-report-dashboard/">日报</a>
-            <a class="ghost-action" href="./store-inspection/index.html">余额巡检</a>
-            <a class="ghost-action" href="http://139.155.148.169/">库存</a>
-          </div>
         </header>
 
         <section class="command-board" aria-label="首屏重点看板">
@@ -105,8 +99,16 @@
                 <span class="tag ready">日报</span>
               </div>
               <div class="brief-strip">
-                <div><span>单量</span><strong id="briefOrders">-</strong></div>
-                <div><span>营业额</span><strong id="briefIncome">-</strong></div>
+                <div>
+                  <span>单量</span>
+                  <strong id="briefOrders">-</strong>
+                  <em id="briefOrdersCompare">较前日 -</em>
+                </div>
+                <div>
+                  <span>营业额</span>
+                  <strong id="briefIncome">-</strong>
+                  <em id="briefIncomeCompare">较前日 -</em>
+                </div>
               </div>
               <p id="dailySummary">等待日报数据。</p>
               <div class="overview-daily-block">
@@ -133,43 +135,18 @@
             <p>运营数据中心</p>
             <h2>自动化任务健康报告</h2>
           </div>
-          <div class="center-grid three">
-            <article class="module">
+          <div class="center-grid health-grid">
+            <article class="module wide-module">
               <div class="module-head">
                 <div>
-                  <p>定时任务</p>
-                  <h2>今日运行状态</h2>
+                  <p>自动化任务</p>
+                  <h2>运行记录与异常原因</h2>
                 </div>
                 <span class="tag ready" id="healthStatus">已接入</span>
               </div>
-              <div class="mini-table" id="healthRows"></div>
-            </article>
-            <article class="module module-anomaly">
-              <div class="module-head">
-                <div>
-                  <p>异常</p>
-                  <h2>自动化需人工处理</h2>
-                </div>
-                <span class="tag danger" id="anomalyStatus">待检查</span>
-              </div>
               <div class="module-body">
-                <div class="big-number" id="anomalyCount">-</div>
-                <p id="anomalySummary">等待最新日报异常数据。</p>
-                <div class="mini-table anomaly-list" id="anomalyRows"></div>
-              </div>
-            </article>
-            <article class="module" id="ai-advice">
-              <div class="module-head">
-                <div>
-                  <p>AI分析</p>
-                  <h2>运营建议</h2>
-                </div>
-                <span class="tag testing">规则雏形</span>
-              </div>
-              <div class="module-body">
-                <div class="big-number" id="aiTrend">-</div>
-                <p id="aiAdviceSummary">等待历史数据。</p>
-                <div class="mini-table" id="aiAdviceRows"></div>
+                <p id="healthSummary">等待自动化运行记录。</p>
+                <div class="health-task-list" id="healthRows"></div>
               </div>
             </article>
           </div>
@@ -180,11 +157,11 @@
             <p>运营数据中心</p>
             <h2>日报看板</h2>
           </div>
-          <article class="module module-daily wide-module">
+          <a class="module module-daily wide-module module-link" href="http://139.155.148.169/business-report-dashboard/">
             <div class="module-head">
               <div>
                 <p>日报</p>
-                <h2>门店单量与营业额</h2>
+                <h2>门店单量、营业额与AI周分析</h2>
               </div>
               <span class="tag ready">已接入</span>
             </div>
@@ -192,14 +169,12 @@
               <div class="big-number" id="dailyStoreCount">-</div>
               <p id="dailyPageSummary">等待日报数据。</p>
               <div class="daily-command-grid" id="dailyCommandRows"></div>
+              <div class="daily-week-analysis" id="dailyWeekAnalysis"></div>
               <div class="mini-table daily-platform-list" id="dailyPlatformRows"></div>
               <div class="mini-table daily-focus-list" id="dailyFocusRows"></div>
               <div class="mini-table daily-list" id="dailyRows"></div>
             </div>
-            <div class="module-actions">
-              <a href="http://139.155.148.169/business-report-dashboard/">打开完整日报</a>
-            </div>
-          </article>
+          </a>
         </section>
 
         <section class="center-section" id="reviews">
@@ -220,7 +195,6 @@
               <p id="reviewSummary">等待评价数据。</p>
               <div class="review-command-grid" id="reviewCommandRows"></div>
               <div class="mini-table review-weekly-list" id="reviewWeeklyRows"></div>
-              <div class="mini-table review-workflow-list" id="reviewWorkflowRows"></div>
               <div class="mini-table review-list" id="reviewRows"></div>
             </div>
             <div class="module-actions">
@@ -461,7 +435,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-daily-all-stores"></script>
-    <script src="./workbench.js?v=20260613-daily-all-stores"></script>
+    <script src="./workbench-data.js?v=20260613-ops-review-cleanup"></script>
+    <script src="./workbench.js?v=20260613-ops-review-cleanup"></script>
   </body>
 </html>

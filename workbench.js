@@ -59,9 +59,21 @@ function signedNumber(value) {
   return `${rounded > 0 ? "+" : ""}${num(rounded)}`;
 }
 
+function trendClass(delta) {
+  const value = Number(delta || 0);
+  if (value > 0) return "trend-up";
+  if (value < 0) return "trend-down";
+  return "trend-flat";
+}
+
 function text(id, value) {
   const el = document.querySelector(`#${id}`);
   if (el) el.textContent = value;
+}
+
+function html(id, value) {
+  const el = document.querySelector(`#${id}`);
+  if (el) el.innerHTML = value;
 }
 
 function cls(id, className, enabled) {
@@ -79,6 +91,17 @@ function latestDailyDate(daily) {
 function latestDailyRows(daily) {
   const date = latestDailyDate(daily);
   return (daily.records || []).filter((item) => item.date === date);
+}
+
+function dailyRowsByDate(daily, date) {
+  return (daily.records || []).filter((item) => item.date === date);
+}
+
+function previousDailyDate(daily, currentDate) {
+  const dates = [...new Set((daily.records || []).map((item) => item.date).filter(Boolean))]
+    .sort()
+    .filter((date) => date < currentDate);
+  return dates[dates.length - 1] || "";
 }
 
 function storeTotals(records) {
@@ -273,6 +296,14 @@ function realtimeStoreCompare(item, compareMap) {
   return `${prefix} ${moneyText} / ${orderText}`;
 }
 
+function realtimeStoreCompareDelta(item, compareMap) {
+  const store = item.store || item.store_name || item.name || "未命名门店";
+  const previous = compareMap.get(store);
+  if (!previous) return 0;
+  if (previous.orders) return Number(previous.orders.delta || 0);
+  return Number(previous.orders_delta ?? realtimeStoreOrders(item) - Number(previous.orders || 0));
+}
+
 function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const realtime = data.realtime || {};
   const realtimeComparison = data.realtime_comparison || {};
@@ -304,6 +335,8 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   text("realtimeIncome", yuan(totalIncome));
   text("realtimeOrders", `${num(totalOrders)} 单`);
   text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace(/^较/, ""));
+  document.querySelector("#realtimeCompare")?.classList.remove("trend-up", "trend-down", "trend-flat");
+  document.querySelector("#realtimeCompare")?.classList.add(trendClass(Number(realtimeComparison?.summary?.orders?.delta || 0)));
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtimeStatusText);
   text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${comparisonBaseText}${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
@@ -349,11 +382,12 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
         </div>`;
       }
       const store = item.store || item.store_name || item.name || "未命名门店";
+      const compareDelta = realtimeStoreCompareDelta(item, compareMap);
       return `
         <div class="realtime-store">
           <div class="realtime-store-head">
             <span>${escapeHtml(store)}</span>
-            <em class="realtime-compare">${escapeHtml(realtimeStoreCompare(item, compareMap))}</em>
+            <em class="realtime-compare ${trendClass(compareDelta)}">${escapeHtml(realtimeStoreCompare(item, compareMap))}</em>
           </div>
           <div class="realtime-primary">
             <div>
@@ -373,16 +407,23 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
 
 function renderDaily() {
   const daily = data.daily || {};
+  const dailyTrends = data.daily_trends || {};
   const realtime = data.realtime || {};
   const realtimeSummary = realtime.summary || {};
   const latestDate = latestDailyDate(daily);
   const latestRecords = latestDailyRows(daily);
+  const previousDate = previousDailyDate(daily, latestDate);
+  const previousRecords = previousDate ? dailyRowsByDate(daily, previousDate) : [];
   const stores = storeTotals(latestRecords);
   const platforms = daily.platform_summary || [];
   const focusItems = daily.focus_items || [];
   const highFocusCount = focusItems.filter((item) => item.level === "high").length;
   const dailyIncome = latestRecords.reduce((sum, item) => sum + Number(item.income || 0), 0);
   const dailyOrders = latestRecords.reduce((sum, item) => sum + Number(item.orders || 0), 0);
+  const previousIncome = previousRecords.reduce((sum, item) => sum + Number(item.income || 0), 0);
+  const previousOrders = previousRecords.reduce((sum, item) => sum + Number(item.orders || 0), 0);
+  const orderDelta = dailyOrders - previousOrders;
+  const incomeDelta = dailyIncome - previousIncome;
   const dailyImpressions = latestRecords.reduce((sum, item) => sum + Number(item.impressions || 0), 0);
   const orderConversionRows = latestRecords.filter((item) => Number(item.order_conversion || 0));
   const avgOrderConversion = orderConversionRows.length
@@ -397,10 +438,20 @@ function renderDaily() {
   renderRealtimeCard(daily, stores, totalIncome, totalOrders);
   text("briefOrders", `${num(dailyOrders)} 单`);
   text("briefIncome", yuan(dailyIncome));
+  const orderCompareEl = document.querySelector("#briefOrdersCompare");
+  const incomeCompareEl = document.querySelector("#briefIncomeCompare");
+  if (orderCompareEl) {
+    orderCompareEl.textContent = previousDate ? `较前日 ${signedNumber(orderDelta)} 单` : "较前日 暂无";
+    orderCompareEl.className = trendClass(orderDelta);
+  }
+  if (incomeCompareEl) {
+    incomeCompareEl.textContent = previousDate ? `较前日 ${incomeDelta >= 0 ? "+" : "-"}${yuan(Math.abs(incomeDelta))}` : "较前日 暂无";
+    incomeCompareEl.className = trendClass(incomeDelta);
+  }
   text("dailyStoreCount", `${stores.length || 0} 家`);
   text("dailySummary", `只看最新日报日期 ${latestDate || "-"}：总收入 ${yuan(dailyIncome)}，总单量 ${num(dailyOrders)} 单，覆盖 ${stores.length || 0} 家门店。`);
   renderOverviewDailyStoreCards(latestRecords);
-  text("dailyPageSummary", `最新日报日期 ${latestDate || "-"}：按门店、平台和异常项拆开看，优先处理高优先级日报异常。`);
+  text("dailyPageSummary", `点击卡片进入完整日报。当前页展示 ${latestDate || "-"} 日报摘要，并结合近 7 天与前 7 天环比判断门店涨跌。`);
   rows(
     "dailyCommandRows",
     [
@@ -411,6 +462,7 @@ function renderDaily() {
     ],
     (item) => `<div class="${item.tone === "warn" ? "warn-row" : item.tone === "good" ? "good-row" : ""}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
+  renderDailyWeekAnalysis(dailyTrends);
   rows(
     "dailyPlatformRows",
     platforms,
@@ -437,6 +489,56 @@ function renderDaily() {
       .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
       .slice(0, 8),
     (item) => `<div class="good-row"><span>${escapeHtml(item.store)}</span><strong>${yuan(item.income)}</strong><em>${num(item.orders)} 单 · 曝光 ${num(item.impressions)} · 覆盖 ${num(item.platform_count)} 平台</em></div>`
+  );
+}
+
+function formatMetricDelta(delta, unit = "") {
+  const value = Number(delta || 0);
+  return `${value > 0 ? "+" : ""}${num(value)}${unit}`;
+}
+
+function renderDailyWeekAnalysis(dailyTrends) {
+  const summary = dailyTrends.summary || {};
+  const orderSummary = summary.orders || {};
+  const incomeSummary = summary.income || {};
+  const stores = dailyTrends.stores || dailyTrends.top_movers || [];
+  const period = dailyTrends.periods || {};
+  const current = period.current_7d || {};
+  const previous = period.previous_7d || {};
+  const periodText = current.start_date && previous.start_date
+    ? `${current.start_date} 至 ${current.end_date} 对比 ${previous.start_date} 至 ${previous.end_date}`
+    : dailyTrends.message || "等待周分析数据";
+  if (!stores.length && !Object.keys(summary).length) {
+    html("dailyWeekAnalysis", '<div class="empty-line">暂无足够历史数据生成AI周分析</div>');
+    return;
+  }
+  const orderDelta = Number(orderSummary.delta_daily_avg || 0);
+  const incomeDelta = Number(incomeSummary.delta_daily_avg || 0);
+  const movers = stores.slice(0, 8).map((item) => {
+    const orders = item.orders || {};
+    const income = item.income || {};
+    const delta = Number(orders.delta_daily_avg || 0);
+    return `
+      <div class="week-store ${trendClass(delta)}">
+        <span>${escapeHtml(shortStore(item.store))}</span>
+        <strong>${delta >= 0 ? "涨" : "跌"} ${formatMetricDelta(delta, " 单/日")}</strong>
+        <em>${escapeHtml(compactText(item.reason || "", 92))}</em>
+        <small>${escapeHtml(compactText(item.action || `营业额日均 ${formatMetricDelta(Number(income.delta_daily_avg || 0))}`, 110))}</small>
+      </div>`;
+  }).join("");
+  html(
+    "dailyWeekAnalysis",
+    `
+      <div class="week-analysis-head">
+        <div>
+          <span>AI周分析</span>
+          <strong class="${trendClass(orderDelta)}">单量日均 ${formatMetricDelta(orderDelta, " 单")}</strong>
+          <em class="${trendClass(incomeDelta)}">营业额日均 ${incomeDelta >= 0 ? "+" : "-"}${yuan(Math.abs(incomeDelta))}</em>
+        </div>
+        <p>${escapeHtml(periodText)}</p>
+      </div>
+      <div class="week-store-grid">${movers}</div>
+    `
   );
 }
 
@@ -577,12 +679,13 @@ function renderHealth() {
   const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
   const statusPrefix = environment.role === "production" ? "生产" : "开发";
   text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
+  text("healthSummary", `展示所有已接入自动化任务的最近运行记录、成功/失败状态和处理建议。${taskHealth.generated_at ? `任务健康生成：${taskHealth.generated_at}。` : ""}`);
   const healthRows = operationEnvironment.role === "production" || operationBlockers.length
     ? [operationRow, smokeRow, ...tasks]
     : [smokeRow, ...tasks, operationRow];
   rows(
     "healthRows",
-    healthRows.slice(0, 8),
+    healthRows,
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
       const meta = [
@@ -673,16 +776,9 @@ function renderReviews() {
   const daily = data.daily || {};
   const review = daily.review_summary || {};
   const reviewActions = data.review_actions || {};
-  const actionItems = reviewActions.items || [];
-  const completedItems = reviewActions.completed_items || [];
   const actionSummary = reviewActions.summary || {};
   const weeklyRecap = reviewActions.weekly_recap || {};
   const weeklySummary = weeklyRecap.summary || {};
-  const weeklyPeriod = weeklyRecap.period || {};
-  const recapPlan = reviewActions.recap_plan || {};
-  const followupPlan = reviewActions.followup_plan || {};
-  const sopPlan = reviewActions.sop_plan || {};
-  const sopClosurePlan = reviewActions.sop_closure_plan || {};
   const stores = Object.entries(review.stores || {}).map(([store, item]) => ({
     store,
     review_count: Number(item.review_count || 0),
@@ -695,26 +791,19 @@ function renderReviews() {
   const totalReviews = stores.reduce((sum, item) => sum + item.review_count, 0);
   const totalIssues = stores.reduce((sum, item) => sum + item.negative_count, 0);
   const pendingNegative = Number(actionSummary.negative_count || totalIssues || 0);
-  const completedNegative = Number(actionSummary.completed_negative_count || 0);
-  const missingEvidence = Number(actionSummary.missing_evidence_count || 0);
-  const completedWithEvidence = Number(actionSummary.completed_with_evidence_count || 0);
   const statusText = pendingNegative
     ? "待回复"
-    : missingEvidence
-      ? "待补证据"
-      : completedWithEvidence
-        ? "已闭环"
-        : review.status === "ready"
-          ? "已同步"
-          : review.status === "stale"
-            ? "旧数据"
-            : "待同步";
+    : review.status === "ready"
+      ? "已同步"
+      : review.status === "stale"
+        ? "旧数据"
+        : "待同步";
 
   text("reviewStatus", statusText);
-  text("reviewCount", `${totalReviews} 条`);
+  text("reviewCount", `${num(totalIssues)} / ${num(totalReviews)} 条`);
   text(
     "reviewSummary",
-    `${reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`}${completedNegative ? ` 已记录回复 ${completedNegative} 条。` : ""}${missingEvidence ? ` 待补证据 ${missingEvidence} 条。` : ""}`
+    `${review.used_date || review.target_date || "昨日"}：差评 ${num(totalIssues)} 条 / 总评价 ${num(totalReviews)} 条，覆盖 ${stores.length} 家门店。`
   );
   document.querySelector("#reviews")?.classList.toggle("alert", pendingNegative > 0);
 
@@ -722,28 +811,28 @@ function renderReviews() {
     "reviewCommandRows",
     [
       {
-        label: "本周评价",
-        value: `${num(weeklySummary.review_count || actionSummary.weekly_review_count || 0)} 条`,
-        detail: weeklyPeriod.start_date && weeklyPeriod.end_date ? `${weeklyPeriod.start_date} 至 ${weeklyPeriod.end_date}` : "等待评价历史",
+        label: "昨日总评价",
+        value: `${num(totalReviews)} 条`,
+        detail: `覆盖 ${num(stores.length)} 家门店`,
         tone: "neutral",
       },
       {
-        label: "本周问题率",
-        value: `${((Number(weeklySummary.negative_rate || 0)) * 100).toFixed(1)}%`,
-        detail: `疑似问题 ${num(weeklySummary.negative_count || actionSummary.weekly_negative_count || 0)} 条`,
-        tone: Number(weeklySummary.negative_count || 0) ? "warn" : "good",
+        label: "昨日差评",
+        value: `${num(totalIssues)} 条`,
+        detail: `差评率 ${totalReviews ? ((totalIssues / totalReviews) * 100).toFixed(1) : "0.0"}%`,
+        tone: totalIssues ? "warn" : "good",
       },
       {
-        label: "今日待回复",
+        label: "待回复",
         value: `${num(pendingNegative)} 条`,
-        detail: actionItems.length ? `${actionItems.length} 家门店需要处理` : "暂无待回复差评",
+        detail: pendingNegative ? "优先处理有差评门店" : "暂无待回复差评",
         tone: pendingNegative ? "warn" : "good",
       },
       {
-        label: "闭环进度",
-        value: `${num(completedNegative)} 条`,
-        detail: missingEvidence ? `待补证据 ${num(missingEvidence)} 条` : "回复证据无缺口",
-        tone: missingEvidence ? "warn" : "good",
+        label: "本周问题",
+        value: `${num(weeklySummary.negative_count || actionSummary.weekly_negative_count || 0)} 条`,
+        detail: `本周评价 ${num(weeklySummary.review_count || actionSummary.weekly_review_count || 0)} 条`,
+        tone: Number(weeklySummary.negative_count || 0) ? "warn" : "good",
       },
     ],
     (item) => `<div class="${item.tone === "warn" ? "warn-row" : item.tone === "good" ? "good-row" : ""}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
@@ -754,12 +843,6 @@ function renderReviews() {
   rows(
     "reviewWeeklyRows",
     [
-      {
-        label: "周复盘结论",
-        value: weeklyRecap.status === "needs_review" ? "需复盘" : weeklyRecap.status === "stable" ? "稳定" : "待生成",
-        detail: weeklyRecap.message || "暂无评价历史可生成周复盘。",
-        className: weeklyRecap.status === "needs_review" ? "warn-row" : "good-row",
-      },
       {
         label: "重点门店",
         value: weeklyStores.length ? weeklyStores.map((item) => `${item.store} ${num(item.negative_count)} 条`).join(" / ") : "暂无",
@@ -777,71 +860,11 @@ function renderReviews() {
   );
 
   rows(
-    "reviewWorkflowRows",
-    [
-      {
-        label: "复盘记录",
-        value: `${num(recapPlan.pending_count || 0)} 待记录 / ${num(recapPlan.recorded_count || 0)} 已记录`,
-        detail: recapPlan.next_action || recapPlan.message || "评价复盘均已记录。",
-        className: Number(recapPlan.pending_count || 0) ? "warn-row" : "good-row",
-      },
-      {
-        label: "7天跟踪",
-        value: `${num(followupPlan.recurred_count || 0)} 复发 / ${num(followupPlan.watching_count || 0)} 观察`,
-        detail: followupPlan.next_action || followupPlan.message || "暂无需要跟踪的评价复盘。",
-        className: Number(followupPlan.recurred_count || 0) ? "warn-row" : "good-row",
-      },
-      {
-        label: "SOP整改",
-        value: `${num(sopPlan.waiting_count || 0)} 待开 / ${num(sopPlan.open_count || 0)} 进行中`,
-        detail: sopPlan.next_action || sopPlan.message || "暂无复发项需要 SOP 整改。",
-        className: Number(sopPlan.waiting_count || sopPlan.open_count || 0) ? "warn-row" : "good-row",
-      },
-      {
-        label: "关闭复查",
-        value: `${num(sopClosurePlan.reopen_count || 0)} 复发 / ${num(sopClosurePlan.stable_count || 0)} 稳定`,
-        detail: sopClosurePlan.next_action || sopClosurePlan.message || "暂无已关闭 SOP 整改需要复查。",
-        className: Number(sopClosurePlan.reopen_count || 0) ? "warn-row" : "good-row",
-      },
-    ],
-    (item) => `<div class="${item.className}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
-  );
-
-  rows(
     "reviewRows",
-    (actionItems.length
-      ? [
-          ...actionItems.map((item) => ({ ...item, kind: "action" })),
-          ...completedItems.slice(0, 3).map((item) => ({ ...item, kind: "completed" })),
-        ]
-      : completedItems.length
-        ? completedItems.slice(0, 8).map((item) => ({ ...item, kind: "completed" }))
-        : stores)
+    stores
       .slice()
-      .sort((a, b) => Number(b.negative_count || 0) - Number(a.negative_count || 0) || Number(b.review_count || 0) - Number(a.review_count || 0))
-      .slice(0, 8),
+      .sort((a, b) => Number(b.negative_count || 0) - Number(a.negative_count || 0) || Number(b.review_count || 0) - Number(a.review_count || 0)),
     (item) => {
-      if (item.kind === "action") {
-        const keywords = (item.keywords || []).length ? item.keywords.join("、") : "无集中关键词";
-        const platforms = (item.platforms || []).map((platform) => `${platform.platform} ${platform.negative_count} 条`).join("；") || "平台待确认";
-        const firstPlatform = (item.platforms || [])[0]?.platform || "";
-        const recordCommand = `python3 scripts/record_review_reply.py --store ${item.store} --date ${item.date || ""}${firstPlatform ? ` --platform ${firstPlatform}` : ""} --note '<回复摘要>' --evidence-url '<平台截图或评价链接>'`;
-        const examples = (item.examples || []).map((content, index) => `<span class="bad-review">${index + 1}. ${escapeHtml(content)}</span>`).join("");
-        const exampleText = examples ? `<br><b class="bad-review-title">差评内容</b>${examples}` : "";
-        return `<div class="warn-row"><span>${escapeHtml(item.store)}</span><strong>待回复 ${num(item.negative_count)} 条</strong><em>${escapeHtml(platforms)} · 关键词：${escapeHtml(keywords)}<br>${escapeHtml(item.reply_suggestion || item.human_action || "先查看平台评价详情后回复。")}<br>记录：${escapeHtml(recordCommand)}${exampleText}</em></div>`;
-      }
-      if (item.kind === "completed") {
-        const platform = item.platform ? `${item.platform} · ` : "";
-        const evidence = item.evidence || {};
-        const evidenceTarget = evidence.url || evidence.web_path || evidence.path || "";
-        const evidenceLink = evidence.status === "ready" && evidenceTarget ? `<a class="evidence-link" href="${escapeHtml(evidenceTarget)}" target="_blank" rel="noreferrer">查看证据</a>` : "";
-        const evidencePreview = evidence.status === "ready" && evidence.type === "image" && evidence.web_path ? `<img class="evidence-preview" src="${escapeHtml(evidence.web_path)}" alt="评价回复证据截图" />` : "";
-        const uploadCommand = evidence.attach_command || `python3 scripts/attach_review_reply_evidence.py --store ${item.store} --date ${item.date || ""}${item.platform ? ` --platform ${item.platform}` : ""} --file '<平台截图路径>'`;
-        const evidenceText = evidence.status === "ready" ? `证据：${evidenceTarget}` : `待补平台截图或链接证据；上传：${uploadCommand}`;
-        const note = item.note || item.operator || item.recorded_at || "已人工回复";
-        const cls = evidence.status === "ready" ? "good-row" : "warn-row";
-        return `<div class="${cls}"><span>${escapeHtml(item.store)}</span><strong>${escapeHtml(platform)}已回复</strong><em>${escapeHtml(`${item.date || ""} ${note} · ${evidenceText}`.trim())}${evidenceLink ? `<br>${evidenceLink}` : ""}${evidencePreview}</em></div>`;
-      }
       const keywords = item.top_keywords.length ? item.top_keywords.join("、") : "无集中关键词";
       const badReviews = item.bad_review_examples
         .filter(Boolean)
@@ -1430,8 +1453,6 @@ text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}${g
 renderDaily();
 renderPriority();
 renderHealth();
-renderAiAdvice();
-renderAnomalies();
 renderReviews();
 renderBalances();
 renderBudget();
