@@ -1,0 +1,308 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-13",
+  "owners": {
+    "system": "Codex",
+    "business_decision": "用户"
+  },
+  "risk_levels": {
+    "low": "只读采集、看板生成、数据同步，不直接改变平台或财务结果。",
+    "medium": "会发布数据、生成业务单据或影响经营判断，需要运行日志和产物校验。",
+    "high": "会提交推广预算、出价、订货、付款或财务结果，必须保留人工确认或可追溯日志。"
+  },
+  "tasks": [
+    {
+      "id": "ops.morning_collection",
+      "name": "上午运营一键采集",
+      "center": "运营数据中心",
+      "module": "自动化任务健康报告",
+      "status": "running",
+      "risk": "high",
+      "schedule": "每天 09:30",
+      "entrypoints": [
+        "morning-ops/run_morning_ops_if_10am.command",
+        "morning-ops/run_morning_ops.py"
+      ],
+      "outputs": [
+        "morning-ops/logs/",
+        "business-report-dashboard/data/latest.json",
+        "store-inspection/latest.json",
+        "outputs/promo_budget_preview/latest.json",
+        "workbench-data.js"
+      ],
+      "health_checks": [
+        "日志当天有完成记录",
+        "日报 latest.json 更新时间为当天",
+        "余额 latest.json 有平台结果",
+        "workbench-data.js 成功生成"
+      ],
+      "human_needed_when": [
+        "平台登录失效",
+        "验证码或安全验证",
+        "预算真实提交前需要临时暂停"
+      ],
+      "next_integration_step": "把每个子步骤写入统一任务状态文件，供首页健康报告读取。"
+    },
+    {
+      "id": "ops.realtime_order_income",
+      "name": "实时单量和营业额采集",
+      "center": "运营数据中心",
+      "module": "首屏看板",
+      "status": "running",
+      "risk": "low",
+      "schedule": "10:30-20:00，午晚高峰每半小时，其余每小时",
+      "entrypoints": [
+        "scripts/run_realtime_order_income.zsh",
+        "scripts/realtime_order_income.py"
+      ],
+      "outputs": [
+        "outputs/realtime_order_income/latest.json",
+        "data/realtime-history.json",
+        "workbench-data.js"
+      ],
+      "health_checks": [
+        "latest.json 更新时间不超过当前计划窗口",
+        "覆盖 8 家门店和 16 个平台门店",
+        "昨日同时段对比可生成或明确提示缺历史"
+      ],
+      "human_needed_when": [
+        "美团或饿了么登录失效",
+        "API/页面结构变化导致无法识别门店"
+      ],
+      "next_integration_step": "增加采集失败分类和最近一次成功时间。"
+    },
+    {
+      "id": "ops.daily_report",
+      "name": "日报看板",
+      "center": "运营数据中心",
+      "module": "日报看板",
+      "status": "running",
+      "risk": "medium",
+      "schedule": "上午一键采集触发",
+      "entrypoints": [
+        "business-report-dashboard/run_daily_publish.command",
+        "business-report-dashboard/chrome_cdp_reports.py",
+        "business-report-dashboard/process_reports.py"
+      ],
+      "outputs": [
+        "business-report-dashboard/data/latest.json",
+        "business-report-dashboard/dashboard/index.html",
+        "business-report-dashboard/dashboard/stores/"
+      ],
+      "health_checks": [
+        "latest.json 有最新日期",
+        "覆盖门店数量正常",
+        "异常项 focus_items 可读取"
+      ],
+      "human_needed_when": [
+        "Chrome 登录态失效",
+        "平台下载失败",
+        "日报数据和平台后台明显不一致"
+      ],
+      "next_integration_step": "优化日报独立页面排版，并把异常项同步到AI建议。"
+    },
+    {
+      "id": "ops.review_dashboard",
+      "name": "评价看板",
+      "center": "运营数据中心",
+      "module": "评价看板",
+      "status": "running",
+      "risk": "low",
+      "schedule": "上午一键采集触发",
+      "entrypoints": [
+        "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process"
+      ],
+      "outputs": [
+        "business-report-dashboard/data/unified_reviews.csv",
+        "business-report-dashboard/data/latest.json"
+      ],
+      "health_checks": [
+        "评价汇总 review_summary 状态为 ready",
+        "差评数量和关键词可读取"
+      ],
+      "human_needed_when": [
+        "评价下载需要登录或验证码",
+        "差评需要人工回复或赔付判断"
+      ],
+      "next_integration_step": "评价独立页增加差评处理状态和回复建议。"
+    },
+    {
+      "id": "growth.promo_budget",
+      "name": "推广预算设置全自动",
+      "center": "商业化推广中心",
+      "module": "推广预算全自动",
+      "status": "running_unstable",
+      "risk": "high",
+      "schedule": "午餐 10:30，晚餐 16:30；周末启用保守预设",
+      "entrypoints": [
+        "scripts/run_current_budget.zsh",
+        "scripts/build_promo_budget_preview.mjs",
+        "scripts/run_eleme_automation.zsh",
+        "store-inspection/meituan_budget_cdp.py"
+      ],
+      "outputs": [
+        "outputs/promo_budget_preview/latest.json",
+        "outputs/current_budget/logs/",
+        "config/promo_budget_overrides.json"
+      ],
+      "health_checks": [
+        "预算预览生成成功",
+        "目标预算在允许窗口执行",
+        "平台保存后校验目标预算",
+        "失败时写入日志并停止后续高风险动作"
+      ],
+      "human_needed_when": [
+        "平台登录或验证码",
+        "预算范围异常",
+        "页面提示自动提预算或风险设置",
+        "需要临时调整门店预算"
+      ],
+      "next_integration_step": "把崩溃原因分类，先做失败不中断总看板的状态上报。"
+    },
+    {
+      "id": "growth.promo_bid",
+      "name": "推广出价调整全自动",
+      "center": "商业化推广中心",
+      "module": "推广出价调整",
+      "status": "planned",
+      "risk": "high",
+      "schedule": "待定，先建议后审批",
+      "entrypoints": [
+        "scripts/build_execution_preview.mjs",
+        "dianjin-prototype/"
+      ],
+      "outputs": [
+        "dianjin-prototype/execution_preview.js"
+      ],
+      "health_checks": [
+        "有曝光、消耗、进店、下单转化输入",
+        "出价建议有证据链",
+        "执行前必须进入审批队列"
+      ],
+      "human_needed_when": [
+        "首次确认出价策略",
+        "单次调价超过阈值",
+        "平台提示风险或预算异常"
+      ],
+      "next_integration_step": "先产出只读出价建议，不自动提交。"
+    },
+    {
+      "id": "flow.inventory",
+      "name": "库存全自动",
+      "center": "货流中心",
+      "module": "库存全自动",
+      "status": "running",
+      "risk": "medium",
+      "schedule": "云端库存服务持续运行",
+      "entrypoints": [
+        "inventory-board/app/main.py",
+        "inventory-board/scripts/sync_order_outputs.py"
+      ],
+      "outputs": [
+        "inventory-board/data/inventory.sqlite3",
+        "云端 /api/summary",
+        "~/Desktop/库存管理/出库记录"
+      ],
+      "health_checks": [
+        "云端 /api/summary 可访问",
+        "库存预警数量可读取",
+        "出库单可同步到本地"
+      ],
+      "human_needed_when": [
+        "库存实物盘点差异",
+        "出库单需要打印或补录",
+        "供应商变更"
+      ],
+      "next_integration_step": "把库存预警和订货建议打通。"
+    },
+    {
+      "id": "flow.auto_ordering",
+      "name": "订货全自动",
+      "center": "货流中心",
+      "module": "订货全自动",
+      "status": "planned",
+      "risk": "high",
+      "schedule": "待定，先建议后下单",
+      "entrypoints": [],
+      "outputs": [],
+      "health_checks": [
+        "门店订单收集完整",
+        "按商品和供应渠道分类",
+        "远控安卓下单前有付款确认"
+      ],
+      "human_needed_when": [
+        "首次确认供应渠道映射",
+        "付款确认",
+        "缺货替代品选择"
+      ],
+      "next_integration_step": "先做订货建议表，不自动下单。"
+    },
+    {
+      "id": "finance.bill_analysis",
+      "name": "自动分析账单",
+      "center": "财务中心",
+      "module": "自动分析账单",
+      "status": "planned",
+      "risk": "medium",
+      "schedule": "待定，按上传账单触发",
+      "entrypoints": [],
+      "outputs": [],
+      "health_checks": [
+        "银行账单和平台账单字段映射成功",
+        "收入、佣金、配送费、推广费、退款、补贴可拆分",
+        "异常费用可追溯到原始行"
+      ],
+      "human_needed_when": [
+        "首次提供账单样例",
+        "确认科目口径",
+        "解释无法自动分类的流水"
+      ],
+      "next_integration_step": "先收集账单样例并建立字段字典。"
+    },
+    {
+      "id": "tools.sales_receipt",
+      "name": "销售单生成器",
+      "center": "小工具仓库",
+      "module": "销售单生成器",
+      "status": "running",
+      "risk": "low",
+      "schedule": "人工打开使用",
+      "entrypoints": [
+        "sales-receipt-generator/index.html"
+      ],
+      "outputs": [
+        "浏览器打印销售单"
+      ],
+      "health_checks": [
+        "页面可打开",
+        "打印布局保持一页"
+      ],
+      "human_needed_when": [
+        "销售单字段或公章模板变化"
+      ],
+      "next_integration_step": "接入工具仓库状态卡。"
+    },
+    {
+      "id": "tools.franchise_contract",
+      "name": "加盟合同生成器",
+      "center": "小工具仓库",
+      "module": "加盟合同生成器",
+      "status": "planned",
+      "risk": "medium",
+      "schedule": "人工触发",
+      "entrypoints": [],
+      "outputs": [],
+      "health_checks": [
+        "合同模板版本明确",
+        "加盟商资料字段完整",
+        "生成前预览并人工确认"
+      ],
+      "human_needed_when": [
+        "提供合同模板",
+        "确认加盟条款和费用口径",
+        "确认生成后的合同内容"
+      ],
+      "next_integration_step": "整理合同模板字段清单。"
+    }
+  ]
+}
