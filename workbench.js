@@ -534,6 +534,132 @@ function renderBudget() {
   );
 }
 
+function orderSuggestionGroups(orderSuggestions) {
+  const groups = Array.isArray(orderSuggestions.groups) ? orderSuggestions.groups : [];
+  if (groups.length) return groups;
+  const grouped = new Map();
+  (orderSuggestions.items || []).forEach((item) => {
+    const channel = item.warehouse || "未配置供应渠道";
+    const group = grouped.get(channel) || {
+      channel,
+      status: "待人工确认",
+      item_count: 0,
+      estimated_cost: 0,
+      items: [],
+    };
+    group.items.push(item);
+    group.item_count += 1;
+    group.estimated_cost += Number(item.estimated_cost || 0);
+    grouped.set(channel, group);
+  });
+  return [...grouped.values()].sort((a, b) => b.item_count - a.item_count);
+}
+
+function orderItemsPreview(group) {
+  const items = group.items || [];
+  if (!items.length) return "暂无品项";
+  return items
+    .slice(0, 4)
+    .map((item) => `${item.name || item.sku || "未命名商品"} ${num(item.suggested_quantity, 2)}${item.unit || ""}`)
+    .join("；");
+}
+
+function checklistText(orderSuggestions, groups) {
+  const summary = orderSuggestions.summary || {};
+  const confirmation = orderSuggestions.confirmation || {};
+  const lines = [
+    "熊小小订货建议人工确认清单",
+    `生成时间：${orderSuggestions.generated_at || data.generated_at || "-"}`,
+    `建议品项：${summary.suggestion_count || 0} 项`,
+    `供应渠道：${summary.channel_count || groups.length || 0} 个`,
+    `预估金额：${yuan(summary.estimated_cost || 0)}`,
+    `确认状态：${confirmation.status === "pending" ? "待人工确认" : "当前无需订货"}`,
+    "",
+    "确认前禁止动作：",
+    ...(confirmation.required_before || ["生成渠道下单清单", "远控安卓下单", "付款"]).map((item) => `- ${item}`),
+    "",
+    "渠道明细：",
+  ];
+
+  groups.forEach((group) => {
+    lines.push("");
+    lines.push(`[${group.channel || "未配置供应渠道"}] ${group.item_count || 0} 项，预估 ${yuan(group.estimated_cost || 0)}`);
+    (group.items || []).forEach((item) => {
+      lines.push(
+        `- ${item.name || item.sku || "未命名商品"}｜规格 ${item.spec || "-"}｜库存 ${num(item.balance, 2)}${item.unit || ""}｜预警 ${num(item.warning_threshold, 2)}｜建议 ${num(item.suggested_quantity, 2)}${item.unit || ""}｜预估 ${yuan(item.estimated_cost || 0)}`
+      );
+    });
+  });
+  lines.push("");
+  lines.push("人工确认：品项、数量、供应渠道、替代品、付款金额均确认无误后，再生成渠道下单清单。");
+  return lines.join("\n");
+}
+
+function openOrderingChecklist(orderSuggestions, groups) {
+  const text = checklistText(orderSuggestions, groups);
+  const win = window.open("", "_blank", "noopener,noreferrer");
+  if (!win) return;
+  win.document.write(`<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>订货建议人工确认清单</title>
+    <style>
+      body { margin: 32px; color: #111827; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", Arial, sans-serif; }
+      pre { white-space: pre-wrap; font-size: 14px; line-height: 1.75; }
+      button { margin-bottom: 18px; padding: 9px 13px; border: 1px solid #d1d5db; border-radius: 8px; background: #0f766e; color: #fff; font-weight: 800; }
+      @media print { button { display: none; } body { margin: 18mm; } }
+    </style>
+  </head>
+  <body>
+    <button onclick="window.print()">打印 / 保存 PDF</button>
+    <pre>${escapeHtml(text)}</pre>
+  </body>
+</html>`);
+  win.document.close();
+}
+
+function renderOrdering() {
+  const orderSuggestions = data.order_suggestions || {};
+  const summary = orderSuggestions.summary || {};
+  const confirmation = orderSuggestions.confirmation || {};
+  const groups = orderSuggestionGroups(orderSuggestions);
+  const suggestionCount = Number(summary.suggestion_count || groups.reduce((sum, group) => sum + Number(group.item_count || 0), 0));
+  const channelCount = Number(summary.channel_count || groups.length);
+  const estimatedCost = Number(summary.estimated_cost || groups.reduce((sum, group) => sum + Number(group.estimated_cost || 0), 0));
+  const pending = confirmation.status === "pending" && suggestionCount > 0;
+  const statusText = orderSuggestions.status === "failed" ? "生成失败" : pending ? "待确认" : "无需订货";
+  const statusEl = document.querySelector("#orderingStatus");
+
+  text("orderingStatus", statusText);
+  if (statusEl) {
+    statusEl.className = `tag ${orderSuggestions.status === "failed" ? "danger" : pending ? "planning" : "ready"}`;
+  }
+  text("orderingSuggestionCount", `${suggestionCount} 项`);
+  text(
+    "orderingSummary",
+    orderSuggestions.status === "failed"
+      ? orderSuggestions.message || "订货建议生成失败，请查看任务健康报告。"
+      : `按库存预警生成订货建议，当前 ${channelCount} 个供应渠道，预估 ${yuan(estimatedCost)}。`
+  );
+  text("orderingConfirmStatus", pending ? "需人工确认" : "当前无需处理");
+  text("orderingConfirmMessage", confirmation.message || "订货建议只用于人工确认；确认前不会自动下单或付款。");
+  document.querySelector("#ordering")?.classList.toggle("alert", pending || orderSuggestions.status === "failed");
+
+  rows(
+    "orderingRows",
+    groups.slice(0, 8),
+    (group) => `<div class="${pending ? "warn-row" : "good-row"}"><span>${escapeHtml(group.channel || "未配置供应渠道")}</span><strong>${num(group.item_count)} 项 / ${yuan(group.estimated_cost)}</strong><em>${escapeHtml(orderItemsPreview(group))}</em></div>`
+  );
+
+  const button = document.querySelector("#orderingChecklistButton");
+  if (button) {
+    button.disabled = !suggestionCount;
+    button.textContent = suggestionCount ? "生成确认清单" : "暂无订货建议";
+    button.onclick = () => openOrderingChecklist(orderSuggestions, groups);
+  }
+}
+
 function renderInventory() {
   const inventory = data.inventory || {};
   const warnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
@@ -578,6 +704,7 @@ renderAnomalies();
 renderReviews();
 renderBalances();
 renderBudget();
+renderOrdering();
 renderInventory();
 window.addEventListener("scroll", activateNav, { passive: true });
 activateNav();

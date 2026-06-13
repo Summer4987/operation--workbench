@@ -611,6 +611,15 @@ h2 {
   border-top-color: var(--cyan);
 }
 
+.module-ordering {
+  border-top-color: var(--amber);
+}
+
+.module-ordering.alert {
+  border-color: var(--soft-amber-line);
+  border-top-color: var(--amber);
+}
+
 .realtime-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -939,6 +948,62 @@ h2 {
   border-color: #d5efe6;
 }
 
+.ordering-confirm-panel {
+  padding: 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fbfcfe;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.ordering-confirm-panel div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.ordering-confirm-panel span,
+.ordering-confirm-panel em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.ordering-confirm-panel strong {
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.confirm-button {
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.confirm-button:disabled {
+  border-color: #d1d5db;
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.ordering-channel-list div {
+  grid-template-columns: minmax(110px, 0.38fr) auto minmax(0, 1fr);
+}
+
 .anomaly-list div {
   grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr);
 }
@@ -1084,5 +1149,14 @@ h2 {
 
   .module-body li strong {
     text-align: left;
+  }
+
+  .ordering-confirm-panel,
+  .ordering-channel-list div {
+    grid-template-columns: 1fr;
+  }
+
+  .confirm-button {
+    width: 100%;
   }
 }

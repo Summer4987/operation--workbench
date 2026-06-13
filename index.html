@@ -292,22 +292,27 @@
             <p>货流中心</p>
             <h2>订货全自动</h2>
           </div>
-          <div class="center-grid two">
-            <article class="module">
+          <div class="center-grid two ordering-grid">
+            <article class="module module-ordering">
               <div class="module-head">
                 <div>
                   <p>订货</p>
-                  <h2>门店订单分类分发</h2>
+                  <h2>订货建议确认队列</h2>
                 </div>
-                <span class="tag planning">待做</span>
+                <span class="tag planning" id="orderingStatus">待确认</span>
               </div>
               <div class="module-body">
-                <div class="big-number">待接入</div>
-                <p>目标是收集所有门店订单，按品类和供应渠道拆分，再通过远控安卓手机到平台下单，最后推送付款确认。</p>
-                <div class="mini-table">
-                  <div><span>输入</span><strong>门店订单</strong><em>按商品分类</em></div>
-                  <div><span>执行</span><strong>安卓远控</strong><em>下单后人工付款</em></div>
+                <div class="big-number" id="orderingSuggestionCount">-</div>
+                <p id="orderingSummary">等待订货建议数据。</p>
+                <div class="ordering-confirm-panel">
+                  <div>
+                    <span>确认要求</span>
+                    <strong id="orderingConfirmStatus">-</strong>
+                    <em id="orderingConfirmMessage">确认前不会自动下单或付款。</em>
+                  </div>
+                  <button class="confirm-button" id="orderingChecklistButton" type="button">生成确认清单</button>
                 </div>
+                <div class="mini-table ordering-channel-list" id="orderingRows"></div>
               </div>
             </article>
             <article class="module module-inventory" id="inventory">
