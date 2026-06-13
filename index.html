@@ -250,15 +250,15 @@
                   <p>出价</p>
                   <h2>推广出价调整全自动</h2>
                 </div>
-                <span class="tag planning">待做</span>
+                <span class="tag testing" id="biddingStatus">建议</span>
               </div>
               <div class="module-body">
-                <div class="big-number">建议先行</div>
-                <p>下一步接入曝光、进店、下单转化和预算消耗，先生成出价建议，再进入人工确认队列。</p>
-                <div class="mini-table">
-                  <div><span>阶段</span><strong>规划中</strong><em>先建议后执行</em></div>
-                  <div><span>风险边界</span><strong>需审批</strong><em>执行前预览，执行后校验</em></div>
-                </div>
+                <div class="big-number" id="biddingCount">-</div>
+                <p id="biddingSummary">等待出价建议。</p>
+                <div class="mini-table" id="biddingRows"></div>
+              </div>
+              <div class="module-actions">
+                <a href="./dianjin-prototype/index.html">打开出价原型</a>
               </div>
             </article>
           </div>

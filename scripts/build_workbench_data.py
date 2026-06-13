@@ -19,6 +19,7 @@ ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_pre
 ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_plan" / "latest.json"
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
+PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -335,7 +336,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -464,6 +465,20 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
+    promo_bid_summary = promo_bid_advice.get("summary") or {}
+    bid_approval_count = int(promo_bid_summary.get("approval_required_count") or 0)
+    if promo_bid_advice.get("status") in {"ready", "partial", "stale"} and bid_approval_count:
+        rows.append(
+            {
+                "level": "建议",
+                "center": "商业化推广中心",
+                "title": "推广出价建议待审批",
+                "reason": f"只读出价建议中 {bid_approval_count} 项需要确认，风险或不可执行 {promo_bid_summary.get('risk_count', 0)} 项。",
+                "action": "先核对预算消耗、预期消耗和门店状态；确认前不自动提交出价。",
+                "source": "growth.promo_bid",
+            }
+        )
+
     trend = "待积累"
     summary = "AI建议会优先处理自动化异常，再结合实时单量、评价、余额和库存解释经营波动。"
     comparison = realtime_comparison.get("summary") or {}
@@ -538,6 +553,7 @@ def main() -> None:
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
+    promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
@@ -549,7 +565,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -559,6 +575,7 @@ def main() -> None:
         "balances": balances,
         "budget": budget,
         "promo_budget_retry": promo_retry,
+        "promo_bid_advice": promo_bid_advice,
         "inventory": inventory,
         "order_suggestions": order_suggestions,
         "order_lists": order_lists,

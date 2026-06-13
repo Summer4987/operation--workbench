@@ -550,6 +550,36 @@ function renderBudget() {
   );
 }
 
+function renderBidding() {
+  const advice = data.promo_bid_advice || {};
+  const summary = advice.summary || {};
+  const items = advice.items || [];
+  const approvalCount = Number(summary.approval_required_count || 0);
+  const staleCount = Number(summary.stale_preview_count || 0);
+  const statusText = advice.status === "ready" ? "已生成" : advice.status === "partial" ? "部分旧数据" : advice.status === "stale" ? "输入偏旧" : "待生成";
+  text("biddingStatus", statusText);
+  text("biddingCount", `${approvalCount} 项`);
+  text(
+    "biddingSummary",
+    advice.message || `只读出价建议：加价 ${summary.bid_up_count || 0} 项，降价 ${summary.bid_down_count || 0} 项，风险 ${summary.risk_count || 0} 项。`
+  );
+  document.querySelector("#bidding")?.classList.toggle("alert", approvalCount > 0 || staleCount > 0);
+  rows(
+    "biddingRows",
+    [
+      { label: "待审批", value: `${approvalCount} 项`, detail: advice.approval?.message || "确认前不自动提交" },
+      { label: "加价/降价", value: `${summary.bid_up_count || 0}/${summary.bid_down_count || 0}`, detail: "基于预算消耗与预期消耗" },
+      { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: summary.latest_preview_at ? `最新 ${summary.latest_preview_at}` : "等待状态读取" },
+      ...items.filter((item) => Number(item.bid_delta || 0)).slice(0, 5).map((item) => ({
+        label: item.store || "未命名门店",
+        value: item.action || "出价建议",
+        detail: item.reason || item.risk || `${item.time || ""} ${item.period || ""}`,
+      })),
+    ],
+    (item) => `<div class="${item.label === "输入状态" && staleCount ? "warn-row" : Number.parseInt(item.value, 10) || item.label === "待审批" && approvalCount ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+}
+
 function orderSuggestionGroups(orderSuggestions) {
   const groups = Array.isArray(orderSuggestions.groups) ? orderSuggestions.groups : [];
   if (groups.length) return groups;
@@ -835,6 +865,7 @@ renderAnomalies();
 renderReviews();
 renderBalances();
 renderBudget();
+renderBidding();
 renderOrdering();
 renderInventory();
 window.addEventListener("scroll", activateNav, { passive: true });

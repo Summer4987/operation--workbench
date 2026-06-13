@@ -21,6 +21,7 @@ ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_pre
 ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_plan" / "latest.json"
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
+PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -251,6 +252,16 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
             row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
         if recoveries:
             row["human_action"] = "；".join(recoveries)
+    if row["id"] == "growth.promo_bid":
+        extra = task_run.get("extra") or {}
+        stale_count = int(extra.get("stale_preview_count") or 0)
+        approval_count = int(extra.get("approval_required_count") or 0)
+        if stale_count:
+            row["status"] = "warn"
+            row["reason"] = f"出价建议已生成，但 {stale_count} 个输入预览偏旧。"
+        elif approval_count:
+            row["reason"] = f"出价只读建议已生成，{approval_count} 项需审批。"
+            row["human_action"] = "逐项确认出价建议；确认前不自动提交到平台。"
     return row
 
 
@@ -361,6 +372,26 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             row.update(status=status, reason=f"余额巡检可用，{summary.get('store_count') or 0} 条结果，低余额 {warning_count} 条。")
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
         row["evidence"] = "store-inspection/latest.json"
+
+    elif task_id == "growth.promo_bid":
+        payload = read_json(PROMO_BID_ADVICE_PATH, {})
+        generated_at = parse_time(payload.get("generated_at"))
+        summary = payload.get("summary") or {}
+        source_status = classify_from_json_status(payload.get("status"))
+        if payload.get("status") == "missing_preview":
+            row.update(status="warn", reason=payload.get("message") or "推广出价建议尚未生成。")
+        elif not generated_at:
+            row.update(status="warn", reason="推广出价建议没有生成时间。")
+        elif source_status == "warn":
+            row.update(status="warn", reason=f"出价建议可读，但有 {summary.get('stale_preview_count', 0)} 个输入预览偏旧。")
+        elif source_status == "ok":
+            row.update(status="ok", reason=f"出价只读建议已生成，{summary.get('approval_required_count', 0)} 项需审批，风险 {summary.get('risk_count', 0)} 项。")
+        else:
+            row.update(status="warn", reason=payload.get("message") or "推广出价建议待检查。")
+        row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
+        row["evidence"] = "outputs/promo_bid_advice/latest.json"
+        if int(summary.get("approval_required_count") or 0):
+            row["human_action"] = "逐项确认出价建议；确认前不自动提交到平台。"
 
     elif task_id == "flow.inventory":
         payload = runtime.get("inventory") or {}
