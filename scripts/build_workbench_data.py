@@ -15,6 +15,7 @@ DATA_DIR = ROOT / "data"
 REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
+REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
@@ -341,7 +342,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, review_actions: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -349,13 +350,21 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     for task_id in ("ops.daily_report", "ops.review_dashboard", "growth.promo_budget"):
         task = tasks.get(task_id) or {}
         if task.get("status") in {"danger", "warn"}:
+            title = task.get("name", task_id)
+            reason = task.get("reason") or task.get("next_step") or "任务需要关注。"
+            action = task.get("human_action") or task.get("next_step") or "先查看任务健康报告和日志，再决定是否人工处理。"
+            if task_id == "ops.review_dashboard" and review_actions.get("status") == "waiting_reply":
+                first_action = (review_actions.get("items") or [{}])[0]
+                title = "差评需要处理"
+                reason = review_actions.get("message") or reason
+                action = first_action.get("reply_suggestion") or action
             rows.append(
                 {
                     "level": advice_level(task),
                     "center": task.get("center", ""),
-                    "title": task.get("name", task_id),
-                    "reason": task.get("reason") or task.get("next_step") or "任务需要关注。",
-                    "action": task.get("human_action") or task.get("next_step") or "先查看任务健康报告和日志，再决定是否人工处理。",
+                    "title": title,
+                    "reason": reason,
+                    "action": action,
                     "source": task_id,
                 }
             )
@@ -585,16 +594,17 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 }
             )
 
-    review = daily.get("review_summary") or {}
-    negative_count = int((review.get("summary") or {}).get("negative_count") or review.get("negative_count") or 0)
-    if negative_count:
+    review_action_summary = review_actions.get("summary") or {}
+    negative_count = int(review_action_summary.get("negative_count") or 0)
+    if negative_count and not any(item.get("source") == "ops.review_dashboard" for item in rows):
+        first_action = (review_actions.get("items") or [{}])[0]
         rows.append(
             {
                 "level": "建议",
                 "center": "运营数据中心",
                 "title": "差评需要处理",
-                "reason": f"评价汇总发现 {negative_count} 条疑似问题评价。",
-                "action": "优先处理差评门店，回复后再观察单量和复购。",
+                "reason": review_actions.get("message") or f"评价汇总发现 {negative_count} 条疑似问题评价。",
+                "action": first_action.get("reply_suggestion") or "优先处理差评门店，回复后再观察单量和复购。",
                 "source": "ops.review_dashboard",
             }
         )
@@ -627,6 +637,7 @@ def main() -> None:
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})
     realtime_collection = read_json(REALTIME_COLLECTION_STATUS_PATH, {})
+    review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
@@ -643,7 +654,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, review_actions, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -652,6 +663,7 @@ def main() -> None:
         "morning_collection": morning_collection,
         "realtime_collection": realtime_collection,
         "daily": daily,
+        "review_actions": review_actions,
         "balances": balances,
         "budget": budget,
         "promo_budget_retry": promo_retry,

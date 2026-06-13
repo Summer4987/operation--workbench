@@ -502,6 +502,9 @@ function renderAnomalies() {
 function renderReviews() {
   const daily = data.daily || {};
   const review = daily.review_summary || {};
+  const reviewActions = data.review_actions || {};
+  const actionItems = reviewActions.items || [];
+  const actionSummary = reviewActions.summary || {};
   const stores = Object.entries(review.stores || {}).map(([store, item]) => ({
     store,
     review_count: Number(item.review_count || 0),
@@ -519,17 +522,24 @@ function renderReviews() {
   text("reviewCount", `${totalReviews} 条`);
   text(
     "reviewSummary",
-    review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`
+    reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`
   );
-  document.querySelector("#reviews")?.classList.toggle("alert", totalIssues > 0);
+  document.querySelector("#reviews")?.classList.toggle("alert", Number(actionSummary.negative_count || totalIssues) > 0);
 
   rows(
     "reviewRows",
-    stores
+    (actionItems.length ? actionItems.map((item) => ({ ...item, kind: "action" })) : stores)
       .slice()
-      .sort((a, b) => b.negative_count - a.negative_count || b.review_count - a.review_count)
+      .sort((a, b) => Number(b.negative_count || 0) - Number(a.negative_count || 0) || Number(b.review_count || 0) - Number(a.review_count || 0))
       .slice(0, 8),
     (item) => {
+      if (item.kind === "action") {
+        const keywords = (item.keywords || []).length ? item.keywords.join("、") : "无集中关键词";
+        const platforms = (item.platforms || []).map((platform) => `${platform.platform} ${platform.negative_count} 条`).join("；") || "平台待确认";
+        const examples = (item.examples || []).map((content, index) => `<span class="bad-review">${index + 1}. ${escapeHtml(content)}</span>`).join("");
+        const exampleText = examples ? `<br><b class="bad-review-title">差评内容</b>${examples}` : "";
+        return `<div class="warn-row"><span>${escapeHtml(item.store)}</span><strong>待回复 ${num(item.negative_count)} 条</strong><em>${escapeHtml(platforms)} · 关键词：${escapeHtml(keywords)}<br>${escapeHtml(item.reply_suggestion || item.human_action || "先查看平台评价详情后回复。")}${exampleText}</em></div>`;
+      }
       const keywords = item.top_keywords.length ? item.top_keywords.join("、") : "无集中关键词";
       const badReviews = item.bad_review_examples
         .filter(Boolean)

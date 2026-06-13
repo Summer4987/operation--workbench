@@ -16,6 +16,7 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
+REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
@@ -391,13 +392,22 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "ops.review_dashboard":
         payload = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
+        review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
         review = payload.get("review_summary") or {}
         review_status = review.get("status")
-        if review_status == "ready":
+        action_summary = review_actions.get("summary") or {}
+        negative_count = int(action_summary.get("negative_count") or 0)
+        if review_actions.get("status") == "waiting_reply":
+            row.update(
+                status="warn",
+                reason=review_actions.get("message") or f"评价有 {negative_count} 条待处理差评。",
+                human_action=review_actions.get("human_action") or "先处理差评门店，再观察单量和复购。",
+            )
+        elif review_status == "ready":
             row.update(status="ok", reason=review.get("message") or "评价数据已同步。")
         elif review_status in {"stale", "missing"}:
             row.update(status="warn", reason=review.get("message") or "评价数据未同步到最新日期。")
-        row["evidence"] = "business-report-dashboard/data/latest.json"
+        row["evidence"] = "outputs/review_action_status/latest.json" if review_actions else "business-report-dashboard/data/latest.json"
 
     elif task_id == "growth.promo_budget":
         payload = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
