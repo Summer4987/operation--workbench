@@ -93,6 +93,14 @@ MacBook 或 Codex 所在设备：
 /bin/zsh scripts/install_macmini_operation_launchd.zsh
 ```
 
+如果本次改动涉及定时任务、证据上传、云端同步或上午一键流程，普通检查通过后运行只读冒烟检查：
+
+```zsh
+/bin/zsh scripts/run_macmini_ai_center_smoke.zsh
+```
+
+这条冒烟检查会执行健康检查、巡检证据上传 `--dry-run` 和上午一键流程 `preview`，不会提交预算、不会下单付款、不会真实上传证据。
+
 如果检查里出现 Python、Node、Git、权限或 launchd 错误，把完整输出发给 Codex，不要强行重置或覆盖现场。
 
 ## 生产热修复流程

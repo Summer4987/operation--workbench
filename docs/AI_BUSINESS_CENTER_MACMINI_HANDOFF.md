@@ -28,6 +28,14 @@ git pull --ff-only origin codex/ai-business-center
 /bin/zsh scripts/check_macmini_ai_center.zsh
 ```
 
+如果本次改动涉及定时任务、证据上传、云端同步或上午一键流程，普通检查通过后再运行只读冒烟检查：
+
+```zsh
+/bin/zsh scripts/run_macmini_ai_center_smoke.zsh
+```
+
+这条冒烟检查会串起健康检查、巡检证据上传 `--dry-run` 和上午一键流程 `preview`。它不会提交预算、不会下单付款、不会真实上传证据。
+
 如果检查提示 `远控安卓连接配置缺少必要信息`，先不要手写 JSON。可以先用向导预览配置：
 
 ```zsh
@@ -92,6 +100,8 @@ python3 scripts/init_android_execution_config.py \
 - 下单或付款。
 - 上传云端。
 
+`scripts/run_macmini_ai_center_smoke.zsh` 也不会做高风险动作；它会运行证据上传 dry-run，并运行上午一键流程 preview 来确认生产入口可执行。
+
 它只会检查代码、配置、脚本语法、健康数据生成和定时任务标签。
 
 ## Codex 后续负责
@@ -99,4 +109,5 @@ python3 scripts/init_android_execution_config.py \
 - 判断 Mac mini 输出是否能进入生产。
 - 判断是否需要重装定时任务。
 - 指定低风险预览命令。
+- 判断 Mac mini 冒烟检查输出是否可以进入下一次真实定时运行。
 - 继续把新模块接入统一任务注册表、运行记录和首页健康报告。

@@ -204,7 +204,8 @@
         "store-inspection/one_click_eleme_balance.py",
         "store-inspection/one_click_meituan_balance.py",
         "scripts/build_store_inspection_evidence_manifest.py",
-        "scripts/upload_store_inspection_evidence.zsh"
+        "scripts/upload_store_inspection_evidence.zsh",
+        "scripts/run_macmini_ai_center_smoke.zsh"
       ],
       "outputs": [
         "store-inspection/latest.json",
@@ -222,6 +223,7 @@
         "失败截图和 OCR 证据入口可读取",
         "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
         "Mac mini 上午定时任务会在余额巡检后上传证据",
+        "Mac mini 只读冒烟检查可验证证据 dry-run 和上午 preview",
         "低余额门店进入重点预警"
       ],
       "human_needed_when": [
@@ -229,7 +231,7 @@
         "余额识别失败",
         "推广余额不足需要充值"
       ],
-      "next_integration_step": "Mac mini 上午定时任务已接入证据上传，下一步在 Mac mini 做一次只读 dry-run 和生产冒烟检查。"
+      "next_integration_step": "Mac mini 只读冒烟检查入口已建立，下一步需要在 Mac mini 运行并回传完整输出。"
     },
     {
       "id": "growth.promo_bid",

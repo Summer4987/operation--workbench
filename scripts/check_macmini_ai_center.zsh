@@ -70,6 +70,7 @@ echo "== 配置与语法检查 =="
 /bin/zsh -n scripts/run_evening_budget.zsh
 /bin/zsh -n scripts/deploy_workbench_to_cloud.zsh
 /bin/zsh -n scripts/upload_store_inspection_evidence.zsh
+/bin/zsh -n scripts/run_macmini_ai_center_smoke.zsh
 /bin/zsh -n scripts/install_macmini_operation_launchd.zsh
 if command -v "$NODE" >/dev/null 2>&1; then
   "$NODE" --check workbench.js
