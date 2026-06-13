@@ -1039,6 +1039,7 @@ function renderFinance() {
   const finance = data.finance_center || {};
   const summary = finance.summary || {};
   const sources = finance.sources || [];
+  const intakeChecklist = finance.intake_checklist || [];
   const accounts = finance.accounts || [];
   const missing = finance.missing || [];
   const waiting = finance.status === "waiting_samples";
@@ -1052,8 +1053,17 @@ function renderFinance() {
       ...sources.map((source) => ({
         label: source.name,
         value: `${source.file_count || 0} 个文件`,
-        detail: source.path || "",
+        detail: [
+          source.path || "",
+          (source.required_fields || []).length ? `字段：${(source.required_fields || []).slice(0, 4).join("、")}${(source.required_fields || []).length > 4 ? "等" : ""}` : "",
+        ].filter(Boolean).join(" · "),
         warn: !source.file_count,
+      })),
+      ...intakeChecklist.slice(0, 2).map((item) => ({
+        label: "接收要求",
+        value: item.source || "账单样例",
+        detail: item.message || "",
+        warn: waiting,
       })),
       ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、"), warn: true }] : []),
     ],

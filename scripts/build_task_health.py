@@ -724,11 +724,16 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                 human_action="确认科目口径后再生成财务报表。",
             )
         elif payload.get("status") == "waiting_samples":
+            intake_messages = [
+                item.get("message", "")
+                for item in payload.get("intake_checklist") or []
+                if item.get("message")
+            ]
             row.update(
                 status="warn",
                 reason=payload.get("message") or "财务中心等待账单样例。",
                 evidence="outputs/finance_center_status/latest.json",
-                human_action="提供银行账单和美团/饿了么平台账单样例。",
+                human_action="；".join(intake_messages) or "提供银行账单和美团/饿了么平台账单样例。",
             )
         if generated_at:
             row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")

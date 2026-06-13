@@ -54,6 +54,23 @@ def sample_files(path_text: str, accepted_extensions: set[str]) -> list[dict[str
     return files
 
 
+def intake_checklist(sources: list[dict[str, Any]], accepted_extensions: set[str]) -> list[dict[str, Any]]:
+    checklist = []
+    extension_text = "、".join(sorted(accepted_extensions)) or ".csv、.xlsx、.xls、.pdf"
+    for source in sources:
+        fields = source.get("required_fields") or []
+        checklist.append(
+            {
+                "source": source.get("name", ""),
+                "path": source.get("path", ""),
+                "accepted_extensions": sorted(accepted_extensions),
+                "required_fields": fields,
+                "message": f"把{source.get('name', '账单')}样例放入 {source.get('path', '')}，支持 {extension_text}，至少包含：{'、'.join(fields[:6])}{'等字段' if len(fields) > 6 else ''}。",
+            }
+        )
+    return checklist
+
+
 def build_payload() -> dict[str, Any]:
     schema = read_json(SCHEMA_PATH, {})
     accepted_extensions = {str(item).lower() for item in schema.get("accepted_extensions", [])}
@@ -98,6 +115,7 @@ def build_payload() -> dict[str, Any]:
         "sources": sources,
         "accounts": accounts,
         "missing": missing,
+        "intake_checklist": intake_checklist(sources, accepted_extensions),
         "next_input_needed": [
             "银行账单样例放入 data/finance-inbox/bank",
             "美团/饿了么平台账单样例放入 data/finance-inbox/platform",

@@ -128,6 +128,11 @@ def build_payload() -> dict[str, Any]:
 
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
+        intake_messages = [
+            item.get("message", "")
+            for item in finance.get("intake_checklist") or []
+            if item.get("message")
+        ]
         items.append(
             action_item(
                 item_id="finance.samples",
@@ -135,7 +140,7 @@ def build_payload() -> dict[str, Any]:
                 center="财务中心",
                 priority="medium",
                 reason=f"财务字段字典已建立，当前缺少：{missing}。",
-                action="提供银行账单、美团账单、饿了么账单样例后，再进入字段映射和利润表生成。",
+                action="；".join(intake_messages) or "提供银行账单、美团账单、饿了么账单样例后，再进入字段映射和利润表生成。",
                 source="finance.bill_analysis",
                 evidence="outputs/finance_center_status/latest.json",
             )
