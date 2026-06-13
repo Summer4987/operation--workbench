@@ -1092,9 +1092,9 @@ function renderBudget() {
 }
 
 function renderBidding() {
-  text("biddingStatus", "待规则");
+  text("biddingStatus", "建设中");
   text("biddingCount", "框架保留");
-  text("biddingSummary", "旧的推广出价调整逻辑已删除。此页只保留页面框架，等待接入新的调整规则。");
+  text("biddingSummary", "建设中：旧的推广出价调整逻辑已删除。此页只保留页面框架，等待接入新的调整规则。");
   document.querySelector("#bidding")?.classList.remove("alert");
   rows(
     "biddingRows",
@@ -1429,9 +1429,9 @@ function renderFinance() {
   const setup = finance.setup || {};
   const reportGeneration = finance.report_generation || {};
   const waiting = finance.status === "waiting_samples";
-  text("financeBillStatus", waiting ? "待样例" : finance.status === "ready_for_mapping" ? "待映射" : "待检查");
+  text("financeBillStatus", "建设中");
   text("financeBillCount", `${Number(summary.sample_file_count || 0)} 个样例`);
-  text("financeBillSummary", finance.message || "财务中心等待账单样例和字段字典。");
+  text("financeBillSummary", `建设中：${finance.message || "财务中心等待账单样例和字段字典。"}`);
   document.querySelector("#finance-bills")?.classList.toggle("alert", waiting);
   rows(
     "financeBillRows",
@@ -1457,9 +1457,9 @@ function renderFinance() {
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 
-  text("financeReportStatus", reportGeneration.status_text || (waiting ? "待样例" : "待映射"));
+  text("financeReportStatus", "建设中");
   text("financeReportCount", `${Number(reportGeneration.account_count || summary.account_count || accounts.length)} 个科目`);
-  text("financeReportSummary", reportGeneration.message || "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
+  text("financeReportSummary", `建设中：${reportGeneration.message || "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。"}`);
   rows(
     "financeReportRows",
     [
