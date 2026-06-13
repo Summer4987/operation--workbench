@@ -223,6 +223,7 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
 
   text("realtimeIncome", yuan(totalIncome));
   text("realtimeOrders", `${num(totalOrders)} 单`);
+  text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace("较昨日同时段 ", ""));
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtime.status === "ok" || realtime.status === "ready" || sourceStores.length ? "已同步" : "待采集");
   text("realtimeMeta", `最近采集：${generatedAt}，覆盖 ${covered || 0} 家门店，缺失 ${missing} 个平台门店。`);
@@ -273,6 +274,8 @@ function renderDaily() {
   text("metricOrders", `实时单量 ${num(totalOrders)} 单`);
   text("metricYesterdayCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)));
   renderRealtimeCard(daily, stores, totalIncome, totalOrders);
+  text("briefOrders", `${num(dailyOrders)} 单`);
+  text("briefIncome", yuan(dailyIncome));
   text("dailyStoreCount", `${stores.length || 0} 家`);
   text("dailySummary", `只看最新日报日期 ${latestDate || "-"}：总收入 ${yuan(dailyIncome)}，总单量 ${num(dailyOrders)} 单，覆盖 ${stores.length || 0} 家门店。`);
   rows(
@@ -282,6 +285,140 @@ function renderDaily() {
       .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
       .slice(0, 8),
     (item) => `<div class="good-row"><span>${item.store}</span><strong>${yuan(item.income)}</strong><em>${num(item.orders)} 单</em></div>`
+  );
+}
+
+function priorityItems() {
+  const balances = data.balances || {};
+  const inventory = data.inventory || {};
+  const daily = data.daily || {};
+  const balanceWarnings = (balances.items || []).filter((item) => item.status === "warning");
+  const inventoryWarnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
+  const automationWarnings = groupedAnomalies(daily.focus_items || []).slice(0, 3);
+  const items = [];
+
+  if (inventoryWarnings.length) {
+    items.push({
+      type: "库存不足",
+      title: `${inventoryWarnings.length} 个库存预警`,
+      detail: inventoryWarnings.slice(0, 3).map((item) => item.name).join("、"),
+      level: "danger",
+    });
+  }
+  if (balanceWarnings.length) {
+    const lowest = balanceWarnings.slice().sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0))[0];
+    items.push({
+      type: "推广余额不足",
+      title: `${balanceWarnings.length} 个余额预警`,
+      detail: lowest ? `${lowest.platform} · ${shortStore(lowest.store_name)} ${yuan(lowest.balance)}` : "请打开余额巡检",
+      level: "warning",
+    });
+  }
+  automationWarnings.forEach((group) => {
+    items.push({
+      type: "自动化异常",
+      title: `${group.store} ${group.issues.length} 项异常`,
+      detail: group.issues.map((item) => item.title).join("；"),
+      level: "danger",
+    });
+  });
+  if (!items.length) {
+    items.push({
+      type: "今日状态",
+      title: "暂无重点预警",
+      detail: "库存、余额和日报异常未发现需要优先处理的事项。",
+      level: "ok",
+    });
+  }
+  return items;
+}
+
+function renderPriority() {
+  const items = priorityItems();
+  const hasAlert = items.some((item) => item.level !== "ok");
+  text("priorityStatus", hasAlert ? "需关注" : "正常");
+  rows(
+    "priorityRows",
+    items,
+    (item) => `<div class="${item.level === "ok" ? "good-row" : "warn-row"}"><span>${escapeHtml(item.type)}</span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+}
+
+function renderHealth() {
+  const realtime = data.realtime || {};
+  const balances = data.balances || {};
+  const inventory = data.inventory || {};
+  const budget = data.budget || {};
+  const daily = data.daily || {};
+  const tasks = [
+    {
+      name: "实时单量采集",
+      status: realtime.status === "ok" || realtime.status === "ready" ? "正常" : "待采集",
+      meta: realtime.generated_at || realtime.collected_at || data.generated_at || "-",
+    },
+    {
+      name: "日报生成",
+      status: latestDailyRows(daily).length ? "正常" : "待同步",
+      meta: latestDailyDate(daily) || "-",
+    },
+    {
+      name: "推广余额巡检",
+      status: balances.status === "ok" ? "正常" : "注意",
+      meta: balances.generated_at || "-",
+    },
+    {
+      name: "预算预览生成",
+      status: budget.generated_at ? "正常" : "待生成",
+      meta: budget.generated_at || "-",
+    },
+    {
+      name: "库存同步",
+      status: inventory.product_count ? "正常" : "待同步",
+      meta: inventory.source === "cloud" ? "云端库存" : "本地备用数据",
+    },
+  ];
+  const abnormalCount = tasks.filter((task) => task.status !== "正常").length;
+  text("healthStatus", abnormalCount ? "注意" : "正常");
+  rows(
+    "healthRows",
+    tasks,
+    (task) => `<div class="${task.status === "正常" ? "good-row" : "warn-row"}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status)}</strong><em>${escapeHtml(task.meta)}</em></div>`
+  );
+}
+
+function renderAiAdvice() {
+  const daily = data.daily || {};
+  const stores = storeTotals(latestDailyRows(daily));
+  const compare = yesterdayStoreMap(daily);
+  const insights = stores
+    .map((store) => {
+      const previous = compare.get(store.store);
+      const previousOrders = Number(previous?.orders?.previous ?? previous?.orders ?? previous?.total_orders ?? 0);
+      const delta = previousOrders ? Number(store.orders || 0) - previousOrders : 0;
+      const rate = previousOrders ? delta / previousOrders : 0;
+      return { ...store, previousOrders, delta, rate };
+    })
+    .filter((item) => item.previousOrders)
+    .sort((a, b) => Math.abs(b.rate) - Math.abs(a.rate));
+
+  const totalOrders = stores.reduce((sum, item) => sum + Number(item.orders || 0), 0);
+  const previousOrders = insights.reduce((sum, item) => sum + item.previousOrders, 0);
+  const totalDelta = previousOrders ? totalOrders - previousOrders : 0;
+  const trendText = previousOrders ? `${totalDelta >= 0 ? "上涨" : "下跌"} ${signedNumber(totalDelta)} 单` : "待积累";
+  text("aiTrend", trendText);
+  text(
+    "aiAdviceSummary",
+    previousOrders
+      ? `按昨日同时段对比，整体单量${totalDelta >= 0 ? "上涨" : "下跌"}。优先查看波动最大的门店，再结合曝光、评价、余额和库存排查原因。`
+      : "已有AI建议入口，待实时历史数据继续积累后，按天/周分析涨跌原因。"
+  );
+  rows(
+    "aiAdviceRows",
+    insights.slice(0, 5),
+    (item) => {
+      const action = item.delta < 0 ? "检查曝光、差评、库存和预算是否拖累" : "复盘高峰品类和推广设置，沉淀可复制动作";
+      return `<div class="${item.delta < 0 ? "warn-row" : "good-row"}"><span>${escapeHtml(item.store)}</span><strong>${signedNumber(item.delta)} 单</strong><em>${action}</em></div>`;
+    }
   );
 }
 
@@ -382,11 +519,16 @@ function renderBudget() {
   text("metricBudget", `${summary.total_initial_budget_items || eleme.length + meituan.length} 项`);
   text("metricBudgetMeta", `饿了么 ${eleme.length} 自动 · 美团 ${meituan.length} 自动`);
   text("budgetCount", `${eleme.length + meituan.length} 项`);
-  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行。`);
+  const weekend = budget.weekend_preset || {};
+  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekend.enabled ? weekend.name || "已启用" : "未启用"}。`);
   rows(
     "budgetRows",
-    [...eleme.slice(0, 4), ...meituan.slice(0, 4)],
-    (item) => `<div><span>${item.platform} · ${shortStore(item.store)}</span><strong>${yuan(item.targetBudget)}</strong><em>${item.status === "auto" ? "自动" : "人工"}</em></div>`
+    [
+      ...(weekend.enabled ? [{ platform: "周末预设", store: weekend.name || "周末方案", targetBudget: weekend.total_budget || 0, status: "preset" }] : []),
+      ...eleme.slice(0, 4),
+      ...meituan.slice(0, 4),
+    ],
+    (item) => `<div><span>${item.platform} · ${shortStore(item.store)}</span><strong>${yuan(item.targetBudget)}</strong><em>${item.status === "auto" ? "自动" : item.status === "preset" ? "预设" : "人工"}</em></div>`
   );
 }
 
@@ -427,6 +569,9 @@ function activateNav() {
 
 text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}`);
 renderDaily();
+renderPriority();
+renderHealth();
+renderAiAdvice();
 renderAnomalies();
 renderReviews();
 renderBalances();

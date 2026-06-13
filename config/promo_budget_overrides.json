@@ -1,4 +1,13 @@
 {
+  "weekendPreset": {
+    "enabled": true,
+    "name": "周末保守方案",
+    "activeDays": [0, 6],
+    "lunchMultiplier": 0.75,
+    "dinnerMultiplier": 0.85,
+    "minBudget": 50,
+    "roundTo": 5
+  },
   "stores": {
     "安贞店": {
       "饿了么": {
