@@ -23,7 +23,7 @@ function matchMeituanName(storeName) {
     "第2号档口利康金桥美食城": "熊小小牛排饭POKEBEAR（第3档口吉祥美食城店）",
     "第5号档口川湘府美食城店": "熊小小牛排饭POKEBEAR(第5号档口川湘府美食城店)",
     "金融街店": "熊小小牛排饭POKEBEAR（金融街店）",
-    "丽泽店": "熊小小牛排饭POKEBEAR·STEAK（第13档口熙悦美食城店）",
+    "丽泽店": "熊小小牛排饭POKEBEAR（丽泽门店）",
     "光谷店": "熊小小牛排饭POKEBEAR（光谷店）",
     "双井店": "熊小小牛排饭POKEBEAR（双井店）",
     "保利中心店": "熊小小牛排饭POKEBEAR（保利中心店）",
@@ -31,6 +31,11 @@ function matchMeituanName(storeName) {
     "五一广场店": "熊小小牛排饭POKEBEAR（五一广场店）",
   };
   return map[storeName] || "";
+}
+
+function canonicalStoreName(storeName) {
+  const text = String(storeName || "").trim();
+  return /第13档口|熙悦美食城|熙悦|丽泽/.test(text) ? "丽泽门店" : text;
 }
 
 globalThis.__files = {
@@ -124,7 +129,9 @@ async function loadOverrides() {
 }
 
 function budgetFor(platform, storeName, period, fallback) {
-  const byStore = overrides.stores?.[storeName] || {};
+  const canonicalName = canonicalStoreName(storeName);
+  const aliasName = Object.keys(overrides.stores || {}).find((name) => canonicalStoreName(name) === canonicalName);
+  const byStore = overrides.stores?.[canonicalName] || overrides.stores?.[aliasName] || {};
   const byPlatform = byStore[platform] || byStore.all || {};
   const key = period === "午餐" ? "lunchBudget" : "dinnerBudget";
   const value = Number(byPlatform[key] ?? byStore[key]);
@@ -195,7 +202,7 @@ function meituanKeyword(storeName) {
     "第2号档口利康金桥美食城": "第3档口",
     "第5号档口川湘府美食城店": "川湘府",
     "金融街店": "金融街",
-    "丽泽店": "第13档口",
+    "丽泽店": "丽泽",
     "光谷店": "光谷",
     "双井店": "双井",
     "保利中心店": "保利中心",

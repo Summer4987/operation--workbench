@@ -1395,15 +1395,37 @@ h2 {
 
 .budget-editor-grid {
   display: grid;
+  gap: 12px;
+}
+
+.budget-platform-section {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.budget-platform-section h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.budget-platform-rows {
+  display: grid;
   gap: 8px;
 }
 
 .budget-edit-row {
   min-width: 0;
-  padding: 11px;
+  padding: 10px;
   border: 1px solid #e5eaf1;
   border-radius: 8px;
-  background: #fff;
+  background: #fbfcfe;
   display: grid;
   grid-template-columns: minmax(100px, 0.35fr) repeat(4, minmax(86px, 1fr));
   gap: 8px;
@@ -1438,6 +1460,11 @@ h2 {
   font: inherit;
   font-size: 12px;
   font-weight: 900;
+}
+
+.review-weekly-list {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #dbe5ee;
 }
 
 .anomaly-list div {
@@ -1824,6 +1851,7 @@ h2 {
   .review-command-grid,
   .review-weekly-list div,
   .review-workflow-list div,
+  .budget-edit-row,
   .health-task-list div,
   .week-store-grid,
   .week-store,

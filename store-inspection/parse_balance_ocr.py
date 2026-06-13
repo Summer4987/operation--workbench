@@ -24,8 +24,15 @@ def normalized(text: str) -> str:
     return re.sub(r"\s+", "", text)
 
 
+def canonical_store_name(text: str) -> str:
+    value = normalized(text)
+    if re.search(r"第13档口|熙悦美食城|熙悦|丽泽", value):
+        return "熊小小牛排饭POKEBEAR（丽泽门店）" if "熊小小" in value or "POKEBEAR" in value else "丽泽门店"
+    return value
+
+
 def store_key(name: str) -> str:
-    key = normalized(name)
+    key = canonical_store_name(name)
     key = key.replace("（", "(").replace("）", ")")
     key = key.replace(" ", "")
     return key
@@ -38,6 +45,7 @@ def item_key(item: dict) -> str:
 def build_result(items: list[dict], threshold: float = 200.0, message: str = "") -> dict:
     items = list(items)
     for item in items:
+        item["store_name"] = canonical_store_name(item.get("store_name", ""))
         item["status"] = "warning" if float(item.get("balance", 0)) < threshold else "normal"
     items.sort(key=lambda item: (item["status"] != "warning", item.get("platform", ""), item["balance"], item["store_name"]))
     warning_count = sum(1 for item in items if item["status"] == "warning")

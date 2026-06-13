@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-direct-report" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-flow-budget-balance" />
   </head>
   <body>
     <main class="app">
@@ -40,8 +40,8 @@
           <section class="nav-section" aria-labelledby="nav-flow">
             <h2 id="nav-flow">货流中心</h2>
             <div class="nav-subgroup">
-              <a href="#ordering">订货全自动</a>
-              <a href="#inventory">库存全自动</a>
+              <a href="#ordering">订货管理</a>
+              <a href="http://139.155.148.169/">库存管理</a>
             </div>
           </section>
 
@@ -261,7 +261,7 @@
         <section class="center-section" id="ordering">
           <div class="section-head">
             <p>货流中心</p>
-            <h2>订货全自动</h2>
+            <h2>订货管理</h2>
           </div>
           <div class="center-grid ordering-grid">
             <article class="module module-ordering">
@@ -323,31 +323,6 @@
               </div>
             </article>
           </div>
-        </section>
-
-        <section class="center-section" id="inventory">
-          <div class="section-head">
-            <p>货流中心</p>
-            <h2>库存全自动</h2>
-          </div>
-          <article class="module module-inventory wide-module">
-              <div class="module-head">
-                <div>
-                  <p>库存</p>
-                  <h2>库存全自动</h2>
-                </div>
-                <span class="tag ready">运转中</span>
-              </div>
-              <div class="module-body">
-                <div class="big-number" id="inventoryProductCount">-</div>
-                <p id="inventorySummary">等待库存数据。</p>
-                <div class="mini-table" id="inventoryRows"></div>
-                <iframe class="inventory-board-frame" src="http://139.155.148.169/" title="完整库存看板"></iframe>
-              </div>
-              <div class="module-actions">
-                <a href="http://139.155.148.169/">云端库存</a>
-              </div>
-          </article>
         </section>
 
         <section class="center-section" id="finance">
@@ -428,7 +403,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-daily-budget-flow"></script>
-    <script src="./workbench.js?v=20260613-daily-budget-flow"></script>
+    <script src="./workbench-data.js?v=20260613-flow-budget-balance"></script>
+    <script src="./workbench.js?v=20260613-flow-budget-balance"></script>
   </body>
 </html>

@@ -140,12 +140,18 @@ function groupedAnomalies(items) {
 }
 
 function shortStore(value) {
-  return String(value || "")
+  return canonicalStoreName(value)
     .replace(/熊小小牛排饭/g, "")
     .replace(/POKEBEAR/g, "")
     .replace(/[（）()]/g, "")
     .replace(/[·]/g, "")
     .slice(0, 18);
+}
+
+function canonicalStoreName(value) {
+  const text = String(value || "").trim();
+  if (/第13档口|熙悦美食城|熙悦|丽泽/.test(text)) return "丽泽门店";
+  return text;
 }
 
 function compactText(value, maxLength = 110) {
@@ -935,44 +941,64 @@ function renderBalances() {
 function budgetStoreNames(budget, saved) {
   const names = new Set();
   ["eleme_lunch", "eleme_dinner", "meituan_lunch", "meituan_dinner"].forEach((key) => {
-    (budget[key] || []).forEach((item) => names.add(item.store || item.sourceStore));
+    (budget[key] || []).forEach((item) => names.add(canonicalStoreName(item.sourceStore || item.store)));
   });
-  Object.keys(saved.stores || {}).forEach((name) => names.add(name));
+  Object.keys(saved.stores || {}).forEach((name) => names.add(canonicalStoreName(name)));
   return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
 function platformBudget(saved, store, platform, field) {
-  return Number((saved.stores?.[store]?.[platform] || {})[field] || 0);
+  const direct = saved.stores?.[store]?.[platform] || {};
+  if (direct[field]) return Number(direct[field] || 0);
+  const aliasKey = Object.keys(saved.stores || {}).find((name) => canonicalStoreName(name) === store);
+  return Number((saved.stores?.[aliasKey]?.[platform] || {})[field] || 0);
+}
+
+function platformBudgetStores(budget, saved, platform) {
+  const names = new Set();
+  const keys = platform === "饿了么" ? ["eleme_lunch", "eleme_dinner"] : ["meituan_lunch", "meituan_dinner"];
+  keys.forEach((key) => {
+    (budget[key] || []).forEach((item) => names.add(canonicalStoreName(item.sourceStore || item.store)));
+  });
+  Object.entries(saved.stores || {}).forEach(([name, cfg]) => {
+    if (cfg?.[platform]) names.add(canonicalStoreName(name));
+  });
+  return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
 function renderBudgetEditor(budget, saved) {
   const container = document.querySelector("#budgetEditorRows");
   if (!container) return;
-  const names = budgetStoreNames(budget, saved);
   const fields = [
-    ["工作日 饿了么午餐", "饿了么", "lunchBudget"],
-    ["工作日 饿了么晚餐", "饿了么", "dinnerBudget"],
-    ["工作日 美团午餐", "美团", "lunchBudget"],
-    ["工作日 美团晚餐", "美团", "dinnerBudget"],
-    ["周末 饿了么午餐", "饿了么", "weekendLunchBudget"],
-    ["周末 饿了么晚餐", "饿了么", "weekendDinnerBudget"],
-    ["周末 美团午餐", "美团", "weekendLunchBudget"],
-    ["周末 美团晚餐", "美团", "weekendDinnerBudget"],
+    ["工作日午餐", "lunchBudget"],
+    ["工作日晚餐", "dinnerBudget"],
+    ["周末午餐", "weekendLunchBudget"],
+    ["周末晚餐", "weekendDinnerBudget"],
   ];
-  container.innerHTML = names.map((store) => `
-    <div class="budget-edit-row" data-store="${escapeHtml(store)}">
-      <strong>${escapeHtml(shortStore(store))}</strong>
-      ${fields.map(([label, platform, field]) => `
-        <label>${label}<input data-platform="${platform}" data-field="${field}" type="number" min="1" step="1" value="${platformBudget(saved, store, platform, field) || ""}"></label>
-      `).join("")}
-    </div>
-  `).join("");
+  container.innerHTML = ["饿了么", "美团"].map((platform) => {
+    const names = platformBudgetStores(budget, saved, platform);
+    return `
+      <section class="budget-platform-section">
+        <h3>${escapeHtml(platform)}</h3>
+        <div class="budget-platform-rows">
+          ${names.map((store) => `
+            <div class="budget-edit-row" data-store="${escapeHtml(store)}" data-platform="${escapeHtml(platform)}">
+              <strong>${escapeHtml(shortStore(store))}</strong>
+              ${fields.map(([label, field]) => `
+                <label>${label}<input data-platform="${platform}" data-field="${field}" type="number" min="1" step="1" value="${platformBudget(saved, store, platform, field) || ""}"></label>
+              `).join("")}
+            </div>
+          `).join("") || '<div class="empty-line">暂无该平台预算门店</div>'}
+        </div>
+      </section>
+    `;
+  }).join("");
 }
 
 function collectBudgetEditorPayload() {
   const stores = {};
   document.querySelectorAll(".budget-edit-row").forEach((row) => {
-    const store = row.dataset.store;
+    const store = canonicalStoreName(row.dataset.store);
     stores[store] = {};
     row.querySelectorAll("input").forEach((input) => {
       const value = Number(input.value || 0);
