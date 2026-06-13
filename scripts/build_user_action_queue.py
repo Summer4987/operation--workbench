@@ -306,6 +306,16 @@ def build_payload() -> dict[str, Any]:
     if bid_queue.get("status") == "waiting_approval" and queue_count:
         bid_digest = bid_queue.get("approval_digest") or {}
         digest_lines = (bid_digest.get("warnings") or []) + (bid_digest.get("top_items") or [])[:3]
+        first_pending = next(
+            (
+                item
+                for item in bid_queue.get("items") or []
+                if item.get("status") in {"waiting_approval", "manual_review"} and item.get("decision_command")
+            ),
+            {},
+        )
+        if first_pending.get("decision_command"):
+            digest_lines.append(f"记录命令：{first_pending['decision_command']}")
         bid_action = "；".join(digest_lines) or "打开推广出价审批队列，核对预算消耗、预期消耗和门店状态后再决定是否执行。"
         items.append(
             action_item(

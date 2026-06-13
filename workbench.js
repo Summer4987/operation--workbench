@@ -874,6 +874,10 @@ function renderBidding() {
   const bidUpCount = queueSummary.bid_up_count ?? summary.bid_up_count ?? 0;
   const bidDownCount = queueSummary.bid_down_count ?? summary.bid_down_count ?? 0;
   const riskCount = queueSummary.risk_count ?? summary.risk_count ?? 0;
+  const approvedCount = Number(queueSummary.approved_count || 0);
+  const skippedCount = Number(queueSummary.skipped_count || 0);
+  const manualRecordedCount = Number(queueSummary.manual_review_recorded_count || 0);
+  const firstPendingItem = items.find((item) => item.status === "waiting_approval" || item.status === "manual_review") || {};
   const previewTime = queueSummary.latest_preview_at || summary.latest_preview_at || "";
   const bidItemDetail = (item) => [
     [item.current_bid, item.target_bid].some((value) => value !== undefined && value !== null && value !== "") ? `出价 ${item.current_bid ?? "-"}->${item.target_bid ?? "-"}` : "",
@@ -885,11 +889,13 @@ function renderBidding() {
     "biddingRows",
     [
       { label: "审批队列", value: `${approvalCount} 项`, detail: gate.message || "确认前不自动提交" },
+      { label: "审批进度", value: `${approvedCount}/${skippedCount}/${manualRecordedCount}`, detail: `已批准/已跳过/已转人工复核 · 记录文件 ${queue.decision_source || "data/promo_bid_decisions.json"}` },
       { label: "加价/降价", value: `${bidUpCount}/${bidDownCount}`, detail: riskCount ? `风险或不可执行 ${riskCount} 项` : "基于预算消耗与预期消耗" },
       { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: previewTime ? `最新 ${previewTime}` : "等待状态读取" },
+      ...(firstPendingItem.decision_command ? [{ label: "记录命令", value: "本地记录", detail: firstPendingItem.decision_command }] : []),
       ...items.filter((item) => Number(item.bid_delta || 0)).slice(0, 5).map((item) => ({
         label: `${item.platform || "平台"} · ${shortStore(item.store || "未命名门店")}`,
-        value: item.action || "出价建议",
+        value: item.status === "approved" ? "已批准" : item.status === "skipped" ? "已跳过" : item.status === "manual_review_recorded" ? "已转人工" : item.action || "出价建议",
         detail: bidItemDetail(item),
       })),
     ],

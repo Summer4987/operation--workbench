@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_bid_approval_queue"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+DECISIONS_PATH = Path(os.environ.get("PROMO_BID_DECISIONS_PATH", ROOT / "data" / "promo_bid_decisions.json"))
 
 
 def now_text() -> str:
@@ -30,6 +32,13 @@ def write_latest(payload: dict[str, Any]) -> None:
     LATEST_PATH.chmod(0o644)
 
 
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def approval_id(item: dict[str, Any], index: int) -> str:
     raw = "|".join(
         str(item.get(key) or "")
@@ -39,12 +48,38 @@ def approval_id(item: dict[str, Any], index: int) -> str:
     return f"bid-{index + 1:03d}-{slug[:64] or 'unknown'}"
 
 
-def queue_item(item: dict[str, Any], index: int) -> dict[str, Any]:
+def load_decisions() -> dict[str, dict[str, Any]]:
+    payload = read_json(DECISIONS_PATH)
+    latest: dict[str, dict[str, Any]] = {}
+    for record in payload.get("records") or []:
+        approval_id = str(record.get("approval_id") or "").strip()
+        decision = str(record.get("decision") or "").strip()
+        if not approval_id or decision not in {"approve", "skip", "manual_review"}:
+            continue
+        latest[approval_id] = record
+    return latest
+
+
+def queue_item(item: dict[str, Any], index: int, decisions: dict[str, dict[str, Any]]) -> dict[str, Any]:
     risk = str(item.get("risk") or "").strip()
-    status = "manual_review" if risk or not item.get("can_execute") else "waiting_approval"
+    item_id = approval_id(item, index)
+    decision = decisions.get(item_id) or {}
+    decision_value = str(decision.get("decision") or "").strip()
+    if decision_value == "approve":
+        status = "approved"
+    elif decision_value == "skip":
+        status = "skipped"
+    elif decision_value == "manual_review":
+        status = "manual_review_recorded"
+    else:
+        status = "manual_review" if risk or not item.get("can_execute") else "waiting_approval"
     return {
-        "approval_id": approval_id(item, index),
+        "approval_id": item_id,
         "status": status,
+        "decision": decision_value,
+        "decision_recorded_at": decision.get("recorded_at", ""),
+        "decision_operator": decision.get("operator", ""),
+        "decision_note": decision.get("note", ""),
         "platform": item.get("platform") or "饿了么",
         "store": item.get("store") or "",
         "period": item.get("period") or "",
@@ -68,6 +103,10 @@ def queue_item(item: dict[str, Any], index: int) -> dict[str, Any]:
             "确认平台页面、营业状态和预算状态正常。",
             "人工确认后才允许进入真实提交。",
         ],
+        "decision_command": (
+            f"python3 scripts/record_promo_bid_decision.py --approval-id {item_id} "
+            "--decision approve --operator '<审批人>' --note '<备注>'"
+        ),
         "human_action": f"人工确认 {item.get('store') or '未命名门店'} {item.get('period') or item.get('time') or ''} {item.get('action') or '出价建议'}；确认前不自动提交到平台。",
     }
 
@@ -128,7 +167,11 @@ def build_missing(now: str, message: str) -> dict[str, Any]:
             "bid_down_count": 0,
             "risk_count": 0,
             "stale_preview_count": 0,
+            "approved_count": 0,
+            "skipped_count": 0,
+            "manual_review_recorded_count": 0,
         },
+        "decision_source": display_path(DECISIONS_PATH),
         "approval_gate": {
             "status": "manual_required",
             "message": "所有出价调整必须人工审批；本文件不触发提交。",
@@ -159,16 +202,25 @@ def build_payload() -> dict[str, Any]:
         for item in advice.get("items") or []
         if item.get("approval_required") and float(item.get("bid_delta") or 0) != 0
     ]
-    items = [queue_item(item, index) for index, item in enumerate(source_items)]
-    risk_count = sum(1 for item in items if item.get("status") == "manual_review")
-    queue_count = len(items)
+    decisions = load_decisions()
+    items = [queue_item(item, index, decisions) for index, item in enumerate(source_items)]
+    pending_items = [item for item in items if item.get("status") in {"waiting_approval", "manual_review"}]
+    risk_count = sum(1 for item in pending_items if item.get("status") == "manual_review")
+    approved_count = sum(1 for item in items if item.get("status") == "approved")
+    skipped_count = sum(1 for item in items if item.get("status") == "skipped")
+    manual_review_recorded_count = sum(1 for item in items if item.get("status") == "manual_review_recorded")
+    queue_count = len(pending_items)
     status = "waiting_approval" if queue_count else "no_action"
     summary = {
         "queue_count": queue_count,
         "approval_required_count": queue_count,
-        "bid_up_count": sum(1 for item in items if float(item.get("bid_delta") or 0) > 0),
-        "bid_down_count": sum(1 for item in items if float(item.get("bid_delta") or 0) < 0),
+        "total_suggestion_count": len(items),
+        "bid_up_count": sum(1 for item in pending_items if float(item.get("bid_delta") or 0) > 0),
+        "bid_down_count": sum(1 for item in pending_items if float(item.get("bid_delta") or 0) < 0),
         "risk_count": risk_count,
+        "approved_count": approved_count,
+        "skipped_count": skipped_count,
+        "manual_review_recorded_count": manual_review_recorded_count,
         "stale_preview_count": int(advice_summary.get("stale_preview_count") or 0),
         "latest_preview_at": advice_summary.get("latest_preview_at", ""),
         "advice_status": advice.get("status", ""),
@@ -183,13 +235,15 @@ def build_payload() -> dict[str, Any]:
         "generated_at": generated_at,
         "status": status,
         "source": "outputs/promo_bid_advice/latest.json",
+        "decision_source": display_path(DECISIONS_PATH),
         "summary": summary,
         "approval_gate": {
             "status": "manual_required",
             "message": "所有出价调整必须人工审批；本文件不触发提交。",
             "forbidden_actions": ["自动提交出价", "绕过审批", "自动处理风险项"],
+            "record_command_template": "python3 scripts/record_promo_bid_decision.py --approval-id <approval_id> --decision approve --operator '<审批人>' --note '<备注>'",
         },
-        "approval_digest": build_approval_digest(items, summary),
+        "approval_digest": build_approval_digest(pending_items, summary),
         "items": items,
         "message": message,
         "human_action": f"逐项确认 {queue_count} 条出价建议；风险项必须先人工复核。"
