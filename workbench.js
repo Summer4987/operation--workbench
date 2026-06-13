@@ -206,6 +206,56 @@ function renderRealtimePlatformRows(item) {
     .join("");
 }
 
+function dailyStoreCards(records) {
+  const byStore = new Map();
+  records.forEach((item) => {
+    const store = item.store || item.store_raw || "未命名门店";
+    const row = byStore.get(store) || { store, income: 0, orders: 0, platforms: [] };
+    const platform = item.platform || "平台";
+    const income = Number(item.income || 0);
+    const orders = Number(item.orders || 0);
+    row.income += income;
+    row.orders += orders;
+    row.platforms.push({
+      name: platform,
+      key: platform.includes("饿") ? "eleme" : platform.includes("美") ? "meituan" : "other",
+      income,
+      orders,
+    });
+    byStore.set(store, row);
+  });
+  return [...byStore.values()]
+    .sort((a, b) => Number(b.income || 0) - Number(a.income || 0));
+}
+
+function renderOverviewDailyStoreCards(records) {
+  const el = document.querySelector("#overviewDailyStoreCards");
+  if (!el) return;
+  const stores = dailyStoreCards(records).slice(0, 4);
+  if (!stores.length) {
+    el.innerHTML = '<div class="empty-line">暂无日报门店数据</div>';
+    return;
+  }
+  el.innerHTML = stores.map((store) => `
+    <div class="overview-daily-store">
+      <div class="overview-daily-store-head">
+        <strong>${escapeHtml(shortStore(store.store))}</strong>
+        <em>${yuan(store.income)} / ${num(store.orders)} 单</em>
+      </div>
+      <div class="overview-daily-platforms">
+        ${store.platforms
+          .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
+          .map((platform) => `
+            <div class="overview-daily-platform platform-${platform.key}">
+              <span>${escapeHtml(platform.name)}</span>
+              <strong>${yuan(platform.income)} / ${num(platform.orders)} 单</strong>
+            </div>
+          `).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
 function realtimeStoreCompare(item, compareMap) {
   const store = item.store || item.store_name || item.name || "未命名门店";
   const previous = compareMap.get(store);
@@ -349,19 +399,7 @@ function renderDaily() {
   text("briefIncome", yuan(dailyIncome));
   text("dailyStoreCount", `${stores.length || 0} 家`);
   text("dailySummary", `只看最新日报日期 ${latestDate || "-"}：总收入 ${yuan(dailyIncome)}，总单量 ${num(dailyOrders)} 单，覆盖 ${stores.length || 0} 家门店。`);
-  rows(
-    "overviewDailyPlatformRows",
-    platforms.slice(0, 3),
-    (item) => `<div class="good-row"><span>${escapeHtml(item.platform || "平台")}</span><strong>${yuan(item.income)} / ${num(item.orders)} 单</strong><em>下单转化 ${pct(item.order_conversion)} · 新客 ${num(item.new_customer_orders)} 单</em></div>`
-  );
-  rows(
-    "overviewDailyStoreRows",
-    stores
-      .slice()
-      .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
-      .slice(0, 4),
-    (item) => `<div class="good-row"><span>${escapeHtml(shortStore(item.store))}</span><strong>${yuan(item.income)} / ${num(item.orders)} 单</strong><em>覆盖 ${num(item.platform_count)} 平台 · 曝光 ${num(item.impressions)}</em></div>`
-  );
+  renderOverviewDailyStoreCards(latestRecords);
   text("dailyPageSummary", `最新日报日期 ${latestDate || "-"}：按门店、平台和异常项拆开看，优先处理高优先级日报异常。`);
   rows(
     "dailyCommandRows",

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-overview-cleanup" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-store-split" />
   </head>
   <body>
     <main class="app">
@@ -110,12 +110,8 @@
               </div>
               <p id="dailySummary">等待日报数据。</p>
               <div class="overview-daily-block">
-                <h3>平台拆分</h3>
-                <div class="mini-table overview-daily-list" id="overviewDailyPlatformRows"></div>
-              </div>
-              <div class="overview-daily-block">
-                <h3>门店排行</h3>
-                <div class="mini-table overview-daily-list" id="overviewDailyStoreRows"></div>
+                <h3>分门店 / 分平台</h3>
+                <div class="overview-daily-store-grid" id="overviewDailyStoreCards"></div>
               </div>
             </article>
           </aside>
@@ -465,7 +461,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-overview-cleanup"></script>
-    <script src="./workbench.js?v=20260613-overview-cleanup"></script>
+    <script src="./workbench-data.js?v=20260613-daily-store-split"></script>
+    <script src="./workbench.js?v=20260613-daily-store-split"></script>
   </body>
 </html>

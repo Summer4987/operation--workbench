@@ -247,9 +247,9 @@ a {
 }
 
 .summary-card {
-  padding: 17px;
+  padding: 16px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .brief-grid {
@@ -259,8 +259,8 @@ a {
 }
 
 .brief-grid div {
-  min-height: 82px;
-  padding: 13px;
+  min-height: 70px;
+  padding: 12px;
   border: 1px solid #e5eaf1;
   border-radius: 8px;
   background: #fbfcfe;
@@ -276,15 +276,15 @@ a {
 }
 
 .brief-grid strong {
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 .summary-card p {
   color: #4b5563;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .overview-daily-block {
@@ -295,30 +295,99 @@ a {
 .overview-daily-block h3 {
   margin: 0;
   color: #475569;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0;
 }
 
-.overview-daily-list {
-  gap: 7px;
+.overview-daily-store-grid {
+  display: grid;
+  gap: 8px;
 }
 
-.overview-daily-list div {
-  min-height: 34px;
-  padding: 8px 9px;
-  grid-template-columns: minmax(58px, 0.42fr) minmax(0, 0.58fr);
+.overview-daily-store {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dbe5ee;
+  border-radius: 8px;
+  background: #ffffff;
+  display: grid;
+  gap: 8px;
 }
 
-.overview-daily-list span,
-.overview-daily-list strong {
+.overview-daily-store-head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.overview-daily-store-head strong {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-daily-store-head em {
+  color: #334155;
   font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
-.overview-daily-list em {
-  grid-column: 1 / -1;
+.overview-daily-platforms {
+  display: grid;
+  gap: 6px;
+}
+
+.overview-daily-platform {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #94a3b8;
+  border-radius: 7px;
+  background: #fbfcfd;
+  display: grid;
+  grid-template-columns: minmax(42px, 0.34fr) minmax(0, 0.66fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.overview-daily-platform span,
+.overview-daily-platform strong {
+  min-width: 0;
   font-size: 11px;
-  line-height: 1.35;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.overview-daily-platform span {
+  color: #475569;
+}
+
+.overview-daily-platform strong {
+  color: #0f172a;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-daily-platform.platform-eleme {
+  border-left-color: #12a594;
+  background: #f4fbfa;
+}
+
+.overview-daily-platform.platform-meituan {
+  border-left-color: #f5b800;
+  background: #fffaf0;
 }
 
 .overview-alert {
