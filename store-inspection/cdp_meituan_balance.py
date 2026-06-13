@@ -83,10 +83,12 @@ def url_for_account_route(base_url: str, wm_poi_id: str) -> str:
         inner = urlsplit(parts.fragment)
         query = dict(parse_qsl(inner.query, keep_blank_values=True))
         query["wmPoiId"] = wm_poi_id
+        query["_codexProbeTs"] = str(int(time.time() * 1000))
         inner_url = urlunsplit((inner.scheme, inner.netloc, inner.path, urlencode(query), ACCOUNT_ROUTE))
         return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, inner_url))
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query["wmPoiId"] = wm_poi_id
+    query["_codexProbeTs"] = str(int(time.time() * 1000))
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ACCOUNT_ROUTE))
 
 
@@ -284,14 +286,17 @@ def collect_balances() -> tuple[list[dict], list[dict], str]:
     playwright, browser = cdp.connect_browser(config)
     try:
         context = cdp.first_context(browser)
-        page = cdp.reusable_page(context)
         items = []
         network_candidates = []
         for store in STORES:
-            item, candidates = collect_store(page, store, base_url)
-            network_candidates.extend(candidates)
-            if item:
-                items.append(item)
+            page = context.new_page()
+            try:
+                item, candidates = collect_store(page, store, base_url)
+                network_candidates.extend(candidates)
+                if item:
+                    items.append(item)
+            finally:
+                page.close()
         return items, network_candidates, base_url
     finally:
         cdp.disconnect_browser(playwright, browser)
