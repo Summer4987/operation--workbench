@@ -244,6 +244,7 @@
         "scripts/build_inventory_order_lists.py",
         "scripts/build_inventory_order_execution_preview.py",
         "scripts/build_inventory_android_execution_plan.py",
+        "scripts/check_android_execution_config.py",
         "inventory-board/app/main.py",
         "inventory-board/scripts/sync_order_outputs.py"
       ],
@@ -253,6 +254,7 @@
         "outputs/inventory_order_lists/latest.json",
         "outputs/inventory_order_execution_preview/latest.json",
         "outputs/inventory_android_execution_plan/latest.json",
+        "outputs/android_execution_config/latest.json",
         "inventory-board/data/inventory.sqlite3",
         "云端 /api/summary",
         "~/Desktop/库存管理/出库记录"
@@ -283,13 +285,15 @@
         "scripts/build_inventory_order_suggestions.py",
         "scripts/build_inventory_order_lists.py",
         "scripts/build_inventory_order_execution_preview.py",
-        "scripts/build_inventory_android_execution_plan.py"
+        "scripts/build_inventory_android_execution_plan.py",
+        "scripts/check_android_execution_config.py"
       ],
       "outputs": [
         "outputs/inventory_order_suggestions/latest.json",
         "outputs/inventory_order_lists/latest.json",
         "outputs/inventory_order_execution_preview/latest.json",
-        "outputs/inventory_android_execution_plan/latest.json"
+        "outputs/inventory_android_execution_plan/latest.json",
+        "outputs/android_execution_config/latest.json"
       ],
       "health_checks": [
         "根据库存预警生成只读订货建议",
@@ -298,6 +302,7 @@
         "人工确认后生成渠道下单清单",
         "远控安卓下单前生成执行预览和付款确认状态",
         "远控安卓执行适配层只读计划",
+        "远控安卓真实设备连接配置可检查",
         "执行前必须人工确认，不自动下单付款",
         "后续再按商品和供应渠道分类"
       ],
@@ -306,7 +311,7 @@
         "付款确认",
         "缺货替代品选择"
       ],
-      "next_integration_step": "远控安卓只读执行计划已接入，下一步准备真实设备连接配置和执行凭据。"
+      "next_integration_step": "等待补齐 Mac mini 真实安卓连接配置后，做只读生产冒烟检查。"
     },
     {
       "id": "finance.bill_analysis",

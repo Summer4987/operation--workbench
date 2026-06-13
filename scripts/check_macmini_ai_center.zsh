@@ -45,6 +45,7 @@ echo "== 配置与语法检查 =="
   scripts/build_inventory_order_lists.py \
   scripts/build_inventory_order_execution_preview.py \
   scripts/build_inventory_android_execution_plan.py \
+  scripts/check_android_execution_config.py \
   scripts/build_task_health.py \
   scripts/build_workbench_data.py \
   business-report-dashboard/chrome_cdp_reports.py \
@@ -69,6 +70,7 @@ echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/build_inventory_order_lists.py
 "$PYTHON" scripts/build_inventory_order_execution_preview.py
 "$PYTHON" scripts/build_inventory_android_execution_plan.py
+"$PYTHON" scripts/check_android_execution_config.py
 "$PYTHON" scripts/build_task_health.py
 "$PYTHON" scripts/build_workbench_data.py
 echo

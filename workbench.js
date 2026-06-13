@@ -644,6 +644,12 @@ function androidPlanStatusText(status) {
   return "未生成";
 }
 
+function androidConfigStatusText(status) {
+  if (status === "ready") return "配置可用";
+  if (status === "missing_config") return "待补配置";
+  return "未检查";
+}
+
 function orderListPreview(orderList) {
   const lines = orderList.lines || [];
   if (!lines.length) return orderList.next_action || "暂无品项";
@@ -667,11 +673,21 @@ function androidPlanText(job) {
   return checks.slice(0, 3).join("；") || "等待人工接管";
 }
 
+function androidConfigRows(config) {
+  const missing = config.missing || [];
+  const warnings = config.warnings || [];
+  return [
+    ...missing.slice(0, 5).map((item) => ({ type: "缺少", detail: item })),
+    ...warnings.slice(0, 3).map((item) => ({ type: "提示", detail: item })),
+  ];
+}
+
 function renderOrdering() {
   const orderSuggestions = data.order_suggestions || {};
   const orderLists = data.order_lists || {};
   const executionPreview = data.order_execution_preview || {};
   const androidPlan = data.android_execution_plan || {};
+  const androidConfig = data.android_config || {};
   const summary = orderSuggestions.summary || {};
   const confirmation = orderSuggestions.confirmation || {};
   const groups = orderSuggestionGroups(orderSuggestions);
@@ -681,6 +697,8 @@ function renderOrdering() {
   const executionRows = executionPreview.channel_previews || [];
   const androidSummary = androidPlan.summary || {};
   const androidRows = androidPlan.android_jobs || [];
+  const androidConfigSummary = androidConfig.summary || {};
+  const deviceRows = androidConfigRows(androidConfig);
   const suggestionCount = Number(summary.suggestion_count || groups.reduce((sum, group) => sum + Number(group.item_count || 0), 0));
   const channelCount = Number(summary.channel_count || groups.length);
   const estimatedCost = Number(summary.estimated_cost || groups.reduce((sum, group) => sum + Number(group.estimated_cost || 0), 0));
@@ -711,9 +729,12 @@ function renderOrdering() {
   text("orderingAndroidStatus", androidPlanStatusText(androidPlan.status));
   text("orderingAndroidMessage", androidPlan.message || androidPlan.operator?.message || "只读计划，真实执行前人工接管。");
   text("orderingAndroidCount", `${Number(androidSummary.channel_count || androidRows.length)} 个渠道`);
+  text("orderingDeviceStatus", androidConfigStatusText(androidConfig.status));
+  text("orderingDeviceMessage", androidConfig.message || "按配置模板补齐远控安卓真实设备信息。");
+  text("orderingDeviceCount", `${Number(androidConfigSummary.missing_count || 0)} 项缺失`);
   document.querySelector("#ordering")?.classList.toggle(
     "alert",
-    pending || hasOrderLists || executionPreview.status === "waiting_payment_confirmation" || androidPlan.status === "ready" || orderSuggestions.status === "failed" || orderLists.status === "failed" || executionPreview.status === "failed" || androidPlan.status === "failed"
+    pending || hasOrderLists || executionPreview.status === "waiting_payment_confirmation" || androidPlan.status === "ready" || androidConfig.status === "missing_config" || orderSuggestions.status === "failed" || orderLists.status === "failed" || executionPreview.status === "failed" || androidPlan.status === "failed"
   );
 
   rows(
@@ -738,6 +759,12 @@ function renderOrdering() {
     "orderingAndroidRows",
     androidRows.slice(0, 8),
     (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${escapeHtml(item.target_app || "供应渠道 App")}</strong><em>${escapeHtml(androidPlanText(item))}</em></div>`
+  );
+
+  rows(
+    "orderingDeviceRows",
+    deviceRows,
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.type)}</span><strong>${escapeHtml(item.detail)}</strong><em>真实执行前处理</em></div>`
   );
 
   const button = document.querySelector("#orderingChecklistButton");

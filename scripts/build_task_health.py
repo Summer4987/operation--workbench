@@ -19,6 +19,7 @@ ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "lat
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
 ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_plan" / "latest.json"
+ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -379,12 +380,14 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         order_lists = read_json(ORDER_LISTS_PATH, {})
         execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
         android_plan = read_json(ANDROID_EXECUTION_PLAN_PATH, {})
+        android_config = read_json(ANDROID_CONFIG_HEALTH_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
         confirmation = payload.get("confirmation") or {}
         order_list_summary = order_lists.get("summary") or {}
         execution_summary = execution_preview.get("summary") or {}
         android_summary = android_plan.get("summary") or {}
+        android_config_summary = android_config.get("summary") or {}
         if payload.get("status") == "ready":
             channel_count = int(summary.get("channel_count") or 0)
             suggestion_count = int(summary.get("suggestion_count") or 0)
@@ -396,12 +399,20 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                     evidence="outputs/inventory_order_lists/latest.json" if order_lists else "outputs/inventory_order_suggestions/latest.json",
                 )
             elif android_plan.get("status") == "ready":
-                row.update(
-                    status="warn",
-                    reason=f"远控安卓执行适配计划已生成，{android_summary.get('channel_count', 0)} 个供应渠道，只读预览。",
-                    human_action=android_plan.get("operator", {}).get("message") or "人工操作员接管远控安卓，系统不自动提交订单或付款。",
-                    evidence="outputs/inventory_android_execution_plan/latest.json",
-                )
+                if android_config.get("status") == "missing_config":
+                    row.update(
+                        status="warn",
+                        reason=f"远控安卓执行计划已生成，但设备连接配置缺少 {android_config_summary.get('missing_count', 0)} 项。",
+                        human_action="；".join(android_config.get("missing") or []) or "填写 config/android_execution.json。",
+                        evidence="outputs/android_execution_config/latest.json",
+                    )
+                else:
+                    row.update(
+                        status="warn",
+                        reason=f"远控安卓执行适配计划已生成，{android_summary.get('channel_count', 0)} 个供应渠道，只读预览。",
+                        human_action=android_plan.get("operator", {}).get("message") or "人工操作员接管远控安卓，系统不自动提交订单或付款。",
+                        evidence="outputs/inventory_android_execution_plan/latest.json",
+                    )
             elif android_plan.get("status") == "waiting_payment_confirmation":
                 row.update(
                     status="warn",
