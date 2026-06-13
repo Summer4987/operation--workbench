@@ -220,6 +220,16 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
                 platform_parts.append(f"{label}：{message}")
         if platform_parts:
             row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
+    if row["id"] == "ops.daily_report":
+        extra = task_run.get("extra") or {}
+        platform_parts = []
+        for key, label in (("eleme", "饿了么"), ("meituan", "美团")):
+            for phase, phase_label in (("submit", "提交"), ("download", "下载")):
+                message = extra.get(f"{key}_{phase}_message")
+                if message:
+                    platform_parts.append(f"{label}{phase_label}：{message}")
+        if platform_parts:
+            row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
     return row
 
 

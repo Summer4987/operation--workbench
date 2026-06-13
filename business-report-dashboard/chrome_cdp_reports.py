@@ -1304,21 +1304,75 @@ def download_all_and_process() -> None:
     process_reports()
 
 
+def record_daily_platform_event(
+    platform_key: str,
+    platform_name: str,
+    phase: str,
+    status: str,
+    message: str,
+    *,
+    log_path: str | Path = "",
+) -> None:
+    step = f"{platform_key}-{phase}"
+    extra = {
+        f"{platform_key}_{phase}_status": status,
+        f"{platform_key}_{phase}_message": message,
+    }
+    if log_path:
+        extra[f"{platform_key}_{phase}_path"] = str(log_path)
+    record_task_event(
+        "ops.daily_report",
+        status,
+        message=message,
+        step=step,
+        log_path=log_path,
+        failure_type=classify_failure_text(message) if status == "failed" else "",
+        extra=extra,
+    )
+
+
 def run_daily(target_date: str | None = None) -> None:
     report_date = target_date or yesterday_compact()
     print(f"开始生成日报：{report_date}")
     submit_failures: list[str] = []
+    record_task_event("ops.daily_report", "running", message=f"日报采集开始：{report_date}。", step="start", extra={"report_date": report_date})
     for name, generator in [("饿了么", generate_eleme_report), ("美团", generate_meituan_report)]:
+        platform_key = "eleme" if name == "饿了么" else "meituan"
+        record_daily_platform_event(platform_key, name, "submit", "running", f"{name}日报任务提交开始。")
         try:
             generator(report_date)
+            record_daily_platform_event(platform_key, name, "submit", "success", f"{name}日报任务提交成功。")
         except Exception as exc:
-            submit_failures.append(f"{name}报表任务提交失败：{exc}")
-            print(f"{name}报表任务提交失败：{exc}", file=sys.stderr)
+            message = f"{name}报表任务提交失败：{exc}"
+            submit_failures.append(message)
+            print(message, file=sys.stderr)
+            record_daily_platform_event(platform_key, name, "submit", "failed", message)
     if submit_failures:
-        raise RuntimeError("日报采集未全部提交成功，未生成看板：" + "；".join(submit_failures))
-    eleme_path = wait_for_eleme_report(report_date)
-    meituan_path = wait_for_meituan_report(report_date)
-    process_reports(eleme_path, meituan_path)
+        message = "日报采集未全部提交成功，未生成看板：" + "；".join(submit_failures)
+        record_task_event("ops.daily_report", "failed", message=message, step="submit", failure_type=classify_failure_text(message))
+        raise RuntimeError(message)
+    record_daily_platform_event("eleme", "饿了么", "download", "running", "饿了么日报下载等待开始。")
+    try:
+        eleme_path = wait_for_eleme_report(report_date)
+    except Exception as exc:
+        record_daily_platform_event("eleme", "饿了么", "download", "failed", f"饿了么日报下载失败：{exc}")
+        raise
+    record_daily_platform_event("eleme", "饿了么", "download", "success", f"饿了么日报下载完成：{eleme_path.name}", log_path=eleme_path)
+    record_daily_platform_event("meituan", "美团", "download", "running", "美团日报下载等待开始。")
+    try:
+        meituan_path = wait_for_meituan_report(report_date)
+    except Exception as exc:
+        record_daily_platform_event("meituan", "美团", "download", "failed", f"美团日报下载失败：{exc}")
+        raise
+    record_daily_platform_event("meituan", "美团", "download", "success", f"美团日报下载完成：{meituan_path.name}", log_path=meituan_path)
+    record_task_event("ops.daily_report", "running", message="日报原始报表已齐，开始生成看板。", step="process")
+    try:
+        process_reports(eleme_path, meituan_path)
+    except Exception as exc:
+        message = f"日报看板生成失败：{exc}"
+        record_task_event("ops.daily_report", "failed", message=message, step="process", failure_type=classify_failure_text(message))
+        raise
+    record_task_event("ops.daily_report", "success", message="日报看板已生成。", step="process", log_path=ROOT / "data" / "latest.json")
 
 
 def main() -> None:
