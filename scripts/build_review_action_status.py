@@ -193,6 +193,34 @@ def reply_plan(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def evidence_plan(missing_evidence: list[dict[str, Any]], completed_with_evidence: list[dict[str, Any]]) -> dict[str, Any]:
+    missing_items = []
+    attach_commands = []
+    for record in missing_evidence[:5]:
+        evidence = record.get("evidence") or {}
+        platform = f" {record.get('platform')}" if record.get("platform") else ""
+        missing_items.append(f"{record.get('store')} {record.get('date')}{platform} 已回复但缺平台截图或链接证据")
+        if evidence.get("attach_command"):
+            attach_commands.append(evidence["attach_command"])
+    ready_count = sum(1 for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "ready")
+    if missing_items:
+        next_action = f"{'；'.join(missing_items)}；补证据：{attach_commands[0]}" if attach_commands else "；".join(missing_items)
+    else:
+        next_action = "已回复评价均有平台截图或链接证据。" if completed_with_evidence else "当前没有已回复评价记录。"
+    return {
+        "status": "waiting_evidence" if missing_items else ("closed" if completed_with_evidence else "empty"),
+        "missing_count": len(missing_evidence),
+        "ready_count": ready_count,
+        "completed_count": len(completed_with_evidence),
+        "missing_items": missing_items,
+        "attach_commands": attach_commands,
+        "next_action": next_action,
+        "message": f"已回复评价中有 {len(missing_evidence)} 条缺平台截图或链接证据。"
+        if missing_items
+        else ("已回复评价证据均已闭环。" if completed_with_evidence else "当前没有已回复评价记录。"),
+    }
+
+
 def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     review = daily.get("review_summary") or {}
     target_date = review.get("used_date") or review.get("target_date") or ""
@@ -202,6 +230,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     missing_evidence = [record for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "missing"]
     items, completed_negative_count = build_action_items(review, completed)
     plan = reply_plan(items)
+    evidence = evidence_plan(missing_evidence, completed_with_evidence)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -212,9 +241,19 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     elif total_negative:
         status = "waiting_reply"
         message = f"发现 {total_negative} 条疑似问题评价，涉及 {len(items)} 家门店，需人工回复和复盘。"
+    elif missing_evidence:
+        status = "waiting_evidence"
+        message = f"评价已回复，但还有 {len(missing_evidence)} 条缺平台截图或链接证据。"
     else:
         status = "ok"
         message = "当前评价汇总未发现待处理差评。"
+    workflow = {
+        "reply_status": "waiting_reply" if items else "clear",
+        "evidence_status": evidence["status"],
+        "overall_status": status,
+        "next_action": plan["next_action"] if items else evidence["next_action"],
+        "closed": not items and not missing_evidence and bool(review),
+    }
     return {
         "generated_at": now_text(),
         "status": status,
@@ -235,9 +274,11 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         },
         "items": items,
         "reply_plan": plan,
+        "evidence_plan": evidence,
+        "workflow": workflow,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],
-        "human_action": items[0]["reply_suggestion"] if items else (missing_evidence[0]["evidence"]["message"] if missing_evidence else ""),
+        "human_action": items[0]["reply_suggestion"] if items else (evidence["next_action"] if missing_evidence else ""),
     }
 
 

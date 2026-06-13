@@ -163,6 +163,22 @@ def build_payload() -> dict[str, Any]:
             )
         )
 
+    evidence_plan = review_actions.get("evidence_plan") or {}
+    missing_evidence_count = int(evidence_plan.get("missing_count") or 0)
+    if missing_evidence_count:
+        items.append(
+            action_item(
+                item_id="ops.review_reply_evidence",
+                title="评价回复证据待补",
+                center="运营数据中心",
+                priority="medium",
+                reason=evidence_plan.get("message") or f"已回复评价中有 {missing_evidence_count} 条缺平台截图或链接证据。",
+                action=evidence_plan.get("next_action") or "补录平台回复截图、评价链接或工单链接。",
+                source="ops.review_dashboard",
+                evidence="outputs/review_action_status/latest.json",
+            )
+        )
+
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
         intake_messages = [

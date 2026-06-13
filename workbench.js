@@ -551,13 +551,25 @@ function renderReviews() {
   const totalIssues = stores.reduce((sum, item) => sum + item.negative_count, 0);
   const pendingNegative = Number(actionSummary.negative_count || totalIssues || 0);
   const completedNegative = Number(actionSummary.completed_negative_count || 0);
-  const statusText = pendingNegative ? "待回复" : completedNegative ? "已处理" : review.status === "ready" ? "已同步" : review.status === "stale" ? "旧数据" : "待同步";
+  const missingEvidence = Number(actionSummary.missing_evidence_count || 0);
+  const completedWithEvidence = Number(actionSummary.completed_with_evidence_count || 0);
+  const statusText = pendingNegative
+    ? "待回复"
+    : missingEvidence
+      ? "待补证据"
+      : completedWithEvidence
+        ? "已闭环"
+        : review.status === "ready"
+          ? "已同步"
+          : review.status === "stale"
+            ? "旧数据"
+            : "待同步";
 
   text("reviewStatus", statusText);
   text("reviewCount", `${totalReviews} 条`);
   text(
     "reviewSummary",
-    `${reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`}${completedNegative ? ` 已记录回复 ${completedNegative} 条。` : ""}`
+    `${reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`}${completedNegative ? ` 已记录回复 ${completedNegative} 条。` : ""}${missingEvidence ? ` 待补证据 ${missingEvidence} 条。` : ""}`
   );
   document.querySelector("#reviews")?.classList.toggle("alert", pendingNegative > 0);
 
