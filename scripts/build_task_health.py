@@ -712,6 +712,32 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         if generated_at:
             row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
 
+    elif task_id == "tools.franchise_contract":
+        payload = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
+        contract = payload.get("franchise_contract") or {}
+        generated_at = parse_time(payload.get("generated_at"))
+        intake_messages = [
+            item.get("message", "")
+            for item in contract.get("intake_checklist") or []
+            if item.get("message")
+        ]
+        if contract.get("status") == "ready_for_mapping":
+            row.update(
+                status="warn",
+                reason=contract.get("message") or "已找到合同模板，等待字段映射。",
+                evidence="outputs/tool_warehouse_status/latest.json",
+                human_action="确认加盟条款和费用口径后，再生成合同预览。",
+            )
+        elif contract.get("status") == "waiting_template":
+            row.update(
+                status="warn",
+                reason=contract.get("message") or "加盟合同生成器等待合同模板。",
+                evidence="outputs/tool_warehouse_status/latest.json",
+                human_action="；".join(intake_messages) or "提供现用加盟合同模板，并确认关键字段。",
+            )
+        if generated_at:
+            row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
+
     elif task_id == "finance.bill_analysis":
         payload = read_json(FINANCE_CENTER_STATUS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))

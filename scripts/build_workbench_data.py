@@ -623,13 +623,18 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     contract = tool_warehouse.get("franchise_contract") or {}
     if contract.get("status") == "waiting_template":
+        contract_messages = [
+            item.get("message", "")
+            for item in contract.get("intake_checklist") or []
+            if item.get("message")
+        ]
         rows.append(
             {
                 "level": "提醒",
                 "center": "小工具仓库",
                 "title": "加盟合同模板待提供",
                 "reason": contract.get("message") or "合同生成器等待模板和字段。",
-                "action": "提供现用加盟合同模板，并确认加盟费、保证金、期限和授权范围等字段。",
+                "action": "；".join(contract_messages) or "提供现用加盟合同模板，并确认加盟费、保证金、期限和授权范围等字段。",
                 "source": "tools.franchise_contract",
             }
         )

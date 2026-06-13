@@ -34,6 +34,9 @@ FRANCHISE_REQUIRED_FIELDS = [
     "合同模板版本",
 ]
 
+FRANCHISE_TEMPLATE_DIR = ROOT / "franchise-contract-generator"
+FRANCHISE_ACCEPTED_EXTENSIONS = [".docx", ".pdf", ".pages", ".txt", ".md"]
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -101,9 +104,20 @@ def sales_receipt_status() -> dict[str, Any]:
 
 
 def franchise_contract_status() -> dict[str, Any]:
-    template_dir = ROOT / "franchise-contract-generator"
-    template_files = sorted(template_dir.glob("*")) if template_dir.exists() else []
-    has_template = any(path.is_file() for path in template_files)
+    template_files = sorted(FRANCHISE_TEMPLATE_DIR.glob("*")) if FRANCHISE_TEMPLATE_DIR.exists() else []
+    template_files = [
+        path
+        for path in template_files
+        if path.is_file()
+        and not path.name.startswith(".")
+        and path.suffix.lower() in FRANCHISE_ACCEPTED_EXTENSIONS
+    ]
+    has_template = bool(template_files)
+    intake_message = (
+        "把现用加盟合同模板放入 franchise-contract-generator/，"
+        f"支持 {'、'.join(FRANCHISE_ACCEPTED_EXTENSIONS)}，"
+        f"至少确认：{'、'.join(FRANCHISE_REQUIRED_FIELDS[:6])}等字段。"
+    )
     return {
         "id": "franchise_contract",
         "name": "加盟合同生成器",
@@ -111,7 +125,17 @@ def franchise_contract_status() -> dict[str, Any]:
         "status_text": "待字段映射" if has_template else "待模板",
         "entrypoint": "franchise-contract-generator/",
         "template_files": [str(path.relative_to(ROOT)) for path in template_files if path.is_file()],
+        "accepted_extensions": FRANCHISE_ACCEPTED_EXTENSIONS,
         "required_fields": FRANCHISE_REQUIRED_FIELDS,
+        "intake_checklist": [
+            {
+                "label": "模板目录",
+                "path": "franchise-contract-generator/",
+                "accepted_extensions": FRANCHISE_ACCEPTED_EXTENSIONS,
+                "required_fields": FRANCHISE_REQUIRED_FIELDS,
+                "message": intake_message,
+            }
+        ],
         "missing": [] if has_template else ["合同模板文件", "加盟条款字段确认"],
         "message": "已找到合同模板，下一步做字段映射和生成预览。"
         if has_template

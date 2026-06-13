@@ -148,6 +148,11 @@ def build_payload() -> dict[str, Any]:
 
     contract = tools.get("franchise_contract") or {}
     if contract.get("status") == "waiting_template":
+        contract_messages = [
+            item.get("message", "")
+            for item in contract.get("intake_checklist") or []
+            if item.get("message")
+        ]
         items.append(
             action_item(
                 item_id="tools.franchise_template",
@@ -155,7 +160,7 @@ def build_payload() -> dict[str, Any]:
                 center="小工具仓库",
                 priority="medium",
                 reason=contract.get("message") or "合同生成器等待现用模板和关键字段。",
-                action="提供现用加盟合同模板，并确认加盟费、保证金、期限、授权范围等关键字段。",
+                action="；".join(contract_messages) or "提供现用加盟合同模板，并确认加盟费、保证金、期限、授权范围等关键字段。",
                 source="tools.franchise_contract",
                 evidence="outputs/tool_warehouse_status/latest.json",
             )

@@ -1026,6 +1026,7 @@ function renderTools() {
   );
 
   const requiredFields = contract.required_fields || [];
+  const intakeChecklist = contract.intake_checklist || [];
   const missing = contract.missing || [];
   text("franchiseContractStatus", contract.status_text || "待模板");
   text("franchiseContractCount", `${requiredFields.length || 0} 项字段`);
@@ -1035,6 +1036,11 @@ function renderTools() {
     "franchiseContractRows",
     [
       ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、") }] : []),
+      ...intakeChecklist.slice(0, 1).map((item) => ({
+        label: "接收要求",
+        value: item.path || "合同模板",
+        detail: item.message || "",
+      })),
       ...requiredFields.slice(0, 6).map((field) => ({ label: "字段", value: field, detail: "生成前确认" })),
     ],
     (item) => `<div class="${item.label === "当前缺口" ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
