@@ -228,17 +228,19 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
         item_time = parse_time(item.get("generated_at"))
         if not item_time or item.get("generated_at") == realtime.get("generated_at"):
             continue
+        if item_time.date() != target_time.date():
+            continue
         delta = abs((item_time - target_time).total_seconds())
-        if delta <= 30 * 60:
-            candidates.append((delta, item_time, item))
+        candidates.append((delta, item_time, item))
     if not candidates:
         return {
             "status": "pending",
-            "message": "昨日同时段暂无历史数据，明天开始生成",
+            "message": "昨日暂无可用实时历史数据，明天开始生成",
             "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
     _, previous_time, previous = sorted(candidates, key=lambda item: item[0])[0]
+    match_delta_minutes = round(abs((previous_time - target_time).total_seconds()) / 60)
     current_summary = realtime.get("summary") or {}
     previous_summary = previous.get("summary") or {}
     previous_stores = {item.get("store"): item for item in previous.get("stores") or []}
@@ -270,9 +272,11 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
 
     return {
         "status": "ready",
-        "message": f"已对比昨日同时段 {previous_time.strftime('%H:%M')}",
+        "message": f"已对比昨日最接近时刻 {previous_time.strftime('%H:%M')}",
         "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
         "matched_time": previous_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "matched_time_label": previous_time.strftime("%Y-%m-%d %H:%M"),
+        "match_delta_minutes": match_delta_minutes,
         "summary": {
             "orders": {
                 "current": float(current_summary.get("total_orders") or 0),

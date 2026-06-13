@@ -40,16 +40,17 @@ function comparisonLabel(currentIncome, currentOrders, previous) {
   const realtimeComparison = data.realtime_comparison;
   const realtimeOrders = realtimeComparison?.summary?.orders;
   if (realtimeComparison?.status === "ready" && realtimeOrders) {
-    return `较昨日同时段 ${signedNumber(realtimeOrders.delta)} 单`;
+    const baseTime = realtimeComparison.matched_time ? realtimeComparison.matched_time.slice(11, 16) : "最近时刻";
+    return `较昨日基准 ${baseTime} ${signedNumber(realtimeOrders.delta)} 单`;
   }
-  if (!previous || previous.status === "missing") return previous?.message || "昨日同时段 暂无历史数据，明天开始生成";
+  if (!previous || previous.status === "missing") return previous?.message || "昨日暂无可用实时历史数据，明天开始生成";
   const previousIncome = Number(previous.income ?? previous.total_income ?? 0);
   const previousOrders = Number(previous.orders ?? previous.total_orders ?? 0);
   const incomeDelta = currentIncome - previousIncome;
   const orderDelta = currentOrders - previousOrders;
   const moneyText = `${incomeDelta >= 0 ? "+" : "-"}${yuan(Math.abs(incomeDelta))}`;
   const orderText = `${orderDelta >= 0 ? "+" : "-"}${num(Math.abs(orderDelta))} 单`;
-  return `较昨日同时段 ${moneyText} / ${orderText}`;
+  return `较昨日基准 ${moneyText} / ${orderText}`;
 }
 
 function signedNumber(value) {
@@ -207,20 +208,23 @@ function renderRealtimePlatformRows(item) {
 function realtimeStoreCompare(item, compareMap) {
   const store = item.store || item.store_name || item.name || "未命名门店";
   const previous = compareMap.get(store);
-  if (!previous) return data.realtime_comparison?.message || "昨日同时段 明天开始生成";
+  if (!previous) return data.realtime_comparison?.message || "昨日暂无可用历史数据";
+  const baseTime = data.realtime_comparison?.matched_time ? data.realtime_comparison.matched_time.slice(11, 16) : "";
+  const prefix = baseTime ? `较昨日基准 ${baseTime}` : "较昨日基准";
   if (previous.orders) {
     const orders = previous.orders || {};
-    return `较昨日同时段 ${signedNumber(orders.delta)} 单`;
+    return `${prefix} ${signedNumber(orders.delta)} 单`;
   }
   const incomeDelta = Number(previous.income_delta ?? realtimeStoreIncome(item) - Number(previous.income || 0));
   const orderDelta = Number(previous.orders_delta ?? realtimeStoreOrders(item) - Number(previous.orders || 0));
   const moneyText = `${incomeDelta >= 0 ? "+" : "-"}${yuan(Math.abs(incomeDelta))}`;
   const orderText = `${orderDelta >= 0 ? "+" : "-"}${num(Math.abs(orderDelta))} 单`;
-  return `较昨日同时段 ${moneyText} / ${orderText}`;
+  return `${prefix} ${moneyText} / ${orderText}`;
 }
 
 function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const realtime = data.realtime || {};
+  const realtimeComparison = data.realtime_comparison || {};
   const realtimeCollection = data.realtime_collection || {};
   const summary = realtime.summary || {};
   const sourceStores = realtimeStores(daily);
@@ -235,6 +239,9 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const collectionIssue = realtimeCollection.message || "";
   const realtimeFailures = realtimeCollection.platform_failures || [];
   const failedPlatformStoreCount = Number(realtimeCollection.summary?.failed_platform_store_count || 0);
+  const comparisonBaseText = realtimeComparison?.matched_time_label
+    ? `对比基准：${realtimeComparison.matched_time_label}。`
+    : "";
   const realtimeStatusText = collectionStatus === "stale"
     ? "偏旧"
     : collectionStatus === "failed_after_success"
@@ -245,10 +252,10 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
 
   text("realtimeIncome", yuan(totalIncome));
   text("realtimeOrders", `${num(totalOrders)} 单`);
-  text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace("较昨日同时段 ", ""));
+  text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace(/^较/, ""));
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtimeStatusText);
-  text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
+  text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${comparisonBaseText}${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
   document.querySelector("#realtime")?.classList.toggle("alert", ["stale", "failed_after_success", "partial", "missing_latest"].includes(collectionStatus));
 
   rows(
