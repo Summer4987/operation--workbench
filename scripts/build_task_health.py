@@ -247,6 +247,24 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
         row["evidence"] = "outputs/promo_budget_preview/latest.json"
 
+    elif task_id == "growth.promo_balance":
+        payload = read_json(ROOT / "store-inspection" / "latest.json", {})
+        generated_at = parse_time(payload.get("generated_at"))
+        summary = payload.get("summary") or {}
+        source_status = classify_from_json_status(payload.get("status"))
+        if source_status == "danger":
+            row.update(status="danger", reason=payload.get("message") or "推广余额巡检失败。")
+        elif not generated_at:
+            row.update(status="warn", reason="推广余额巡检尚未生成。")
+        elif now - generated_at > timedelta(days=2):
+            row.update(status="warn", reason=f"推广余额巡检偏旧：{age_text(generated_at, now)}。")
+        else:
+            warning_count = int(summary.get("warning_count") or 0)
+            status = "warn" if warning_count else "ok"
+            row.update(status=status, reason=f"余额巡检可用，{summary.get('store_count') or 0} 条结果，低余额 {warning_count} 条。")
+        row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
+        row["evidence"] = "store-inspection/latest.json"
+
     elif task_id == "flow.inventory":
         payload = runtime.get("inventory") or {}
         if payload.get("status") == "ok":

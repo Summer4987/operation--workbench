@@ -5,7 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
 from parse_balance_ocr import merge_results, write_outputs
+from task_run_state import classify_failure_text, record_task_event
 
 
 ROOT = Path(__file__).resolve().parent
@@ -15,6 +18,7 @@ PYTHON = sys.executable
 
 def run_platform(script_name: str, platform_name: str, *, timeout_seconds: int = 300) -> dict:
     print(f"开始{platform_name}余额巡检...", flush=True)
+    record_task_event("growth.promo_balance", "running", message=f"开始{platform_name}余额巡检。", step=platform_name)
     before_mtime = LATEST_JSON.stat().st_mtime if LATEST_JSON.exists() else 0
     try:
         result = subprocess.run([PYTHON, str(ROOT / script_name)], cwd=ROOT.parent, text=True, timeout=timeout_seconds)
@@ -23,6 +27,7 @@ def run_platform(script_name: str, platform_name: str, *, timeout_seconds: int =
             data = json.loads(LATEST_JSON.read_text(encoding="utf-8"))
             data["_run_error"] = f"{platform_name}余额巡检超过 {timeout_seconds} 秒，已使用已生成结果。"
             print(f"{platform_name}超时：使用已生成结果。", flush=True)
+            record_task_event("growth.promo_balance", "running", message=data["_run_error"], step=platform_name, failure_type="timeout")
             return data
         raise RuntimeError(f"{platform_name}余额巡检超过 {timeout_seconds} 秒，未生成可用结果。")
     if not LATEST_JSON.exists():
@@ -35,10 +40,12 @@ def run_platform(script_name: str, platform_name: str, *, timeout_seconds: int =
             raise RuntimeError(message)
         data["_run_error"] = message
     print(f"{platform_name}完成：{item_count} 条结果。", flush=True)
+    record_task_event("growth.promo_balance", "running", message=f"{platform_name}完成：{item_count} 条结果。", step=platform_name, returncode=result.returncode)
     return data
 
 
 def main() -> int:
+    record_task_event("growth.promo_balance", "running", message="推广余额总巡检开始。", step="start")
     results = []
     errors = []
     for script_name, platform_name in [
@@ -53,6 +60,13 @@ def main() -> int:
         except Exception as exc:
             errors.append(f"{platform_name}：{exc}")
             print(f"{platform_name}失败：{exc}", file=sys.stderr, flush=True)
+            record_task_event(
+                "growth.promo_balance",
+                "failed",
+                message=f"{platform_name}失败：{exc}",
+                step=platform_name,
+                failure_type=classify_failure_text(str(exc)),
+            )
 
     data = merge_results(results)
     if errors:
@@ -67,7 +81,17 @@ def main() -> int:
         f"{summary['store_count']} 条结果，{summary['warning_count']} 条低余额。",
         flush=True,
     )
-    return 0 if data.get("items") and not errors else 1
+    if data.get("items") and not errors:
+        record_task_event("growth.promo_balance", "success", message=f"余额总巡检完成：{summary['store_count']} 条结果，{summary['warning_count']} 条低余额。", step="finish")
+        return 0
+    record_task_event(
+        "growth.promo_balance",
+        "failed",
+        message=data.get("message") or "余额总巡检有失败项。",
+        step="finish",
+        failure_type=classify_failure_text(data.get("message") or "余额总巡检有失败项。"),
+    )
+    return 1
 
 
 if __name__ == "__main__":

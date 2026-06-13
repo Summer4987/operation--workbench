@@ -170,6 +170,36 @@
       "next_integration_step": "把崩溃原因分类，先做失败不中断总看板的状态上报。"
     },
     {
+      "id": "growth.promo_balance",
+      "name": "推广余额巡检",
+      "center": "商业化推广中心",
+      "module": "推广余额预警",
+      "status": "running",
+      "risk": "low",
+      "schedule": "上午一键采集触发，也可人工单独运行",
+      "entrypoints": [
+        "store-inspection/run_all_balances.py",
+        "store-inspection/one_click_eleme_balance.py",
+        "store-inspection/one_click_meituan_balance.py"
+      ],
+      "outputs": [
+        "store-inspection/latest.json",
+        "store-inspection/latest-data.js",
+        "outputs/store_inspection/"
+      ],
+      "health_checks": [
+        "latest.json 有巡检生成时间",
+        "至少一个平台有余额结果",
+        "低余额门店进入重点预警"
+      ],
+      "human_needed_when": [
+        "平台登录失效",
+        "余额识别失败",
+        "推广余额不足需要充值"
+      ],
+      "next_integration_step": "把余额巡检失败和低余额预警拆开展示。"
+    },
+    {
       "id": "growth.promo_bid",
       "name": "推广出价调整全自动",
       "center": "商业化推广中心",
