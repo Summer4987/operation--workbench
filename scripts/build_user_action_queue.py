@@ -244,6 +244,23 @@ def build_payload() -> dict[str, Any]:
             )
         )
 
+    weekly_recap = review_actions.get("weekly_recap") or {}
+    weekly_summary = weekly_recap.get("summary") or {}
+    weekly_action_required_count = int(weekly_summary.get("action_required_count") or 0)
+    if weekly_recap.get("status") == "needs_review" and weekly_action_required_count:
+        items.append(
+            action_item(
+                item_id="ops.review_weekly",
+                title="评价周复盘待查看",
+                center="运营数据中心",
+                priority="medium",
+                reason=weekly_recap.get("message") or f"评价周复盘发现 {weekly_action_required_count} 个待处理动作。",
+                action=weekly_recap.get("next_action") or "查看本周评价复盘，先处理高频问题门店。",
+                source="ops.review_weekly",
+                evidence="outputs/review_action_status/latest.json",
+            )
+        )
+
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
         intake_messages = [

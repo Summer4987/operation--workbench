@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +38,13 @@ def parse_date(value: str | None) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def parse_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def reply_suggestion(store: str, keywords: list[str], examples: list[str]) -> str:
@@ -486,6 +493,142 @@ def build_sop_closure_plan(sop_plan: dict[str, Any], review_history: list[dict[s
     }
 
 
+def build_weekly_recap(
+    review_history: list[dict[str, Any]],
+    recap_plan: dict[str, Any],
+    followup_plan: dict[str, Any],
+    sop_plan: dict[str, Any],
+    sop_closure_plan: dict[str, Any],
+    target_date: str,
+) -> dict[str, Any]:
+    dated_rows = [(parse_date(row.get("date")), row) for row in review_history]
+    dated_rows = [(row_date, row) for row_date, row in dated_rows if row_date]
+    if not dated_rows:
+        return {
+            "status": "empty",
+            "period": {"start_date": "", "end_date": "", "days": 7},
+            "summary": {
+                "review_count": 0,
+                "negative_count": 0,
+                "negative_rate": 0,
+                "action_required_count": 0,
+            },
+            "stores": [],
+            "issue_types": [],
+            "actions": [],
+            "message": "暂无评价历史可生成周复盘。",
+            "next_action": "先完成评价下载和汇总，再生成运营周复盘。",
+        }
+    end_date = parse_date(target_date) or max(row_date for row_date, _ in dated_rows)
+    start_date = end_date - timedelta(days=6)
+    week_rows = [row for row_date, row in dated_rows if start_date <= row_date <= end_date]
+    if not week_rows:
+        return {
+            "status": "empty",
+            "period": {
+                "start_date": start_date.strftime("%Y-%m-%d"),
+                "end_date": end_date.strftime("%Y-%m-%d"),
+                "days": 7,
+            },
+            "summary": {
+                "review_count": 0,
+                "negative_count": 0,
+                "negative_rate": 0,
+                "action_required_count": 0,
+            },
+            "stores": [],
+            "issue_types": [],
+            "actions": [],
+            "message": "近 7 天暂无评价记录可复盘。",
+            "next_action": "先检查评价下载任务是否覆盖最新 7 天。",
+        }
+    store_stats: dict[str, dict[str, Any]] = {}
+    issue_counts: dict[str, int] = {}
+    negative_rows = [row for row in week_rows if row.get("negative")]
+    for row in week_rows:
+        store = str(row.get("store") or "未命名门店").strip() or "未命名门店"
+        stats = store_stats.setdefault(
+            store,
+            {"store": store, "review_count": 0, "negative_count": 0, "rating_total": 0.0, "rating_count": 0},
+        )
+        stats["review_count"] += 1
+        rating = parse_float(row.get("rating"))
+        if rating is not None:
+            stats["rating_total"] += rating
+            stats["rating_count"] += 1
+        if row.get("negative"):
+            stats["negative_count"] += 1
+            issue_type = review_issue_type(row.get("keywords") or [], [row.get("content", "")])
+            issue_counts[issue_type] = issue_counts.get(issue_type, 0) + 1
+    stores = []
+    for stats in store_stats.values():
+        rating_count = int(stats.pop("rating_count") or 0)
+        rating_total = float(stats.pop("rating_total") or 0)
+        review_count = int(stats.get("review_count") or 0)
+        negative_count = int(stats.get("negative_count") or 0)
+        stats["avg_rating"] = round(rating_total / rating_count, 2) if rating_count else 0
+        stats["negative_rate"] = round(negative_count / review_count, 4) if review_count else 0
+        stores.append(stats)
+    stores = sorted(stores, key=lambda item: (-int(item["negative_count"]), -int(item["review_count"]), item["store"]))[:6]
+    issue_types = [
+        {"issue_type": issue_type, "count": count}
+        for issue_type, count in sorted(issue_counts.items(), key=lambda item: (-item[1], item[0]))[:6]
+    ]
+    recap_pending = int(recap_plan.get("pending_count") or 0)
+    followup_recurred = int(followup_plan.get("recurred_count") or 0)
+    sop_waiting = int(sop_plan.get("waiting_count") or 0)
+    sop_open = int(sop_plan.get("open_count") or 0)
+    sop_reopen = int(sop_closure_plan.get("reopen_count") or 0)
+    action_required_count = recap_pending + followup_recurred + sop_waiting + sop_open + sop_reopen
+    actions = []
+    if stores and int(stores[0].get("negative_count") or 0):
+        top_store = stores[0]
+        actions.append(
+            f"优先复盘 {top_store.get('store')}，本周 {top_store.get('negative_count')} 条疑似问题评价。"
+        )
+    if issue_types:
+        actions.append(f"本周高频问题是{issue_types[0]['issue_type']}，先抽查对应时段订单、出品和售后记录。")
+    if recap_pending:
+        actions.append(recap_plan.get("next_action") or "记录评价复盘结果和 7 天观察安排。")
+    if followup_recurred:
+        actions.append(followup_plan.get("next_action") or "复盘后同类差评复发，升级为 SOP 检查。")
+    if sop_waiting or sop_open:
+        actions.append(sop_plan.get("next_action") or "推进评价复发 SOP 整改。")
+    if sop_reopen:
+        actions.append(sop_closure_plan.get("next_action") or "重新打开已复发的 SOP 整改。")
+    if not actions:
+        actions.append("本周评价暂无明显风险，继续观察差评、评分和同类问题复发。")
+    review_count = len(week_rows)
+    negative_count = len(negative_rows)
+    negative_rate = round(negative_count / review_count, 4) if review_count else 0
+    top_issue_text = f"，高频问题：{issue_types[0]['issue_type']} {issue_types[0]['count']} 条" if issue_types else ""
+    return {
+        "status": "needs_review" if action_required_count or negative_count else "stable",
+        "period": {
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "days": 7,
+        },
+        "summary": {
+            "review_count": review_count,
+            "negative_count": negative_count,
+            "negative_rate": negative_rate,
+            "store_count": len(store_stats),
+            "action_required_count": action_required_count,
+            "recap_pending_count": recap_pending,
+            "followup_recurred_count": followup_recurred,
+            "sop_waiting_count": sop_waiting,
+            "sop_open_count": sop_open,
+            "sop_reopen_count": sop_reopen,
+        },
+        "stores": stores,
+        "issue_types": issue_types,
+        "actions": actions[:5],
+        "message": f"近 7 天共 {review_count} 条评价，疑似问题评价 {negative_count} 条，问题率 {negative_rate * 100:.1f}%{top_issue_text}。",
+        "next_action": actions[0],
+    }
+
+
 def recap_command(item: dict[str, Any]) -> str:
     issue_arg = f" --issue-type {item.get('issue_type')}" if item.get("issue_type") else ""
     return (
@@ -612,6 +755,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     followup = build_followup_plan(recap_records_payload, review_history)
     sop = build_sop_plan(followup, sop_records_payload)
     sop_closure = build_sop_closure_plan(sop, review_history)
+    weekly_recap = build_weekly_recap(review_history, recap, followup, sop, sop_closure, target_date)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -662,6 +806,8 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "sop_open_count": int(sop.get("open_count") or 0),
             "sop_reopen_count": int(sop_closure.get("reopen_count") or 0),
             "sop_stable_count": int(sop_closure.get("stable_count") or 0),
+            "weekly_review_count": int((weekly_recap.get("summary") or {}).get("review_count") or 0),
+            "weekly_negative_count": int((weekly_recap.get("summary") or {}).get("negative_count") or 0),
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
@@ -671,6 +817,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "followup_plan": followup,
         "sop_plan": sop,
         "sop_closure_plan": sop_closure,
+        "weekly_recap": weekly_recap,
         "workflow": workflow,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],

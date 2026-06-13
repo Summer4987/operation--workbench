@@ -347,6 +347,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
 
 def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
+    review_weekly_rows: list[dict] = []
     review_recap_rows: list[dict] = []
     review_followup_rows: list[dict] = []
     review_sop_rows: list[dict] = []
@@ -444,6 +445,29 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     review_followup_plan = review_actions.get("followup_plan") or {}
     review_sop_plan = review_actions.get("sop_plan") or {}
     review_sop_closure_plan = review_actions.get("sop_closure_plan") or {}
+    review_weekly_recap = review_actions.get("weekly_recap") or {}
+    weekly_summary = review_weekly_recap.get("summary") or {}
+    if review_weekly_recap.get("status") in {"needs_review", "stable"}:
+        period = review_weekly_recap.get("period") or {}
+        top_store = (review_weekly_recap.get("stores") or [{}])[0]
+        top_issue = (review_weekly_recap.get("issue_types") or [{}])[0]
+        reason_parts = [
+            f"{period.get('start_date', '')} 至 {period.get('end_date', '')}",
+            review_weekly_recap.get("message", ""),
+            f"重点门店：{top_store.get('store')} {top_store.get('negative_count')} 条" if top_store.get("negative_count") else "",
+            f"高频问题：{top_issue.get('issue_type')} {top_issue.get('count')} 条" if top_issue.get("count") else "",
+        ]
+        review_weekly_rows.append(
+            {
+                "level": "建议" if int(weekly_summary.get("action_required_count") or weekly_summary.get("negative_count") or 0) else "提醒",
+                "center": "运营数据中心",
+                "title": "评价周复盘",
+                "reason": "；".join(part for part in reason_parts if part),
+                "action": review_weekly_recap.get("next_action") or "继续观察本周评价、评分和同类问题复发。",
+                "source": "ops.review_weekly",
+            }
+        )
+    rows.extend(review_weekly_rows)
     for item in (review_sop_closure_plan.get("items") or [])[:2]:
         if item.get("status") not in {"reopen_needed", "watching"}:
             continue
@@ -792,6 +816,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     level_order = {"需人工处理": 0, "建议": 1, "提醒": 2}
     rows = sorted(rows, key=lambda item: level_order.get(item["level"], 3))[:8]
+    if review_weekly_rows and not any(item.get("source") == "ops.review_weekly" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = review_weekly_rows[0]
+        elif len(rows) < 8:
+            rows.append(review_weekly_rows[0])
     if review_recap_rows and not any(item.get("source") == "ops.review_recap" for item in rows):
         replacement_index = next(
             (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
@@ -828,6 +861,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             rows[replacement_index] = review_sop_closure_rows[0]
         elif len(rows) < 8:
             rows.append(review_sop_closure_rows[0])
+    if review_weekly_rows and not any(item.get("source") == "ops.review_weekly" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = review_weekly_rows[0]
+        elif len(rows) < 8:
+            rows.append(review_weekly_rows[0])
     if not rows:
         rows.append(
             {
