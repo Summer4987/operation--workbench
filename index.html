@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-review-page-layers" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-page-layers" />
   </head>
   <body>
     <main class="app">
@@ -186,6 +186,10 @@
             </div>
             <div class="module-body">
               <div class="big-number" id="dailyStoreCount">-</div>
+              <p id="dailyPageSummary">等待日报数据。</p>
+              <div class="daily-command-grid" id="dailyCommandRows"></div>
+              <div class="mini-table daily-platform-list" id="dailyPlatformRows"></div>
+              <div class="mini-table daily-focus-list" id="dailyFocusRows"></div>
               <div class="mini-table daily-list" id="dailyRows"></div>
             </div>
             <div class="module-actions">
@@ -453,7 +457,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-review-page-layers"></script>
-    <script src="./workbench.js?v=20260613-review-page-layers"></script>
+    <script src="./workbench-data.js?v=20260613-daily-page-layers"></script>
+    <script src="./workbench.js?v=20260613-daily-page-layers"></script>
   </body>
 </html>

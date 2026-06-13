@@ -13,6 +13,8 @@ const num = (value, digits = 0) =>
     maximumFractionDigits: digits,
   });
 
+const pct = (value, digits = 1) => `${(Number(value || 0) * 100).toFixed(digits)}%`;
+
 function sameTimeYesterday(daily) {
   return (
     daily.same_time_yesterday ||
@@ -310,8 +312,16 @@ function renderDaily() {
   const latestDate = latestDailyDate(daily);
   const latestRecords = latestDailyRows(daily);
   const stores = storeTotals(latestRecords);
+  const platforms = daily.platform_summary || [];
+  const focusItems = daily.focus_items || [];
+  const highFocusCount = focusItems.filter((item) => item.level === "high").length;
   const dailyIncome = latestRecords.reduce((sum, item) => sum + Number(item.income || 0), 0);
   const dailyOrders = latestRecords.reduce((sum, item) => sum + Number(item.orders || 0), 0);
+  const dailyImpressions = latestRecords.reduce((sum, item) => sum + Number(item.impressions || 0), 0);
+  const orderConversionRows = latestRecords.filter((item) => Number(item.order_conversion || 0));
+  const avgOrderConversion = orderConversionRows.length
+    ? orderConversionRows.reduce((sum, item) => sum + Number(item.order_conversion || 0), 0) / orderConversionRows.length
+    : 0;
   const totalIncome = Number(realtime.income ?? realtime.total_income ?? realtimeSummary.total_income ?? dailyIncome);
   const totalOrders = Number(realtime.orders ?? realtime.total_orders ?? realtimeSummary.total_orders ?? dailyOrders);
   text("metricIncomeLabel", "实时数据");
@@ -323,13 +333,43 @@ function renderDaily() {
   text("briefIncome", yuan(dailyIncome));
   text("dailyStoreCount", `${stores.length || 0} 家`);
   text("dailySummary", `只看最新日报日期 ${latestDate || "-"}：总收入 ${yuan(dailyIncome)}，总单量 ${num(dailyOrders)} 单，覆盖 ${stores.length || 0} 家门店。`);
+  text("dailyPageSummary", `最新日报日期 ${latestDate || "-"}：按门店、平台和异常项拆开看，优先处理高优先级日报异常。`);
+  rows(
+    "dailyCommandRows",
+    [
+      { label: "营业额", value: yuan(dailyIncome), detail: `${num(dailyOrders)} 单 · 客单 ${dailyOrders ? yuan(dailyIncome / dailyOrders) : "¥0"}`, tone: "good" },
+      { label: "曝光", value: num(dailyImpressions), detail: `下单转化 ${pct(avgOrderConversion)}`, tone: avgOrderConversion ? "neutral" : "warn" },
+      { label: "异常重点", value: `${num(highFocusCount)} 项`, detail: focusItems.length ? `${focusItems.length} 条日报异常需复看` : "暂无高优先级异常", tone: highFocusCount ? "warn" : "good" },
+      { label: "覆盖门店", value: `${num(stores.length)} 家`, detail: `${platforms.length || 0} 个平台汇总`, tone: stores.length ? "neutral" : "warn" },
+    ],
+    (item) => `<div class="${item.tone === "warn" ? "warn-row" : item.tone === "good" ? "good-row" : ""}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+  rows(
+    "dailyPlatformRows",
+    platforms,
+    (item) => {
+      const detail = [
+        `曝光 ${num(item.impressions)}`,
+        `访问转化 ${pct(item.visit_conversion)}`,
+        `下单转化 ${pct(item.order_conversion)}`,
+        `新客 ${num(item.new_customer_orders)} 单`,
+        `老客 ${num(item.old_customer_orders)} 单`,
+      ].join(" · ");
+      return `<div class="good-row"><span>${escapeHtml(item.platform || "平台")}</span><strong>${yuan(item.income)} / ${num(item.orders)} 单</strong><em>${escapeHtml(detail)}</em></div>`;
+    }
+  );
+  rows(
+    "dailyFocusRows",
+    focusItems.slice(0, 5),
+    (item) => `<div class="${item.level === "high" ? "warn-row" : "good-row"}"><span>${escapeHtml(item.store || "门店")}</span><strong>${escapeHtml(item.title || "日报异常")}</strong><em>${escapeHtml(item.body || "打开完整日报复核详情。")}</em></div>`
+  );
   rows(
     "dailyRows",
     stores
       .slice()
       .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
       .slice(0, 8),
-    (item) => `<div class="good-row"><span>${item.store}</span><strong>${yuan(item.income)}</strong><em>${num(item.orders)} 单</em></div>`
+    (item) => `<div class="good-row"><span>${escapeHtml(item.store)}</span><strong>${yuan(item.income)}</strong><em>${num(item.orders)} 单 · 曝光 ${num(item.impressions)} · 覆盖 ${num(item.platform_count)} 平台</em></div>`
   );
 }
 

@@ -1023,19 +1023,18 @@ h2 {
   grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr);
 }
 
-.anomaly-list em,
-.review-list em {
-  grid-column: 1 / -1;
-  line-height: 1.45;
-}
-
+.daily-command-grid,
 .review-command-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 12px 0;
 }
 
+.daily-command-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.daily-command-grid div,
 .review-command-grid div {
   min-height: 86px;
   padding: 12px;
@@ -1047,16 +1046,20 @@ h2 {
   gap: 7px;
 }
 
+.daily-command-grid div.warn-row,
 .review-command-grid div.warn-row {
   background: var(--soft-red-bg);
   border-color: var(--soft-red-line);
 }
 
+.daily-command-grid div.good-row,
 .review-command-grid div.good-row {
   background: #f7fcfa;
   border-color: #d5efe6;
 }
 
+.daily-command-grid span,
+.daily-command-grid em,
 .review-command-grid span,
 .review-command-grid em {
   min-width: 0;
@@ -1066,6 +1069,7 @@ h2 {
   line-height: 1.35;
 }
 
+.daily-command-grid strong,
 .review-command-grid strong {
   min-width: 0;
   font-size: 20px;
@@ -1074,9 +1078,28 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.daily-platform-list,
+.daily-focus-list,
 .review-weekly-list,
 .review-workflow-list {
   margin-top: 10px;
+}
+
+.daily-platform-list div,
+.daily-focus-list div {
+  grid-template-columns: minmax(92px, 0.28fr) minmax(180px, 0.5fr) minmax(0, 1fr);
+}
+
+.daily-platform-list em,
+.daily-focus-list em {
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.anomaly-list em,
+.review-list em {
+  grid-column: 1 / -1;
+  line-height: 1.45;
 }
 
 .review-weekly-list div {
@@ -1221,6 +1244,9 @@ h2 {
   .center-grid.three,
   .command-board,
   .brief-grid,
+  .daily-command-grid,
+  .daily-platform-list div,
+  .daily-focus-list div,
   .review-command-grid,
   .review-weekly-list div,
   .review-workflow-list div,
