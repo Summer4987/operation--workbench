@@ -347,6 +347,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
 
 def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
+    review_recap_rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
 
@@ -436,6 +437,29 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     review_summary = review_actions.get("summary") or {}
     missing_review_evidence_count = int(review_summary.get("missing_evidence_count") or 0)
+    review_recap_plan = review_actions.get("recap_plan") or {}
+    for item in (review_recap_plan.get("items") or [])[:2]:
+        keywords = "、".join(item.get("keywords") or [])
+        review_recap_rows.append(
+            {
+                "level": "建议",
+                "center": "运营数据中心",
+                "title": f"{item.get('store', '门店')}评价复盘",
+                "reason": "；".join(
+                    part
+                    for part in (
+                        f"{item.get('issue_type', '顾客体验')} · {item.get('negative_count', 0)} 条",
+                        f"关键词：{keywords}" if keywords else "",
+                        item.get("root_cause", ""),
+                    )
+                    if part
+                ),
+                "action": "；".join(part for part in (item.get("action", ""), item.get("follow_up_metric", "")) if part),
+                "source": "ops.review_recap",
+                "store": item.get("store", ""),
+            }
+        )
+    rows.extend(review_recap_rows)
     if missing_review_evidence_count:
         first_missing_evidence = (review_actions.get("missing_evidence_items") or [{}])[0]
         rows.append(
@@ -703,6 +727,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     level_order = {"需人工处理": 0, "建议": 1, "提醒": 2}
     rows = sorted(rows, key=lambda item: level_order.get(item["level"], 3))[:8]
+    if review_recap_rows and not any(item.get("source") == "ops.review_recap" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = review_recap_rows[0]
+        elif len(rows) < 8:
+            rows.append(review_recap_rows[0])
     if not rows:
         rows.append(
             {

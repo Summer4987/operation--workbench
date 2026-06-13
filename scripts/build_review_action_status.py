@@ -193,6 +193,81 @@ def reply_plan(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def review_issue_type(keywords: list[str], examples: list[str]) -> str:
+    joined = "、".join([*keywords, *examples])
+    if any(keyword in joined for keyword in ("漏放", "少送", "缺")):
+        return "打包漏放"
+    if any(keyword in joined for keyword in ("糊", "苦", "火候")):
+        return "出品火候"
+    if any(keyword in joined for keyword in ("口感", "口味", "老", "硬")):
+        return "口味口感"
+    if any(keyword in joined for keyword in ("配送", "骑手", "撒", "慢")):
+        return "配送体验"
+    return "顾客体验"
+
+
+def review_recap_action(store: str, issue_type: str) -> str:
+    if issue_type == "打包漏放":
+        return f"{store}复查出餐打包清单、监控和交接口令；晚高峰安排二次核单，次日抽查 5 单。"
+    if issue_type == "出品火候":
+        return f"{store}复盘对应时段牛排火候、报废标准和出餐质检；班前重新确认糊焦拦截规则。"
+    if issue_type == "口味口感":
+        return f"{store}抽查牛排熟度、保温时间和酱汁稳定性；把差评原文同步后厨做当日复盘。"
+    if issue_type == "配送体验":
+        return f"{store}核对打包密封、出餐等待和平台配送异常；必要时调整备餐节奏。"
+    return f"{store}查看差评订单、出餐和售后记录；把共性问题写入门店班后复盘。"
+
+
+def build_recap_plan(items: list[dict[str, Any]], completed_with_evidence: list[dict[str, Any]]) -> dict[str, Any]:
+    recaps = []
+    for item in items[:5]:
+        issue_type = review_issue_type(item.get("keywords") or [], item.get("examples") or [])
+        platforms = "、".join(
+            f"{platform.get('platform')} {platform.get('negative_count')} 条"
+            for platform in item.get("platforms") or []
+            if platform.get("platform")
+        )
+        recaps.append(
+            {
+                "store": item.get("store", ""),
+                "date": item.get("date", ""),
+                "status": "waiting_reply",
+                "issue_type": issue_type,
+                "negative_count": int(item.get("negative_count") or 0),
+                "platforms": platforms or f"{int(item.get('negative_count') or 0)} 条",
+                "keywords": item.get("keywords") or [],
+                "evidence": "；".join(item.get("examples") or []) or platforms,
+                "root_cause": f"疑似{issue_type}影响评价体验。",
+                "action": review_recap_action(str(item.get("store") or ""), issue_type),
+                "follow_up_metric": "连续 7 天观察差评数、评价均分、下单转化和同品类退款/售后反馈。",
+            }
+        )
+    for record in completed_with_evidence[:3]:
+        evidence = record.get("evidence") or {}
+        issue_type = "已回复复盘"
+        recaps.append(
+            {
+                "store": record.get("store", ""),
+                "date": record.get("date", ""),
+                "status": "replied_with_evidence" if evidence.get("status") == "ready" else "replied_waiting_evidence",
+                "issue_type": issue_type,
+                "negative_count": int(record.get("negative_count") or 0),
+                "platforms": record.get("platform", "") or "平台未区分",
+                "keywords": [],
+                "evidence": evidence.get("url") or evidence.get("web_path") or evidence.get("path") or record.get("note", ""),
+                "root_cause": record.get("note") or "已记录人工回复，等待沉淀门店复盘结果。",
+                "action": f"{record.get('store', '对应门店')}把回复结果同步到班后复盘；有证据后复看 7 天评价变化。",
+                "follow_up_metric": "连续 7 天观察同类差评是否复发，若复发则升级为门店 SOP 检查。",
+            }
+        )
+    return {
+        "status": "ready" if recaps else "empty",
+        "item_count": len(recaps),
+        "items": recaps[:8],
+        "message": f"已生成 {len(recaps)} 条评价复盘建议。" if recaps else "当前没有可生成的评价复盘建议。",
+    }
+
+
 def evidence_plan(missing_evidence: list[dict[str, Any]], completed_with_evidence: list[dict[str, Any]]) -> dict[str, Any]:
     missing_items = []
     attach_commands = []
@@ -231,6 +306,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     items, completed_negative_count = build_action_items(review, completed)
     plan = reply_plan(items)
     evidence = evidence_plan(missing_evidence, completed_with_evidence)
+    recap = build_recap_plan(items, completed_with_evidence)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -275,6 +351,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "items": items,
         "reply_plan": plan,
         "evidence_plan": evidence,
+        "recap_plan": recap,
         "workflow": workflow,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],
