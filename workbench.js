@@ -385,7 +385,7 @@ function priorityItems() {
     items.push({
       type: "任务健康",
       title: `${task.name} ${task.status_text || "需处理"}`,
-      detail: task.reason || task.human_action || "请查看自动化任务健康报告。",
+      detail: task.human_action || task.reason || "请查看自动化任务健康报告。",
       level: "danger",
     });
   });
@@ -424,7 +424,7 @@ function renderHealth() {
     tasks,
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
-      const meta = [task.reason, task.last_seen_at ? `最近：${task.last_seen_at}` : "", environment.label || ""].filter(Boolean).join(" · ");
+      const meta = [task.reason, task.human_action ? `处理：${task.human_action}` : "", task.last_seen_at ? `最近：${task.last_seen_at}` : "", environment.label || ""].filter(Boolean).join(" · ");
       return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
     }
   );

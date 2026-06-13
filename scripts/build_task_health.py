@@ -277,8 +277,14 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
             )
             row["reason"] = f"{row['reason']}｜{step_text}"
             row["evidence"] = "outputs/morning_collection_status/latest.json"
+            recovery_actions = payload.get("recovery_actions") or []
             failed_steps = payload.get("failed_steps") or []
-            if failed_steps and not row.get("human_action"):
+            if recovery_actions:
+                row["human_action"] = "；".join(
+                    f"{item.get('step')}：{item.get('human_action') or item.get('message') or '查看日志'}"
+                    for item in recovery_actions[:2]
+                )
+            elif failed_steps and not row.get("human_action"):
                 row["human_action"] = "；".join(
                     f"{item.get('name')}：{item.get('message') or item.get('failure_type') or '查看日志'}"
                     for item in failed_steps[:2]
@@ -325,6 +331,8 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         elif payload.get("status") in {"success", "partial", "running"}:
             status = "ok" if payload.get("status") == "success" else "warn"
             row.update(status=status, reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个。")
+        if payload.get("human_action"):
+            row["human_action"] = payload.get("human_action", "")
         if payload:
             row["evidence"] = "outputs/morning_collection_status/latest.json"
         if generated_at:

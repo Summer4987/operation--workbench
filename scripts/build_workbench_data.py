@@ -362,13 +362,14 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     morning_failed = morning_collection.get("failed_steps") or []
     if morning_failed:
+        recovery_actions = morning_collection.get("recovery_actions") or []
         rows.append(
             {
                 "level": "需人工处理",
                 "center": "运营数据中心",
                 "title": "上午运营采集子步骤失败",
                 "reason": "；".join(f"{item.get('name')}：{item.get('failure_type') or item.get('message')}" for item in morning_failed[:2]),
-                "action": "先处理失败子步骤对应的平台登录、页面结构或脚本日志，再重跑一键采集。",
+                "action": "；".join(item.get("human_action", "") for item in recovery_actions[:2] if item.get("human_action")) or "先处理失败子步骤对应的平台登录、页面结构或脚本日志，再重跑一键采集。",
                 "source": "ops.morning_collection",
             }
         )
