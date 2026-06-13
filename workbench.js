@@ -374,6 +374,21 @@ function renderHealth() {
 }
 
 function renderAiAdvice() {
+  const advice = data.ai_advice || {};
+  if (Array.isArray(advice.rows) && advice.rows.length) {
+    text("aiTrend", advice.trend || "待积累");
+    text("aiAdviceSummary", advice.summary || "AI建议会优先处理自动化异常，再结合经营数据解释波动。");
+    rows(
+      "aiAdviceRows",
+      advice.rows,
+      (item) => {
+        const cls = item.level === "需人工处理" || item.level === "建议" ? "warn-row" : "good-row";
+        const detail = [item.reason, item.action].filter(Boolean).join("；");
+        return `<div class="${cls}"><span>${escapeHtml(item.level || item.center || "建议")}</span><strong>${escapeHtml(item.title || "-")}</strong><em>${escapeHtml(detail || "-")}</em></div>`;
+      }
+    );
+    return;
+  }
   const daily = data.daily || {};
   const stores = storeTotals(latestDailyRows(daily));
   const compare = yesterdayStoreMap(daily);

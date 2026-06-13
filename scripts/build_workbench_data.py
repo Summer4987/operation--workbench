@@ -232,6 +232,129 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
     }
 
 
+def task_by_id(task_health: dict) -> dict[str, dict]:
+    return {item.get("id"): item for item in task_health.get("tasks", []) if isinstance(item, dict)}
+
+
+def advice_level(task: dict) -> str:
+    if task.get("status") == "danger":
+        return "需人工处理"
+    if task.get("status") == "warn":
+        return "建议"
+    return "提醒"
+
+
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, realtime_comparison: dict, task_health: dict) -> dict:
+    rows: list[dict] = []
+    tasks = task_by_id(task_health)
+
+    for task_id in ("ops.daily_report", "ops.review_dashboard", "growth.promo_budget"):
+        task = tasks.get(task_id) or {}
+        if task.get("status") in {"danger", "warn"}:
+            rows.append(
+                {
+                    "level": advice_level(task),
+                    "center": task.get("center", ""),
+                    "title": task.get("name", task_id),
+                    "reason": task.get("reason") or task.get("next_step") or "任务需要关注。",
+                    "action": task.get("human_action") or task.get("next_step") or "先查看任务健康报告和日志，再决定是否人工处理。",
+                    "source": task_id,
+                }
+            )
+
+    balance_summary = balances.get("summary") or {}
+    warning_count = int(balance_summary.get("warning_count") or 0)
+    if warning_count:
+        rows.append(
+            {
+                "level": "需人工处理",
+                "center": "商业化推广中心",
+                "title": "推广余额不足",
+                "reason": f"余额巡检发现 {warning_count} 条低余额。",
+                "action": "先充值低余额门店，再执行预算或出价自动化。",
+                "source": "growth.promo_balance",
+            }
+        )
+
+    inventory_warning_count = int(inventory.get("warning_count") or 0)
+    if inventory_warning_count:
+        rows.append(
+            {
+                "level": "建议",
+                "center": "货流中心",
+                "title": "库存预警",
+                "reason": f"库存服务发现 {inventory_warning_count} 项低库存。",
+                "action": "先核对实物库存，再把缺货商品进入补货建议。",
+                "source": "flow.inventory",
+            }
+        )
+
+    trend = "待积累"
+    summary = "AI建议会优先处理自动化异常，再结合实时单量、评价、余额和库存解释经营波动。"
+    comparison = realtime_comparison.get("summary") or {}
+    order_compare = comparison.get("orders") or {}
+    if realtime_comparison.get("status") == "ready" and order_compare:
+        delta = float(order_compare.get("delta") or 0)
+        trend = f"{'上涨' if delta >= 0 else '下跌'} {delta:+.0f} 单"
+        direction = "上涨" if delta >= 0 else "下跌"
+        summary = f"按昨日同时段对比，整体单量{direction} {delta:+.0f} 单；建议优先结合异常任务、评价、余额和库存判断原因。"
+        stores = sorted(
+            realtime_comparison.get("stores") or [],
+            key=lambda item: abs(float(((item.get("orders") or {}).get("delta")) or 0)),
+            reverse=True,
+        )
+        for item in stores[:3]:
+            orders = item.get("orders") or {}
+            delta_store = float(orders.get("delta") or 0)
+            if not delta_store:
+                continue
+            rows.append(
+                {
+                    "level": "建议" if delta_store < 0 else "提醒",
+                    "center": "运营数据中心",
+                    "title": f"{item.get('store') or '未命名门店'}单量{'下跌' if delta_store < 0 else '上涨'}",
+                    "reason": f"较昨日同时段 {delta_store:+.0f} 单。",
+                    "action": "下跌时检查曝光、差评、库存和推广余额；上涨时复盘高峰品类和推广设置。",
+                    "source": "ops.realtime_order_income",
+                }
+            )
+
+    review = daily.get("review_summary") or {}
+    negative_count = int((review.get("summary") or {}).get("negative_count") or review.get("negative_count") or 0)
+    if negative_count:
+        rows.append(
+            {
+                "level": "建议",
+                "center": "运营数据中心",
+                "title": "差评需要处理",
+                "reason": f"评价汇总发现 {negative_count} 条疑似问题评价。",
+                "action": "优先处理差评门店，回复后再观察单量和复购。",
+                "source": "ops.review_dashboard",
+            }
+        )
+
+    level_order = {"需人工处理": 0, "建议": 1, "提醒": 2}
+    rows = sorted(rows, key=lambda item: level_order.get(item["level"], 3))[:8]
+    if not rows:
+        rows.append(
+            {
+                "level": "提醒",
+                "center": "运营数据中心",
+                "title": "等待更多历史数据",
+                "reason": "当前没有需要优先处理的自动化异常。",
+                "action": "继续积累实时同环比、评价和推广数据，用于生成更具体的门店建议。",
+                "source": "system",
+            }
+        )
+
+    return {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "trend": trend,
+        "summary": summary,
+        "rows": rows,
+    }
+
+
 def main() -> None:
     daily = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
@@ -242,6 +365,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -252,6 +376,7 @@ def main() -> None:
         "budget": budget,
         "inventory": inventory,
         "task_health": task_health,
+        "ai_advice": ai_advice,
     }
     OUTPUT_PATH.write_text(
         "window.WORKBENCH_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n",
