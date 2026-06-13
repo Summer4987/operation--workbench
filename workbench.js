@@ -259,7 +259,9 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
           .slice(0, 3)
           .map((action) => `${action.store}：${action.human_action}`)
           .join("；");
-        const detail = [item.message || storeText, item.recovery_summary || item.human_action || "先处理平台状态后重跑实时采集。", storeActions]
+        const guide = (realtimeCollection.repair_guides || []).find((entry) => entry.platform === item.platform && entry.failure_type === item.failure_type);
+        const guideText = guide ? `向导：${guide.title}，${(guide.checklist || [])[0] || guide.verify_command || ""}` : "";
+        const detail = [item.message || storeText, guideText, item.recovery_summary || item.human_action || "先处理平台状态后重跑实时采集。", storeActions]
           .filter(Boolean)
           .map((part) => escapeHtml(part))
           .join("<br>");

@@ -18,6 +18,49 @@ OUTPUT_PATH = OUTPUT_DIR / "latest.json"
 TASK_ID = "ops.realtime_order_income"
 ACTIVE_STALE_AFTER = timedelta(minutes=95)
 
+REPAIR_GUIDES = {
+    "auth_block": {
+        "title": "实时采集登录恢复向导",
+        "checklist": [
+            "在 Mac mini 的 Chrome 打开对应平台后台。",
+            "完成登录、验证码或安全验证。",
+            "运行 python3 scripts/realtime_order_income.py 做只读复查。",
+        ],
+    },
+    "browser_closed": {
+        "title": "Chrome/CDP 恢复向导",
+        "checklist": [
+            "确认 Mac mini 的 Chrome 和 CDP 调试窗口保持打开。",
+            "如页面反复关闭，重启 Chrome 后重新进入平台后台。",
+            "先运行实时采集只读命令确认连接恢复。",
+        ],
+    },
+    "timeout": {
+        "title": "实时采集超时恢复向导",
+        "checklist": [
+            "确认 Mac mini 网络和平台后台页面访问正常。",
+            "关闭卡住的后台页面，必要时重启 Chrome/CDP。",
+            "连续两次超时后只复查失败平台，不扩大到其他高风险动作。",
+        ],
+    },
+    "page_structure": {
+        "title": "实时数据页面改版排查向导",
+        "checklist": [
+            "人工打开失败平台后台，确认实时单量、营业额位置是否变化。",
+            "保存页面提示或截图，定位实时采集识别规则。",
+            "在 MacBook 修复脚本并推送后，再同步到 Mac mini。",
+        ],
+    },
+    "missing_platform_store": {
+        "title": "实时采集门店映射向导",
+        "checklist": [
+            "核对缺失门店是否仍在营业、是否改名或平台门店 ID 变化。",
+            "更新对应平台门店映射。",
+            "运行实时采集只读命令确认 16 个平台门店覆盖恢复。",
+        ],
+    },
+}
+
 
 def normalize_failure_type(message: str, fallback: str = "") -> str:
     body = str(message or "")
@@ -58,6 +101,65 @@ def store_recovery_action(platform: str, store: str, failure_type: str) -> dict[
         "human_action": action,
         "verify_command": "python3 scripts/realtime_order_income.py",
     }
+
+
+def repair_guide_for(failure: dict[str, Any]) -> dict[str, Any]:
+    failure_type = failure.get("failure_type") or "unknown"
+    platform = failure.get("platform") or "未知平台"
+    guide = REPAIR_GUIDES.get(failure_type) or {
+        "title": "实时采集通用排查向导",
+        "checklist": [
+            "查看实时采集日志和平台后台页面提示。",
+            "确认登录、Chrome/CDP、页面结构、接口返回和门店映射。",
+            "先运行只读实时采集复查，再恢复定时任务。",
+        ],
+    }
+    checklist = list(guide["checklist"])
+    if failure.get("human_action") and failure["human_action"] not in checklist:
+        checklist.append(failure["human_action"])
+    store_actions = [
+        action.get("human_action", "")
+        for action in failure.get("store_recovery_actions") or []
+        if action.get("human_action")
+    ]
+    checklist.extend(action for action in store_actions[:2] if action not in checklist)
+    return {
+        "id": f"{failure_type}.{platform}",
+        "title": guide["title"],
+        "priority": "high" if failure_type in {"auth_block", "browser_closed", "page_structure"} else "medium",
+        "target": platform,
+        "platform": platform,
+        "failure_type": failure_type,
+        "missing_count": int(failure.get("missing_count") or 0),
+        "stores": failure.get("stores") or [],
+        "checklist": checklist,
+        "verify_command": "python3 scripts/realtime_order_income.py",
+        "evidence": "outputs/realtime_order_income/last_failed.json",
+    }
+
+
+def build_repair_guides(platform_failures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    guides = [repair_guide_for(failure) for failure in platform_failures]
+    return sorted(guides, key=lambda item: (0 if item["priority"] == "high" else 1, item["target"]))
+
+
+def repair_templates() -> list[dict[str, Any]]:
+    labels = {
+        "auth_block": "平台登录/验证码",
+        "browser_closed": "Chrome/CDP 关闭",
+        "timeout": "网络或页面超时",
+        "page_structure": "实时数据页面改版",
+        "missing_platform_store": "平台门店缺失",
+    }
+    return [
+        {
+            "failure_type": failure_type,
+            "title": guide["title"],
+            "trigger": labels.get(failure_type, failure_type),
+            "checklist": guide["checklist"],
+        }
+        for failure_type, guide in sorted(REPAIR_GUIDES.items())
+    ]
 
 
 def now_text() -> str:
@@ -192,9 +294,7 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
     failed_summary = failed.get("summary") or {}
     latest_success = latest.get("status") in {"ok", "ready", "success"} and int(latest_summary.get("missing_count") or 0) == 0
     failure_type = classify_payload_failure(failed, task_run)
-    platform_failures = build_platform_failures(failed, failure_type)
-    platform_failure_count = len(platform_failures)
-    failed_store_count = sum(int(item.get("missing_count") or 0) for item in platform_failures)
+    raw_platform_failures = build_platform_failures(failed, failure_type)
     stale = bool(latest_time and active_realtime_window(now) and now - latest_time > ACTIVE_STALE_AFTER)
     if not latest:
         status = "missing_latest"
@@ -211,6 +311,10 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
     else:
         status = "partial"
         message = "实时单量收入采集不完整。"
+    platform_failures = [] if status == "ok" else raw_platform_failures
+    repair_guides = build_repair_guides(platform_failures)
+    platform_failure_count = len(platform_failures)
+    failed_store_count = sum(int(item.get("missing_count") or 0) for item in platform_failures)
     return {
         "generated_at": now_text(),
         "status": status,
@@ -219,6 +323,8 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
         "last_failure_at": failed.get("generated_at", "") if failed else "",
         "failure_type": failure_type,
         "platform_failures": platform_failures,
+        "repair_guides": repair_guides,
+        "repair_templates": repair_templates(),
         "human_action": platform_failures[0]["human_action"] if platform_failures else "",
         "latest": {
             "status": latest.get("status", ""),
@@ -243,6 +349,7 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
             "failed_missing_count": int(failed_summary.get("missing_count") or 0),
             "platform_failure_count": platform_failure_count,
             "failed_platform_store_count": failed_store_count,
+            "repair_guide_count": len(repair_guides),
             "total_orders": int(latest_summary.get("total_orders") or 0),
             "total_income": float(latest_summary.get("total_income") or 0),
         },

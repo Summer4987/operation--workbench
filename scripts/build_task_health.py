@@ -369,6 +369,7 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         missing = int(summary.get("missing_count") or 0)
         status_summary = status_payload.get("summary") or {}
         platform_failures = status_payload.get("platform_failures") or []
+        repair_guides = status_payload.get("repair_guides") or []
         platform_failure_count = int(status_summary.get("platform_failure_count") or 0)
         failed_platform_store_count = int(status_summary.get("failed_platform_store_count") or 0)
         realtime_failure_type = (platform_failures[0] or {}).get("failure_type") if platform_failures else status_payload.get("failure_type", "")
@@ -379,13 +380,19 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             if action.get("human_action")
         ]
         realtime_human_action = "；".join(store_recovery_actions[:3]) or status_payload.get("human_action", "")
+        if repair_guides:
+            first_guide = repair_guides[0]
+            first_step = (first_guide.get("checklist") or [""])[0]
+            row["repair_guide"] = f"{first_guide.get('title', '修复向导')}：{first_step}"
         if status_payload.get("status") == "failed_after_success":
             detail = f"，{platform_failure_count} 个平台失败，缺失 {failed_platform_store_count} 个平台门店" if platform_failure_count else ""
+            detail += f"，修复向导 {len(repair_guides)} 个" if repair_guides else ""
             row.update(status="warn", reason=(status_payload.get("message") or "最近一次实时采集失败，但保留上一份成功数据。") + detail + "。")
             row["failure_type"] = realtime_failure_type
             row["human_action"] = realtime_human_action
         elif status_payload.get("status") == "stale":
             detail = f" 最近失败记录显示 {platform_failure_count} 个平台失败，缺失 {failed_platform_store_count} 个平台门店。" if platform_failure_count else ""
+            detail += f" 修复向导 {len(repair_guides)} 个。" if repair_guides else ""
             row.update(status="warn", reason=(status_payload.get("message") or "实时采集最近成功时间偏旧。") + detail)
             row["failure_type"] = realtime_failure_type
             row["human_action"] = realtime_human_action
