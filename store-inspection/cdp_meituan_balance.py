@@ -7,9 +7,10 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from parse_balance_ocr import build_result
-from one_click_meituan_balance import MEITUAN_WM_POI_IDS, STORES, recent_meituan_promo_url, url_with_wm_poi_id
+from one_click_meituan_balance import MEITUAN_WM_POI_IDS, STORES, recent_meituan_promo_url
 
 
 ROOT = Path(__file__).resolve().parent
@@ -20,6 +21,8 @@ OUTPUT_DATA_JS = ROOT / "meituan-cdp-latest-data.js"
 NETWORK_CANDIDATES_JSON = ROOT / "meituan-cdp-network-candidates.json"
 NETWORK_MATCHES_JSON = ROOT / "meituan-cdp-network-matches.json"
 FALLBACK_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
+ACCOUNT_ROUTE = "/subapp/isomor_recharge/pages/index/index"
+ACCOUNT_INFO_API_KEY = "/ad/v4/homepage/account/info"
 THRESHOLD = 200.0
 SAFE_ACCOUNT_LINK_TEXTS = [
     "我的账户",
@@ -65,6 +68,26 @@ def parse_money(text: str) -> float | None:
     if not match:
         return None
     return float(match.group(0))
+
+
+def yuan_from_cents(value) -> float:
+    try:
+        return round(float(value) / 100, 2)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def url_for_account_route(base_url: str, wm_poi_id: str) -> str:
+    parts = urlsplit(base_url)
+    if "waimaieapp.meituan.com" in parts.fragment:
+        inner = urlsplit(parts.fragment)
+        query = dict(parse_qsl(inner.query, keep_blank_values=True))
+        query["wmPoiId"] = wm_poi_id
+        inner_url = urlunsplit((inner.scheme, inner.netloc, inner.path, urlencode(query), ACCOUNT_ROUTE))
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, inner_url))
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["wmPoiId"] = wm_poi_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ACCOUNT_ROUTE))
 
 
 def balance_from_page_text(text: str) -> float | None:
@@ -178,14 +201,35 @@ def safe_response_preview(response) -> dict | None:
     }
 
 
+def account_balance_from_payload(payload: dict) -> float | None:
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        return None
+    for key in ["balance", "primaryAccountBalance"]:
+        if key in data:
+            return yuan_from_cents(data.get(key))
+    return None
+
+
 def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[dict]]:
     wm_poi_id = store_wm_poi_id(store)
     if not wm_poi_id:
         return None, []
-    target_url = url_with_wm_poi_id(base_url, wm_poi_id)
+    target_url = url_for_account_route(base_url, wm_poi_id)
     candidates: list[dict] = []
+    account_payload: dict | None = None
+    account_response_url = ""
 
     def handle_response(response):
+        nonlocal account_payload, account_response_url
+        if ACCOUNT_INFO_API_KEY in response.url:
+            try:
+                payload = response.json()
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                account_payload = payload
+                account_response_url = response.url
         candidate = safe_response_preview(response)
         if candidate:
             candidate["store_name"] = store["name"]
@@ -195,24 +239,20 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
     page.on("response", handle_response)
     try:
         cdp.goto_backend_page(page, target_url, timeout=90_000)
-        clicked_label = ""
         for _ in range(20):
             page.wait_for_timeout(1000)
             text = page.locator("body").inner_text(timeout=5000)
-            if "账户余额" in text or "推广首页" in text or "点金推广" in text:
+            if account_payload is not None or "账户余额" in text or "可用余额" in text or "立即充值" in text:
                 break
-        clicked_label = click_first_safe_account_link(page)
-        if clicked_label:
-            for _ in range(10):
-                page.wait_for_timeout(1000)
-                text = page.locator("body").inner_text(timeout=5000)
-                if "账户余额" in text or "可用余额" in text or "充值" in text:
-                    break
         text = page.locator("body").inner_text(timeout=10000)
     finally:
         page.remove_listener("response", handle_response)
 
-    balance = balance_from_page_text(text)
+    balance = account_balance_from_payload(account_payload or {})
+    source = "Chrome CDP接口读取"
+    if balance is None:
+        balance = balance_from_page_text(text)
+        source = "Chrome CDP页面文本读取"
     if balance is None:
         return {
             "platform": "美团",
@@ -220,10 +260,10 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
             "store_id": wm_poi_id,
             "balance": 0.0,
             "status": "warning",
-            "source": "Chrome CDP页面文本读取",
+            "source": source,
             "error": "页面文本未解析到账户余额",
-            "account_link_clicked": clicked_label,
             "page_url": page.url,
+            "account_response_url": account_response_url.split("?")[0] if account_response_url else "",
             "page_text_preview": normalize_space(text)[:600],
         }, candidates
     return {
@@ -232,9 +272,9 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
         "store_id": wm_poi_id,
         "balance": balance,
         "status": "warning" if balance < THRESHOLD else "normal",
-        "source": "Chrome CDP页面文本读取",
-        "account_link_clicked": clicked_label,
+        "source": source,
         "page_url": page.url,
+        "account_response_url": account_response_url.split("?")[0] if account_response_url else "",
     }, candidates
 
 
