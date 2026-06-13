@@ -143,19 +143,20 @@ def record_task_event(
     if extra:
         task["extra"] = {**previous.get("extra", {}), **extra}
     tasks[task_id] = task
-    events.append(
-        {
-            "task_id": task_id,
-            "status": status,
-            "message": message,
-            "step": step,
-            "log_path": str(log_path) if log_path else "",
-            "returncode": returncode,
-            "failure_type": failure_type,
-            "environment": environment,
-            "created_at": timestamp,
-        }
-    )
+    event = {
+        "task_id": task_id,
+        "status": status,
+        "message": message,
+        "step": step,
+        "log_path": str(log_path) if log_path else "",
+        "returncode": returncode,
+        "failure_type": failure_type,
+        "environment": environment,
+        "created_at": timestamp,
+    }
+    if extra:
+        event["extra"] = extra
+    events.append(event)
     payload["events"] = list(events)
     write_state(payload)
     return task

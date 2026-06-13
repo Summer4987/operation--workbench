@@ -34,6 +34,7 @@
         "morning-ops/run_morning_ops.py"
       ],
       "outputs": [
+        "outputs/morning_collection_status/latest.json",
         "morning-ops/logs/",
         "business-report-dashboard/data/latest.json",
         "store-inspection/latest.json",
@@ -41,6 +42,7 @@
         "workbench-data.js"
       ],
       "health_checks": [
+        "统一任务状态可汇总子步骤完成/失败",
         "日志当天有完成记录",
         "日报 latest.json 更新时间为当天",
         "余额 latest.json 有平台结果",
@@ -51,7 +53,7 @@
         "验证码或安全验证",
         "预算真实提交前需要临时暂停"
       ],
-      "next_integration_step": "把每个子步骤写入统一任务状态文件，供首页健康报告读取。"
+      "next_integration_step": "上午采集子步骤已接入统一状态汇总，下一步把失败子步骤恢复动作拆到门店/平台级。"
     },
     {
       "id": "ops.realtime_order_income",

@@ -14,6 +14,7 @@ TASKS_PATH = ROOT / "config" / "ai_business_center_tasks.json"
 OUTPUT_DIR = ROOT / "outputs" / "task_health"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
+MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
@@ -264,6 +265,22 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
         elif approval_count:
             row["reason"] = f"出价只读建议已生成，{approval_count} 项需审批。"
             row["human_action"] = "逐项确认出价建议；确认前不自动提交到平台。"
+    if row["id"] == "ops.morning_collection":
+        payload = read_json(MORNING_COLLECTION_STATUS_PATH, {})
+        summary = payload.get("summary") or {}
+        if payload.get("status") in {"failed", "partial", "running", "success"}:
+            step_text = (
+                f"子步骤：完成 {summary.get('completed_count', 0)}，"
+                f"失败 {summary.get('failed_count', 0)}，运行中 {summary.get('running_count', 0)}"
+            )
+            row["reason"] = f"{row['reason']}｜{step_text}"
+            row["evidence"] = "outputs/morning_collection_status/latest.json"
+            failed_steps = payload.get("failed_steps") or []
+            if failed_steps and not row.get("human_action"):
+                row["human_action"] = "；".join(
+                    f"{item.get('name')}：{item.get('message') or item.get('failure_type') or '查看日志'}"
+                    for item in failed_steps[:2]
+                )
     return row
 
 
@@ -295,7 +312,23 @@ def inventory_probe() -> dict[str, Any]:
 
 def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any]) -> dict[str, Any]:
     task_id = row["id"]
-    if task_id == "ops.realtime_order_income":
+    if task_id == "ops.morning_collection":
+        payload = read_json(MORNING_COLLECTION_STATUS_PATH, {})
+        generated_at = parse_time(payload.get("generated_at"))
+        summary = payload.get("summary") or {}
+        if payload.get("status") == "missing_run":
+            row.update(status="warn", reason=payload.get("message") or "上午运营一键采集尚未写入运行记录。")
+        elif payload.get("status") == "failed":
+            row.update(status="danger", reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个。")
+        elif payload.get("status") in {"success", "partial", "running"}:
+            status = "ok" if payload.get("status") == "success" else "warn"
+            row.update(status=status, reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个。")
+        if payload:
+            row["evidence"] = "outputs/morning_collection_status/latest.json"
+        if generated_at:
+            row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    elif task_id == "ops.realtime_order_income":
         payload = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
         generated_at = parse_time(payload.get("generated_at"))
         source_status = classify_from_json_status(payload.get("status"))

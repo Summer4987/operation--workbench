@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_PATH = ROOT / "workbench-data.js"
 DATA_DIR = ROOT / "data"
 REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
+MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
@@ -338,7 +339,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, tool_warehouse: dict, finance_center: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -356,6 +357,19 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                     "source": task_id,
                 }
             )
+
+    morning_failed = morning_collection.get("failed_steps") or []
+    if morning_failed:
+        rows.append(
+            {
+                "level": "需人工处理",
+                "center": "运营数据中心",
+                "title": "上午运营采集子步骤失败",
+                "reason": "；".join(f"{item.get('name')}：{item.get('failure_type') or item.get('message')}" for item in morning_failed[:2]),
+                "action": "先处理失败子步骤对应的平台登录、页面结构或脚本日志，再重跑一键采集。",
+                "source": "ops.morning_collection",
+            }
+        )
 
     balance_summary = balances.get("summary") or {}
     warning_count = int(balance_summary.get("warning_count") or 0)
@@ -580,6 +594,7 @@ def main() -> None:
     daily = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
+    morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
@@ -595,12 +610,13 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, tool_warehouse, finance_center, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, tool_warehouse, finance_center, morning_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
         "realtime_history": realtime_history,
         "realtime_comparison": realtime_comparison,
+        "morning_collection": morning_collection,
         "daily": daily,
         "balances": balances,
         "budget": budget,
