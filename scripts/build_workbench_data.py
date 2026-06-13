@@ -434,6 +434,21 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 }
             )
 
+    review_summary = review_actions.get("summary") or {}
+    missing_review_evidence_count = int(review_summary.get("missing_evidence_count") or 0)
+    if missing_review_evidence_count:
+        first_missing_evidence = (review_actions.get("missing_evidence_items") or [{}])[0]
+        rows.append(
+            {
+                "level": "提醒",
+                "center": "运营数据中心",
+                "title": "评价回复证据待补",
+                "reason": f"已回复评价中有 {missing_review_evidence_count} 条缺平台截图或链接证据。",
+                "action": f"补录 {first_missing_evidence.get('store', '对应门店')} 的平台回复截图、评价链接或工单链接。",
+                "source": "ops.review_dashboard",
+            }
+        )
+
     balance_status_summary = promo_balance_status.get("summary") or {}
     platform_failure_count = int(balance_status_summary.get("platform_failure_count") or 0)
     if platform_failure_count:

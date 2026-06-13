@@ -63,6 +63,26 @@ def completion_index(records: list[dict[str, Any]]) -> dict[str, Any]:
     return index
 
 
+def evidence_for(record: dict[str, Any]) -> dict[str, Any]:
+    url = str(record.get("evidence_url") or record.get("reply_url") or "").strip()
+    path = str(record.get("evidence_path") or record.get("screenshot") or "").strip()
+    return {
+        "status": "ready" if url or path else "missing",
+        "url": url,
+        "path": path,
+        "message": "已记录回复证据。" if url or path else "已回复但缺平台截图或链接证据。",
+    }
+
+
+def enrich_completed_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = []
+    for record in records:
+        row = dict(record)
+        row["evidence"] = evidence_for(record)
+        enriched.append(row)
+    return enriched
+
+
 def build_action_items(review: dict[str, Any], completed: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     items: list[dict[str, Any]] = []
     completed_index = completion_index(completed)
@@ -119,6 +139,8 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     target_date = review.get("used_date") or review.get("target_date") or ""
     records_payload = read_json(REPLY_RECORDS_PATH, {"records": []})
     completed = completed_records(records_payload, target_date)
+    completed_with_evidence = enrich_completed_records(completed)
+    missing_evidence = [record for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "missing"]
     items, completed_negative_count = build_action_items(review, completed)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
@@ -147,11 +169,14 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "negative_count": total_negative,
             "completed_record_count": len(completed),
             "completed_negative_count": completed_negative_count,
+            "completed_with_evidence_count": len(completed_with_evidence) - len(missing_evidence),
+            "missing_evidence_count": len(missing_evidence),
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
-        "completed_items": completed[:20],
-        "human_action": items[0]["reply_suggestion"] if items else "",
+        "completed_items": completed_with_evidence[:20],
+        "missing_evidence_items": missing_evidence[:20],
+        "human_action": items[0]["reply_suggestion"] if items else (missing_evidence[0]["evidence"]["message"] if missing_evidence else ""),
     }
 
 

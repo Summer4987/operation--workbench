@@ -584,8 +584,11 @@ function renderReviews() {
       }
       if (item.kind === "completed") {
         const platform = item.platform ? `${item.platform} · ` : "";
+        const evidence = item.evidence || {};
+        const evidenceText = evidence.status === "ready" ? `证据：${evidence.url || evidence.path}` : "待补平台截图或链接证据";
         const note = item.note || item.operator || item.recorded_at || "已人工回复";
-        return `<div class="good-row"><span>${escapeHtml(item.store)}</span><strong>${escapeHtml(platform)}已回复</strong><em>${escapeHtml(`${item.date || ""} ${note}`.trim())}</em></div>`;
+        const cls = evidence.status === "ready" ? "good-row" : "warn-row";
+        return `<div class="${cls}"><span>${escapeHtml(item.store)}</span><strong>${escapeHtml(platform)}已回复</strong><em>${escapeHtml(`${item.date || ""} ${note} · ${evidenceText}`.trim())}</em></div>`;
       }
       const keywords = item.top_keywords.length ? item.top_keywords.join("、") : "无集中关键词";
       const badReviews = item.bad_review_examples

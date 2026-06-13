@@ -37,6 +37,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--negative-count", type=int, default=0, help="本次处理的差评数量，可选。")
     parser.add_argument("--operator", default="", help="处理人，可选。")
     parser.add_argument("--note", default="", help="处理备注，可选。")
+    parser.add_argument("--evidence-url", default="", help="平台回复截图、评价链接或工单链接，可选。")
+    parser.add_argument("--evidence-path", default="", help="本地截图路径，可选。")
     return parser.parse_args()
 
 
@@ -53,6 +55,8 @@ def main() -> int:
         "negative_count": max(0, int(args.negative_count or 0)),
         "operator": args.operator.strip(),
         "note": args.note.strip(),
+        "evidence_url": args.evidence_url.strip(),
+        "evidence_path": args.evidence_path.strip(),
     }
     records.append(record)
     payload["updated_at"] = record["recorded_at"]

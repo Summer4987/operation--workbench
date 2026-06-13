@@ -439,11 +439,18 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         action_summary = review_actions.get("summary") or {}
         negative_count = int(action_summary.get("negative_count") or 0)
         completed_negative_count = int(action_summary.get("completed_negative_count") or 0)
+        missing_evidence_count = int(action_summary.get("missing_evidence_count") or 0)
         if review_actions.get("status") == "waiting_reply":
             row.update(
                 status="warn",
                 reason=review_actions.get("message") or f"评价有 {negative_count} 条待处理差评。",
                 human_action=review_actions.get("human_action") or "先处理差评门店，再观察单量和复购。",
+            )
+        elif missing_evidence_count:
+            row.update(
+                status="warn",
+                reason=f"评价已回复记录中有 {missing_evidence_count} 条缺平台截图或链接证据。",
+                human_action=review_actions.get("human_action") or "补录平台回复截图、评价链接或工单链接，便于后续复盘。",
             )
         elif review_actions.get("status") == "ok":
             suffix = f"，已记录回复 {completed_negative_count} 条" if completed_negative_count else ""
