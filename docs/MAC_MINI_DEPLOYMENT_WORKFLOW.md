@@ -75,6 +75,8 @@ MacBook 或 Codex 所在设备：
 /bin/zsh scripts/check_macmini_ai_center.zsh
 ```
 
+更短的用户执行清单见 [AI_BUSINESS_CENTER_MACMINI_HANDOFF.md](AI_BUSINESS_CENTER_MACMINI_HANDOFF.md)。
+
 这个检查只做只读验证：
 
 - 校验任务注册表。

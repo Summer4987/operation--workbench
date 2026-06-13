@@ -62,6 +62,7 @@ echo "== 生成只读健康数据 =="
 echo
 
 echo "== 生产定时任务标签 =="
+MISSING_LABELS=()
 for label in \
   com.summer.operation.morning \
   com.summer.operation.realtime-order-income \
@@ -71,9 +72,22 @@ do
     echo "已安装：${label}"
   else
     echo "未安装或未加载：${label}"
+    MISSING_LABELS+=("$label")
   fi
 done
 echo
 
-echo "检查完成。若 launchd 标签未安装，请在 Mac mini 上运行："
-echo "  /bin/zsh scripts/install_macmini_operation_launchd.zsh"
+echo "== 行动建议 =="
+if [[ "$AI_BUSINESS_CENTER_ENV" != "production" ]]; then
+  echo "当前是开发环境检查，不代表 Mac mini 生产状态。"
+  echo "需要切生产时，请在 Mac mini 项目目录运行同一条检查命令。"
+elif (( ${#MISSING_LABELS[@]} > 0 )); then
+  echo "Mac mini 缺少生产定时任务标签：${MISSING_LABELS[*]}"
+  echo "请在 Mac mini 上运行："
+  echo "  /bin/zsh scripts/install_macmini_operation_launchd.zsh"
+  echo "安装后再次运行："
+  echo "  /bin/zsh scripts/check_macmini_ai_center.zsh"
+else
+  echo "Mac mini 生产定时任务已加载。"
+  echo "下一步：等待下一次定时任务运行，或由 Codex 指定低风险预览命令做生产冒烟检查。"
+fi
