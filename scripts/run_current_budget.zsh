@@ -4,6 +4,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+STATE_PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+if [ ! -x "$STATE_PYTHON" ]; then
+  STATE_PYTHON="python3"
+fi
+TASK_ID="growth.promo_budget"
+TASK_STEP="初始化"
+
+record_task_run() {
+  "$STATE_PYTHON" scripts/record_task_run.py "$@" || true
+}
+
 PERIOD="auto"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,6 +60,16 @@ mkdir -p "$LOG_DIR"
 RUN_LOG="$LOG_DIR/current_budget_${PERIOD}_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 
+finish_task_state() {
+  local rc="$?"
+  if [[ "$rc" -eq 0 ]]; then
+    record_task_run "$TASK_ID" success --message "${PERIOD}预算初始化完成。" --step "$TASK_STEP" --log-path "$RUN_LOG" --returncode "$rc"
+  else
+    record_task_run "$TASK_ID" failed --message "${PERIOD}预算初始化失败：${TASK_STEP}。" --step "$TASK_STEP" --log-path "$RUN_LOG" --returncode "$rc"
+  fi
+}
+trap finish_task_state EXIT
+
 CURRENT_HOUR="$(date +%H)"
 CURRENT_MINUTE="$(date +%M)"
 CURRENT_TOTAL_MINUTES=$((10#$CURRENT_HOUR * 60 + 10#$CURRENT_MINUTE))
@@ -56,8 +77,12 @@ ALLOWED_WINDOW_LABEL="$(printf '%02d:%02d-%02d:%02d' \
   $((ALLOWED_START_MINUTES / 60)) $((ALLOWED_START_MINUTES % 60)) \
   $((ALLOWED_END_MINUTES / 60)) $((ALLOWED_END_MINUTES % 60)))"
 
+record_task_run "$TASK_ID" running --message "${PERIOD}预算初始化开始，允许窗口 ${ALLOWED_WINDOW_LABEL}。" --step "$TASK_STEP" --log-path "$RUN_LOG"
+
 if [[ "${ALLOW_OUTSIDE_BUDGET_WINDOW:-0}" != "1" ]] \
   && (( CURRENT_TOTAL_MINUTES < ALLOWED_START_MINUTES || CURRENT_TOTAL_MINUTES > ALLOWED_END_MINUTES )); then
+  TASK_STEP="允许窗口检查"
+  record_task_run "$TASK_ID" failed --message "当前时间不在 ${PERIOD}预算允许窗口 ${ALLOWED_WINDOW_LABEL}。" --step "$TASK_STEP" --log-path "$RUN_LOG" --returncode 64 --failure-type outside_allowed_window
   echo "拒绝执行：当前时间 $(date '+%Y-%m-%d %H:%M:%S') 不在 ${PERIOD}预算允许窗口 ${ALLOWED_WINDOW_LABEL}。"
   echo "如需手动补跑，请显式设置 ALLOW_OUTSIDE_BUDGET_WINDOW=1。"
   exit 64
@@ -77,20 +102,33 @@ echo "== ${TIME_POINT} ${PERIOD}预算初始化 =="
 echo "开始：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "允许窗口：${ALLOWED_WINDOW_LABEL}"
 
+TASK_STEP="同步云端预算配置"
+record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
 "$PYTHON" scripts/sync_promo_budget_overrides.py
+
+TASK_STEP="生成推广预算预览"
+record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
 "$NODE" scripts/build_promo_budget_preview.mjs
 
 echo
 echo "执行饿了么${PERIOD}预算真实提交..."
+TASK_STEP="饿了么${PERIOD}预算真实提交"
+record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
 /bin/zsh scripts/run_eleme_automation.zsh --time "$TIME_POINT" --mode commit --limit all
 
 echo
 echo "执行美团${PERIOD}预算真实提交..."
+TASK_STEP="美团${PERIOD}预算真实提交"
+record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
 "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD"
 
 echo
 echo "刷新并发布运营总看板..."
+TASK_STEP="刷新运营总看板数据"
+record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
 "$PYTHON" scripts/build_workbench_data.py
+TASK_STEP="发布运营总看板"
+record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
 /bin/zsh scripts/deploy_workbench_to_cloud.zsh
 
 echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"

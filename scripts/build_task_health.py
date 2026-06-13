@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TASKS_PATH = ROOT / "config" / "ai_business_center_tasks.json"
 OUTPUT_DIR = ROOT / "outputs" / "task_health"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -141,6 +142,42 @@ def classify_from_json_status(value: str | None) -> str:
     return "unknown"
 
 
+def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetime) -> dict[str, Any]:
+    task_run = (run_state.get("tasks") or {}).get(row["id"])
+    if not isinstance(task_run, dict):
+        return row
+    updated_at = parse_time(task_run.get("updated_at"))
+    row_last_seen = parse_time(row.get("last_seen_at"))
+    if updated_at and row_last_seen and updated_at < row_last_seen:
+        return row
+
+    run_status = task_run.get("status")
+    if run_status == "success":
+        row["status"] = "ok"
+        row["reason"] = task_run.get("message") or "最近一次运行成功。"
+    elif run_status == "running":
+        row["status"] = "warn"
+        row["reason"] = task_run.get("message") or "任务正在运行。"
+    elif run_status == "failed":
+        row["status"] = "danger"
+        failure_type = task_run.get("failure_type")
+        row["reason"] = task_run.get("message") or "最近一次运行失败。"
+        if failure_type:
+            row["reason"] = f"{row['reason']}（{failure_type}）"
+    elif run_status == "skipped":
+        row["status"] = "warn"
+        row["reason"] = task_run.get("message") or "最近一次运行跳过。"
+
+    row["last_run_at"] = task_run.get("updated_at", "")
+    row["last_run_step"] = task_run.get("step", "")
+    row["last_run_status"] = run_status or ""
+    if task_run.get("log_path"):
+        row["evidence"] = task_run["log_path"]
+    if updated_at:
+        row["last_seen_at"] = updated_at.strftime("%Y-%m-%d %H:%M:%S")
+    return row
+
+
 def inventory_probe() -> dict[str, Any]:
     try:
         with urlopen(CLOUD_INVENTORY_URL, timeout=8) as response:
@@ -237,10 +274,12 @@ def build_task_health(now: datetime | None = None, runtime: dict[str, Any] | Non
     if "inventory" not in runtime:
         runtime["inventory"] = inventory_probe()
     registry = read_json(TASKS_PATH, {"tasks": []})
+    run_state = read_json(TASK_RUNS_PATH, {"tasks": {}})
     rows = []
     for task in registry.get("tasks", []):
         row = base_task_state(task, now)
         row = enrich_known_task(row, now, runtime)
+        row = apply_run_state(row, run_state, now)
         row["status_text"] = STATUS_LABELS.get(row["status"], row["status"])
         rows.append(attach_human_action(row, task))
 

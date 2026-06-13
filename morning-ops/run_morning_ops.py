@@ -11,6 +11,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parent
+sys.path.insert(0, str(WORKSPACE / "scripts"))
+
+from task_run_state import classify_failure_text, record_task_event  # noqa: E402
+
 LOG_DIR = ROOT / "logs"
 DAILY_RUNNER = WORKSPACE / "business-report-dashboard" / "run_daily_publish.command"
 REPORT_DIR = WORKSPACE / "business-report-dashboard"
@@ -110,6 +114,7 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
     print(f"\n== {name} ==", flush=True)
+    record_task_event("ops.morning_collection", "running", message=f"正在执行：{name}", step=name, log_path=log_path)
     output = ""
     returncode = 0
     with log_path.open("a", encoding="utf-8") as log:
@@ -132,8 +137,18 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
             returncode = 124
     if returncode == 0:
         print(f"{name}完成。", flush=True)
+        record_task_event("ops.morning_collection", "running", message=f"{name}完成，继续后续步骤。", step=name, log_path=log_path, returncode=returncode)
         return StepResult(name, returncode, output, log_path)
     message = f"{name}失败，详情见 {log_path}"
+    record_task_event(
+        "ops.morning_collection",
+        "failed",
+        message=message,
+        step=name,
+        log_path=log_path,
+        returncode=returncode,
+        failure_type=classify_failure_text(output, returncode),
+    )
     if required:
         raise RuntimeError(message)
     print(message, file=sys.stderr, flush=True)
@@ -176,6 +191,13 @@ def main() -> int:
     budget_period = resolve_budget_period(args.budget_period)
     budget_time = BUDGET_PERIODS[budget_period]["time"]
     print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}）。", flush=True)
+    record_task_event(
+        "ops.morning_collection",
+        "running",
+        message=f"运营一键采集开始：{budget_period}推广预算（{args.mode}）。",
+        step="start",
+        extra={"mode": args.mode, "budget_period": budget_period},
+    )
     failures = []
     try:
         report_python = str(REPORT_PYTHON if REPORT_PYTHON.exists() else Path(sys.executable))
@@ -217,11 +239,21 @@ def main() -> int:
             failures.append("总看板云端发布")
         if failures:
             print(f"\n运营一键采集完成，但有失败项：{'、'.join(failures)}。", file=sys.stderr, flush=True)
+            record_task_event(
+                "ops.morning_collection",
+                "failed",
+                message=f"完成但有失败项：{'、'.join(failures)}。",
+                step="finish",
+                failure_type="partial_failed",
+                extra={"failures": failures},
+            )
             return 1
         print("\n运营一键采集完成。", flush=True)
+        record_task_event("ops.morning_collection", "success", message="运营一键采集完成。", step="finish", extra={"mode": args.mode, "budget_period": budget_period})
         return 0
     except Exception as exc:
         print(f"\n运营一键采集失败：{exc}", file=sys.stderr, flush=True)
+        record_task_event("ops.morning_collection", "failed", message=f"运营一键采集失败：{exc}", step="exception", failure_type=classify_failure_text(str(exc)))
         return 1
 
 
