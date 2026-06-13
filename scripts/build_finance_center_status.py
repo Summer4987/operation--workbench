@@ -54,6 +54,10 @@ def sample_files(path_text: str, accepted_extensions: set[str]) -> list[dict[str
     return files
 
 
+def template_path_for(source_id: str) -> str:
+    return f"data/finance-inbox/templates/{source_id}_template.csv"
+
+
 def intake_checklist(sources: list[dict[str, Any]], accepted_extensions: set[str]) -> list[dict[str, Any]]:
     checklist = []
     extension_text = "、".join(sorted(accepted_extensions)) or ".csv、.xlsx、.xls、.pdf"
@@ -63,9 +67,10 @@ def intake_checklist(sources: list[dict[str, Any]], accepted_extensions: set[str
             {
                 "source": source.get("name", ""),
                 "path": source.get("path", ""),
+                "template_path": source.get("template_path", ""),
                 "accepted_extensions": sorted(accepted_extensions),
                 "required_fields": fields,
-                "message": f"把{source.get('name', '账单')}样例放入 {source.get('path', '')}，支持 {extension_text}，至少包含：{'、'.join(fields[:6])}{'等字段' if len(fields) > 6 else ''}。",
+                "message": f"把{source.get('name', '账单')}样例放入 {source.get('path', '')}，可参考 {source.get('template_path', '')}，支持 {extension_text}，至少包含：{'、'.join(fields[:6])}{'等字段' if len(fields) > 6 else ''}。",
             }
         )
     return checklist
@@ -81,6 +86,8 @@ def build_payload() -> dict[str, Any]:
         source_id = source.get("id") or ""
         path_text = inbox.get(source_id) or f"data/finance-inbox/{source_id}"
         files = sample_files(path_text, accepted_extensions)
+        template_path = template_path_for(source_id)
+        inbox_dir = ROOT / path_text
         if not files:
             missing.append(f"{source.get('name') or source_id}样例")
         sources.append(
@@ -88,6 +95,9 @@ def build_payload() -> dict[str, Any]:
                 "id": source_id,
                 "name": source.get("name") or source_id,
                 "path": path_text,
+                "directory_ready": inbox_dir.exists(),
+                "template_path": template_path,
+                "template_ready": (ROOT / template_path).exists(),
                 "file_count": len(files),
                 "files": files[:8],
                 "required_fields": source.get("required_fields") or [],
@@ -116,6 +126,12 @@ def build_payload() -> dict[str, Any]:
         "accounts": accounts,
         "missing": missing,
         "intake_checklist": intake_checklist(sources, accepted_extensions),
+        "setup": {
+            "init_command": "python3 scripts/init_finance_inbox.py",
+            "template_dir": "data/finance-inbox/templates",
+            "directories_ready": all(item.get("directory_ready") for item in sources),
+            "templates_ready": all(item.get("template_ready") for item in sources),
+        },
         "next_input_needed": [
             "银行账单样例放入 data/finance-inbox/bank",
             "美团/饿了么平台账单样例放入 data/finance-inbox/platform",

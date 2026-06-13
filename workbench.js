@@ -1229,6 +1229,7 @@ function renderFinance() {
   const intakeChecklist = finance.intake_checklist || [];
   const accounts = finance.accounts || [];
   const missing = finance.missing || [];
+  const setup = finance.setup || {};
   const waiting = finance.status === "waiting_samples";
   text("financeBillStatus", waiting ? "待样例" : finance.status === "ready_for_mapping" ? "待映射" : "待检查");
   text("financeBillCount", `${Number(summary.sample_file_count || 0)} 个样例`);
@@ -1242,6 +1243,7 @@ function renderFinance() {
         value: `${source.file_count || 0} 个文件`,
         detail: [
           source.path || "",
+          source.template_path ? `模板：${source.template_path}` : "",
           (source.required_fields || []).length ? `字段：${(source.required_fields || []).slice(0, 4).join("、")}${(source.required_fields || []).length > 4 ? "等" : ""}` : "",
         ].filter(Boolean).join(" · "),
         warn: !source.file_count,
@@ -1262,11 +1264,15 @@ function renderFinance() {
   text("financeReportSummary", "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
   rows(
     "financeReportRows",
-    accounts.slice(0, 6).map((account) => ({
-      label: account.direction === "income" ? "收入" : "支出",
-      value: account.name,
-      detail: (account.keywords || []).slice(0, 3).join("、"),
-    })),
+    [
+      { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
+      { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
+      ...accounts.slice(0, 6).map((account) => ({
+        label: account.direction === "income" ? "收入" : "支出",
+        value: account.name,
+        detail: (account.keywords || []).slice(0, 3).join("、"),
+      })),
+    ],
     (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 }

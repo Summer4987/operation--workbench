@@ -401,17 +401,20 @@
       "risk": "medium",
       "schedule": "待定，按上传账单触发",
       "entrypoints": [
+        "scripts/init_finance_inbox.py",
         "scripts/build_finance_center_status.py",
         "config/finance_bill_schema.json"
       ],
       "outputs": [
         "outputs/finance_center_status/latest.json",
+        "data/finance-inbox/templates/",
         "data/finance-inbox/bank/",
         "data/finance-inbox/platform/"
       ],
       "health_checks": [
         "账单样例目录和字段字典可检查",
         "样例接收清单列出目录、格式和必需字段",
+        "银行账单和平台账单字段模板可读取",
         "银行账单和平台账单字段映射成功",
         "收入、佣金、配送费、推广费、退款、补贴可拆分",
         "异常费用可追溯到原始行"
@@ -421,7 +424,7 @@
         "确认科目口径",
         "解释无法自动分类的流水"
       ],
-      "next_integration_step": "财务样例接收清单已接入待办和财务页，下一步在样例到位后做字段映射。"
+      "next_integration_step": "财务样例接收清单、接收目录和字段模板已接入，下一步在样例到位后做字段映射。"
     },
     {
       "id": "tools.sales_receipt",
