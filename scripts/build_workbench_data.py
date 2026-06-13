@@ -175,6 +175,21 @@ def pct_change(current: float, previous: float) -> float | None:
     return (current - previous) / previous
 
 
+def parse_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(str(value)[:10], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def format_date(value: datetime | None) -> str:
+    return value.strftime("%Y-%m-%d") if value else ""
+
+
 def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
     current_time = parse_time(realtime.get("generated_at"))
     if not current_time:
@@ -245,6 +260,160 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
             },
         },
         "stores": stores,
+    }
+
+
+def add_metric(target: dict, row: dict) -> None:
+    target["orders"] += float(row.get("orders") or row.get("total_orders") or 0)
+    target["income"] += float(row.get("income") or row.get("total_income") or 0)
+    target["impressions"] += float(row.get("impressions") or row.get("total_impressions") or 0)
+
+
+def metric_payload(total: float, previous_total: float, current_days: int, previous_days: int) -> dict:
+    current_avg = total / current_days if current_days else 0
+    previous_avg = previous_total / previous_days if previous_days else 0
+    return {
+        "current_total": total,
+        "previous_total": previous_total,
+        "current_daily_avg": current_avg,
+        "previous_daily_avg": previous_avg,
+        "delta_daily_avg": current_avg - previous_avg,
+        "change": pct_change(current_avg, previous_avg),
+    }
+
+
+def build_daily_window(records: list[dict], start: datetime, end: datetime) -> dict:
+    rows = []
+    dates = set()
+    totals = {"orders": 0.0, "income": 0.0, "impressions": 0.0}
+    stores: dict[str, dict] = {}
+    for row in records:
+        row_date = parse_date(row.get("date"))
+        if not row_date or row_date < start or row_date > end:
+            continue
+        rows.append(row)
+        date_text = format_date(row_date)
+        dates.add(date_text)
+        add_metric(totals, row)
+        store = str(row.get("store") or row.get("store_raw") or "未命名门店").strip()
+        item = stores.setdefault(store, {"store": store, "orders": 0.0, "income": 0.0, "impressions": 0.0})
+        add_metric(item, row)
+    return {
+        "start_date": format_date(start),
+        "end_date": format_date(end),
+        "calendar_days": (end - start).days + 1,
+        "data_days": len(dates),
+        "dates": sorted(dates),
+        "record_count": len(rows),
+        "totals": totals,
+        "stores": stores,
+    }
+
+
+def daily_trend_action(store: str, delta: float, signals: dict[str, list], inventory_warning_count: int) -> tuple[str, str]:
+    direction = "上涨" if delta >= 0 else "下跌"
+    reasons = [f"近 7 天日均单量较前 7 天{direction} {delta:+.0f} 单"]
+    actions: list[str] = []
+    focus_items = signals.get("focus") or []
+    if focus_items:
+        reasons.append("日报异常：" + "；".join(str(item.get("title") or "") for item in focus_items[:2] if item.get("title")))
+        actions.append("先复核日报异常对应的平台活动、曝光、转化和营业状态")
+    reviews = signals.get("reviews") or []
+    review_negative = sum(int(item.get("negative_count") or 0) for item in reviews)
+    if review_negative:
+        reasons.append(f"疑似问题评价 {review_negative} 条")
+        actions.append("优先处理差评关键词，再观察近 7 天下单转化是否恢复")
+    low_balances = signals.get("balances") or []
+    if low_balances:
+        lowest = min(low_balances, key=lambda item: float(item.get("balance") or 0))
+        reasons.append(f"推广余额偏低：{lowest.get('platform', '')} {float(lowest.get('balance') or 0):.0f} 元")
+        actions.append("先补足低余额平台，避免推广断流")
+    if inventory_warning_count:
+        reasons.append(f"库存有 {inventory_warning_count} 项预警")
+        actions.append("核对畅销品库存是否影响出餐和曝光")
+    if not actions:
+        actions.append("检查曝光、进店、转化、评价、库存和推广预算，定位涨跌原因")
+    if delta > 0:
+        actions.insert(0, "复盘上涨门店的高峰品类、活动和推广设置，沉淀可复制动作")
+    return "；".join(part for part in reasons if part), "；".join(actions[:3])
+
+
+def build_daily_trends(daily: dict, balances: dict, review_actions: dict, inventory: dict) -> dict:
+    records = daily.get("records") or []
+    dated_rows = [(parse_date(row.get("date")), row) for row in records]
+    dated_rows = [(row_date, row) for row_date, row in dated_rows if row_date]
+    if not dated_rows:
+        return {
+            "status": "empty",
+            "message": "暂无日报历史数据可生成趋势分析。",
+            "summary": {},
+            "stores": [],
+            "four_week": {"status": "insufficient", "message": "暂无日报历史数据。"},
+        }
+    latest_date = max(row_date for row_date, _ in dated_rows)
+    current_start = latest_date - timedelta(days=6)
+    previous_end = current_start - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=6)
+    current = build_daily_window(records, current_start, latest_date)
+    previous = build_daily_window(records, previous_start, previous_end)
+    current_days = int(current.get("data_days") or 0)
+    previous_days = int(previous.get("data_days") or 0)
+    summary = {
+        "orders": metric_payload(current["totals"]["orders"], previous["totals"]["orders"], current_days, previous_days),
+        "income": metric_payload(current["totals"]["income"], previous["totals"]["income"], current_days, previous_days),
+        "impressions": metric_payload(current["totals"]["impressions"], previous["totals"]["impressions"], current_days, previous_days),
+        "current_data_days": current_days,
+        "previous_data_days": previous_days,
+    }
+    signals = build_store_signal_maps(daily, balances)
+    inventory_warning_count = int(inventory.get("warning_count") or 0)
+    stores = []
+    all_stores = set(current["stores"]) | set(previous["stores"])
+    for store in all_stores:
+        current_store = current["stores"].get(store) or {"orders": 0.0, "income": 0.0, "impressions": 0.0}
+        previous_store = previous["stores"].get(store) or {"orders": 0.0, "income": 0.0, "impressions": 0.0}
+        orders = metric_payload(current_store["orders"], previous_store["orders"], current_days, previous_days)
+        income = metric_payload(current_store["income"], previous_store["income"], current_days, previous_days)
+        impressions = metric_payload(current_store["impressions"], previous_store["impressions"], current_days, previous_days)
+        delta = float(orders.get("delta_daily_avg") or 0)
+        reason, action = daily_trend_action(store, delta, store_signals_for(signals, store), inventory_warning_count)
+        stores.append(
+            {
+                "store": store,
+                "direction": "up" if delta > 0 else ("down" if delta < 0 else "flat"),
+                "orders": orders,
+                "income": income,
+                "impressions": impressions,
+                "reason": reason,
+                "action": action,
+            }
+        )
+    stores = sorted(stores, key=lambda item: abs(float((item.get("orders") or {}).get("delta_daily_avg") or 0)), reverse=True)
+    four_week_start = latest_date - timedelta(days=27)
+    four_week = build_daily_window(records, four_week_start, latest_date)
+    four_week_status = "ready" if int(four_week.get("data_days") or 0) >= 21 else "insufficient"
+    order_delta = summary["orders"]["delta_daily_avg"]
+    direction = "上涨" if order_delta >= 0 else "下跌"
+    return {
+        "status": "ready" if current_days and previous_days else "insufficient",
+        "message": f"近 7 天日均单量较前 7 天{direction} {order_delta:+.0f} 单；当前窗口 {current_days} 天，前置窗口 {previous_days} 天。",
+        "periods": {
+            "current_7d": current,
+            "previous_7d": previous,
+        },
+        "summary": summary,
+        "stores": stores[:8],
+        "top_movers": stores[:5],
+        "four_week": {
+            "status": four_week_status,
+            "start_date": four_week.get("start_date", ""),
+            "end_date": four_week.get("end_date", ""),
+            "data_days": int(four_week.get("data_days") or 0),
+            "required_days": 21,
+            "message": "近 4 周数据覆盖已足够，可进入周趋势分析。"
+            if four_week_status == "ready"
+            else f"近 4 周目前只有 {int(four_week.get('data_days') or 0)} 个有数据日期，先展示近 7 天趋势，继续积累后再给 4 周判断。",
+        },
     }
 
 
@@ -345,8 +514,9 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, daily_trends: dict, task_health: dict) -> dict:
     rows: list[dict] = []
+    daily_trend_rows: list[dict] = []
     review_weekly_rows: list[dict] = []
     review_recap_rows: list[dict] = []
     review_followup_rows: list[dict] = []
@@ -438,6 +608,24 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                     "store": item.get("store", ""),
                 }
             )
+
+    if daily_trends.get("status") in {"ready", "insufficient"}:
+        for item in (daily_trends.get("top_movers") or [])[:3]:
+            orders = item.get("orders") or {}
+            delta = float(orders.get("delta_daily_avg") or 0)
+            if not delta:
+                continue
+            row = {
+                "level": "建议" if delta < 0 else "提醒",
+                "center": "运营数据中心",
+                "title": f"{item.get('store', '门店')}近7天单量{'下跌' if delta < 0 else '上涨'}",
+                "reason": item.get("reason") or daily_trends.get("message", ""),
+                "action": item.get("action") or "结合日报异常、评价、余额和库存继续复核。",
+                "source": "ops.daily_trends",
+                "store": item.get("store", ""),
+            }
+            daily_trend_rows.append(row)
+        rows.extend(daily_trend_rows)
 
     review_summary = review_actions.get("summary") or {}
     missing_review_evidence_count = int(review_summary.get("missing_evidence_count") or 0)
@@ -768,13 +956,19 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     trend = "待积累"
     summary = "AI建议会优先处理自动化异常，再结合实时单量、评价、余额和库存解释经营波动。"
+    trend_orders = (daily_trends.get("summary") or {}).get("orders") or {}
+    if daily_trends.get("status") in {"ready", "insufficient"} and trend_orders:
+        delta = float(trend_orders.get("delta_daily_avg") or 0)
+        trend = f"近7天{'上涨' if delta >= 0 else '下跌'} {delta:+.0f} 单/日"
+        summary = f"{daily_trends.get('message', '')} {((daily_trends.get('four_week') or {}).get('message') or '').strip()}".strip()
     comparison = realtime_comparison.get("summary") or {}
     order_compare = comparison.get("orders") or {}
     if realtime_comparison.get("status") == "ready" and order_compare:
         delta = float(order_compare.get("delta") or 0)
-        trend = f"{'上涨' if delta >= 0 else '下跌'} {delta:+.0f} 单"
         direction = "上涨" if delta >= 0 else "下跌"
-        summary = f"按昨日同时段对比，整体单量{direction} {delta:+.0f} 单；建议优先结合异常任务、评价、余额和库存判断原因。"
+        if daily_trends.get("status") not in {"ready", "insufficient"}:
+            trend = f"{direction} {delta:+.0f} 单"
+            summary = f"按昨日同时段对比，整体单量{direction} {delta:+.0f} 单；建议优先结合异常任务、评价、余额和库存判断原因。"
         stores = sorted(
             realtime_comparison.get("stores") or [],
             key=lambda item: abs(float(((item.get("orders") or {}).get("delta")) or 0)),
@@ -816,6 +1010,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
     level_order = {"需人工处理": 0, "建议": 1, "提醒": 2}
     rows = sorted(rows, key=lambda item: level_order.get(item["level"], 3))[:8]
+    if daily_trend_rows and not any(item.get("source") == "ops.daily_trends" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = daily_trend_rows[0]
+        elif len(rows) < 8:
+            rows.append(daily_trend_rows[0])
     if review_weekly_rows and not any(item.get("source") == "ops.review_weekly" for item in rows):
         replacement_index = next(
             (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
@@ -870,6 +1073,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             rows[replacement_index] = review_weekly_rows[0]
         elif len(rows) < 8:
             rows.append(review_weekly_rows[0])
+    if daily_trend_rows and not any(item.get("source") == "ops.daily_trends" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = daily_trend_rows[0]
+        elif len(rows) < 8:
+            rows.append(daily_trend_rows[0])
     if not rows:
         rows.append(
             {
@@ -914,14 +1126,16 @@ def main() -> None:
     inventory = inventory_snapshot()
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
+    daily_trends = build_daily_trends(daily, balances, review_actions, inventory)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, user_action_queue, morning_collection, realtime_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, user_action_queue, morning_collection, realtime_collection, realtime_comparison, daily_trends, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
         "realtime_history": realtime_history,
         "realtime_comparison": realtime_comparison,
+        "daily_trends": daily_trends,
         "morning_collection": morning_collection,
         "realtime_collection": realtime_collection,
         "daily": daily,
