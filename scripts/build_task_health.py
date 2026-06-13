@@ -23,6 +23,7 @@ ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "la
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
+FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -516,6 +517,27 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             page = ROOT / "sales-receipt-generator" / "index.html"
             if page.exists():
                 row.update(status="ok", reason="销售单生成器页面存在，可从工具仓库打开。", evidence="sales-receipt-generator/index.html")
+        if generated_at:
+            row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    elif task_id == "finance.bill_analysis":
+        payload = read_json(FINANCE_CENTER_STATUS_PATH, {})
+        generated_at = parse_time(payload.get("generated_at"))
+        summary = payload.get("summary") or {}
+        if payload.get("status") == "ready_for_mapping":
+            row.update(
+                status="warn",
+                reason=f"账单样例和字段字典已就绪，{summary.get('sample_file_count', 0)} 个样例可进入字段映射。",
+                evidence="outputs/finance_center_status/latest.json",
+                human_action="确认科目口径后再生成财务报表。",
+            )
+        elif payload.get("status") == "waiting_samples":
+            row.update(
+                status="warn",
+                reason=payload.get("message") or "财务中心等待账单样例。",
+                evidence="outputs/finance_center_status/latest.json",
+                human_action="提供银行账单和美团/饿了么平台账单样例。",
+            )
         if generated_at:
             row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
 

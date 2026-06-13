@@ -378,21 +378,18 @@
             <h2>自动分析账单</h2>
           </div>
           <div class="center-grid two">
-            <article class="module">
+            <article class="module" id="finance-bills">
               <div class="module-head">
                 <div>
                   <p>账单</p>
                   <h2>银行账单与平台账单</h2>
                 </div>
-                <span class="tag planning">待做</span>
+                <span class="tag planning" id="financeBillStatus">待样例</span>
               </div>
               <div class="module-body">
-                <div class="big-number">上传解析</div>
-                <p>后续支持上传银行账单、平台账单，自动识别收入、佣金、配送费、推广费、退款和补贴。</p>
-                <div class="mini-table">
-                  <div><span>银行账单</span><strong>待接入</strong><em>CSV/XLSX/PDF</em></div>
-                  <div><span>平台账单</span><strong>待接入</strong><em>美团/饿了么</em></div>
-                </div>
+                <div class="big-number" id="financeBillCount">-</div>
+                <p id="financeBillSummary">等待财务中心状态。</p>
+                <div class="mini-table" id="financeBillRows"></div>
               </div>
             </article>
             <article class="module" id="finance-report">
@@ -401,11 +398,12 @@
                   <p>报表</p>
                   <h2>财务报表和数据</h2>
                 </div>
-                <span class="tag planning">待做</span>
+                <span class="tag planning" id="financeReportStatus">待映射</span>
               </div>
               <div class="module-body">
-                <div class="big-number">利润表</div>
-                <p>第一版优先生成门店利润表、费用异常提醒和月度汇总，复用日报、推广费、库存流水作为输入。</p>
+                <div class="big-number" id="financeReportCount">-</div>
+                <p id="financeReportSummary">等待字段映射。</p>
+                <div class="mini-table" id="financeReportRows"></div>
               </div>
             </article>
           </div>

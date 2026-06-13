@@ -873,6 +873,45 @@ function renderTools() {
   );
 }
 
+function renderFinance() {
+  const finance = data.finance_center || {};
+  const summary = finance.summary || {};
+  const sources = finance.sources || [];
+  const accounts = finance.accounts || [];
+  const missing = finance.missing || [];
+  const waiting = finance.status === "waiting_samples";
+  text("financeBillStatus", waiting ? "待样例" : finance.status === "ready_for_mapping" ? "待映射" : "待检查");
+  text("financeBillCount", `${Number(summary.sample_file_count || 0)} 个样例`);
+  text("financeBillSummary", finance.message || "财务中心等待账单样例和字段字典。");
+  document.querySelector("#finance-bills")?.classList.toggle("alert", waiting);
+  rows(
+    "financeBillRows",
+    [
+      ...sources.map((source) => ({
+        label: source.name,
+        value: `${source.file_count || 0} 个文件`,
+        detail: source.path || "",
+        warn: !source.file_count,
+      })),
+      ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、"), warn: true }] : []),
+    ],
+    (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+
+  text("financeReportStatus", waiting ? "待样例" : "待映射");
+  text("financeReportCount", `${Number(summary.account_count || accounts.length)} 个科目`);
+  text("financeReportSummary", "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
+  rows(
+    "financeReportRows",
+    accounts.slice(0, 6).map((account) => ({
+      label: account.direction === "income" ? "收入" : "支出",
+      value: account.name,
+      detail: (account.keywords || []).slice(0, 3).join("、"),
+    })),
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+}
+
 function activateNav() {
   const anchorLinks = navLinks.filter((link) => (link.getAttribute("href") || "").startsWith("#"));
   if (!anchorLinks.length) return;
@@ -904,5 +943,6 @@ renderBidding();
 renderOrdering();
 renderInventory();
 renderTools();
+renderFinance();
 window.addEventListener("scroll", activateNav, { passive: true });
 activateNav();

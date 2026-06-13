@@ -329,12 +329,20 @@
       "name": "自动分析账单",
       "center": "财务中心",
       "module": "自动分析账单",
-      "status": "planned",
+      "status": "running_unstable",
       "risk": "medium",
       "schedule": "待定，按上传账单触发",
-      "entrypoints": [],
-      "outputs": [],
+      "entrypoints": [
+        "scripts/build_finance_center_status.py",
+        "config/finance_bill_schema.json"
+      ],
+      "outputs": [
+        "outputs/finance_center_status/latest.json",
+        "data/finance-inbox/bank/",
+        "data/finance-inbox/platform/"
+      ],
       "health_checks": [
+        "账单样例目录和字段字典可检查",
         "银行账单和平台账单字段映射成功",
         "收入、佣金、配送费、推广费、退款、补贴可拆分",
         "异常费用可追溯到原始行"
@@ -344,7 +352,7 @@
         "确认科目口径",
         "解释无法自动分类的流水"
       ],
-      "next_integration_step": "先收集账单样例并建立字段字典。"
+      "next_integration_step": "财务字段字典已建立，下一步需要用户提供银行账单和平台账单样例。"
     },
     {
       "id": "tools.sales_receipt",
