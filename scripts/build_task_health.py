@@ -15,6 +15,7 @@ OUTPUT_DIR = ROOT / "outputs" / "task_health"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
+REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
@@ -330,20 +331,29 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "ops.realtime_order_income":
         payload = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
+        status_payload = read_json(REALTIME_COLLECTION_STATUS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         source_status = classify_from_json_status(payload.get("status"))
         summary = payload.get("summary") or {}
         missing = int(summary.get("missing_count") or 0)
-        if source_status == "danger":
+        if status_payload.get("status") == "failed_after_success":
+            row.update(status="warn", reason=status_payload.get("message") or "最近一次实时采集失败，但保留上一份成功数据。")
+            row["failure_type"] = status_payload.get("failure_type", "")
+        elif status_payload.get("status") == "stale":
+            row.update(status="warn", reason=status_payload.get("message") or "实时采集最近成功时间偏旧。")
+        elif status_payload.get("status") == "missing_latest":
+            row.update(status="warn", reason=status_payload.get("message") or "实时采集尚未生成成功数据。")
+        elif source_status == "danger":
             row.update(status="danger", reason=payload.get("message") or "实时采集失败。")
         elif generated_at and active_realtime_window(now) and now - generated_at > timedelta(minutes=95):
             row.update(status="warn", reason=f"实时采集已超过计划窗口：{age_text(generated_at, now)}。")
         elif missing:
             row.update(status="warn", reason=f"实时采集缺失 {missing} 个平台门店。")
         elif generated_at:
-            row.update(status="ok", reason=f"实时采集覆盖 {summary.get('platform_store_count') or '-'} 个平台门店。")
+            last_success = status_payload.get("last_success_at") or payload.get("generated_at", "")
+            row.update(status="ok", reason=f"实时采集覆盖 {summary.get('platform_store_count') or '-'} 个平台门店，最近成功 {last_success or '-'}。")
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
-        row["evidence"] = "outputs/realtime_order_income/latest.json"
+        row["evidence"] = "outputs/realtime_order_income_status/latest.json" if status_payload else "outputs/realtime_order_income/latest.json"
 
     elif task_id == "ops.daily_report":
         payload = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})

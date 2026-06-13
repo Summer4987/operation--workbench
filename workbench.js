@@ -211,6 +211,7 @@ function realtimeStoreCompare(item, compareMap) {
 
 function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const realtime = data.realtime || {};
+  const realtimeCollection = data.realtime_collection || {};
   const summary = realtime.summary || {};
   const sourceStores = realtimeStores(daily);
   const compareMap = yesterdayStoreMap(daily);
@@ -219,14 +220,24 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const platformTarget = platformCoverage || summary.missing_count !== undefined ? platformCoverage + Number(summary.missing_count || 0) : 0;
   const targetCount = Number(realtime.target_count ?? daily.target_stores?.length ?? sourceStores.length);
   const missing = Number(summary.missing_count ?? Math.max(0, targetCount - covered));
-  const generatedAt = realtime.generated_at || realtime.collected_at || data.generated_at || "-";
+  const generatedAt = realtimeCollection.last_success_at || realtime.generated_at || realtime.collected_at || data.generated_at || "-";
+  const collectionStatus = realtimeCollection.status || realtime.status;
+  const collectionIssue = realtimeCollection.message || "";
+  const realtimeStatusText = collectionStatus === "stale"
+    ? "偏旧"
+    : collectionStatus === "failed_after_success"
+      ? "最近失败"
+      : collectionStatus === "ok" || realtime.status === "ready" || sourceStores.length
+        ? "已同步"
+        : "待采集";
 
   text("realtimeIncome", yuan(totalIncome));
   text("realtimeOrders", `${num(totalOrders)} 单`);
   text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace("较昨日同时段 ", ""));
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
-  text("realtimeStatus", realtime.status === "ok" || realtime.status === "ready" || sourceStores.length ? "已同步" : "待采集");
-  text("realtimeMeta", `最近采集：${generatedAt}，覆盖 ${covered || 0} 家门店，缺失 ${missing} 个平台门店。`);
+  text("realtimeStatus", realtimeStatusText);
+  text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，缺失 ${missing} 个平台门店。${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
+  document.querySelector("#realtime")?.classList.toggle("alert", ["stale", "failed_after_success", "partial", "missing_latest"].includes(collectionStatus));
 
   rows(
     "realtimeStoreRows",

@@ -69,19 +69,21 @@
       ],
       "outputs": [
         "outputs/realtime_order_income/latest.json",
+        "outputs/realtime_order_income_status/latest.json",
         "data/realtime-history.json",
         "workbench-data.js"
       ],
       "health_checks": [
         "latest.json 更新时间不超过当前计划窗口",
         "覆盖 8 家门店和 16 个平台门店",
-        "昨日同时段对比可生成或明确提示缺历史"
+        "昨日同时段对比可生成或明确提示缺历史",
+        "最近一次成功时间和失败分类可读取"
       ],
       "human_needed_when": [
         "美团或饿了么登录失效",
         "API/页面结构变化导致无法识别门店"
       ],
-      "next_integration_step": "增加采集失败分类和最近一次成功时间。"
+      "next_integration_step": "实时采集状态已接入最近成功时间和失败分类，下一步把平台级失败恢复动作拆开展示。"
     },
     {
       "id": "ops.daily_report",

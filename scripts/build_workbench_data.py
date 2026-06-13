@@ -14,6 +14,7 @@ OUTPUT_PATH = ROOT / "workbench-data.js"
 DATA_DIR = ROOT / "data"
 REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
+REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
@@ -595,6 +596,7 @@ def main() -> None:
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})
+    realtime_collection = read_json(REALTIME_COLLECTION_STATUS_PATH, {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
@@ -617,6 +619,7 @@ def main() -> None:
         "realtime_history": realtime_history,
         "realtime_comparison": realtime_comparison,
         "morning_collection": morning_collection,
+        "realtime_collection": realtime_collection,
         "daily": daily,
         "balances": balances,
         "budget": budget,
