@@ -19,6 +19,8 @@ EXPECTED_STEPS = [
     "双平台评价下载",
     "门店日报采集并发布",
     "推广余额总巡检",
+    "巡检证据清单生成",
+    "巡检证据上传云端",
     "同步云端预算配置",
     "推广预算初始化预览",
     "饿了么午餐预算真实提交",
@@ -48,6 +50,8 @@ def module_for_step(step: str) -> str:
         return "日报采集"
     if "余额" in step:
         return "推广余额"
+    if "证据" in step:
+        return "巡检证据"
     if "预算" in step:
         return "推广预算"
     if "云端" in step or "发布" in step:
@@ -75,6 +79,8 @@ def human_action_for(step: str, failure_type: str, platform: str) -> str:
         return f"检查{target}门店映射或门店名称是否变更，再重跑相关子步骤。"
     if "预算" in step:
         return f"先暂停真实预算提交，核对{target}预算页面、门店映射和目标预算后再重跑。"
+    if "证据" in step and "云端" in step:
+        return "先在 Mac mini 检查云端 SSH 密钥、网络和证据清单，再运行 scripts/upload_store_inspection_evidence.zsh --dry-run。"
     if "发布" in step or "云端" in step:
         return "先检查网络和云端发布权限，再重新发布运营总看板。"
     return f"查看{step}日志，确认登录、权限、页面结构和输入数据后重跑。"

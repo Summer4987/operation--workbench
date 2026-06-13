@@ -13,6 +13,7 @@ chmod +x "$ROOT/morning-ops/上午运营一键采集.command" \
   "$ROOT/scripts/run_realtime_order_income.zsh" \
   "$ROOT/scripts/run_evening_budget.zsh" \
   "$ROOT/scripts/run_current_budget.zsh" \
+  "$ROOT/scripts/upload_store_inspection_evidence.zsh" \
   "$ROOT/安装实时单量收入采集.command"
 
 cat > "$SCRIPT_DIR/run_realtime_order_income.zsh" <<EOF

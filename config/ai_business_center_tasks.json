@@ -211,7 +211,8 @@
         "store-inspection/latest-data.js",
         "outputs/promo_balance_status/latest.json",
         "outputs/store_inspection_evidence_manifest/latest.json",
-        "outputs/store_inspection/"
+        "outputs/store_inspection/",
+        "云端 on-demand/store_inspection/YYYY-MM-DD/"
       ],
       "health_checks": [
         "latest.json 有巡检生成时间",
@@ -220,6 +221,7 @@
         "平台级失败包含恢复指引和复查命令",
         "失败截图和 OCR 证据入口可读取",
         "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
+        "Mac mini 上午定时任务会在余额巡检后上传证据",
         "低余额门店进入重点预警"
       ],
       "human_needed_when": [
@@ -227,7 +229,7 @@
         "余额识别失败",
         "推广余额不足需要充值"
       ],
-      "next_integration_step": "证据上传 dry-run 和云端保留策略已接入，下一步在 Mac mini 定时任务中启用证据上传。"
+      "next_integration_step": "Mac mini 上午定时任务已接入证据上传，下一步在 Mac mini 做一次只读 dry-run 和生产冒烟检查。"
     },
     {
       "id": "growth.promo_bid",
