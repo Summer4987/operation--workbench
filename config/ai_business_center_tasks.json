@@ -127,6 +127,7 @@
         "business-report-dashboard/data/latest.json"
       ],
       "health_checks": [
+        "饿了么和美团评价下载分别写入运行状态",
         "评价汇总 review_summary 状态为 ready",
         "差评数量和关键词可读取"
       ],

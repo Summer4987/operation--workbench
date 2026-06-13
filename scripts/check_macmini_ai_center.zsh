@@ -43,6 +43,8 @@ echo "== 配置与语法检查 =="
   scripts/check_inventory_cloud_health.py \
   scripts/build_task_health.py \
   scripts/build_workbench_data.py \
+  business-report-dashboard/chrome_cdp_reports.py \
+  business-report-dashboard/process_reports.py \
   morning-ops/run_morning_ops.py \
   store-inspection/run_all_balances.py
 /bin/zsh -n scripts/run_realtime_order_income.zsh

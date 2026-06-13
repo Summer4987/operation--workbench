@@ -196,6 +196,16 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
         row["evidence"] = task_run["log_path"]
     if updated_at:
         row["last_seen_at"] = updated_at.strftime("%Y-%m-%d %H:%M:%S")
+    if row["id"] == "ops.review_dashboard":
+        extra = task_run.get("extra") or {}
+        platform_parts = []
+        for key, label in (("eleme", "饿了么"), ("meituan", "美团")):
+            status = extra.get(f"{key}_status")
+            message = extra.get(f"{key}_message")
+            if status and message:
+                platform_parts.append(f"{label}：{message}")
+        if platform_parts:
+            row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
     return row
 
 

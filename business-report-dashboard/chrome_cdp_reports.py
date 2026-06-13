@@ -18,6 +18,12 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent
+SCRIPTS_DIR = ROOT.parent / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from task_run_state import classify_failure_text, record_task_event  # noqa: E402
+
 CONFIG_PATH = ROOT / "chrome_cdp_config.json"
 ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/chain/93331264/comments#app.chainshop.comments"
 MEITUAN_COMMENTS_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw"
@@ -1189,18 +1195,56 @@ def download_meituan_reviews() -> Path:
     raise RuntimeError(f"美团评价任务已提交，但下载列表没有拿到文件：{last_error}")
 
 
+def record_review_platform_event(
+    platform_key: str,
+    platform_name: str,
+    status: str,
+    message: str,
+    *,
+    step: str,
+    log_path: str | Path = "",
+) -> None:
+    extra = {
+        f"{platform_key}_status": status,
+        f"{platform_key}_message": message,
+    }
+    if log_path:
+        extra[f"{platform_key}_path"] = str(log_path)
+    record_task_event(
+        "ops.review_dashboard",
+        status,
+        message=message,
+        step=step,
+        log_path=log_path,
+        failure_type=classify_failure_text(message) if status == "failed" else "",
+        extra=extra,
+    )
+
+
 def download_reviews_and_process() -> None:
     failures: list[str] = []
-    for name, downloader in [("饿了么评价", download_eleme_reviews), ("美团评价", download_meituan_reviews)]:
+    platforms = [
+        ("eleme", "饿了么评价", download_eleme_reviews),
+        ("meituan", "美团评价", download_meituan_reviews),
+    ]
+    record_task_event("ops.review_dashboard", "running", message="双平台评价下载开始。", step="start")
+    for platform_key, name, downloader in platforms:
+        record_review_platform_event(platform_key, name, "running", f"{name}下载开始。", step=f"{platform_key}-download")
         try:
-            downloader()
+            target = downloader()
+            record_review_platform_event(platform_key, name, "success", f"{name}下载完成：{target.name}", step=f"{platform_key}-download", log_path=target)
         except Exception as exc:
             failures.append(f"{name}：{exc}")
             print(f"{name}下载失败：{exc}", file=sys.stderr)
+            record_review_platform_event(platform_key, name, "failed", f"{name}下载失败：{exc}", step=f"{platform_key}-download")
     if failures:
-        raise RuntimeError("评价下载未全部完成：" + "；".join(failures))
+        message = "评价下载未全部完成：" + "；".join(failures)
+        record_task_event("ops.review_dashboard", "failed", message=message, step="download", failure_type=classify_failure_text(message))
+        raise RuntimeError(message)
     print("双平台评价下载完成。")
+    record_task_event("ops.review_dashboard", "running", message="双平台评价下载完成，开始生成评价看板。", step="process")
     process_reports()
+    record_task_event("ops.review_dashboard", "success", message="评价看板已更新。", step="process", log_path=ROOT / "data" / "latest.json")
 
 
 def local_report_candidate(target_date: str, platform: str) -> Path | None:
