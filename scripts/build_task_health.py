@@ -14,6 +14,7 @@ TASKS_PATH = ROOT / "config" / "ai_business_center_tasks.json"
 OUTPUT_DIR = ROOT / "outputs" / "task_health"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
+INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -199,6 +200,17 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
 
 
 def inventory_probe() -> dict[str, Any]:
+    health = read_json(INVENTORY_HEALTH_PATH, {})
+    if health:
+        stats = health.get("stats") or {}
+        return {
+            "status": health.get("status"),
+            "generated_at": health.get("generated_at", ""),
+            "warning_count": int(stats.get("warning_count") or 0),
+            "product_count": int(stats.get("product_count") or 0),
+            "message": health.get("message", ""),
+            "evidence": "outputs/inventory_health/latest.json",
+        }
     try:
         with urlopen(CLOUD_INVENTORY_URL, timeout=8) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -206,6 +218,8 @@ def inventory_probe() -> dict[str, Any]:
         return {
             "status": "ok",
             "warning_count": int(stats.get("warning_count") or 0),
+            "product_count": int(stats.get("product_count") or 0),
+            "evidence": "云端 /api/summary",
         }
     except Exception as exc:
         return {"status": "missing", "error": str(exc)}
@@ -287,8 +301,23 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "flow.inventory":
         payload = runtime.get("inventory") or {}
+        health_payload = inventory_probe()
+        if health_payload.get("generated_at"):
+            payload = health_payload
         if payload.get("status") == "ok":
-            row.update(status="ok", reason=f"云端库存可访问，预警 {payload.get('warning_count', 0)} 项。")
+            row.update(status="ok", reason=payload.get("message") or f"云端库存可访问，预警 {payload.get('warning_count', 0)} 项。")
+            generated_at = parse_time(payload.get("generated_at"))
+            if generated_at:
+                row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
+            if payload.get("evidence"):
+                row["evidence"] = payload["evidence"]
+        elif payload.get("status") == "failed":
+            row.update(status="danger", reason=payload.get("message") or "库存云端健康检查失败。")
+            generated_at = parse_time(payload.get("generated_at"))
+            if generated_at:
+                row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
+            if payload.get("evidence"):
+                row["evidence"] = payload["evidence"]
         elif row["status"] == "unknown":
             row.update(status="warn", reason="库存服务待通过 workbench 数据生成脚本确认。")
 

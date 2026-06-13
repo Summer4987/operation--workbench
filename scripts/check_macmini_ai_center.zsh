@@ -40,6 +40,7 @@ echo "== 配置与语法检查 =="
 "$PYTHON" -m py_compile \
   scripts/task_run_state.py \
   scripts/record_task_run.py \
+  scripts/check_inventory_cloud_health.py \
   scripts/build_task_health.py \
   scripts/build_workbench_data.py \
   morning-ops/run_morning_ops.py \
@@ -57,6 +58,7 @@ fi
 echo
 
 echo "== 生成只读健康数据 =="
+"$PYTHON" scripts/check_inventory_cloud_health.py
 "$PYTHON" scripts/build_task_health.py
 "$PYTHON" scripts/build_workbench_data.py
 echo

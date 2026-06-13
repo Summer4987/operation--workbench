@@ -235,15 +235,18 @@
       "risk": "medium",
       "schedule": "云端库存服务持续运行",
       "entrypoints": [
+        "scripts/check_inventory_cloud_health.py",
         "inventory-board/app/main.py",
         "inventory-board/scripts/sync_order_outputs.py"
       ],
       "outputs": [
+        "outputs/inventory_health/latest.json",
         "inventory-board/data/inventory.sqlite3",
         "云端 /api/summary",
         "~/Desktop/库存管理/出库记录"
       ],
       "health_checks": [
+        "outputs/inventory_health/latest.json 最近一次检查成功",
         "云端 /api/summary 可访问",
         "库存预警数量可读取",
         "出库单可同步到本地"
@@ -253,7 +256,7 @@
         "出库单需要打印或补录",
         "供应商变更"
       ],
-      "next_integration_step": "把库存预警和订货建议打通。"
+      "next_integration_step": "把库存预警拆成可操作补货建议，并和订货建议打通。"
     },
     {
       "id": "flow.auto_ordering",
