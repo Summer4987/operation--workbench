@@ -1094,6 +1094,25 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
+    singleton_sources = {
+        "system.macmini_smoke",
+        "flow.auto_ordering",
+        "growth.promo_balance",
+        "growth.promo_bid",
+        "finance.bill_analysis",
+        "tools.franchise_contract",
+    }
+    seen_singletons = set()
+    deduped_rows = []
+    for row in rows:
+        source = row.get("source", "")
+        if source in singleton_sources:
+            if source in seen_singletons:
+                continue
+            seen_singletons.add(source)
+        deduped_rows.append(row)
+    rows = deduped_rows
+
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "trend": trend,

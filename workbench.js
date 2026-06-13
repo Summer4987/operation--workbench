@@ -526,7 +526,7 @@ function renderAiAdvice() {
       (item) => {
         const cls = item.level === "需人工处理" || item.level === "建议" ? "warn-row" : "good-row";
         const detail = [item.reason, item.action].filter(Boolean).join("；");
-        return `<div class="${cls}"><span>${escapeHtml(item.level || item.center || "建议")}</span><strong>${escapeHtml(item.title || "-")}</strong><em>${escapeHtml(detail || "-")}</em></div>`;
+        return `<div class="${cls}"><span>${escapeHtml(item.level || item.center || "建议")}</span><strong>${escapeHtml(item.title || "-")}</strong><em>${escapeHtml(compactText(detail || "-", 170))}</em></div>`;
       }
     );
     return;
