@@ -873,6 +873,22 @@ def write_dashboard(payload: dict) -> Path:
     .toolbar label {{ color: var(--muted); font-size: 13px; }}
     .toolbar select {{ height: 36px; min-width: 150px; padding: 0 34px 0 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: var(--text); font-size: 14px; }}
     .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }}
+    .ai-week-panel {{ margin-bottom: 12px; }}
+    .week-analysis-body {{ display: grid; gap: 12px; }}
+    .week-summary-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }}
+    .week-summary-card {{ min-width: 0; min-height: 78px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; display: grid; gap: 7px; }}
+    .week-summary-card span {{ color: var(--muted); font-size: 12px; font-weight: 650; }}
+    .week-summary-card strong {{ font-size: 20px; line-height: 1; }}
+    .week-summary-card:first-child strong {{ font-size: 14px; line-height: 1.35; }}
+    .week-summary-card em {{ color: var(--muted); font-size: 12px; font-style: normal; }}
+    .week-store-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }}
+    .week-store-card {{ min-width: 0; min-height: 128px; padding: 13px 14px; border: 1px solid var(--line); border-left: 4px solid #98a2b3; border-radius: 8px; background: #fff; display: grid; gap: 7px; }}
+    .week-store-card.up {{ border-left-color: var(--bad); background: #fff8f7; }}
+    .week-store-card.down {{ border-left-color: var(--good); background: #f0fdf4; }}
+    .week-store-card b {{ font-size: 15px; }}
+    .week-store-card strong {{ font-size: 14px; }}
+    .week-store-card p {{ margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }}
+    .week-store-card em {{ color: var(--text); font-size: 12px; font-style: normal; font-weight: 650; line-height: 1.45; }}
     .focus-panel {{ margin-bottom: 12px; }}
     .focus-list {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
     .focus-item {{ display: grid; gap: 5px; min-height: 74px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid #98a2b3; border-radius: 8px; background: #fff; color: inherit; text-decoration: none; }}
@@ -966,7 +982,7 @@ def write_dashboard(payload: dict) -> Path:
       header {{ display: block; }}
       .toolbar {{ margin-top: 12px; }}
       .kpis, .compare-grid {{ grid-template-columns: 1fr; }}
-      .focus-list, .analysis-grid {{ grid-template-columns: 1fr; }}
+      .focus-list, .analysis-grid, .week-summary-grid, .week-store-grid {{ grid-template-columns: 1fr; }}
       .chart-box {{ height: 280px; }}
       .customer-chart {{ overflow-x: auto; grid-template-columns: repeat(8, 92px); }}
     }}
@@ -990,6 +1006,11 @@ def write_dashboard(payload: dict) -> Path:
       <div class="card"><div class="label">总单量</div><div class="value" id="kpiOrders"></div><div class="delta" id="ordersDelta"></div></div>
       <div class="card"><div class="label">总曝光</div><div class="value" id="kpiImpressions"></div><div class="delta" id="impressionsDelta"></div></div>
       <div class="card"><div class="label">平均客单价</div><div class="value" id="kpiTicket"></div><div class="hint" id="kpiTicketHint"></div></div>
+    </section>
+
+    <section class="panel ai-week-panel">
+      <div class="section-title"><h2>AI周分析</h2><span>近 7 个数据日对比前 7 个数据日，涨红跌绿</span></div>
+      <div class="week-analysis-body" id="aiWeekAnalysis"></div>
     </section>
 
     <section class="panel focus-panel">
@@ -1236,6 +1257,111 @@ def write_dashboard(payload: dict) -> Path:
       }}).join('');
     }}
 
+    function recordsForDates(dateList) {{
+      const allowed = new Set(dateList);
+      return records.filter((row) => allowed.has(row.date));
+    }}
+
+    function weekPeriod(date) {{
+      const selectedIndex = datesAsc.indexOf(date);
+      if (selectedIndex < 0) return {{ currentDates: [], previousDates: [] }};
+      const currentStart = Math.max(0, selectedIndex - 6);
+      const previousStart = Math.max(0, currentStart - 7);
+      return {{
+        currentDates: datesAsc.slice(currentStart, selectedIndex + 1),
+        previousDates: datesAsc.slice(previousStart, currentStart),
+      }};
+    }}
+
+    function dailyAverage(value, dayCount) {{
+      return dayCount ? Number(value || 0) / dayCount : 0;
+    }}
+
+    function weekDeltaText(delta, unit, formatter = fmtInt) {{
+      const absText = formatter(Math.abs(delta));
+      return `${{delta >= 0 ? '涨 +' : '跌 -'}}${{absText}}${{unit}}`;
+    }}
+
+    function weekReason(current, previous, orderDelta, incomeDelta) {{
+      const impressionDelta = Number(current.total_impressions || 0) - Number(previous.total_impressions || 0);
+      const orderConversionDelta = Number(current.order_conversion || 0) - Number(previous.order_conversion || 0);
+      const ticketDelta = Number(current.ticket || 0) - Number(previous.ticket || 0);
+      if (orderDelta < 0 && impressionDelta < 0) return '主要原因偏向流量减少，优先检查曝光入口、活动资源和推广状态。';
+      if (orderDelta < 0 && orderConversionDelta < 0) return '主要原因偏向下单转化走弱，优先检查价格、主推品、配送费和差评影响。';
+      if (incomeDelta < 0 && ticketDelta < 0) return '收入下降同时客单走低，优先复看套餐结构、满减力度和平台补贴。';
+      if (orderDelta > 0 && incomeDelta > 0) return '单量和营业额同步提升，建议保留有效动作并确认是否能复制到同类门店。';
+      if (orderDelta > 0) return '单量提升但收入未完全同步，继续观察客单价和优惠成本。';
+      return '变化不集中在单一指标，建议结合平台拆分、营业时长和活动记录复核。';
+    }}
+
+    function renderWeeklyAnalysis(date) {{
+      const container = document.getElementById('aiWeekAnalysis');
+      const {{ currentDates, previousDates }} = weekPeriod(date);
+      if (!container) return;
+      if (!currentDates.length || !previousDates.length) {{
+        container.innerHTML = '<div class="empty">历史数据不足，暂时无法生成 7 日环比周分析。</div>';
+        return;
+      }}
+
+      const currentStores = storeSummary(recordsForDates(currentDates));
+      const previousStores = storeSummary(recordsForDates(previousDates));
+      const previousByStore = new Map(previousStores.map((row) => [row.store, row]));
+      const currentTotals = totalsFromStores(currentStores);
+      const previousTotals = totalsFromStores(previousStores);
+      const currentDays = currentDates.length;
+      const previousDays = previousDates.length;
+      const orderDelta = dailyAverage(currentTotals.totalOrders, currentDays) - dailyAverage(previousTotals.totalOrders, previousDays);
+      const incomeDelta = dailyAverage(currentTotals.totalIncome, currentDays) - dailyAverage(previousTotals.totalIncome, previousDays);
+      const ticketDelta = Number(currentTotals.ticket || 0) - Number(previousTotals.ticket || 0);
+      const periodText = `${{currentDates[0]}} 至 ${{currentDates[currentDates.length - 1]}} 对比 ${{previousDates[0]}} 至 ${{previousDates[previousDates.length - 1]}}`;
+
+      const movers = currentStores.map((row) => {{
+        const previous = previousByStore.get(row.store) || {{}};
+        const storeOrderDelta = dailyAverage(row.total_orders, currentDays) - dailyAverage(previous.total_orders, previousDays);
+        const storeIncomeDelta = dailyAverage(row.total_income, currentDays) - dailyAverage(previous.total_income, previousDays);
+        return {{
+          ...row,
+          previous,
+          storeOrderDelta,
+          storeIncomeDelta,
+          score: Math.abs(storeOrderDelta) + Math.abs(storeIncomeDelta / 120),
+        }};
+      }}).sort((a, b) => b.score - a.score).slice(0, 8);
+
+      container.innerHTML = `
+        <div class="week-summary-grid">
+          <div class="week-summary-card">
+            <span>分析区间</span>
+            <strong>${{periodText}}</strong>
+            <em>按已有日报数据日计算，不强行补空日期</em>
+          </div>
+          <div class="week-summary-card">
+            <span>单量日均环比</span>
+            <strong class="delta ${{deltaClass(orderDelta)}}">${{weekDeltaText(orderDelta, ' 单/日')}}</strong>
+            <em>本期日均 ${{fmtInt(dailyAverage(currentTotals.totalOrders, currentDays))}} 单</em>
+          </div>
+          <div class="week-summary-card">
+            <span>营业额日均环比</span>
+            <strong class="delta ${{deltaClass(incomeDelta)}}">${{weekDeltaText(incomeDelta, ' 元/日', fmtMoney)}}</strong>
+            <em>客单价 ${{weekDeltaText(ticketDelta, ' 元', fmtMoney)}}</em>
+          </div>
+        </div>
+        <div class="week-store-grid">
+          ${{movers.map((row) => {{
+            const tone = row.storeOrderDelta >= 0 ? 'up' : 'down';
+            return `
+              <div class="week-store-card ${{tone}}">
+                <b>${{row.store}}</b>
+                <strong class="delta ${{tone}}">${{weekDeltaText(row.storeOrderDelta, ' 单/日')}}</strong>
+                <p>营业额日均 ${{weekDeltaText(row.storeIncomeDelta, ' 元/日', fmtMoney)}}，下单转化 ${{fmtRate(row.order_conversion)}}。</p>
+                <em>${{weekReason(row, row.previous, row.storeOrderDelta, row.storeIncomeDelta)}}</em>
+              </div>
+            `;
+          }}).join('')}}
+        </div>
+      `;
+    }}
+
     function renderCustomerBars(stores) {{
       const ranked = [...stores].sort((a, b) => safeDiv(b.new_customer_orders, b.new_customer_orders + b.old_customer_orders) - safeDiv(a.new_customer_orders, a.new_customer_orders + a.old_customer_orders));
       document.getElementById('customerBars').innerHTML = ranked.map((row) => {{
@@ -1301,6 +1427,7 @@ def write_dashboard(payload: dict) -> Path:
       renderCustomerBars(stores);
       document.getElementById('previousDateLabel').textContent = prevDate && sharedPlatforms.length ? `对比 ${{prevDate}}，共同平台：${{sharedPlatforms.join('、')}}` : '无可比前一日平台数据';
       renderChangeBars('incomeChangeBars', stores, 'income_change');
+      renderWeeklyAnalysis(date);
 
       document.getElementById('storeRows').innerHTML = stores
         .sort((a, b) => b.total_income - a.total_income)
