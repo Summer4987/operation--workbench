@@ -40,6 +40,26 @@ def human_action_for(failure_type: str, platform: str) -> str:
     return f"先查看{platform}实时采集日志，确认登录、页面、接口和门店映射是否正常。"
 
 
+def store_recovery_action(platform: str, store: str, failure_type: str) -> dict[str, Any]:
+    if failure_type == "browser_closed":
+        action = f"先恢复 Mac mini Chrome/CDP，再确认{platform}后台能看到{store}实时数据。"
+    elif failure_type == "auth_block":
+        action = f"先恢复{platform}登录或验证码，再检查{store}是否回到实时采集结果。"
+    elif failure_type == "missing_platform_store":
+        action = f"核对{platform}门店映射、门店是否营业、名称是否改动：{store}。"
+    elif failure_type == "page_structure":
+        action = f"人工打开{platform}{store}后台，确认实时单量位置是否变化。"
+    else:
+        action = f"查看{platform}{store}实时采集日志，确认登录、页面、接口和门店映射。"
+    return {
+        "platform": platform,
+        "store": store,
+        "failure_type": failure_type,
+        "human_action": action,
+        "verify_command": "python3 scripts/realtime_order_income.py",
+    }
+
+
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -136,12 +156,26 @@ def build_platform_failures(payload: dict[str, Any], fallback_failure_type: str)
 
     failures = []
     for row in by_platform.values():
+        unique_stores = []
+        for store in row["stores"]:
+            if store not in unique_stores:
+                unique_stores.append(store)
+        row["stores"] = unique_stores
+        row["store_recovery_actions"] = [
+            store_recovery_action(row["platform"], store, row["failure_type"])
+            for store in unique_stores
+        ]
         if not row["message"]:
             store_text = "、".join(row["stores"][:4])
             if len(row["stores"]) > 4:
                 store_text += f"等 {len(row['stores'])} 家"
             row["message"] = f"缺失 {row['missing_count']} 个平台门店：{store_text or '待确认'}。"
         row["human_action"] = human_action_for(row["failure_type"], row["platform"])
+        if row["store_recovery_actions"]:
+            first_store_action = row["store_recovery_actions"][0]["human_action"]
+            row["recovery_summary"] = f"{row['human_action']} 门店级先处理：{first_store_action}"
+        else:
+            row["recovery_summary"] = row["human_action"]
         failures.append(row)
     return sorted(failures, key=lambda item: (item.get("platform") or "", item.get("missing_count") or 0), reverse=True)
 

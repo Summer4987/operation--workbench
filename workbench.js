@@ -255,6 +255,14 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
       if (item.kind === "platform_failure") {
         const stores = (item.stores || []).slice(0, 4).join("、");
         const storeText = stores ? `${stores}${(item.stores || []).length > 4 ? "等" : ""}` : "待确认";
+        const storeActions = (item.store_recovery_actions || [])
+          .slice(0, 3)
+          .map((action) => `${action.store}：${action.human_action}`)
+          .join("；");
+        const detail = [item.message || storeText, item.recovery_summary || item.human_action || "先处理平台状态后重跑实时采集。", storeActions]
+          .filter(Boolean)
+          .map((part) => escapeHtml(part))
+          .join("<br>");
         return `
         <div class="realtime-store realtime-store-alert">
           <div class="realtime-store-head">
@@ -266,7 +274,7 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
               <span>缺失</span>
               <strong>${num(item.missing_count || 0)} 个门店</strong>
             </div>
-            <em>${escapeHtml(item.message || storeText)}<br>${escapeHtml(item.human_action || "先处理平台状态后重跑实时采集。")}</em>
+            <em>${detail}</em>
           </div>
         </div>`;
       }
@@ -360,7 +368,7 @@ function priorityItems() {
     items.push({
       type: "实时采集失败",
       title: `${realtimeSummary.platform_failure_count || realtimeFailures.length} 个平台失败`,
-      detail: realtimeFailures.map((item) => `${item.platform}：缺 ${item.missing_count || 0} 个门店`).join("；"),
+      detail: realtimeFailures.map((item) => item.recovery_summary || `${item.platform}：缺 ${item.missing_count || 0} 个门店`).join("；"),
       level: realtimeCollection.status === "missing_latest" ? "danger" : "warning",
     });
   }

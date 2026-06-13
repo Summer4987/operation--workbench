@@ -388,13 +388,20 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     realtime_failures = realtime_collection.get("platform_failures") or []
     if realtime_failures:
         summary_realtime = realtime_collection.get("summary") or {}
+        recovery_actions = []
+        for item in realtime_failures[:2]:
+            store_actions = item.get("store_recovery_actions") or []
+            if store_actions:
+                recovery_actions.append("；".join(action.get("human_action", "") for action in store_actions[:2] if action.get("human_action")))
+            else:
+                recovery_actions.append(item.get("recovery_summary") or item.get("human_action", ""))
         rows.append(
             {
                 "level": "需人工处理" if realtime_collection.get("status") == "missing_latest" else "建议",
                 "center": "运营数据中心",
                 "title": "实时采集平台失败",
                 "reason": f"最近失败记录显示 {summary_realtime.get('platform_failure_count', len(realtime_failures))} 个平台失败，缺失 {summary_realtime.get('failed_platform_store_count', 0)} 个平台门店。",
-                "action": realtime_collection.get("human_action") or "先恢复平台登录、Chrome/CDP 状态或门店映射，再重跑实时采集。",
+                "action": "；".join(item for item in recovery_actions if item) or realtime_collection.get("human_action") or "先恢复平台登录、Chrome/CDP 状态或门店映射，再重跑实时采集。",
                 "source": "ops.realtime_order_income",
             }
         )
