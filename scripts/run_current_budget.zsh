@@ -15,6 +15,12 @@ record_task_run() {
   "$STATE_PYTHON" scripts/record_task_run.py "$@" || true
 }
 
+failure_tail() {
+  if [[ -f "$RUN_LOG" ]]; then
+    tail -n 18 "$RUN_LOG" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g'
+  fi
+}
+
 PERIOD="auto"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -65,7 +71,9 @@ finish_task_state() {
   if [[ "$rc" -eq 0 ]]; then
     record_task_run "$TASK_ID" success --message "${PERIOD}预算初始化完成。" --step "$TASK_STEP" --log-path "$RUN_LOG" --returncode "$rc"
   else
-    record_task_run "$TASK_ID" failed --message "${PERIOD}预算初始化失败：${TASK_STEP}。" --step "$TASK_STEP" --log-path "$RUN_LOG" --returncode "$rc"
+    local detail
+    detail="$(failure_tail)"
+    record_task_run "$TASK_ID" failed --message "${PERIOD}预算初始化失败：${TASK_STEP}。${detail}" --step "$TASK_STEP" --log-path "$RUN_LOG" --returncode "$rc"
   fi
 }
 trap finish_task_state EXIT

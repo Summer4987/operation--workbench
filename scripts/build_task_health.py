@@ -26,6 +26,18 @@ STATUS_LABELS = {
     "unknown": "待接入",
 }
 
+FAILURE_TYPE_LABELS = {
+    "auth_block": "登录/验证码/权限阻塞",
+    "outside_allowed_window": "不在允许执行窗口",
+    "permission": "系统权限不足",
+    "timeout": "执行超时",
+    "budget_guardrail": "预算安全校验拦截",
+    "page_structure": "平台页面结构变化",
+    "store_mapping": "门店映射缺失",
+    "manual_browser_setup": "需要先人工打开平台页面",
+    "execution_failed": "执行失败",
+}
+
 
 def read_json(path: Path, fallback: Any) -> Any:
     try:
@@ -184,7 +196,9 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
         failure_type = task_run.get("failure_type")
         row["reason"] = task_run.get("message") or "最近一次运行失败。"
         if failure_type:
-            row["reason"] = f"{row['reason']}（{failure_type}）"
+            row["failure_type"] = failure_type
+            row["failure_type_text"] = FAILURE_TYPE_LABELS.get(failure_type, failure_type)
+            row["reason"] = f"{row['reason']}（{row['failure_type_text']}）"
     elif run_status == "skipped":
         row["status"] = "warn"
         row["reason"] = task_run.get("message") or "最近一次运行跳过。"

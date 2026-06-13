@@ -27,6 +27,25 @@ AUTH_BLOCK_PATTERNS = [
     "Permission denied",
 ]
 
+BUDGET_RISK_PATTERNS = [
+    "自动提预算",
+    "预算范围为0-0",
+    "预算已耗尽",
+    "目标预算",
+    "保存后预算",
+    "禁止保存",
+]
+
+PAGE_STRUCTURE_PATTERNS = [
+    "没有找到按钮",
+    "没有识别到",
+    "没有可见",
+    "未打开预算设置弹窗",
+    "没有进入点金推广",
+    "页面结构",
+    "接口缺少",
+]
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -75,6 +94,14 @@ def classify_failure_text(text: str | None, returncode: int | None = None) -> st
         return "outside_allowed_window"
     if "Permission denied" in body:
         return "permission"
+    if "没有门店 wmPoiId" in body or "没有配置美团门店 ID" in body or "没有匹配到指定门店" in body:
+        return "store_mapping"
+    if "没有找到本地 Chrome 最近的美团推广 URL" in body or "请先打开一次美团点金推广页" in body:
+        return "manual_browser_setup"
+    if any(pattern in body for pattern in BUDGET_RISK_PATTERNS):
+        return "budget_guardrail"
+    if any(pattern in body for pattern in PAGE_STRUCTURE_PATTERNS):
+        return "page_structure"
     return "execution_failed"
 
 
