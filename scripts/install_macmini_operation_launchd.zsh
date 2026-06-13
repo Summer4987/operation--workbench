@@ -243,13 +243,13 @@ do
   rm -f "$LAUNCH_DIR/${old_label}.plist"
 done
 
-write_plist "com.summer.operation.morning" 9 30 "$ROOT/morning-ops/run_morning_ops_if_10am.command" "$ROOT/morning-ops"
+write_plist "com.summer.operation.morning" 8 0 "$ROOT/morning-ops/run_morning_ops_if_10am.command" "$ROOT/morning-ops"
 write_realtime_plist
 write_plist "com.summer.operation.evening" 17 30 "$ROOT/scripts/run_evening_budget.zsh" "$ROOT"
 
 echo
 echo "Mac mini 定时任务已安装。"
-echo "上午：每天 9:30 一键运营"
+echo "上午：每天 8:00 一键运营"
 echo "实时：每天 10:30-13:00 每半小时、13:00-17:00 每小时、17:00-20:00 每半小时"
 echo "库存：已改为云端主流程，不再安装 10:10 本地同步"
 echo "晚间：每天 17:30 推广预算真实提交"
