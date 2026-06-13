@@ -164,6 +164,9 @@ def build_payload() -> dict[str, Any]:
     bid_summary = bid_queue.get("summary") or {}
     queue_count = int(bid_summary.get("queue_count") or bid_summary.get("approval_required_count") or 0)
     if bid_queue.get("status") == "waiting_approval" and queue_count:
+        bid_digest = bid_queue.get("approval_digest") or {}
+        digest_lines = (bid_digest.get("warnings") or []) + (bid_digest.get("top_items") or [])[:3]
+        bid_action = "；".join(digest_lines) or "打开推广出价审批队列，核对预算消耗、预期消耗和门店状态后再决定是否执行。"
         items.append(
             action_item(
                 item_id="growth.promo_bid_approval",
@@ -171,7 +174,7 @@ def build_payload() -> dict[str, Any]:
                 center="商业化推广中心",
                 priority="medium",
                 reason=f"当前有 {queue_count} 项出价建议等待确认，确认前系统不会自动提交。",
-                action="打开推广出价审批队列，核对预算消耗、预期消耗和门店状态后再决定是否执行。",
+                action=bid_action,
                 source="growth.promo_bid",
                 evidence="outputs/promo_bid_approval_queue/latest.json",
             )

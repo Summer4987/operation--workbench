@@ -714,6 +714,12 @@ function renderBidding() {
   const bidDownCount = queueSummary.bid_down_count ?? summary.bid_down_count ?? 0;
   const riskCount = queueSummary.risk_count ?? summary.risk_count ?? 0;
   const previewTime = queueSummary.latest_preview_at || summary.latest_preview_at || "";
+  const bidItemDetail = (item) => [
+    [item.current_bid, item.target_bid].some((value) => value !== undefined && value !== null && value !== "") ? `出价 ${item.current_bid ?? "-"}->${item.target_bid ?? "-"}` : "",
+    [item.current_spend, item.expected_spend].some((value) => value !== undefined && value !== null && value !== "") ? `消耗 ${item.current_spend ?? "-"}/${item.expected_spend ?? "-"}` : "",
+    item.budget_usage ? `预算 ${item.budget_usage}` : "",
+    item.risk || item.reason || item.human_action || `${item.time || ""} ${item.period || ""}`,
+  ].filter(Boolean).join(" · ");
   rows(
     "biddingRows",
     [
@@ -723,7 +729,7 @@ function renderBidding() {
       ...items.filter((item) => Number(item.bid_delta || 0)).slice(0, 5).map((item) => ({
         label: `${item.platform || "平台"} · ${shortStore(item.store || "未命名门店")}`,
         value: item.action || "出价建议",
-        detail: item.human_action || item.reason || item.risk || `${item.time || ""} ${item.period || ""}`,
+        detail: bidItemDetail(item),
       })),
     ],
     (item) => {

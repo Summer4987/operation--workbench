@@ -72,6 +72,50 @@ def queue_item(item: dict[str, Any], index: int) -> dict[str, Any]:
     }
 
 
+def compact_number(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        return f"{float(value):g}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def approval_line(item: dict[str, Any]) -> str:
+    store = item.get("store") or "未命名门店"
+    time_text = " ".join(part for part in (item.get("period"), item.get("time")) if part)
+    bid_text = f"{compact_number(item.get('current_bid'))}->{compact_number(item.get('target_bid'))}"
+    spend_text = ""
+    if item.get("current_spend") not in (None, "") and item.get("expected_spend") not in (None, ""):
+        spend_text = f"消耗 {compact_number(item.get('current_spend'))}/{compact_number(item.get('expected_spend'))}"
+    budget_text = item.get("budget_usage") or ""
+    reason = item.get("risk") or item.get("reason") or item.get("human_action") or ""
+    details = "，".join(part for part in (time_text, item.get("action"), f"出价 {bid_text}", spend_text, budget_text, reason) if part)
+    return f"{store}：{details}"
+
+
+def build_approval_digest(items: list[dict[str, Any]], summary: dict[str, Any]) -> dict[str, Any]:
+    top_items = [approval_line(item) for item in items[:5]]
+    stale_count = int(summary.get("stale_preview_count") or 0)
+    warnings = []
+    if stale_count:
+        warnings.append(f"有 {stale_count} 个旧预览，审批前需重新确认平台当前出价和消耗。")
+    if int(summary.get("risk_count") or 0):
+        warnings.append("风险项必须先人工复核，不进入自动提交。")
+    if not warnings:
+        warnings.append("确认前不自动提交；审批时逐项核对门店、时段、当前出价、目标出价和预算消耗。")
+    return {
+        "top_items": top_items,
+        "warnings": warnings,
+        "checklist": [
+            "逐项核对门店、时段、当前出价和目标出价。",
+            "核对当前消耗、预期消耗、预算占用和平台营业状态。",
+            "旧预览或风险项先重新读取平台状态，不直接批准。",
+            "确认前不自动提交到平台。",
+        ],
+    }
+
+
 def build_missing(now: str, message: str) -> dict[str, Any]:
     return {
         "generated_at": now,
@@ -89,6 +133,11 @@ def build_missing(now: str, message: str) -> dict[str, Any]:
             "status": "manual_required",
             "message": "所有出价调整必须人工审批；本文件不触发提交。",
             "forbidden_actions": ["自动提交出价", "绕过审批", "自动处理风险项"],
+        },
+        "approval_digest": {
+            "top_items": [],
+            "warnings": [message],
+            "checklist": ["先生成推广出价只读建议。", "确认前不自动提交到平台。"],
         },
         "items": [],
         "message": message,
@@ -140,6 +189,7 @@ def build_payload() -> dict[str, Any]:
             "message": "所有出价调整必须人工审批；本文件不触发提交。",
             "forbidden_actions": ["自动提交出价", "绕过审批", "自动处理风险项"],
         },
+        "approval_digest": build_approval_digest(items, summary),
         "items": items,
         "message": message,
         "human_action": f"逐项确认 {queue_count} 条出价建议；风险项必须先人工复核。"
