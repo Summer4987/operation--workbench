@@ -129,53 +129,6 @@
       "next_integration_step": "近 7 天趋势分析已接入 AI 建议，下一步在日报历史覆盖足够后补完整近 4 周趋势。"
     },
     {
-      "id": "ops.review_dashboard",
-      "name": "评价看板",
-      "center": "运营数据中心",
-      "module": "评价看板",
-      "status": "running",
-      "risk": "low",
-      "schedule": "上午一键采集触发",
-      "entrypoints": [
-        "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process",
-        "scripts/record_review_reply.py",
-        "scripts/attach_review_reply_evidence.py",
-        "scripts/record_review_recap.py",
-        "scripts/record_review_sop.py",
-        "scripts/build_review_action_status.py"
-      ],
-      "outputs": [
-        "business-report-dashboard/data/unified_reviews.csv",
-        "business-report-dashboard/data/latest.json",
-        "outputs/review_reply_evidence/<date>/*",
-        "outputs/review_action_status/latest.json"
-      ],
-      "health_checks": [
-        "饿了么和美团评价下载分别写入运行状态",
-        "评价汇总 review_summary 状态为 ready",
-        "差评数量和关键词可读取",
-        "待回复差评门店和回复建议可读取",
-        "待回复评价进入统一用户待办",
-        "回复后记录命令可读取并提示补证据",
-        "人工回复完成记录可扣减待处理队列",
-        "已回复记录可标记平台截图或链接证据",
-        "本地截图可复制到证据目录并回写回复记录",
-        "看板可展示证据链接和截图预览",
-        "统一待办可区分待回复、待补证据和已闭环状态",
-        "差评关键词可沉淀为门店复盘和 AI 运营建议",
-        "门店复盘结果可记录并回写闭环状态",
-        "复盘后 7 天可跟踪同类差评是否复发",
-        "复发项可升级为门店 SOP 整改记录",
-        "SOP 整改关闭后可生成 7 天复查摘要",
-        "近 7 天评价可生成运营周复盘并进入 AI 建议"
-      ],
-      "human_needed_when": [
-        "评价下载需要登录或验证码",
-        "差评需要人工回复或赔付判断"
-      ],
-      "next_integration_step": "评价独立页面信息层级已优化，下一步把评价复盘结果沉淀进周趋势分析。"
-    },
-    {
       "id": "growth.promo_budget",
       "name": "推广预算设置全自动",
       "center": "商业化推广中心",

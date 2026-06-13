@@ -18,7 +18,6 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
-REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
 DAILY_FOCUS_STATUS_PATH = ROOT / "outputs" / "daily_focus_status" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
@@ -227,16 +226,6 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
         row["evidence"] = task_run["log_path"]
     if updated_at:
         row["last_seen_at"] = updated_at.strftime("%Y-%m-%d %H:%M:%S")
-    if row["id"] == "ops.review_dashboard":
-        extra = task_run.get("extra") or {}
-        platform_parts = []
-        for key, label in (("eleme", "饿了么"), ("meituan", "美团")):
-            status = extra.get(f"{key}_status")
-            message = extra.get(f"{key}_message")
-            if status and message:
-                platform_parts.append(f"{label}：{message}")
-        if platform_parts:
-            row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
     if row["id"] == "ops.daily_report":
         extra = task_run.get("extra") or {}
         platform_parts = []
@@ -432,37 +421,6 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             row.update(status="ok", reason=f"日报已生成，最新数据日期 {source_dates[-1] if source_dates else '-'}{focus_suffix}。")
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
         row["evidence"] = "outputs/daily_focus_status/latest.json" if focus_status else "business-report-dashboard/data/latest.json"
-
-    elif task_id == "ops.review_dashboard":
-        payload = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
-        review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
-        review = payload.get("review_summary") or {}
-        review_status = review.get("status")
-        action_summary = review_actions.get("summary") or {}
-        negative_count = int(action_summary.get("negative_count") or 0)
-        completed_negative_count = int(action_summary.get("completed_negative_count") or 0)
-        missing_evidence_count = int(action_summary.get("missing_evidence_count") or 0)
-        if review_actions.get("status") == "waiting_reply":
-            row.update(
-                status="warn",
-                reason=review_actions.get("message") or f"评价有 {negative_count} 条待处理差评。",
-                human_action=review_actions.get("human_action") or "先处理差评门店，再观察单量和复购。",
-            )
-        elif missing_evidence_count:
-            row.update(
-                status="warn",
-                reason=f"评价已回复记录中有 {missing_evidence_count} 条缺平台截图或链接证据。",
-                human_action=review_actions.get("human_action") or "补录平台回复截图、评价链接或工单链接，便于后续复盘。",
-            )
-        elif review_actions.get("status") == "ok":
-            suffix = f"，已记录回复 {completed_negative_count} 条" if completed_negative_count else ""
-            base_message = (review_actions.get("message") or "当前评价汇总未发现待处理差评。").rstrip("。")
-            row.update(status="ok", reason=base_message + suffix + "。")
-        elif review_status == "ready":
-            row.update(status="ok", reason=review.get("message") or "评价数据已同步。")
-        elif review_status in {"stale", "missing"}:
-            row.update(status="warn", reason=review.get("message") or "评价数据未同步到最新日期。")
-        row["evidence"] = "outputs/review_action_status/latest.json" if review_actions else "business-report-dashboard/data/latest.json"
 
     elif task_id == "growth.promo_budget":
         payload = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
