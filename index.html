@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-flow-budget-balance" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-sidebar" />
   </head>
   <body>
     <main class="app">
@@ -23,7 +23,7 @@
             <h2 id="nav-ops">运营数据中心</h2>
             <div class="nav-subgroup">
               <a href="#ops-health">自动化任务健康报告</a>
-              <a href="http://139.155.148.169/business-report-dashboard/">日报看板</a>
+              <a href="#daily">日报看板</a>
               <a href="#reviews">评价看板</a>
             </div>
           </section>
@@ -153,6 +153,18 @@
               </div>
             </article>
           </div>
+        </section>
+
+        <section class="center-section report-section" id="daily">
+          <div class="section-head">
+            <p>运营数据中心</p>
+            <h2>日报看板</h2>
+          </div>
+          <iframe
+            class="daily-report-frame"
+            src="http://139.155.148.169/business-report-dashboard/"
+            title="经营日报看板"
+          ></iframe>
         </section>
 
         <section class="center-section" id="reviews">
@@ -406,7 +418,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-flow-budget-balance"></script>
-    <script src="./workbench.js?v=20260613-flow-budget-balance"></script>
+    <script src="./workbench-data.js?v=20260613-daily-sidebar"></script>
+    <script src="./workbench.js?v=20260613-daily-sidebar"></script>
   </body>
 </html>

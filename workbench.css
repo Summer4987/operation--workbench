@@ -482,6 +482,18 @@ a {
   margin-top: 26px;
 }
 
+.report-section {
+  margin-top: 0;
+}
+
+.daily-report-frame {
+  display: block;
+  width: 100%;
+  min-height: calc(100vh - 118px);
+  border: 0;
+  background: #fff;
+}
+
 .section-head {
   margin-bottom: 12px;
   display: grid;
