@@ -14,6 +14,7 @@ OUTPUT_PATH = ROOT / "workbench-data.js"
 DATA_DIR = ROOT / "data"
 REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
+ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -330,7 +331,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -387,6 +388,19 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "title": "订货建议待确认",
                 "reason": f"库存预警已生成 {suggestion_count} 项订货建议，{channel_count} 个供应渠道，预估 {float(suggestion_summary.get('estimated_cost') or 0):.0f} 元。",
                 "action": "先人工确认品项、数量和供应渠道；确认前不自动下单、不付款。",
+                "source": "flow.auto_ordering",
+            }
+        )
+
+    order_list_summary = order_lists.get("summary") or {}
+    if order_lists.get("status") == "ready" and int(order_list_summary.get("order_list_count") or 0):
+        rows.append(
+            {
+                "level": "需人工处理",
+                "center": "货流中心",
+                "title": "渠道下单清单待执行",
+                "reason": f"已生成 {order_list_summary.get('order_list_count')} 个供应渠道下单清单，预估 {float(order_list_summary.get('estimated_cost') or 0):.0f} 元。",
+                "action": "按渠道下单前再次核对数量和付款金额，付款仍需人工确认。",
                 "source": "flow.auto_ordering",
             }
         )
@@ -465,13 +479,14 @@ def main() -> None:
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
+    order_lists = read_json(ORDER_LISTS_PATH, {})
     realtime = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
     inventory = inventory_snapshot()
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -482,6 +497,7 @@ def main() -> None:
         "budget": budget,
         "inventory": inventory,
         "order_suggestions": order_suggestions,
+        "order_lists": order_lists,
         "task_health": task_health,
         "ai_advice": ai_advice,
     }

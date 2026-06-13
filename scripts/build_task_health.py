@@ -16,6 +16,7 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
+ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -373,18 +374,41 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "flow.auto_ordering":
         payload = read_json(ORDER_SUGGESTIONS_PATH, {})
+        order_lists = read_json(ORDER_LISTS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
         confirmation = payload.get("confirmation") or {}
+        order_list_summary = order_lists.get("summary") or {}
         if payload.get("status") == "ready":
             channel_count = int(summary.get("channel_count") or 0)
-            confirm_text = "需人工确认后再下单" if confirmation.get("status") == "pending" else "当前无需订货"
-            row.update(
-                status="warn",
-                reason=f"订货建议已生成，{summary.get('suggestion_count', 0)} 项，{channel_count} 个供应渠道，{confirm_text}。",
-                human_action=confirmation.get("message") or "先人工确认订货建议，不要自动下单或付款。",
-                evidence="outputs/inventory_order_suggestions/latest.json",
-            )
+            suggestion_count = int(summary.get("suggestion_count") or 0)
+            if suggestion_count == 0 or order_lists.get("status") == "not_required":
+                row.update(
+                    status="ok",
+                    reason="订货建议已生成，当前没有低库存商品需要订货。",
+                    human_action="",
+                    evidence="outputs/inventory_order_lists/latest.json" if order_lists else "outputs/inventory_order_suggestions/latest.json",
+                )
+            elif order_lists.get("status") == "ready":
+                row.update(
+                    status="warn",
+                    reason=f"渠道下单清单已生成，{order_list_summary.get('order_list_count', 0)} 个供应渠道，付款前仍需人工核对。",
+                    human_action=order_lists.get("confirmation", {}).get("message") or "按渠道清单下单前再次核对数量和金额。",
+                    evidence="outputs/inventory_order_lists/latest.json",
+                )
+            else:
+                confirm_text = "需人工确认后再下单" if confirmation.get("status") == "pending" else "当前无需订货"
+                row.update(
+                    status="warn",
+                    reason=f"订货建议已生成，{summary.get('suggestion_count', 0)} 项，{channel_count} 个供应渠道，{confirm_text}。",
+                    human_action=confirmation.get("message") or "先人工确认订货建议，不要自动下单或付款。",
+                    evidence="outputs/inventory_order_suggestions/latest.json",
+                )
+            if order_lists.get("status") == "waiting_confirmation":
+                row["human_action"] = order_lists.get("confirmation", {}).get("message") or row["human_action"]
+                row["evidence"] = "outputs/inventory_order_lists/latest.json"
+            if order_lists.get("status") == "failed":
+                row.update(status="danger", reason=order_lists.get("message") or "渠道下单清单生成失败。", evidence="outputs/inventory_order_lists/latest.json")
         elif payload.get("status") == "failed":
             row.update(status="danger", reason=payload.get("message") or "订货建议生成失败。", evidence="outputs/inventory_order_suggestions/latest.json")
         if generated_at:

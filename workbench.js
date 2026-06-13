@@ -619,16 +619,37 @@ function openOrderingChecklist(orderSuggestions, groups) {
   win.document.close();
 }
 
+function orderListStatusText(status) {
+  if (status === "ready") return "已生成";
+  if (status === "waiting_confirmation") return "等待确认";
+  if (status === "not_required") return "无需订货";
+  if (status === "failed") return "生成失败";
+  return "未生成";
+}
+
+function orderListPreview(orderList) {
+  const lines = orderList.lines || [];
+  if (!lines.length) return orderList.next_action || "暂无品项";
+  return lines
+    .slice(0, 4)
+    .map((item) => `${item.name || item.sku || "未命名商品"} ${num(item.quantity, 2)}${item.unit || ""}`)
+    .join("；");
+}
+
 function renderOrdering() {
   const orderSuggestions = data.order_suggestions || {};
+  const orderLists = data.order_lists || {};
   const summary = orderSuggestions.summary || {};
   const confirmation = orderSuggestions.confirmation || {};
   const groups = orderSuggestionGroups(orderSuggestions);
+  const listSummary = orderLists.summary || {};
+  const listRows = orderLists.order_lists || [];
   const suggestionCount = Number(summary.suggestion_count || groups.reduce((sum, group) => sum + Number(group.item_count || 0), 0));
   const channelCount = Number(summary.channel_count || groups.length);
   const estimatedCost = Number(summary.estimated_cost || groups.reduce((sum, group) => sum + Number(group.estimated_cost || 0), 0));
   const pending = confirmation.status === "pending" && suggestionCount > 0;
-  const statusText = orderSuggestions.status === "failed" ? "生成失败" : pending ? "待确认" : "无需订货";
+  const hasOrderLists = orderLists.status === "ready" && listRows.length > 0;
+  const statusText = orderSuggestions.status === "failed" ? "生成失败" : hasOrderLists ? "待下单" : pending ? "待确认" : "无需订货";
   const statusEl = document.querySelector("#orderingStatus");
 
   text("orderingStatus", statusText);
@@ -644,12 +665,21 @@ function renderOrdering() {
   );
   text("orderingConfirmStatus", pending ? "需人工确认" : "当前无需处理");
   text("orderingConfirmMessage", confirmation.message || "订货建议只用于人工确认；确认前不会自动下单或付款。");
-  document.querySelector("#ordering")?.classList.toggle("alert", pending || orderSuggestions.status === "failed");
+  text("orderingListStatus", orderListStatusText(orderLists.status));
+  text("orderingListMessage", orderLists.message || orderLists.confirmation?.message || "人工确认后生成渠道下单清单。");
+  text("orderingListCount", `${Number(listSummary.order_list_count || listRows.length)} 个渠道`);
+  document.querySelector("#ordering")?.classList.toggle("alert", pending || hasOrderLists || orderSuggestions.status === "failed" || orderLists.status === "failed");
 
   rows(
     "orderingRows",
     groups.slice(0, 8),
     (group) => `<div class="${pending ? "warn-row" : "good-row"}"><span>${escapeHtml(group.channel || "未配置供应渠道")}</span><strong>${num(group.item_count)} 项 / ${yuan(group.estimated_cost)}</strong><em>${escapeHtml(orderItemsPreview(group))}</em></div>`
+  );
+
+  rows(
+    "orderingListRows",
+    listRows.slice(0, 8),
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项 / ${yuan(item.estimated_cost)}</strong><em>${escapeHtml(orderListPreview(item))}</em></div>`
   );
 
   const button = document.querySelector("#orderingChecklistButton");
