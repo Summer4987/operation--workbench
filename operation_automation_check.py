@@ -169,6 +169,10 @@ def check_cdp(issues: list[dict], environment: dict) -> None:
             add_issue(issues, "chrome_local_network", "warning", f"Chrome 调试端口探测异常：{exc}")
 
 
+def permission_probe_status() -> str:
+    return "warning" if os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_CLIENT") else "blocked"
+
+
 def check_screen_recording(issues: list[dict]) -> None:
     with tempfile.NamedTemporaryFile(prefix="operation-screen-", suffix=".png", delete=False) as handle:
         path = Path(handle.name)
@@ -182,11 +186,13 @@ def check_screen_recording(issues: list[dict]) -> None:
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
-            add_issue(issues, "screen_recording", "blocked", f"屏幕录制不可用：{detail or 'screencapture 返回非 0'}")
+            status = permission_probe_status()
+            suffix = "；当前为 SSH 会话，只能作为提醒，真实权限以 Mac mini 图形会话运行结果为准。" if status == "warning" else ""
+            add_issue(issues, "screen_recording", status, f"屏幕录制不可用：{detail or 'screencapture 返回非 0'}{suffix}")
     except subprocess.TimeoutExpired:
-        add_issue(issues, "screen_recording", "blocked", "屏幕录制探测超时；远程会话可能无法弹出权限确认。")
+        add_issue(issues, "screen_recording", permission_probe_status(), "屏幕录制探测超时；远程会话可能无法弹出权限确认。")
     except Exception as exc:
-        add_issue(issues, "screen_recording", "blocked", f"屏幕录制探测失败：{exc}")
+        add_issue(issues, "screen_recording", permission_probe_status(), f"屏幕录制探测失败：{exc}")
     finally:
         if path.exists():
             path.unlink()
@@ -203,11 +209,13 @@ def check_accessibility(issues: list[dict]) -> None:
         )
         if "true" not in (result.stdout or "").lower():
             detail = (result.stderr or result.stdout or "").strip()
-            add_issue(issues, "accessibility", "blocked", f"辅助功能不可用：{detail or 'System Events 未返回 true'}")
+            status = permission_probe_status()
+            suffix = "；当前为 SSH 会话，只能作为提醒，真实权限以 Mac mini 图形会话运行结果为准。" if status == "warning" else ""
+            add_issue(issues, "accessibility", status, f"辅助功能不可用：{detail or 'System Events 未返回 true'}{suffix}")
     except subprocess.TimeoutExpired:
-        add_issue(issues, "accessibility", "blocked", "辅助功能探测超时；远程会话可能无法访问 System Events。")
+        add_issue(issues, "accessibility", permission_probe_status(), "辅助功能探测超时；远程会话可能无法访问 System Events。")
     except Exception as exc:
-        add_issue(issues, "accessibility", "blocked", f"辅助功能探测失败：{exc}")
+        add_issue(issues, "accessibility", permission_probe_status(), f"辅助功能探测失败：{exc}")
 
 
 def check_ssh_publish(issues: list[dict]) -> None:
