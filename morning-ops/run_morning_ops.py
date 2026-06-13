@@ -21,6 +21,8 @@ REPORT_DIR = WORKSPACE / "business-report-dashboard"
 REPORT_AUTOMATION = REPORT_DIR / "chrome_cdp_reports.py"
 REPORT_PROCESSOR = REPORT_DIR / "process_reports.py"
 BALANCE_RUNNER = WORKSPACE / "store-inspection" / "run_all_balances.py"
+EVIDENCE_MANIFEST_RUNNER = WORKSPACE / "scripts" / "build_store_inspection_evidence_manifest.py"
+EVIDENCE_UPLOAD_RUNNER = WORKSPACE / "scripts" / "upload_store_inspection_evidence.zsh"
 ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
 PROMO_PREVIEW_RUNNER = WORKSPACE / "scripts" / "build_promo_budget_preview.mjs"
 PROMO_BUDGET_SYNC_RUNNER = WORKSPACE / "scripts" / "sync_promo_budget_overrides.py"
@@ -117,6 +119,12 @@ def notify(text: str) -> None:
 
 def looks_like_auth_block(text: str) -> bool:
     return any(pattern in text for pattern in AUTH_BLOCK_PATTERNS)
+
+
+def is_production_environment() -> bool:
+    env = os.environ.get("AI_BUSINESS_CENTER_ENV", "").strip().lower()
+    hostname = os.uname().nodename.lower()
+    return env == "production" or "mini" in hostname
 
 
 def wait_for_manual_resume(reason: str, *, timeout_minutes: int = 60) -> bool:
@@ -247,6 +255,11 @@ def main() -> int:
                         print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
                     else:
                         failures.append("推广余额总巡检")
+                run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
+                if is_production_environment():
+                    run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
+                else:
+                    print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
             if run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False).returncode != 0:
                 failures.append("预算配置同步")
             node = str(NODE if NODE.exists() else "node")

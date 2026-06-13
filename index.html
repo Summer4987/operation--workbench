@@ -3,45 +3,62 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>运营总看板</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260611-income-order-fit" />
+    <title>熊小小AI业务中心</title>
+    <link rel="stylesheet" href="./workbench.css?v=20260613-promo-bid-signals" />
   </head>
   <body>
     <main class="app">
       <aside class="side">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">
-            <b>🧸</b>
-          </span>
+          <span class="brand-mark" aria-hidden="true">AI</span>
           <div>
-            <strong>运营总看板</strong>
-            <span>熊小小牛排饭</span>
+            <strong>熊小小AI业务中心</strong>
+            <span>运营 · 推广 · 货流 · 财务 · 工具</span>
           </div>
         </div>
-        <nav class="nav" aria-label="工作台模块">
-          <a class="nav-home active" href="#overview">总览</a>
+        <nav class="nav" aria-label="业务中心导航">
+          <a class="nav-home active" href="#overview">首屏看板</a>
 
           <section class="nav-section" aria-labelledby="nav-ops">
-            <h2 id="nav-ops">运营</h2>
+            <h2 id="nav-ops">运营数据中心</h2>
             <div class="nav-subgroup">
-              <span>数据</span>
-              <a href="#daily">日报</a>
-              <a href="#anomalies">异常情况分析</a>
-              <a href="#reviews">评价</a>
+              <a href="#ops-health">自动化任务健康报告</a>
+              <a href="#daily">日报看板</a>
+              <a href="#reviews">评价看板</a>
+              <a href="#ai-advice">AI运营建议</a>
             </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-growth">
+            <h2 id="nav-growth">商业化推广中心</h2>
             <div class="nav-subgroup">
-              <span>推广</span>
-              <a href="#balances">余额巡检</a>
-              <a href="#budget">预算初始化</a>
-              <span class="nav-future">推广自动化</span>
+              <a href="#budget">推广预算全自动</a>
+              <a href="#bidding">推广出价调整</a>
+              <a href="#balances">推广余额预警</a>
             </div>
           </section>
 
           <section class="nav-section" aria-labelledby="nav-flow">
-            <h2 id="nav-flow">货流</h2>
+            <h2 id="nav-flow">货流中心</h2>
             <div class="nav-subgroup">
-              <a href="#inventory">库存管理</a>
-              <a href="#sales-receipts">销售单生成</a>
+              <a href="#ordering">订货全自动</a>
+              <a href="#inventory">库存全自动</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-finance">
+            <h2 id="nav-finance">财务中心</h2>
+            <div class="nav-subgroup">
+              <a href="#finance">自动分析账单</a>
+              <a href="#finance-report">财务报表</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-tools">
+            <h2 id="nav-tools">小工具仓库</h2>
+            <div class="nav-subgroup">
+              <a href="#sales-receipts">销售单生成器</a>
+              <a href="#franchise-contract">加盟合同生成器</a>
             </div>
           </section>
         </nav>
@@ -51,113 +68,215 @@
         <header class="topbar" id="overview">
           <div>
             <p class="kicker" id="generatedAt">等待数据</p>
-            <h1>运营总看板</h1>
+            <h1>熊小小AI业务中心</h1>
+          </div>
+          <div class="top-actions">
+            <a class="primary-action" href="http://139.155.148.169/business-report-dashboard/">日报</a>
+            <a class="ghost-action" href="./store-inspection/index.html">余额巡检</a>
+            <a class="ghost-action" href="http://139.155.148.169/">库存</a>
           </div>
         </header>
 
-        <article class="module module-realtime realtime-card" id="realtime">
-          <div class="module-head">
-            <div>
-              <p>实时</p>
-              <h2>实时单量与收入</h2>
+        <section class="command-board" aria-label="首屏重点看板">
+          <article class="hero-card hero-realtime" id="realtime">
+            <div class="module-head">
+              <div>
+                <p>实时订单量</p>
+                <h2>半小时/一小时采集快照</h2>
+              </div>
+              <span class="tag testing" id="realtimeStatus">待采集</span>
             </div>
-            <span class="tag testing" id="realtimeStatus">待采集</span>
-          </div>
-          <div class="realtime-summary">
-            <div><span>当前收入</span><strong id="realtimeIncome">-</strong></div>
-            <div><span>当前单量</span><strong id="realtimeOrders">-</strong></div>
-            <div><span>覆盖情况</span><strong id="realtimeCoverage">-</strong></div>
-          </div>
-          <p class="realtime-meta" id="realtimeMeta">等待实时数据。</p>
-          <div class="realtime-store-grid" id="realtimeStoreRows"></div>
-          <div class="module-actions">
-            <a href="./store-inspection/index.html">饿了么实时页</a>
-            <a href="http://139.155.148.169/business-report-dashboard/">美团实时页</a>
-          </div>
-        </article>
+            <div class="realtime-summary">
+              <div><span>当前单量</span><strong id="realtimeOrders">-</strong></div>
+              <div><span>当前营业额</span><strong id="realtimeIncome">-</strong></div>
+              <div><span>昨日同时段</span><strong id="realtimeCompare">-</strong></div>
+            </div>
+            <p class="realtime-meta" id="realtimeMeta">等待实时数据。</p>
+            <div class="realtime-store-grid" id="realtimeStoreRows"></div>
+          </article>
 
-        <section class="metrics" aria-label="核心指标">
-          <article class="metric-daily">
-            <span id="metricIncomeLabel">实时数据</span>
-            <strong id="metricIncome">-</strong>
-            <div class="metric-meta">
-              <em id="metricOrders">等待实时单量</em>
-              <em id="metricYesterdayCompare" class="pending">昨日同时段 暂无历史数据</em>
-            </div>
-          </article>
-          <article class="metric-alert" id="balanceMetricCard">
-            <span>余额预警</span>
-            <strong id="metricWarnings">-</strong>
-            <em id="metricLowest">双平台余额</em>
-          </article>
-          <article class="metric-inventory" id="inventoryMetricCard">
-            <span>库存预警</span>
-            <strong id="metricInventory">-</strong>
-            <em id="metricInventoryValue">库存看板</em>
-          </article>
-          <article class="metric-budget">
-            <span>初始预算</span>
-            <strong id="metricBudget">-</strong>
-            <em id="metricBudgetMeta">饿了么自动，美团人工清单</em>
-          </article>
+          <aside class="priority-stack" aria-label="昨日简报和重点预警">
+            <article class="summary-card">
+              <div class="module-head">
+                <div>
+                  <p>昨日日报简报</p>
+                  <h2>只看关键数字</h2>
+                </div>
+                <span class="tag ready">日报</span>
+              </div>
+              <div class="brief-grid">
+                <div><span>单量</span><strong id="briefOrders">-</strong></div>
+                <div><span>营业额</span><strong id="briefIncome">-</strong></div>
+              </div>
+              <p id="dailySummary">等待日报数据。</p>
+            </article>
+
+            <article class="summary-card alert-card">
+              <div class="module-head">
+                <div>
+                  <p>重点预警</p>
+                  <h2>需要先处理的事</h2>
+                </div>
+                <span class="tag danger" id="priorityStatus">待检查</span>
+              </div>
+              <div class="priority-list" id="priorityRows"></div>
+            </article>
+          </aside>
         </section>
 
-        <section class="work-grid" aria-label="运营模块">
-          <article class="module module-daily" id="daily">
+        <section class="center-section" id="ops-health">
+          <div class="section-head">
+            <p>运营数据中心</p>
+            <h2>自动化任务健康报告</h2>
+          </div>
+          <div class="center-grid three">
+            <article class="module">
+              <div class="module-head">
+                <div>
+                  <p>定时任务</p>
+                  <h2>今日运行状态</h2>
+                </div>
+                <span class="tag ready" id="healthStatus">已接入</span>
+              </div>
+              <div class="mini-table" id="healthRows"></div>
+            </article>
+            <article class="module module-anomaly">
+              <div class="module-head">
+                <div>
+                  <p>异常</p>
+                  <h2>自动化需人工处理</h2>
+                </div>
+                <span class="tag danger" id="anomalyStatus">待检查</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="anomalyCount">-</div>
+                <p id="anomalySummary">等待最新日报异常数据。</p>
+                <div class="mini-table anomaly-list" id="anomalyRows"></div>
+              </div>
+            </article>
+            <article class="module" id="ai-advice">
+              <div class="module-head">
+                <div>
+                  <p>AI分析</p>
+                  <h2>运营建议</h2>
+                </div>
+                <span class="tag testing">规则雏形</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="aiTrend">-</div>
+                <p id="aiAdviceSummary">等待历史数据。</p>
+                <div class="mini-table" id="aiAdviceRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="daily">
+          <div class="section-head">
+            <p>运营数据中心</p>
+            <h2>日报看板</h2>
+          </div>
+          <article class="module module-daily wide-module">
             <div class="module-head">
               <div>
                 <p>日报</p>
-                <h2>最新日报</h2>
+                <h2>门店单量与营业额</h2>
               </div>
               <span class="tag ready">已接入</span>
             </div>
             <div class="module-body">
               <div class="big-number" id="dailyStoreCount">-</div>
-              <p id="dailySummary">等待日报数据。</p>
-              <div class="mini-table" id="dailyRows"></div>
+              <p id="dailyPageSummary">等待日报数据。</p>
+              <div class="daily-command-grid" id="dailyCommandRows"></div>
+              <div class="mini-table daily-platform-list" id="dailyPlatformRows"></div>
+              <div class="mini-table daily-focus-list" id="dailyFocusRows"></div>
+              <div class="mini-table daily-list" id="dailyRows"></div>
             </div>
             <div class="module-actions">
-              <a href="http://139.155.148.169/business-report-dashboard/">打开日报</a>
+              <a href="http://139.155.148.169/business-report-dashboard/">打开完整日报</a>
             </div>
           </article>
+        </section>
 
-          <article class="module module-anomaly" id="anomalies">
-            <div class="module-head">
-              <div>
-                <p>异常</p>
-                <h2>异常门店</h2>
-              </div>
-              <span class="tag danger" id="anomalyStatus">待检查</span>
-            </div>
-            <div class="module-body">
-              <div class="big-number" id="anomalyCount">-</div>
-              <p id="anomalySummary">等待最新日报异常数据。</p>
-              <div class="mini-table anomaly-list" id="anomalyRows"></div>
-            </div>
-            <div class="module-actions">
-              <a href="http://139.155.148.169/business-report-dashboard/">打开日报</a>
-            </div>
-          </article>
-
-          <article class="module module-review" id="reviews">
+        <section class="center-section" id="reviews">
+          <div class="section-head">
+            <p>运营数据中心</p>
+            <h2>评价看板</h2>
+          </div>
+          <article class="module module-review wide-module">
             <div class="module-head">
               <div>
                 <p>评价</p>
-                <h2>昨日评价预览</h2>
+                <h2>昨日评价与差评重点</h2>
               </div>
               <span class="tag testing" id="reviewStatus">待同步</span>
             </div>
             <div class="module-body">
               <div class="big-number" id="reviewCount">-</div>
               <p id="reviewSummary">等待评价数据。</p>
+              <div class="review-command-grid" id="reviewCommandRows"></div>
+              <div class="mini-table review-weekly-list" id="reviewWeeklyRows"></div>
+              <div class="mini-table review-workflow-list" id="reviewWorkflowRows"></div>
               <div class="mini-table review-list" id="reviewRows"></div>
             </div>
             <div class="module-actions">
-              <a href="http://139.155.148.169/business-report-dashboard/">打开日报</a>
+              <a href="http://139.155.148.169/business-report-dashboard/">打开评价日报</a>
             </div>
           </article>
+        </section>
 
-          <article class="module module-balance" id="balances">
+        <section class="center-section" id="budget">
+          <div class="section-head">
+            <p>商业化推广中心</p>
+            <h2>推广预算设置全自动</h2>
+          </div>
+          <div class="center-grid two">
+            <article class="module module-budget">
+              <div class="module-head">
+                <div>
+                  <p>预算</p>
+                  <h2>午餐/晚餐/周末预设</h2>
+                </div>
+                <span class="tag ready">上午按钮</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="budgetCount">-</div>
+                <p id="budgetSummary">等待预算预览。</p>
+                <div class="mini-table" id="budgetRows"></div>
+                <div class="mini-table" id="budgetRetryRows"></div>
+              </div>
+              <div class="module-actions">
+                <a href="./store-inspection/budget-editor.html?v=20260613-weekend">录入预算</a>
+                <a href="./dianjin-prototype/index.html">饿了么点金</a>
+                <a href="./store-inspection/meituan-budget.html">美团预算</a>
+              </div>
+            </article>
+            <article class="module" id="bidding">
+              <div class="module-head">
+                <div>
+                  <p>出价</p>
+                  <h2>推广出价调整全自动</h2>
+                </div>
+                <span class="tag testing" id="biddingStatus">建议</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="biddingCount">-</div>
+                <p id="biddingSummary">等待出价建议。</p>
+                <div class="mini-table" id="biddingRows"></div>
+              </div>
+              <div class="module-actions">
+                <a href="./dianjin-prototype/index.html">打开出价原型</a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="balances">
+          <div class="section-head">
+            <p>商业化推广中心</p>
+            <h2>推广余额不足预警</h2>
+          </div>
+          <article class="module module-balance wide-module">
             <div class="module-head">
               <div>
                 <p>余额</p>
@@ -174,70 +293,171 @@
               <a href="./store-inspection/index.html">打开余额页</a>
             </div>
           </article>
-
-          <article class="module module-inventory" id="inventory">
-            <div class="module-head">
-              <div>
-                <p>库存</p>
-                <h2>库存余量快照</h2>
-              </div>
-              <span class="tag ready">已接入</span>
-            </div>
-            <div class="module-body">
-              <div class="big-number" id="inventoryProductCount">-</div>
-              <p id="inventorySummary">等待库存数据。</p>
-              <div class="mini-table" id="inventoryRows"></div>
-            </div>
-            <div class="module-actions">
-              <a href="http://139.155.148.169/">云端库存</a>
-            </div>
-          </article>
-
-          <article class="module module-budget" id="budget">
-            <div class="module-head">
-              <div>
-                <p>预算</p>
-                <h2>推广初始预算</h2>
-              </div>
-              <span class="tag ready">上午按钮</span>
-            </div>
-            <div class="module-body">
-              <div class="big-number" id="budgetCount">-</div>
-              <p id="budgetSummary">等待预算预览。</p>
-              <div class="mini-table" id="budgetRows"></div>
-            </div>
-            <div class="module-actions">
-              <a href="./store-inspection/budget-editor.html?v=20260605-2250">录入预算</a>
-              <a href="./dianjin-prototype/index.html">饿了么点金</a>
-              <a href="./store-inspection/meituan-budget.html">美团预算</a>
-            </div>
-          </article>
-
-          <article class="module module-receipt" id="sales-receipts">
-            <div class="module-head">
-              <div>
-                <p>销售单</p>
-                <h2>销售单据生成器</h2>
-              </div>
-              <span class="tag ready">已接入</span>
-            </div>
-            <div class="module-body">
-              <div class="big-number">一页打印</div>
-              <p>输入收货单位、销售时间、项目、数量和单位即可生成销售单；金额可留空，公章已内置，打印时自动适配一页。</p>
-              <div class="mini-table">
-                <div class="good-row"><span>销售单位</span><strong>成都熊小小餐饮管理有限公司</strong><em>固定</em></div>
-                <div><span>金额</span><strong>可选填写</strong><em>留空时不显示金额列</em></div>
-              </div>
-            </div>
-            <div class="module-actions">
-              <a href="./sales-receipt-generator/index.html">打开销售单</a>
-            </div>
-          </article>
         </section>
 
+        <section class="center-section" id="ordering">
+          <div class="section-head">
+            <p>货流中心</p>
+            <h2>订货全自动</h2>
+          </div>
+          <div class="center-grid two ordering-grid">
+            <article class="module module-ordering">
+              <div class="module-head">
+                <div>
+                  <p>订货</p>
+                  <h2>订货建议确认队列</h2>
+                </div>
+                <span class="tag planning" id="orderingStatus">待确认</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="orderingSuggestionCount">-</div>
+                <p id="orderingSummary">等待订货建议数据。</p>
+                <div class="ordering-confirm-panel">
+                  <div>
+                    <span>确认要求</span>
+                    <strong id="orderingConfirmStatus">-</strong>
+                    <em id="orderingConfirmMessage">确认前不会自动下单或付款。</em>
+                  </div>
+                  <button class="confirm-button" id="orderingChecklistButton" type="button">生成确认清单</button>
+                </div>
+                <div class="mini-table ordering-channel-list" id="orderingRows"></div>
+                <div class="ordering-confirm-panel ordering-list-panel">
+                  <div>
+                    <span>渠道下单清单</span>
+                    <strong id="orderingListStatus">-</strong>
+                    <em id="orderingListMessage">人工确认后生成。</em>
+                  </div>
+                  <strong class="ordering-list-count" id="orderingListCount">-</strong>
+                </div>
+                <div class="mini-table ordering-channel-list" id="orderingListRows"></div>
+                <div class="ordering-confirm-panel ordering-execution-panel">
+                  <div>
+                    <span>执行预览与付款确认</span>
+                    <strong id="orderingExecutionStatus">-</strong>
+                    <em id="orderingExecutionMessage">远控安卓下单前生成。</em>
+                  </div>
+                  <strong class="ordering-list-count" id="orderingExecutionCount">-</strong>
+                </div>
+                <div class="mini-table ordering-channel-list" id="orderingExecutionRows"></div>
+                <div class="ordering-confirm-panel ordering-android-panel">
+                  <div>
+                    <span>远控安卓执行适配</span>
+                    <strong id="orderingAndroidStatus">-</strong>
+                    <em id="orderingAndroidMessage">只读计划，人工接管。</em>
+                  </div>
+                  <strong class="ordering-list-count" id="orderingAndroidCount">-</strong>
+                </div>
+                <div class="mini-table ordering-channel-list" id="orderingAndroidRows"></div>
+                <div class="ordering-confirm-panel ordering-device-panel">
+                  <div>
+                    <span>真实设备连接配置</span>
+                    <strong id="orderingDeviceStatus">-</strong>
+                    <em id="orderingDeviceMessage">Mac mini 生产前补齐。</em>
+                  </div>
+                  <strong class="ordering-list-count" id="orderingDeviceCount">-</strong>
+                </div>
+                <div class="mini-table ordering-channel-list" id="orderingDeviceRows"></div>
+              </div>
+            </article>
+            <article class="module module-inventory" id="inventory">
+              <div class="module-head">
+                <div>
+                  <p>库存</p>
+                  <h2>库存全自动</h2>
+                </div>
+                <span class="tag ready">运转中</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="inventoryProductCount">-</div>
+                <p id="inventorySummary">等待库存数据。</p>
+                <div class="mini-table" id="inventoryRows"></div>
+              </div>
+              <div class="module-actions">
+                <a href="http://139.155.148.169/">云端库存</a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="finance">
+          <div class="section-head">
+            <p>财务中心</p>
+            <h2>自动分析账单</h2>
+          </div>
+          <div class="center-grid two">
+            <article class="module" id="finance-bills">
+              <div class="module-head">
+                <div>
+                  <p>账单</p>
+                  <h2>银行账单与平台账单</h2>
+                </div>
+                <span class="tag planning" id="financeBillStatus">待样例</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="financeBillCount">-</div>
+                <p id="financeBillSummary">等待财务中心状态。</p>
+                <div class="mini-table" id="financeBillRows"></div>
+              </div>
+            </article>
+            <article class="module" id="finance-report">
+              <div class="module-head">
+                <div>
+                  <p>报表</p>
+                  <h2>财务报表和数据</h2>
+                </div>
+                <span class="tag planning" id="financeReportStatus">待映射</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="financeReportCount">-</div>
+                <p id="financeReportSummary">等待字段映射。</p>
+                <div class="mini-table" id="financeReportRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="sales-receipts">
+          <div class="section-head">
+            <p>小工具仓库</p>
+            <h2>销售单生成器</h2>
+          </div>
+          <div class="center-grid two">
+            <article class="module module-receipt">
+              <div class="module-head">
+                <div>
+                  <p>销售单</p>
+                  <h2>销售单据生成器</h2>
+                </div>
+                <span class="tag ready" id="salesReceiptStatus">已接入</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="salesReceiptCount">-</div>
+                <p id="salesReceiptSummary">等待工具状态。</p>
+                <div class="mini-table" id="salesReceiptRows"></div>
+              </div>
+              <div class="module-actions">
+                <a href="./sales-receipt-generator/index.html">打开销售单</a>
+              </div>
+            </article>
+            <article class="module" id="franchise-contract">
+              <div class="module-head">
+                <div>
+                  <p>合同</p>
+                  <h2>加盟合同生成器</h2>
+                </div>
+                <span class="tag planning" id="franchiseContractStatus">待模板</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="franchiseContractCount">-</div>
+                <p id="franchiseContractSummary">等待合同模板字段。</p>
+                <div class="mini-table" id="franchiseContractRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260606-1358"></script>
-    <script src="./workbench.js?v=20260611-realtime-ui"></script>
+    <script src="./workbench-data.js?v=20260613-promo-bid-signals"></script>
+    <script src="./workbench.js?v=20260613-promo-bid-signals"></script>
   </body>
 </html>

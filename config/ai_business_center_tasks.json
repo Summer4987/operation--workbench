@@ -1,0 +1,532 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-13",
+  "owners": {
+    "system": "Codex",
+    "business_decision": "用户"
+  },
+  "environments": {
+    "development": {
+      "machine": "MacBook",
+      "purpose": "代码开发、脚本改造、本地验证、提交和推送 GitHub。"
+    },
+    "production": {
+      "machine": "Mac mini",
+      "purpose": "生产定时任务、平台登录态、真实预算提交、云端发布和长期运行。"
+    }
+  },
+  "risk_levels": {
+    "low": "只读采集、看板生成、数据同步，不直接改变平台或财务结果。",
+    "medium": "会发布数据、生成业务单据或影响经营判断，需要运行日志和产物校验。",
+    "high": "会提交推广预算、出价、订货、付款或财务结果，必须保留人工确认或可追溯日志。"
+  },
+  "tasks": [
+    {
+      "id": "ops.morning_collection",
+      "name": "上午运营一键采集",
+      "center": "运营数据中心",
+      "module": "自动化任务健康报告",
+      "status": "running",
+      "risk": "high",
+      "schedule": "每天 09:30",
+      "entrypoints": [
+        "morning-ops/run_morning_ops_if_10am.command",
+        "morning-ops/run_morning_ops.py"
+      ],
+      "outputs": [
+        "outputs/morning_collection_status/latest.json",
+        "outputs/user_action_queue/latest.json",
+        "morning-ops/logs/",
+        "business-report-dashboard/data/latest.json",
+        "store-inspection/latest.json",
+        "outputs/promo_budget_preview/latest.json",
+        "workbench-data.js"
+      ],
+      "health_checks": [
+        "统一任务状态可汇总子步骤完成/失败",
+        "失败子步骤包含平台、模块和人工恢复动作",
+        "需要用户参与的事项进入统一待办队列",
+        "高频失败类型生成可复用修复向导",
+        "日志当天有完成记录",
+        "日报 latest.json 更新时间为当天",
+        "余额 latest.json 有平台结果",
+        "workbench-data.js 成功生成"
+      ],
+      "human_needed_when": [
+        "平台登录失效",
+        "验证码或安全验证",
+        "预算真实提交前需要临时暂停"
+      ],
+      "next_integration_step": "上午采集失败已生成可复用修复向导，下一步把修复向导扩展到实时采集和推广预算执行。"
+    },
+    {
+      "id": "ops.realtime_order_income",
+      "name": "实时单量和营业额采集",
+      "center": "运营数据中心",
+      "module": "首屏看板",
+      "status": "running",
+      "risk": "low",
+      "schedule": "10:30-20:00，午晚高峰每半小时，其余每小时",
+      "entrypoints": [
+        "scripts/run_realtime_order_income.zsh",
+        "scripts/realtime_order_income.py"
+      ],
+      "outputs": [
+        "outputs/realtime_order_income/latest.json",
+        "outputs/realtime_order_income_status/latest.json",
+        "data/realtime-history.json",
+        "workbench-data.js"
+      ],
+      "health_checks": [
+        "latest.json 更新时间不超过当前计划窗口",
+        "覆盖 8 家门店和 16 个平台门店",
+        "昨日同时段对比可生成或明确提示缺历史",
+        "最近一次成功时间和失败分类可读取",
+        "平台级失败、缺失门店和恢复动作可读取",
+        "缺失门店有门店级恢复动作和复查命令",
+        "平台失败生成可复用修复向导"
+      ],
+      "human_needed_when": [
+        "美团或饿了么登录失效",
+        "API/页面结构变化导致无法识别门店"
+      ],
+      "next_integration_step": "实时采集平台失败修复向导已接入，下一步补失败截图和 Chrome/CDP 现场证据入口。"
+    },
+    {
+      "id": "ops.daily_report",
+      "name": "日报看板",
+      "center": "运营数据中心",
+      "module": "日报看板",
+      "status": "running",
+      "risk": "medium",
+      "schedule": "上午一键采集触发",
+      "entrypoints": [
+        "business-report-dashboard/run_daily_publish.command",
+        "business-report-dashboard/chrome_cdp_reports.py",
+        "business-report-dashboard/process_reports.py"
+      ],
+      "outputs": [
+        "business-report-dashboard/data/latest.json",
+        "business-report-dashboard/dashboard/index.html",
+        "business-report-dashboard/dashboard/stores/",
+        "outputs/daily_focus_status/latest.json"
+      ],
+      "health_checks": [
+        "饿了么和美团日报提交、下载分别写入运行状态",
+        "latest.json 有最新日期",
+        "覆盖门店数量正常",
+        "异常项 focus_items 可读取",
+        "异常门店和建议动作进入 AI 建议",
+        "日报独立页面展示关键指标、平台拆分、异常重点和门店排行",
+        "近 7 天门店单量和营业额趋势可进入 AI 建议",
+        "近 4 周趋势在历史不足时明确提示覆盖不足"
+      ],
+      "human_needed_when": [
+        "Chrome 登录态失效",
+        "平台下载失败",
+        "日报数据和平台后台明显不一致"
+      ],
+      "next_integration_step": "近 7 天趋势分析已接入 AI 建议，下一步在日报历史覆盖足够后补完整近 4 周趋势。"
+    },
+    {
+      "id": "ops.review_dashboard",
+      "name": "评价看板",
+      "center": "运营数据中心",
+      "module": "评价看板",
+      "status": "running",
+      "risk": "low",
+      "schedule": "上午一键采集触发",
+      "entrypoints": [
+        "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process",
+        "scripts/record_review_reply.py",
+        "scripts/attach_review_reply_evidence.py",
+        "scripts/record_review_recap.py",
+        "scripts/record_review_sop.py",
+        "scripts/build_review_action_status.py"
+      ],
+      "outputs": [
+        "business-report-dashboard/data/unified_reviews.csv",
+        "business-report-dashboard/data/latest.json",
+        "outputs/review_reply_evidence/<date>/*",
+        "outputs/review_action_status/latest.json"
+      ],
+      "health_checks": [
+        "饿了么和美团评价下载分别写入运行状态",
+        "评价汇总 review_summary 状态为 ready",
+        "差评数量和关键词可读取",
+        "待回复差评门店和回复建议可读取",
+        "待回复评价进入统一用户待办",
+        "回复后记录命令可读取并提示补证据",
+        "人工回复完成记录可扣减待处理队列",
+        "已回复记录可标记平台截图或链接证据",
+        "本地截图可复制到证据目录并回写回复记录",
+        "看板可展示证据链接和截图预览",
+        "统一待办可区分待回复、待补证据和已闭环状态",
+        "差评关键词可沉淀为门店复盘和 AI 运营建议",
+        "门店复盘结果可记录并回写闭环状态",
+        "复盘后 7 天可跟踪同类差评是否复发",
+        "复发项可升级为门店 SOP 整改记录",
+        "SOP 整改关闭后可生成 7 天复查摘要",
+        "近 7 天评价可生成运营周复盘并进入 AI 建议"
+      ],
+      "human_needed_when": [
+        "评价下载需要登录或验证码",
+        "差评需要人工回复或赔付判断"
+      ],
+      "next_integration_step": "评价独立页面信息层级已优化，下一步把评价复盘结果沉淀进周趋势分析。"
+    },
+    {
+      "id": "growth.promo_budget",
+      "name": "推广预算设置全自动",
+      "center": "商业化推广中心",
+      "module": "推广预算全自动",
+      "status": "running_unstable",
+      "risk": "high",
+      "schedule": "午餐 10:30，晚餐 16:30；周末启用保守预设",
+      "entrypoints": [
+        "scripts/run_current_budget.zsh",
+        "scripts/build_promo_budget_preview.mjs",
+        "scripts/build_promo_budget_retry_plan.py",
+        "scripts/run_eleme_automation.zsh",
+        "store-inspection/meituan_budget_cdp.py"
+      ],
+      "outputs": [
+        "outputs/promo_budget_preview/latest.json",
+        "outputs/promo_budget_retry_plan/latest.json",
+        "outputs/current_budget/logs/",
+        "config/promo_budget_overrides.json"
+      ],
+      "health_checks": [
+        "预算预览生成成功",
+        "目标预算在允许窗口执行",
+        "平台保存后校验目标预算",
+        "饿了么和美团预算执行分别写入平台级状态和恢复动作",
+        "失败分类包含登录权限、预算安全、页面结构、门店映射和人工浏览器准备",
+        "门店级安全重试策略明确可重试和必须人工处理的失败类型",
+        "真实执行日志可回填到门店级重试策略",
+        "人工处理项生成可复用修复向导",
+        "周末预设状态可区分待配置、已配置未启用和当日生效",
+        "预算执行脚本按步骤写入运行状态、日志路径和失败返回码",
+        "失败时写入日志并停止后续高风险动作"
+      ],
+      "human_needed_when": [
+        "平台登录或验证码",
+        "预算范围异常",
+        "页面提示自动提预算或风险设置",
+        "需要临时调整门店预算"
+      ],
+      "next_integration_step": "推广预算人工处理项已生成修复向导，周末预设已显性化为待确认配置，执行脚本已写入步骤级运行记录；下一步让平台脚本回填更精确的门店级结果。"
+    },
+    {
+      "id": "growth.promo_balance",
+      "name": "推广余额巡检",
+      "center": "商业化推广中心",
+      "module": "推广余额预警",
+      "status": "running",
+      "risk": "low",
+      "schedule": "上午一键采集触发，也可人工单独运行",
+      "entrypoints": [
+        "store-inspection/run_all_balances.py",
+        "store-inspection/one_click_eleme_balance.py",
+        "store-inspection/one_click_meituan_balance.py",
+        "scripts/build_store_inspection_evidence_manifest.py",
+        "scripts/upload_store_inspection_evidence.zsh",
+        "scripts/run_macmini_ai_center_smoke.zsh",
+        "scripts/build_macmini_smoke_status.py"
+      ],
+      "outputs": [
+        "store-inspection/latest.json",
+        "store-inspection/latest-data.js",
+        "outputs/promo_balance_status/latest.json",
+        "outputs/store_inspection_evidence_manifest/latest.json",
+        "outputs/macmini_smoke_status/latest.json",
+        "outputs/store_inspection/",
+        "云端 on-demand/store_inspection/YYYY-MM-DD/"
+      ],
+      "health_checks": [
+        "latest.json 有巡检生成时间",
+        "至少一个平台有余额结果",
+        "巡检失败和低余额预警分开展示",
+        "平台级失败包含恢复指引和复查命令",
+        "失败截图和 OCR 证据入口可读取",
+        "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
+        "Mac mini 上午定时任务会在余额巡检后上传证据",
+        "Mac mini 只读冒烟检查可验证证据 dry-run 和上午 preview",
+        "Mac mini 冒烟日志可落盘并生成回传状态",
+        "低余额门店进入重点预警",
+        "低余额充值计划列出平台、门店、余额阈值和差额"
+      ],
+      "human_needed_when": [
+        "平台登录失效",
+        "余额识别失败",
+        "推广余额不足需要充值"
+      ],
+      "next_integration_step": "低余额充值计划已接入统一待办和推广页，下一步需要在 Mac mini 运行只读冒烟并回传完整输出。"
+    },
+    {
+      "id": "growth.promo_bid",
+      "name": "推广出价调整全自动",
+      "center": "商业化推广中心",
+      "module": "推广出价调整",
+      "status": "running_unstable",
+      "risk": "high",
+      "schedule": "待定，先建议后审批",
+      "entrypoints": [
+        "scripts/build_promo_bid_advice.py",
+        "scripts/build_promo_bid_approval_queue.py",
+        "scripts/record_promo_bid_decision.py",
+        "scripts/build_promo_bid_execution_plan.py",
+        "scripts/build_promo_bid_signal_status.py",
+        "scripts/init_promo_bid_signals.py",
+        "scripts/build_execution_preview.mjs",
+        "dianjin-prototype/"
+      ],
+      "outputs": [
+        "outputs/promo_bid_advice/latest.json",
+        "outputs/promo_bid_approval_queue/latest.json",
+        "outputs/promo_bid_execution_plan/latest.json",
+        "outputs/promo_bid_signal_status/latest.json",
+        "data/promo-bid-signals/templates/promo_bid_signal_template.csv",
+        "data/promo_bid_decisions.json",
+        "outputs/dianjin_automation/execution_preview_*.json",
+        "dianjin-prototype/execution_preview.js"
+      ],
+      "health_checks": [
+        "有预算消耗和预期消耗输入",
+        "出价建议有证据链",
+        "执行前必须进入审批队列",
+        "审批摘要列出门店、出价变化、消耗和预算占用",
+        "审批队列明确人工确认、禁止自动提交和风险项处理",
+        "审批记录可扣减待处理队列并保留本地审计文件",
+        "审批记录默认校验 approval_id 必须存在于当前队列",
+        "已审批出价只生成 dry-run 执行计划，不自动提交平台",
+        "真实执行闸会检查未审批项、旧预览和信号缺口",
+        "曝光、进店和下单转化输入缺口可见",
+        "推广明细信号接收目录和 CSV 模板可读取",
+        "只读建议不会自动提交平台"
+      ],
+      "human_needed_when": [
+        "首次确认出价策略",
+        "单次调价超过阈值",
+        "平台提示风险或预算异常"
+      ],
+      "next_integration_step": "出价审批摘要、本地审批记录、dry-run 执行计划、真实执行安全闸和信号输入缺口已接入，下一步接入平台推广明细。"
+    },
+    {
+      "id": "flow.inventory",
+      "name": "库存全自动",
+      "center": "货流中心",
+      "module": "库存全自动",
+      "status": "running",
+      "risk": "medium",
+      "schedule": "云端库存服务持续运行",
+      "entrypoints": [
+        "scripts/check_inventory_cloud_health.py",
+        "scripts/build_inventory_order_suggestions.py",
+        "scripts/build_inventory_order_lists.py",
+        "scripts/build_inventory_order_execution_preview.py",
+        "scripts/build_inventory_android_execution_plan.py",
+        "scripts/check_android_execution_config.py",
+        "scripts/init_android_execution_config.py",
+        "inventory-board/app/main.py",
+        "inventory-board/scripts/sync_order_outputs.py"
+      ],
+      "outputs": [
+        "outputs/inventory_health/latest.json",
+        "outputs/inventory_order_suggestions/latest.json",
+        "outputs/inventory_order_lists/latest.json",
+        "outputs/inventory_order_execution_preview/latest.json",
+        "outputs/inventory_android_execution_plan/latest.json",
+        "outputs/android_execution_config/latest.json",
+        "inventory-board/data/inventory.sqlite3",
+        "云端 /api/summary",
+        "~/Desktop/库存管理/出库记录"
+      ],
+      "health_checks": [
+        "outputs/inventory_health/latest.json 最近一次检查成功",
+        "云端 /api/summary 可访问",
+        "库存预警数量可读取",
+        "低库存商品可生成只读订货建议",
+        "订货建议按供应渠道分组并生成确认命令",
+        "待确认订货建议进入统一用户待办队列",
+        "出库单可同步到本地"
+      ],
+      "human_needed_when": [
+        "库存实物盘点差异",
+        "出库单需要打印或补录",
+        "供应商变更"
+      ],
+      "next_integration_step": "订货建议人工确认入口已接入待办队列，下一步补确认后的差异复核和样例回归。"
+    },
+    {
+      "id": "flow.auto_ordering",
+      "name": "订货全自动",
+      "center": "货流中心",
+      "module": "订货全自动",
+      "status": "running_unstable",
+      "risk": "high",
+      "schedule": "待定，先建议后下单",
+      "entrypoints": [
+        "scripts/build_inventory_order_suggestions.py",
+        "scripts/build_inventory_order_lists.py",
+        "scripts/build_inventory_order_execution_preview.py",
+        "scripts/build_inventory_android_execution_plan.py",
+        "scripts/check_android_execution_config.py",
+        "scripts/init_android_execution_config.py"
+      ],
+      "outputs": [
+        "outputs/inventory_order_suggestions/latest.json",
+        "outputs/inventory_order_lists/latest.json",
+        "outputs/inventory_order_execution_preview/latest.json",
+        "outputs/inventory_android_execution_plan/latest.json",
+        "outputs/android_execution_config/latest.json"
+      ],
+      "health_checks": [
+        "根据库存预警生成只读订货建议",
+        "订货建议按供应渠道分组",
+        "业务中心页面展示人工确认队列",
+        "人工确认后生成渠道下单清单",
+        "远控安卓下单前生成执行预览和付款确认状态",
+        "远控安卓执行适配层只读计划",
+        "远控安卓真实设备连接配置可检查",
+        "远控安卓真实设备连接配置可通过向导生成",
+        "远控安卓配置清单列出 adb、向导、写入和复查命令",
+        "执行前必须人工确认，不自动下单付款",
+        "后续再按商品和供应渠道分类"
+      ],
+      "human_needed_when": [
+        "首次确认供应渠道映射",
+        "付款确认",
+        "缺货替代品选择"
+      ],
+      "next_integration_step": "远控安卓配置清单已接入统一待办和货流页，下一步等待 Mac mini 补齐真实设备配置后做只读生产冒烟检查。"
+    },
+    {
+      "id": "finance.bill_analysis",
+      "name": "自动分析账单",
+      "center": "财务中心",
+      "module": "自动分析账单",
+      "status": "running_unstable",
+      "risk": "medium",
+      "schedule": "待定，按上传账单触发",
+      "entrypoints": [
+        "scripts/init_finance_inbox.py",
+        "scripts/build_finance_center_status.py",
+        "config/finance_bill_schema.json"
+      ],
+      "outputs": [
+        "outputs/finance_center_status/latest.json",
+        "data/finance-inbox/templates/",
+        "data/finance-inbox/bank/",
+        "data/finance-inbox/platform/"
+      ],
+      "health_checks": [
+        "账单样例目录和字段字典可检查",
+        "样例接收清单列出目录、格式和必需字段",
+        "银行账单和平台账单字段模板可读取",
+        "银行账单和平台账单字段映射成功",
+        "收入、佣金、配送费、推广费、退款、补贴可拆分",
+        "异常费用可追溯到原始行"
+      ],
+      "human_needed_when": [
+        "首次提供账单样例",
+        "确认科目口径",
+        "解释无法自动分类的流水"
+      ],
+      "next_integration_step": "财务样例接收清单、接收目录和字段模板已接入，下一步在样例到位后做字段映射。"
+    },
+    {
+      "id": "finance.report_generation",
+      "name": "生成财务报表和数据",
+      "center": "财务中心",
+      "module": "财务报表",
+      "status": "planned",
+      "risk": "medium",
+      "schedule": "待定，账单字段映射稳定后触发",
+      "entrypoints": [
+        "scripts/build_finance_center_status.py",
+        "outputs/finance_center_status/latest.json"
+      ],
+      "outputs": [
+        "outputs/finance_center_status/latest.json",
+        "财务报表待生成"
+      ],
+      "health_checks": [
+        "银行账单和平台账单样例已接收",
+        "字段映射和科目字典已确认",
+        "营业收入、佣金、配送费、推广费、退款、补贴可汇总",
+        "门店利润表可生成",
+        "费用异常可追溯到原始账单行",
+        "生成前可预览并人工确认口径"
+      ],
+      "human_needed_when": [
+        "确认财务科目口径",
+        "确认报表期间和门店归属",
+        "解释无法自动分类的账单行"
+      ],
+      "next_integration_step": "先等待财务账单样例和字段映射完成，再生成门店利润表与费用异常提醒。"
+    },
+    {
+      "id": "tools.sales_receipt",
+      "name": "销售单生成器",
+      "center": "小工具仓库",
+      "module": "销售单生成器",
+      "status": "running",
+      "risk": "low",
+      "schedule": "人工打开使用",
+      "entrypoints": [
+        "scripts/build_tool_warehouse_status.py",
+        "scripts/check_sales_receipt_print_layout.mjs",
+        "sales-receipt-generator/index.html"
+      ],
+      "outputs": [
+        "outputs/tool_warehouse_status/latest.json",
+        "outputs/sales_receipt_print_check/latest.json",
+        "outputs/sales_receipt_print_check/latest.png",
+        "浏览器打印销售单"
+      ],
+      "health_checks": [
+        "页面可打开",
+        "脚本、样式和默认公章资源存在",
+        "打印版式自动截图校验通过",
+        "打印布局保持一页"
+      ],
+      "human_needed_when": [
+        "销售单字段或公章模板变化"
+      ],
+      "next_integration_step": "销售单打印版式自动截图校验已接入，下一步补字段变化时的样例单据回归集。"
+    },
+    {
+      "id": "tools.franchise_contract",
+      "name": "加盟合同生成器",
+      "center": "小工具仓库",
+      "module": "加盟合同生成器",
+      "status": "running_unstable",
+      "risk": "medium",
+      "schedule": "人工触发",
+      "entrypoints": [
+        "scripts/init_franchise_contract_inbox.py",
+        "scripts/build_tool_warehouse_status.py",
+        "franchise-contract-generator/"
+      ],
+      "outputs": [
+        "outputs/tool_warehouse_status/latest.json",
+        "franchise-contract-generator/templates/field_template.csv"
+      ],
+      "health_checks": [
+        "合同模板版本明确",
+        "模板接收清单列出目录、格式和必需字段",
+        "加盟合同字段清单模板可读取",
+        "加盟商资料字段完整",
+        "生成前预览并人工确认",
+        "工具仓库状态列出缺失模板和字段"
+      ],
+      "human_needed_when": [
+        "提供合同模板",
+        "确认加盟条款和费用口径",
+        "确认生成后的合同内容"
+      ],
+      "next_integration_step": "合同模板接收清单、初始化脚本和字段清单模板已接入，下一步在模板到位后做字段映射。"
+    }
+  ]
+}

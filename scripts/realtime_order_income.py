@@ -26,6 +26,7 @@ from chrome_cdp_reports import (  # noqa: E402
 
 
 ELEME_URL = "https://melody.shop.ele.me/app/chain/93331264/store-analysis#app.chainshop.store-analysis?path=1&dateType=realTime&orderCol=valid_ord_amt&orderType=DESC"
+ELEME_STATS_CENTER_URL = "https://melody.shop.ele.me/app/chain/93331264/stats__center#app.chainshop.stats.center"
 MEITUAN_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/business"
 OUTPUT_DIR = ROOT / "outputs" / "realtime_order_income"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
@@ -421,6 +422,45 @@ def page_for_platform(context, url: str, url_markers: list[str]):
     return page, True
 
 
+def closed_page_error(exc: Exception) -> bool:
+    text = str(exc)
+    return any(
+        marker in text
+        for marker in [
+            "Target page, context or browser has been closed",
+            "has been closed",
+            "Browser closed",
+            "Target closed",
+        ]
+    )
+
+
+def new_platform_page(context):
+    page = context.new_page()
+    page.set_default_timeout(10_000)
+    return page
+
+
+def close_platform_pages(context, url_markers: list[str]) -> None:
+    for page in list(context.pages):
+        try:
+            if any(marker in (page.url or "") for marker in url_markers):
+                page.close()
+        except Exception:
+            pass
+
+
+def platform_target_count(items: list[dict[str, Any]], platform: str) -> int:
+    merged = merge_records(items)
+    return len(
+        {
+            item.get("store")
+            for item in merged
+            if item.get("platform") == platform and item.get("store") in TARGET_STORES
+        }
+    )
+
+
 def collect_api_responses(page, platform: str) -> tuple[list[dict[str, Any]], Any]:
     records: list[dict[str, Any]] = []
 
@@ -475,6 +515,39 @@ def click_next_page(target) -> bool:
         return False
 
 
+def dismiss_eleme_blocking_overlays(page) -> None:
+    try:
+        page.evaluate(
+            """
+            () => {
+              for (const selector of ['[class*="updateBtn"]', '[class*="close"]', '[aria-label="Close"]']) {
+                const el = document.querySelector(selector);
+                if (el) {
+                  el.click();
+                  return;
+                }
+              }
+              document.querySelectorAll('[class*="updateModal"]').forEach((el) => el.remove());
+            }
+            """
+        )
+    except Exception:
+        pass
+
+
+def click_eleme_store_analysis(page) -> None:
+    dismiss_eleme_blocking_overlays(page)
+    try:
+        page.get_by_text("门店分析", exact=True).last.click(timeout=5000, force=True)
+        return
+    except Exception:
+        pass
+    try:
+        page.locator("li").filter(has_text="门店分析").last.click(timeout=5000, force=True)
+    except Exception:
+        click_text(page, "门店分析", timeout=3000)
+
+
 def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     page, is_new = page_for_platform(context, ELEME_URL, ["melody.shop.ele.me", "lsycm.alibaba.com"])
     page.set_default_timeout(10_000)
@@ -504,21 +577,26 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     try:
         log("饿了么：开始")
         page.on("request", on_request)
-        if is_new or "melody.shop.ele.me" not in (page.url or ""):
-            log("饿了么：进入实时门店页")
-            goto_backend_page(page, ELEME_URL, timeout=min(timeout_ms, 45_000))
-        else:
-            log("饿了么：刷新现有标签页")
-            try:
-                page.reload(wait_until="commit", timeout=25_000)
-            except Exception:
-                pass
-        page.wait_for_timeout(10_000)
+        log("饿了么：进入实时门店页")
+        try:
+            page.goto("about:blank", wait_until="commit", timeout=10_000)
+            page.wait_for_timeout(800)
+        except Exception:
+            pass
+        page.goto(ELEME_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
+        try:
+            page.reload(wait_until="commit", timeout=min(timeout_ms, 45_000))
+        except Exception:
+            pass
+        page.wait_for_timeout(18_000)
+        dismiss_eleme_blocking_overlays(page)
         if not captured_rank_request:
             try:
-                log("饿了么：未捕获门店接口，尝试进入数据中心")
-                click_text(page, "数据中心", timeout=3000)
-                page.wait_for_timeout(7000)
+                log("饿了么：未捕获门店接口，尝试进入门店分析")
+                page.goto(ELEME_STATS_CENTER_URL, wait_until="commit", timeout=min(timeout_ms, 30_000))
+                page.wait_for_timeout(5000)
+                click_eleme_store_analysis(page)
+                page.wait_for_timeout(18_000)
             except Exception:
                 page.wait_for_timeout(3000)
         if captured_rank_request:
@@ -654,23 +732,16 @@ def click_meituan_realtime_and_scroll(page) -> None:
         page.wait_for_timeout(900)
 
 
-def scrape_meituan(context, timeout_ms: int) -> list[dict[str, Any]]:
-    page, is_new = page_for_platform(context, MEITUAN_URL, ["e.waimai.meituan.com", "waimaieapp.meituan.com"])
+def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
+    page = new_platform_page(context)
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(min(timeout_ms, 30_000))
     api_records, handler = collect_api_responses(page, "美团")
     dom_records: list[dict[str, Any]] = []
     try:
         log("美团：开始")
-        if is_new or "waimai" not in (page.url or ""):
-            log("美团：进入实时经营页")
-            goto_backend_page(page, MEITUAN_URL, timeout=min(timeout_ms, 45_000))
-        else:
-            log("美团：刷新现有标签页")
-            try:
-                page.reload(wait_until="commit", timeout=25_000)
-            except Exception:
-                pass
+        log("美团：进入实时经营页")
+        page.goto(MEITUAN_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
         page.wait_for_timeout(7000)
         click_meituan_realtime_and_scroll(page)
         for target in [page, *page.frames]:
@@ -683,6 +754,23 @@ def scrape_meituan(context, timeout_ms: int) -> list[dict[str, Any]]:
     result = merge_records([*api_records, *dom_records])
     log(f"美团：完成 {len(result)} 个目标门店")
     return result
+
+
+def scrape_meituan(context, timeout_ms: int) -> list[dict[str, Any]]:
+    last_error: Exception | None = None
+    for attempt in range(1, 3):
+        try:
+            if attempt > 1:
+                log("美团：页面被平台关闭，重开页面后重试")
+            return scrape_meituan_once(context, timeout_ms)
+        except Exception as exc:
+            last_error = exc
+            if not closed_page_error(exc) or attempt >= 2:
+                break
+            time.sleep(2)
+    if last_error:
+        raise last_error
+    return []
 
 
 def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, Any]:
@@ -770,15 +858,42 @@ def main() -> int:
     try:
         context = first_context(browser)
         if args.platform in {"all", "eleme"}:
-            try:
-                records.extend(scrape_eleme(context, args.timeout_ms))
-            except Exception as exc:
-                errors.append(f"饿了么采集失败：{exc}")
+            eleme_records: list[dict[str, Any]] = []
+            for attempt in range(1, 3):
+                try:
+                    eleme_records = scrape_eleme(context, args.timeout_ms)
+                    completed = platform_target_count(eleme_records, "饿了么")
+                    if completed >= len(TARGET_STORES):
+                        break
+                    log(f"饿了么：仅完成 {completed} 个目标门店，重开页面重试")
+                    close_platform_pages(context, ["melody.shop.ele.me", "lsycm.alibaba.com"])
+                    context = first_context(browser)
+                except Exception as exc:
+                    if attempt >= 2:
+                        errors.append(f"饿了么采集失败：{exc}")
+                    else:
+                        log(f"饿了么：采集异常，重开页面重试：{exc}")
+                        close_platform_pages(context, ["melody.shop.ele.me", "lsycm.alibaba.com"])
+                        context = first_context(browser)
+            records.extend(eleme_records)
+            completed = platform_target_count(eleme_records, "饿了么")
+            if completed < len(TARGET_STORES):
+                errors.append(f"饿了么采集不完整：仅完成 {completed}/{len(TARGET_STORES)} 个目标门店")
         if args.platform in {"all", "meituan"}:
             try:
                 records.extend(scrape_meituan(context, args.timeout_ms))
             except Exception as exc:
-                errors.append(f"美团采集失败：{exc}")
+                if closed_page_error(exc):
+                    try:
+                        log("美团：浏览器连接已关闭，重新连接后再试一次")
+                        disconnect_browser(playwright, browser)
+                        playwright, browser = connect_browser(config)
+                        context = first_context(browser)
+                        records.extend(scrape_meituan(context, args.timeout_ms))
+                    except Exception as retry_exc:
+                        errors.append(f"美团采集失败：{retry_exc}")
+                else:
+                    errors.append(f"美团采集失败：{exc}")
     finally:
         disconnect_browser(playwright, browser)
 

@@ -22,7 +22,7 @@ MacBook 或 Codex 所在设备：
 
 ## 基本规则
 
-- 生产代码只从 GitHub `main` 分支部署到 Mac mini。
+- 现阶段 AI 业务中心生产代码从 GitHub `codex/ai-business-center` 分支部署到 Mac mini；合并回主线后再切回主线分支。
 - Mac mini 默认只拉取已验证代码；生产现场允许修复紧急 bug，但修复验证后当天必须推送到 GitHub。
 - 不通过手动拷贝在两台设备之间同步程序文件。
 - Mac mini 的日志、下载文件、浏览器登录态和运行状态不上传 GitHub。
@@ -36,7 +36,7 @@ MacBook 或 Codex 所在设备：
 1. 验证本地改动。
 2. 只暂存本次有效改动。
 3. 提交到 Git。
-4. 推送到 GitHub `main`。
+4. 推送到 GitHub `codex/ai-business-center`。
 
 在 Mac mini 上部署：
 
@@ -52,13 +52,27 @@ MacBook 或 Codex 所在设备：
    git status --short --branch
    ```
 
-3. 如果没有未提交改动，拉取最新代码：
+3. 如果没有未提交改动，优先使用交接脚本拉取并检查：
 
    ```zsh
-   git pull --ff-only origin main
+   /bin/zsh scripts/macmini_pull_and_check.zsh
    ```
 
-4. 如果出现未提交改动，先暂停部署，不要强行覆盖。需要判断这些改动属于：
+   需要同时跑证据上传 dry-run 和上午 preview 时：
+
+   ```zsh
+   /bin/zsh scripts/macmini_pull_and_check.zsh --smoke
+   ```
+
+   交接脚本只允许 fast-forward 更新；如果 Mac mini 本地有改动，会拒绝继续并打印现场状态。
+
+4. 手动拉取路径：
+
+   ```zsh
+   git pull --ff-only origin codex/ai-business-center
+   ```
+
+5. 如果出现未提交改动，先暂停部署，不要强行覆盖。需要判断这些改动属于：
 
    - 本机运行产物：通常不应提交，应该被忽略。
    - 有效代码改动：需要确认是否提交。
@@ -66,6 +80,42 @@ MacBook 或 Codex 所在设备：
    - 生产配置或登录态：不应进入 GitHub。
 
 5. 拉取完成后，先做轻量验证，再决定是否重新安装定时任务。
+
+### AI 业务中心生产检查
+
+拉取包含 AI 业务中心改动的代码后，先在 Mac mini 项目目录运行：
+
+```zsh
+/bin/zsh scripts/check_macmini_ai_center.zsh
+```
+
+更短的用户执行清单见 [AI_BUSINESS_CENTER_MACMINI_HANDOFF.md](AI_BUSINESS_CENTER_MACMINI_HANDOFF.md)。
+
+这个检查只做只读验证：
+
+- 校验任务注册表。
+- 检查 Python 和 zsh 脚本语法。
+- 生成 `outputs/task_health/latest.json` 和 `workbench-data.js`。
+- 查看生产 launchd 标签是否已加载。
+- 标记健康数据来源环境；生产判断以 Mac mini 的 `production` 运行记录为准。
+
+它不会采集平台数据、不会提交推广预算、不会付款、不会上传云端。
+
+如果检查输出里出现 `未安装或未加载`，并且本次改动涉及定时任务入口、触发时间或安装脚本，再运行：
+
+```zsh
+/bin/zsh scripts/install_macmini_operation_launchd.zsh
+```
+
+如果本次改动涉及定时任务、证据上传、云端同步或上午一键流程，普通检查通过后运行只读冒烟检查：
+
+```zsh
+/bin/zsh scripts/run_macmini_ai_center_smoke.zsh
+```
+
+这条冒烟检查会执行健康检查、巡检证据上传 `--dry-run` 和上午一键流程 `preview`，不会提交预算、不会下单付款、不会真实上传证据。
+
+如果检查里出现 Python、Node、Git、权限或 launchd 错误，把完整输出发给 Codex，不要强行重置或覆盖现场。
 
 ## 生产热修复流程
 
@@ -95,7 +145,7 @@ Mac mini 是生产环境，不代表它永远不能产生代码改动。遇到�
 
 ## 遇到冲突时怎么处理
 
-如果 `git pull --ff-only origin main` 失败：
+如果 `git pull --ff-only origin codex/ai-business-center` 失败：
 
 - 不要运行覆盖、重置或强制拉取。
 - 先保留现场。

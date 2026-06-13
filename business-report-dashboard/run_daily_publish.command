@@ -14,6 +14,25 @@ fi
 
 cd "$PROJECT_DIR"
 
+retry_command() {
+  local label="$1"
+  shift
+  local attempt=1
+  local max_attempts="${RETRY_ATTEMPTS:-3}"
+  local delay="${RETRY_DELAY_SECONDS:-5}"
+  while true; do
+    "$@" && return 0
+    local status=$?
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      echo "$label 失败：已重试 $attempt 次。"
+      return "$status"
+    fi
+    echo "$label 失败，${delay}s 后重试（$attempt/$max_attempts）..."
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+
 PUBLISH_ONLY="false"
 if [[ "${1:-}" == "--publish-only" ]]; then
   PUBLISH_ONLY="true"
@@ -42,12 +61,12 @@ test -f "$PROJECT_DIR/data/unified_reviews.csv"
 
 echo ""
 echo "正在准备云服务器目录..."
-ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR/data' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
+retry_command "准备云服务器目录" ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR/data' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
 
 echo "正在上传最新看板到云服务器..."
-rsync -az --delete -e "ssh ${SSH_OPTS[*]}" "$PROJECT_DIR/dashboard/" "$SERVER:$REMOTE_DIR/"
-rsync -az -e "ssh ${SSH_OPTS[*]}" "$PROJECT_DIR/data/latest.json" "$PROJECT_DIR/data/unified_daily.csv" "$PROJECT_DIR/data/unified_reviews.csv" "$SERVER:$REMOTE_DIR/data/"
-ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
+retry_command "上传日报页面" rsync -az --delete -e "ssh ${SSH_OPTS[*]}" "$PROJECT_DIR/dashboard/" "$SERVER:$REMOTE_DIR/"
+retry_command "上传日报数据" rsync -az -e "ssh ${SSH_OPTS[*]}" "$PROJECT_DIR/data/latest.json" "$PROJECT_DIR/data/unified_daily.csv" "$PROJECT_DIR/data/unified_reviews.csv" "$SERVER:$REMOTE_DIR/data/"
+retry_command "修正云端权限" ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
 
 echo ""
 echo "云端日报地址：$REMOTE_URL"

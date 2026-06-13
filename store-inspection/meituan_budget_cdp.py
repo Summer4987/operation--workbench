@@ -90,6 +90,51 @@ def wait_budget(page, *, timeout_seconds: int = 15) -> float | None:
     return last_value
 
 
+def setting_snapshot(page) -> dict:
+    return page.evaluate(
+        """() => {
+            const text = document.body.innerText || '';
+            const wrappers = [...document.querySelectorAll('.isomor-cpc-fresh-right-wrapper, [class*=right-wrapper]')]
+                .map((el) => {
+                    const rect = el.getBoundingClientRect();
+                    return {
+                        text: (el.innerText || '').trim(),
+                        width: rect.width,
+                        height: rect.height,
+                        cursor: getComputedStyle(el).cursor,
+                    };
+                })
+                .filter((item) => item.width > 0 && item.height > 0);
+            const rangeMatch = text.match(/当前最终出价范围为\\s*([0-9.]+)~([0-9.]+)元/);
+            return {
+                text,
+                wrappers,
+                rangeMin: rangeMatch ? Number(rangeMatch[1]) : null,
+                rangeMax: rangeMatch ? Number(rangeMatch[2]) : null,
+            };
+        }"""
+    )
+
+
+def wait_setting_ready(page, *, timeout_seconds: int = 35) -> dict:
+    last_snapshot = {}
+    for _ in range(timeout_seconds):
+        last_snapshot = setting_snapshot(page)
+        budget = read_budget(page)
+        range_max = last_snapshot.get("rangeMax")
+        has_clickable_budget = any(
+            ("预算" in wrapper.get("text", "") or "元" in wrapper.get("text", ""))
+            and wrapper.get("cursor") == "pointer"
+            for wrapper in last_snapshot.get("wrappers", [])
+        )
+        if budget and budget > 0 and has_clickable_budget:
+            return last_snapshot
+        if range_max and range_max > 0 and has_clickable_budget:
+            return last_snapshot
+        time.sleep(1)
+    return last_snapshot
+
+
 def click_visible_text(page, label: str) -> bool:
     locator = page.get_by_text(label)
     for index in range(locator.count()):
@@ -114,6 +159,22 @@ def enter_dianjin(page) -> None:
     raise RuntimeError("进入点金推广后没有预算区域")
 
 
+def enter_dianjin_with_recovery(page, target_url: str) -> None:
+    errors: list[str] = []
+    for attempt in range(3):
+        try:
+            enter_dianjin(page)
+            return
+        except Exception as exc:
+            errors.append(str(exc))
+            if attempt == 0:
+                page.reload(wait_until="domcontentloaded", timeout=30000)
+            else:
+                page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+    raise RuntimeError("没有可见的点金推广入口；重试后仍失败：" + "；".join(errors[-2:]))
+
+
 def open_budget_modal(page) -> None:
     def opened() -> bool:
         return (
@@ -121,6 +182,24 @@ def open_budget_modal(page) -> None:
             and page.locator('input[type="number"]').count() > 0
             and page.get_by_role("button", name="确定").count() > 0
         )
+
+    def try_dom_click(selector: str) -> bool:
+        try:
+            count = page.locator(selector).count()
+        except Exception:
+            return False
+        for index in range(count):
+            item = page.locator(selector).nth(index)
+            try:
+                if not item.is_visible():
+                    continue
+                item.click(timeout=3000)
+                time.sleep(1)
+                if opened():
+                    return True
+            except Exception:
+                continue
+        return False
 
     def budget_click_boxes() -> list[dict]:
         return page.evaluate(
@@ -159,6 +238,15 @@ def open_budget_modal(page) -> None:
             }"""
         )
 
+    for selector in [
+        ".isomor-cpc-fresh-budget-number",
+        ".isomor-cpc-fresh-used-wrapper",
+        ".isomor-cpc-fresh-right-wrapper.isomor-cpc-cursor",
+        ".isomor-cpc-fresh-budget-line .r2x-text",
+    ]:
+        if try_dom_click(selector):
+            return
+
     for _ in range(4):
         for box in budget_click_boxes():
             page.mouse.click(box["x"] + box["w"] / 2, box["y"] + box["h"] / 2)
@@ -189,6 +277,7 @@ def open_budget_modal(page) -> None:
 def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
     target = float(task["targetBudget"])
     wm_id = wm_poi_id(task)
+    target_url = url_for_store(base_url, wm_id)
     page = context.new_page()
     record = {
         "store": task.get("store"),
@@ -198,9 +287,15 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
         "ok": False,
     }
     try:
-        page.goto(url_for_store(base_url, wm_id), wait_until="domcontentloaded", timeout=30000)
+        page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
         time.sleep(5)
-        enter_dianjin(page)
+        enter_dianjin_with_recovery(page, target_url)
+        ready = wait_setting_ready(page)
+        if read_budget(page) in {None, 0} and ready.get("rangeMax") in {None, 0}:
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+            enter_dianjin_with_recovery(page, target_url)
+            wait_setting_ready(page)
         record["beforeBudget"] = wait_budget(page)
         if not commit:
             record["ok"] = True
@@ -211,7 +306,14 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
             record["ok"] = True
             record["message"] = "页面预算已是目标值，无需重复保存"
             return record
-        open_budget_modal(page)
+        try:
+            open_budget_modal(page)
+        except RuntimeError:
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+            enter_dianjin_with_recovery(page, target_url)
+            wait_setting_ready(page)
+            open_budget_modal(page)
         input_box = page.locator('input[type="number"]').first
         record["beforeInput"] = input_box.input_value(timeout=3000)
         value = str(int(target) if target.is_integer() else target)
@@ -220,7 +322,20 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
         record["afterInput"] = input_box.input_value(timeout=3000)
         if float(record["afterInput"]) != target:
             raise RuntimeError(f"输入框未变为目标预算：{record['afterInput']}")
-        page.get_by_role("button", name="确定").click(timeout=5000)
+        confirm_button = page.get_by_role("button", name="确定")
+        if confirm_button.count() == 0:
+            raise RuntimeError("预算弹窗没有确定按钮")
+        if not confirm_button.first.is_enabled(timeout=3000):
+            page.keyboard.press("Escape")
+            time.sleep(2)
+            final_budget = read_budget(page)
+            record["afterBudget"] = final_budget
+            if final_budget is not None and abs(final_budget - target) <= 0.01:
+                record["ok"] = True
+                record["message"] = "确定按钮禁用，页面预算已是目标值"
+                return record
+            raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
+        confirm_button.first.click(timeout=5000)
         time.sleep(6)
         final_budget = read_budget(page)
         record["afterBudget"] = final_budget

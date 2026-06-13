@@ -134,7 +134,7 @@ chmod +x "$RUNTIME_ROOT/scripts/run_current_budget.zsh"
 write_plist "com.summer.dianjin.eleme.1040" 10 40 "10:40"
 write_plist "com.summer.dianjin.eleme.1050" 10 50 "10:50"
 write_plist "com.summer.dianjin.eleme.1100" 11 0 "11:00"
-write_custom_plist "com.summer.dianjin.eleme.1730" 17 30 "$SOURCE_ROOT/scripts/run_evening_budget.zsh"
+write_custom_plist "com.summer.dianjin.eleme.1630" 16 30 "$SOURCE_ROOT/scripts/run_evening_budget.zsh"
 
 echo
 echo "饿了么点金自动化定时任务已安装。当前模式：${MODE}"
