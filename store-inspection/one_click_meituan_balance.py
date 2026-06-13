@@ -53,8 +53,8 @@ MEITUAN_WM_POI_IDS = {
 }
 
 
-def run(args: list[str], *, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
-    result = subprocess.run(args, cwd=WORKSPACE, text=True, capture_output=capture)
+def run(args: list[str], *, check: bool = True, capture: bool = True, timeout: int | None = None) -> subprocess.CompletedProcess:
+    result = subprocess.run(args, cwd=WORKSPACE, text=True, capture_output=capture, timeout=timeout)
     if check and result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()
         raise RuntimeError(f"{' '.join(args)} 失败：{detail or result.returncode}")
@@ -64,15 +64,24 @@ def run(args: list[str], *, check: bool = True, capture: bool = True) -> subproc
 def preflight_permissions() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     test_image = OUTPUT_DIR / "permission_test_meituan.png"
-    result = run(["screencapture", "-x", str(test_image)], check=False)
+    try:
+        result = run(["screencapture", "-x", str(test_image)], check=False, timeout=5)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            "一键巡检需要屏幕录制权限。后台定时环境 5 秒内无法完成截图。"
+            "请在 Mac mini 系统设置里给 Terminal、Codex 或当前执行入口开启“屏幕录制”。"
+        ) from None
     if result.returncode != 0:
-        raise RuntimeError("一键巡检需要屏幕录制权限。请在系统设置里给 Terminal 或 Codex 开启“屏幕录制”。")
+        raise RuntimeError("一键巡检需要屏幕录制权限。请在 Mac mini 系统设置里给 Terminal、Codex 或当前执行入口开启“屏幕录制”。")
     if test_image.exists():
         test_image.unlink()
 
-    result = run(["osascript", "-e", 'tell application "System Events" to get UI elements enabled'], check=False)
+    try:
+        result = run(["osascript", "-e", 'tell application "System Events" to get UI elements enabled'], check=False, timeout=5)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("一键巡检需要辅助功能权限。后台定时环境 5 秒内无法完成辅助功能检测。") from None
     if "true" not in (result.stdout or "").lower():
-        raise RuntimeError("一键巡检需要辅助功能权限。请在系统设置里给 Terminal 或 Codex 开启“辅助功能”。")
+        raise RuntimeError("一键巡检需要辅助功能权限。请在 Mac mini 系统设置里给 Terminal、Codex 或当前执行入口开启“辅助功能”。")
 
 
 def open_chrome() -> None:

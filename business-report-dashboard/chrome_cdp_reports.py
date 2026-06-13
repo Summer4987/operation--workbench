@@ -75,7 +75,7 @@ def ensure_cdp_page_target(config: dict) -> None:
         pass
 
 
-def start_chrome() -> bool:
+def start_chrome(*, wait_seconds: int = 90) -> bool:
     config = load_config()
     chrome = config["chrome"]
     if cdp_available(config):
@@ -106,22 +106,24 @@ def start_chrome() -> bool:
     log_file.write(" ".join(args) + "\n")
     log_file.flush()
     subprocess.Popen(args, stdout=log_file, stderr=log_file)
-    for _ in range(20):
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
         if cdp_available(config):
             print(f"Chrome 调试端口已启动：{debug_url(config)}")
             return True
-        time.sleep(0.5)
+        time.sleep(2)
 
     app_path = executable.parents[2] if len(executable.parents) >= 3 else executable
     open_args = ["open", "-na", str(app_path), "--args", *chrome_args]
     log_file.write(" ".join(open_args) + "\n")
     log_file.flush()
     subprocess.Popen(open_args, stdout=log_file, stderr=log_file)
-    for _ in range(20):
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
         if cdp_available(config):
             print(f"Chrome 调试端口已启动：{debug_url(config)}")
             return True
-        time.sleep(0.5)
+        time.sleep(2)
 
     print("Chrome 已尝试启动，但调试端口还不可用。")
     print(f"当前使用的 Chrome 资料夹：{chrome['user_data_dir']}")
@@ -133,7 +135,8 @@ def start_chrome() -> bool:
 def connect_browser(config: dict):
     if not cdp_available(config):
         print("正在启动常用 Chrome...")
-        start_chrome()
+        if not start_chrome():
+            raise SystemExit(2)
 
     ensure_cdp_page_target(config)
     sync_playwright = require_playwright()

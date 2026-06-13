@@ -167,8 +167,12 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
             output = result.stdout or ""
             returncode = result.returncode
             log.write(output)
-        except subprocess.TimeoutExpired:
-            output = f"\n{name}超时：超过 {timeout_seconds} 秒，已停止本步骤。\n"
+        except subprocess.TimeoutExpired as exc:
+            partial = exc.stdout or ""
+            output = (
+                f"{partial}\n"
+                f"{name}超时：超过 {timeout_seconds} 秒，已停止本步骤。\n"
+            )
             log.write(output)
             returncode = 124
     if returncode == 0:
@@ -195,7 +199,7 @@ def ensure_backend_chrome(report_python: str) -> None:
         "启动/检查后台 Chrome",
         [report_python, str(REPORT_AUTOMATION), "start-chrome"],
         required=False,
-        timeout_seconds=30,
+        timeout_seconds=120,
     )
 
 
