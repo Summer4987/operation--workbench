@@ -28,6 +28,12 @@ git status --short --branch
 /bin/zsh scripts/macmini_pull_and_check.zsh --smoke
 ```
 
+如果只读检查和冒烟通过，并且需要安装或刷新生产定时任务，再运行：
+
+```zsh
+/bin/zsh scripts/macmini_pull_and_check.zsh --smoke --install-launchd
+```
+
 脚本只会在工作区干净时 fast-forward 拉取 `origin/codex/ai-business-center`，然后运行只读检查；如果发现本地改动，会拒绝继续并打印状态，不会覆盖生产现场。
 
 手动路径如下：

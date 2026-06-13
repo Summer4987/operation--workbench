@@ -7,6 +7,7 @@ cd "$ROOT"
 REMOTE="${MACMINI_DEPLOY_REMOTE:-origin}"
 BRANCH="${MACMINI_DEPLOY_BRANCH:-codex/ai-business-center}"
 RUN_SMOKE=0
+INSTALL_LAUNCHD=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,9 +23,13 @@ while [[ $# -gt 0 ]]; do
       RUN_SMOKE=1
       shift
       ;;
+    --install-launchd)
+      INSTALL_LAUNCHD=1
+      shift
+      ;;
     *)
       echo "未知参数：$1"
-      echo "用法：/bin/zsh scripts/macmini_pull_and_check.zsh [--branch codex/ai-business-center] [--smoke]"
+      echo "用法：/bin/zsh scripts/macmini_pull_and_check.zsh [--branch codex/ai-business-center] [--smoke] [--install-launchd]"
       exit 2
       ;;
   esac
@@ -61,6 +66,18 @@ if (( RUN_SMOKE )); then
 else
   echo
   echo "未运行冒烟检查。如需验证证据上传 dry-run 和上午 preview，请追加 --smoke。"
+fi
+
+if (( INSTALL_LAUNCHD )); then
+  echo
+  echo "== 5. 安装或刷新生产定时任务 =="
+  /bin/zsh scripts/install_macmini_operation_launchd.zsh
+  echo
+  echo "== 6. 安装后复查 =="
+  /bin/zsh scripts/check_macmini_ai_center.zsh
+else
+  echo
+  echo "未安装生产定时任务。如检查提示缺少 launchd 标签，并确认要启用生产定时任务，请追加 --install-launchd。"
 fi
 
 echo
