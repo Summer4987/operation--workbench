@@ -349,15 +349,21 @@ def build_payload() -> dict[str, Any]:
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
     items = sorted(items, key=lambda item: (priority_order.get(item["priority"], 9), item["center"], item["title"]))
+    center_counts: dict[str, int] = {}
+    for item in items:
+        center = item["center"]
+        center_counts[center] = center_counts.get(center, 0) + 1
     return {
         "generated_at": now_text(),
         "status": "waiting_user" if items else "clear",
         "environment": environment,
         "summary": {
+            "count": len(items),
             "action_count": len(items),
             "high_count": sum(1 for item in items if item["priority"] == "high"),
             "medium_count": sum(1 for item in items if item["priority"] == "medium"),
             "low_count": sum(1 for item in items if item["priority"] == "low"),
+            "center_counts": center_counts,
         },
         "items": items,
         "message": f"当前有 {len(items)} 项需要用户参与。"

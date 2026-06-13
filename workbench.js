@@ -121,6 +121,12 @@ function shortStore(value) {
     .slice(0, 18);
 }
 
+function compactText(value, maxLength = 110) {
+  const textValue = String(value || "").replace(/\s+/g, " ").trim();
+  if (textValue.length <= maxLength) return textValue;
+  return `${textValue.slice(0, maxLength)}...`;
+}
+
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -395,7 +401,7 @@ function priorityItems() {
     items.push({
       type: "用户待办",
       title: item.title || "待处理事项",
-      detail: item.action || item.reason || "请查看 AI 运营建议。",
+      detail: compactText(item.brief_action || item.reason || item.action || "请查看 AI 运营建议。"),
       level: item.priority === "high" ? "danger" : "warning",
     });
   });
