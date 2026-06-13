@@ -32,6 +32,7 @@ store-inspection/meituan-cdp-latest*.json
 store-inspection/meituan-cdp-latest-data.js
 store-inspection/meituan-cdp-network-candidates.json
 store-inspection/meituan-cdp-network-matches.json
+store-inspection/meituan-cdp-route-probe.json
 dianjin-prototype/current_state.js
 dianjin-prototype/execution_preview.js
 
