@@ -21,6 +21,22 @@ NETWORK_CANDIDATES_JSON = ROOT / "meituan-cdp-network-candidates.json"
 NETWORK_MATCHES_JSON = ROOT / "meituan-cdp-network-matches.json"
 FALLBACK_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
 THRESHOLD = 200.0
+SAFE_ACCOUNT_LINK_TEXTS = [
+    "我的账户",
+    "账户余额",
+    "账户管理",
+    "账户中心",
+    "充值",
+]
+FORBIDDEN_TEXTS = [
+    "保存",
+    "提交",
+    "确定",
+    "提现",
+    "转账",
+    "预算设置",
+    "批量",
+]
 WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
 if Path(WORKING_NODE).exists():
     os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
@@ -63,6 +79,29 @@ def balance_from_page_text(text: str) -> float | None:
         if match:
             return parse_money(match.group(1))
     return None
+
+
+def click_first_safe_account_link(page) -> str:
+    for label in SAFE_ACCOUNT_LINK_TEXTS:
+        locator = page.get_by_text(label, exact=False)
+        try:
+            count = min(locator.count(), 8)
+        except Exception:
+            continue
+        for index in range(count):
+            item = locator.nth(index)
+            try:
+                text = normalize_space(item.inner_text(timeout=1000))
+                if any(forbidden in text for forbidden in FORBIDDEN_TEXTS):
+                    continue
+                if not item.is_visible(timeout=1000):
+                    continue
+                item.click(timeout=5000)
+                page.wait_for_timeout(3000)
+                return label
+            except Exception:
+                continue
+    return ""
 
 
 def response_candidate(url: str) -> bool:
@@ -156,11 +195,19 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
     page.on("response", handle_response)
     try:
         cdp.goto_backend_page(page, target_url, timeout=90_000)
+        clicked_label = ""
         for _ in range(20):
             page.wait_for_timeout(1000)
             text = page.locator("body").inner_text(timeout=5000)
             if "账户余额" in text or "推广首页" in text or "点金推广" in text:
                 break
+        clicked_label = click_first_safe_account_link(page)
+        if clicked_label:
+            for _ in range(10):
+                page.wait_for_timeout(1000)
+                text = page.locator("body").inner_text(timeout=5000)
+                if "账户余额" in text or "可用余额" in text or "充值" in text:
+                    break
         text = page.locator("body").inner_text(timeout=10000)
     finally:
         page.remove_listener("response", handle_response)
@@ -175,6 +222,8 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
             "status": "warning",
             "source": "Chrome CDP页面文本读取",
             "error": "页面文本未解析到账户余额",
+            "account_link_clicked": clicked_label,
+            "page_url": page.url,
             "page_text_preview": normalize_space(text)[:600],
         }, candidates
     return {
@@ -184,6 +233,8 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
         "balance": balance,
         "status": "warning" if balance < THRESHOLD else "normal",
         "source": "Chrome CDP页面文本读取",
+        "account_link_clicked": clicked_label,
+        "page_url": page.url,
     }, candidates
 
 
