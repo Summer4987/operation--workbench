@@ -1,11 +1,12 @@
 # Mac mini 下一步任务
 
-## 当前任务：试跑美团 CDP 账户余额 API 无时间戳版
+## 当前任务：试跑美团 CDP 账户余额“推广页预热 + 账户页读取”版
 
 目的：
 
-- 回退 `_codexProbeTs`，因为它会导致美团页面落到普通 `#/index`，不触发账户接口。
-- 复用同一个 CDP 页面顺序切店，贴近之前能部分捕获 `/ad/v4/homepage/account/info` 的版本。
+- 每家门店先进入推广首页路由，让美团前端建立当前门店上下文。
+- 然后再进入账户/充值路由，捕获 `/ad/v4/homepage/account/info`。
+- 如果第一次没有捕获账户接口，允许刷新一次账户页继续等接口。
 - 继续只生成旁路测试文件，不覆盖正式 `store-inspection/latest.json`。
 
 ## 执行范围
@@ -90,6 +91,19 @@ for item in data.get("items", [])[:8]:
     print("item:", json.dumps(compact, ensure_ascii=False))
 print("api_count:", api_count)
 print("api_seen_count:", api_seen_count)
+print("items_with_zero_fallback:")
+for item in data.get("items", []):
+    if item.get("source") != "Chrome CDP接口读取" and float(item.get("balance") or 0) == 0:
+        print(json.dumps({
+            "store_name": item.get("store_name"),
+            "store_id": item.get("store_id"),
+            "source": item.get("source"),
+            "api_seen": item.get("api_seen"),
+            "reload_attempted": item.get("reload_attempted"),
+            "error": item.get("error"),
+            "page_url": item.get("page_url"),
+            "promo_url": item.get("promo_url"),
+        }, ensure_ascii=False))
 PY
 
 git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-inspection/meituan-cdp-latest.json store-inspection/meituan-cdp-latest-data.js store-inspection/meituan-cdp-network-candidates.json store-inspection/meituan-cdp-network-matches.json
@@ -106,9 +120,10 @@ git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-in
 5. `meituan-cdp-latest.json` 的 `status`、`summary`、`message`；
 6. 前 8 条门店余额样例；
 7. `api_count` 和 `api_seen_count`；
-8. `git status --short --ignored`，确认测试产物被忽略；
-9. 确认没有运行旧余额巡检、没有截图/OCR、没有点击页面按钮、没有覆盖正式 `latest.json`、没有运行日报/评价/预算/发布、没有提交或推送。
+8. `items_with_zero_fallback` 列表；
+9. `git status --short --ignored`，确认测试产物被忽略；
+10. 确认没有运行旧余额巡检、没有截图/OCR、没有点击页面按钮、没有覆盖正式 `latest.json`、没有运行日报/评价/预算/发布、没有提交或推送。
 
 ## 预期效果
 
-如果无时间戳版能恢复接口捕获，再继续解决剩余门店切店问题。如果仍然不稳定，下一步改为直接用当前页面请求上下文调用账户接口。
+如果这版能让更多门店触发账户接口，就继续收敛为正式 CDP 余额巡检。若仍有多家 `api_seen=false` 且 0 元兜底，下一步改为从已登录页面的请求上下文直接调用账户接口。
