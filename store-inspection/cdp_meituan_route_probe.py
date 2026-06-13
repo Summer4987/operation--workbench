@@ -59,7 +59,7 @@ def collect_dom_candidates(page) -> dict:
                 const lowered = (text || "").toLowerCase();
                 return keywords.some((keyword) => lowered.includes(String(keyword).toLowerCase()));
             };
-            const nodes = Array.from(document.querySelectorAll("a, button, [role=button], [class], [data-*]"));
+            const nodes = Array.from(document.querySelectorAll("a, button, [role=button], [class], [id]"));
             const candidates = [];
             for (const el of nodes) {
                 const rect = el.getBoundingClientRect();
