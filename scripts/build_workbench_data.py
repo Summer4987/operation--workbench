@@ -32,6 +32,7 @@ PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 USER_ACTION_QUEUE_PATH = ROOT / "outputs" / "user_action_queue" / "latest.json"
+MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -1118,6 +1119,7 @@ def main() -> None:
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
     user_action_queue = read_json(USER_ACTION_QUEUE_PATH, {})
+    macmini_smoke_status = read_json(MACMINI_SMOKE_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
@@ -1153,6 +1155,7 @@ def main() -> None:
         "tool_warehouse": tool_warehouse,
         "finance_center": finance_center,
         "user_action_queue": user_action_queue,
+        "macmini_smoke_status": macmini_smoke_status,
         "morning_collection": morning_collection,
         "inventory": inventory,
         "order_suggestions": order_suggestions,

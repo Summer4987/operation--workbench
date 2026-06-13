@@ -476,15 +476,25 @@ function renderPriority() {
 
 function renderHealth() {
   const taskHealth = data.task_health || {};
+  const macminiSmoke = data.macmini_smoke_status || {};
   const summary = taskHealth.summary || {};
   const environment = taskHealth.environment || {};
   const tasks = (taskHealth.tasks || []).filter((task) => task.status !== "planned").slice(0, 8);
+  const smokeStatus = macminiSmoke.status || "waiting_log";
+  const smokeRow = {
+    name: "Mac mini 只读冒烟",
+    status: smokeStatus === "ready" ? "ok" : smokeStatus === "failed" ? "danger" : "warn",
+    status_text: smokeStatus === "ready" ? "已完成" : smokeStatus === "failed" ? "失败" : "待回传",
+    reason: macminiSmoke.message || "等待 Mac mini 生产冒烟日志。",
+    human_action: macminiSmoke.next_action || "",
+    last_seen_at: macminiSmoke.summary?.updated_at || "",
+  };
   const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
   const statusPrefix = environment.role === "production" ? "生产" : "开发";
   text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
   rows(
     "healthRows",
-    tasks,
+    [smokeRow, ...tasks].slice(0, 8),
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
       const meta = [

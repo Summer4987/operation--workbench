@@ -230,13 +230,15 @@
         "store-inspection/one_click_meituan_balance.py",
         "scripts/build_store_inspection_evidence_manifest.py",
         "scripts/upload_store_inspection_evidence.zsh",
-        "scripts/run_macmini_ai_center_smoke.zsh"
+        "scripts/run_macmini_ai_center_smoke.zsh",
+        "scripts/build_macmini_smoke_status.py"
       ],
       "outputs": [
         "store-inspection/latest.json",
         "store-inspection/latest-data.js",
         "outputs/promo_balance_status/latest.json",
         "outputs/store_inspection_evidence_manifest/latest.json",
+        "outputs/macmini_smoke_status/latest.json",
         "outputs/store_inspection/",
         "云端 on-demand/store_inspection/YYYY-MM-DD/"
       ],
@@ -249,6 +251,7 @@
         "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
         "Mac mini 上午定时任务会在余额巡检后上传证据",
         "Mac mini 只读冒烟检查可验证证据 dry-run 和上午 preview",
+        "Mac mini 冒烟日志可落盘并生成回传状态",
         "低余额门店进入重点预警",
         "低余额充值计划列出平台、门店、余额阈值和差额"
       ],

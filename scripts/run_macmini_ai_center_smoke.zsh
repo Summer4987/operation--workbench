@@ -20,10 +20,17 @@ if [[ ! -x "$PYTHON" ]]; then
   PYTHON="python3"
 fi
 
+LOG_DIR="$ROOT/outputs/macmini_smoke"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/smoke_$(date +%Y%m%d_%H%M%S).log"
+ln -sf "$(basename "$LOG_FILE")" "$LOG_DIR/latest.log"
+exec > >(tee "$LOG_FILE") 2>&1
+
 echo "== 熊小小AI业务中心 Mac mini 只读冒烟检查 =="
 echo "目录：$ROOT"
 echo "主机：$(hostname)"
 echo "环境：$AI_BUSINESS_CENTER_ENV"
+echo "日志：$LOG_FILE"
 echo
 
 echo "== 1. 统一健康检查 =="
@@ -47,3 +54,5 @@ else
   echo "Mac mini 只读冒烟检查完成。"
   echo "如果上面没有报错，可等待下一次 launchd 定时任务，或把完整输出发给 Codex 做生产确认。"
 fi
+
+"$PYTHON" scripts/build_macmini_smoke_status.py

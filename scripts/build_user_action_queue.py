@@ -18,6 +18,7 @@ PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.
 REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
+MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
 
 
 def now_text() -> str:
@@ -68,13 +69,29 @@ def build_payload() -> dict[str, Any]:
     review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
+    macmini_smoke = read_json(MACMINI_SMOKE_STATUS_PATH, {})
 
     items: list[dict[str, Any]] = []
     environment = (task_health.get("environment") or {}).get("role") or "development"
     tasks_by_id = {item.get("id"): item for item in task_health.get("tasks") or []}
     promo_balance = tasks_by_id.get("growth.promo_balance") or {}
     promo_next = promo_balance.get("next_step") or ""
-    if "Mac mini" in promo_next and "冒烟" in promo_next:
+    smoke_status = macmini_smoke.get("status") or ""
+    if smoke_status and smoke_status != "ready":
+        items.append(
+            action_item(
+                item_id="macmini.smoke_check",
+                title="Mac mini 冒烟检查待回传",
+                center="系统交接",
+                priority="high",
+                reason=macmini_smoke.get("message") or "证据上传和上午定时流程已经接入，需要生产机只读冒烟输出确认。",
+                action=macmini_smoke.get("next_action") or "在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`。",
+                source="system.macmini_smoke",
+                evidence=macmini_smoke.get("log_path") or "outputs/macmini_smoke_status/latest.json",
+                environment="Mac mini 生产环境",
+            )
+        )
+    elif not smoke_status and "Mac mini" in promo_next and "冒烟" in promo_next:
         items.append(
             action_item(
                 item_id="macmini.smoke_check",
@@ -82,7 +99,7 @@ def build_payload() -> dict[str, Any]:
                 center="系统交接",
                 priority="high",
                 reason="证据上传和上午定时流程已经接入，需要生产机只读冒烟输出确认。",
-                action='在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`，把完整输出发给 Codex。',
+                action="在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`。",
                 source="growth.promo_balance",
                 evidence="scripts/run_macmini_ai_center_smoke.zsh",
                 environment="Mac mini 生产环境",
