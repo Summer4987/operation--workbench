@@ -35,7 +35,7 @@ def item_key(item: dict) -> str:
     return f"{item.get('platform', '')}::{store_key(item.get('store_name', ''))}"
 
 
-def build_result(items: list[dict], threshold: float = 200.0, message: str = "") -> dict:
+def build_result(items: list[dict], threshold: float = 100.0, message: str = "") -> dict:
     items = list(items)
     for item in items:
         item["status"] = "warning" if float(item.get("balance", 0)) < threshold else "normal"
@@ -58,7 +58,7 @@ def build_result(items: list[dict], threshold: float = 200.0, message: str = "")
     }
 
 
-def parse_ocr(lines: list[dict], threshold: float = 200.0) -> dict:
+def parse_ocr(lines: list[dict], threshold: float = 100.0) -> dict:
     clean_lines = []
     for line in lines:
         text = str(line.get("text", "")).strip()
@@ -128,7 +128,7 @@ def write_outputs(data: dict) -> None:
     )
 
 
-def merge_results(results: list[dict], threshold: float = 200.0) -> dict:
+def merge_results(results: list[dict], threshold: float = 100.0) -> dict:
     items_by_store = {}
     for result in results:
         for item in result.get("items", []):

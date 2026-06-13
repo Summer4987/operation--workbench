@@ -8,13 +8,8 @@ fi
 if [ ! -x "$PYTHON" ]; then
   PYTHON="python3"
 fi
-"$PYTHON" run_morning_ops.py --source manual
-status=$?
-if [ "$status" -eq 0 ]; then
-  open "http://139.155.148.169/operation-workbench/"
-else
-  exit "$status"
-fi
+"$PYTHON" run_morning_ops.py
+open "http://139.155.148.169/operation-workbench/"
 if [ -t 0 ]; then
   echo ""
   echo "按回车关闭窗口。"

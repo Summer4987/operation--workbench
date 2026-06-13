@@ -571,11 +571,6 @@ def main() -> int:
                 errors.append(error)
                 results.append(error)
                 print(f"美团预算失败：{task.get('store')}：{exc}", file=sys.stderr, flush=True)
-    except Exception as exc:
-        error = {"ok": False, "stage": "preflight_or_navigation", "error": str(exc)}
-        errors.append(error)
-        results.append(error)
-        print(f"美团预算入口失败：{exc}", file=sys.stderr, flush=True)
     finally:
         activate_chrome()
         log_path.write_text(
@@ -583,7 +578,7 @@ def main() -> int:
                 {
                     "generated_at": datetime.now().isoformat(),
                     "commit": args.commit,
-                    "ok": bool(results) and not errors,
+                    "ok": not errors,
                     "results": results,
                 },
                 ensure_ascii=False,

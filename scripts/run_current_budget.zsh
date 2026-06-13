@@ -64,21 +64,6 @@ mkdir -p "$LOG_DIR"
 RUN_LOG="$LOG_DIR/current_budget_${PERIOD}_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 
-NODE="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
-PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
-if [ ! -x "$PYTHON" ]; then
-  PYTHON="python3"
-fi
-REPORT_PYTHON="$ROOT/business-report-dashboard/.venv/bin/python"
-if [ ! -x "$REPORT_PYTHON" ]; then
-  REPORT_PYTHON="$PYTHON"
-fi
-
-TASK_ID="growth.promo_budget"
-record_task_run() {
-  "$PYTHON" "$ROOT/scripts/record_task_run.py" "$@" || true
-}
-
 CURRENT_HOUR="$(date +%H)"
 CURRENT_MINUTE="$(date +%M)"
 CURRENT_TOTAL_MINUTES=$((10#$CURRENT_HOUR * 60 + 10#$CURRENT_MINUTE))
@@ -90,8 +75,17 @@ if [[ "$MODE" == "commit" && "${ALLOW_OUTSIDE_BUDGET_WINDOW:-0}" != "1" ]] \
   && (( CURRENT_TOTAL_MINUTES < ALLOWED_START_MINUTES || CURRENT_TOTAL_MINUTES > ALLOWED_END_MINUTES )); then
   echo "拒绝执行：当前时间 $(date '+%Y-%m-%d %H:%M:%S') 不在 ${PERIOD}预算允许窗口 ${ALLOWED_WINDOW_LABEL}。"
   echo "如需手动补跑，请显式设置 ALLOW_OUTSIDE_BUDGET_WINDOW=1。"
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算拒绝执行：不在允许窗口 ${ALLOWED_WINDOW_LABEL}。" --step "${PERIOD}预算窗口检查" --log-path "$RUN_LOG" --returncode 64
   exit 64
+fi
+
+NODE="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+if [ ! -x "$PYTHON" ]; then
+  PYTHON="python3"
+fi
+REPORT_PYTHON="$ROOT/business-report-dashboard/.venv/bin/python"
+if [ ! -x "$REPORT_PYTHON" ]; then
+  REPORT_PYTHON="$PYTHON"
 fi
 
 echo "== ${TIME_POINT} ${PERIOD}预算初始化 =="
@@ -99,7 +93,6 @@ echo "开始：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "模式：$MODE"
 echo "数量：$LIMIT"
 echo "允许窗口：${ALLOWED_WINDOW_LABEL}"
-record_task_run "$TASK_ID" running --message "${PERIOD}预算执行开始。" --step "${PERIOD}预算初始化" --log-path "$RUN_LOG"
 
 run_with_timeout() {
   local seconds="$1"
@@ -145,36 +138,8 @@ run_with_retry() {
   return "$exit_status"
 }
 
-run_budget_step() {
-  local step="$1"
-  local seconds="$2"
-  local attempts="$3"
-  shift 3
-  record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
-  if run_with_retry "$step" "$seconds" "$attempts" "$@"; then
-    record_task_run "$TASK_ID" success --message "${step}完成。" --step "$step" --log-path "$RUN_LOG" --returncode 0
-    return 0
-  fi
-  local rc=$?
-  record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
-  FAILED_STEPS+=("$step")
-  return "$rc"
-}
-
-if "$PYTHON" scripts/sync_promo_budget_overrides.py; then
-  :
-else
-  rc=$?
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算覆盖配置同步失败。" --step "${PERIOD}预算配置同步" --log-path "$RUN_LOG" --returncode "$rc"
-  exit "$rc"
-fi
-if "$NODE" scripts/build_promo_budget_preview.mjs; then
-  :
-else
-  rc=$?
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算预览生成失败。" --step "${PERIOD}预算预览生成" --log-path "$RUN_LOG" --returncode "$rc"
-  exit "$rc"
-fi
+"$PYTHON" scripts/sync_promo_budget_overrides.py
+"$NODE" scripts/build_promo_budget_preview.mjs
 
 FAILED_STEPS=()
 
@@ -184,24 +149,31 @@ if [[ "$MODE" == "commit" ]]; then
 else
   echo "执行饿了么${PERIOD}预算页面预演..."
 fi
-run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-540}" "${BUDGET_STEP_RETRIES:-2}" /bin/zsh scripts/run_eleme_automation.zsh --time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT" || true
+if ! run_with_retry "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-540}" "${BUDGET_STEP_RETRIES:-2}" /bin/zsh scripts/run_eleme_automation.zsh --time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT"; then
+  FAILED_STEPS+=("饿了么${PERIOD}预算")
+fi
 
 echo
 if [[ "$MODE" == "commit" ]]; then
   echo "执行美团${PERIOD}预算真实提交..."
-  run_budget_step "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-900}" "${BUDGET_STEP_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode commit --limit "$LIMIT" || true
+  if ! run_with_retry "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-900}" "${BUDGET_STEP_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode commit --limit "$LIMIT"; then
+    FAILED_STEPS+=("美团${PERIOD}预算")
+  fi
 else
   echo "执行美团${PERIOD}预算页面预演..."
-  run_budget_step "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-900}" "${BUDGET_STEP_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode "$MODE" --limit "$LIMIT" || true
+  if ! run_with_retry "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-900}" "${BUDGET_STEP_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode "$MODE" --limit "$LIMIT"; then
+    FAILED_STEPS+=("美团${PERIOD}预算")
+  fi
 fi
 
 echo
 echo "刷新运营总看板数据..."
-run_budget_step "推广预算重试策略刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_promo_budget_retry_plan.py || true
-run_budget_step "运营总看板数据刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_workbench_data.py || true
+"$PYTHON" scripts/build_workbench_data.py
 if [[ "$MODE" == "commit" ]]; then
   echo "发布运营总看板..."
-  run_budget_step "运营总看板发布" "${WORKBENCH_DEPLOY_TIMEOUT_SECONDS:-240}" "${DEPLOY_STEP_RETRIES:-2}" /bin/zsh scripts/deploy_workbench_to_cloud.zsh || true
+  if ! run_with_retry "运营总看板发布" "${WORKBENCH_DEPLOY_TIMEOUT_SECONDS:-240}" "${DEPLOY_STEP_RETRIES:-2}" /bin/zsh scripts/deploy_workbench_to_cloud.zsh; then
+    FAILED_STEPS+=("运营总看板发布")
+  fi
 else
   echo "预演模式：不发布云端看板。"
 fi
@@ -210,7 +182,5 @@ echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "日志：$RUN_LOG"
 if (( ${#FAILED_STEPS[@]} > 0 )); then
   echo "失败步骤：${(j:、:)FAILED_STEPS}"
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算失败步骤：${(j:、:)FAILED_STEPS}" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 70
   exit 70
 fi
-record_task_run "$TASK_ID" success --message "${PERIOD}预算全部步骤完成。" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0

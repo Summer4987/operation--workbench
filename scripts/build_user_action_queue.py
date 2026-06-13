@@ -18,8 +18,6 @@ PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.
 REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
-MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
-OPERATION_CHECK_PATH = ROOT / "outputs" / "operation_automation_check" / "latest.json"
 
 
 def now_text() -> str:
@@ -70,47 +68,13 @@ def build_payload() -> dict[str, Any]:
     review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
-    macmini_smoke = read_json(MACMINI_SMOKE_STATUS_PATH, {})
-    operation_check = read_json(OPERATION_CHECK_PATH, {})
 
     items: list[dict[str, Any]] = []
     environment = (task_health.get("environment") or {}).get("role") or "development"
-    operation_env = (operation_check.get("environment") or {}).get("role") or environment
-    operation_blockers = operation_check.get("blockers") or []
-    if operation_env == "production" and operation_blockers:
-        blocker_text = "；".join(f"{item.get('category')}：{item.get('message')}" for item in operation_blockers[:3])
-        items.append(
-            action_item(
-                item_id="system.operation_automation_check",
-                title="Mac mini 系统体检阻塞",
-                center="系统交接",
-                priority="high",
-                reason=f"生产系统体检发现 {len(operation_blockers)} 个阻塞项。",
-                action=blocker_text or "先处理 launchd、Chrome 调试端口、系统权限或云端发布连接，再运行生产冒烟检查。",
-                source="system.operation_automation_check",
-                evidence="outputs/operation_automation_check/latest.json",
-                environment="Mac mini 生产环境",
-            )
-        )
     tasks_by_id = {item.get("id"): item for item in task_health.get("tasks") or []}
     promo_balance = tasks_by_id.get("growth.promo_balance") or {}
     promo_next = promo_balance.get("next_step") or ""
-    smoke_status = macmini_smoke.get("status") or ""
-    if smoke_status and smoke_status != "ready":
-        items.append(
-            action_item(
-                item_id="macmini.smoke_check",
-                title="Mac mini 冒烟检查待回传",
-                center="系统交接",
-                priority="high",
-                reason=macmini_smoke.get("message") or "证据上传和上午定时流程已经接入，需要生产机只读冒烟输出确认。",
-                action=macmini_smoke.get("next_action") or "在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`。",
-                source="system.macmini_smoke",
-                evidence=macmini_smoke.get("log_path") or "outputs/macmini_smoke_status/latest.json",
-                environment="Mac mini 生产环境",
-            )
-        )
-    elif not smoke_status and "Mac mini" in promo_next and "冒烟" in promo_next:
+    if "Mac mini" in promo_next and "冒烟" in promo_next:
         items.append(
             action_item(
                 item_id="macmini.smoke_check",
@@ -118,7 +82,7 @@ def build_payload() -> dict[str, Any]:
                 center="系统交接",
                 priority="high",
                 reason="证据上传和上午定时流程已经接入，需要生产机只读冒烟输出确认。",
-                action="在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`。",
+                action='在 Mac mini 项目目录运行 `/bin/zsh scripts/run_macmini_ai_center_smoke.zsh`，把完整输出发给 Codex。',
                 source="growth.promo_balance",
                 evidence="scripts/run_macmini_ai_center_smoke.zsh",
                 environment="Mac mini 生产环境",
@@ -342,16 +306,6 @@ def build_payload() -> dict[str, Any]:
     if bid_queue.get("status") == "waiting_approval" and queue_count:
         bid_digest = bid_queue.get("approval_digest") or {}
         digest_lines = (bid_digest.get("warnings") or []) + (bid_digest.get("top_items") or [])[:3]
-        first_pending = next(
-            (
-                item
-                for item in bid_queue.get("items") or []
-                if item.get("status") in {"waiting_approval", "manual_review"} and item.get("decision_command")
-            ),
-            {},
-        )
-        if first_pending.get("decision_command"):
-            digest_lines.append(f"记录命令：{first_pending['decision_command']}")
         bid_action = "；".join(digest_lines) or "打开推广出价审批队列，核对预算消耗、预期消耗和门店状态后再决定是否执行。"
         items.append(
             action_item(
@@ -368,21 +322,15 @@ def build_payload() -> dict[str, Any]:
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
     items = sorted(items, key=lambda item: (priority_order.get(item["priority"], 9), item["center"], item["title"]))
-    center_counts: dict[str, int] = {}
-    for item in items:
-        center = item["center"]
-        center_counts[center] = center_counts.get(center, 0) + 1
     return {
         "generated_at": now_text(),
         "status": "waiting_user" if items else "clear",
         "environment": environment,
         "summary": {
-            "count": len(items),
             "action_count": len(items),
             "high_count": sum(1 for item in items if item["priority"] == "high"),
             "medium_count": sum(1 for item in items if item["priority"] == "medium"),
             "low_count": sum(1 for item in items if item["priority"] == "low"),
-            "center_counts": center_counts,
         },
         "items": items,
         "message": f"当前有 {len(items)} 项需要用户参与。"

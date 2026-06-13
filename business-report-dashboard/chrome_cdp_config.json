@@ -1,7 +1,7 @@
 {
   "chrome": {
     "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "user_data_dir": "/Users/summer/Documents/New project/business-report-dashboard/chrome-profile",
+    "user_data_dir": "/Users/summer/Documents/mac-mini-operation-migration/New project/business-report-dashboard/chrome-profile",
     "profile_directory": "Default",
     "debug_port": 9222
   },

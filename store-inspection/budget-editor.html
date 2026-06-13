@@ -200,7 +200,7 @@
           const savedAt = new Date().toLocaleString("zh-CN", { hour12: false });
           saveBtn.textContent = "已保存";
           saveBtn.classList.add("saved");
-          showStatus("success", "保存成功", `已保存 ${filledStoreCount(saved)} 家门店，时间：${savedAt}。上午和 16:30 自动化会读取这份预算。`);
+          showStatus("success", "保存成功", `已保存 ${filledStoreCount(saved)} 家门店，时间：${savedAt}。上午和 17:30 自动化会读取这份预算。`);
         } catch (error) {
           saveBtn.textContent = "重新保存";
           showStatus("error", "保存失败", `${error.message || "没有保存成功"}。请检查网络后再点一次保存。`);

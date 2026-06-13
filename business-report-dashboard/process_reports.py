@@ -1602,23 +1602,10 @@ def process(eleme_path: Path, meituan_path: Path) -> dict:
         if path.resolve() != target.resolve():
             shutil.copy2(path, target)
 
-    def latest_by_report_date(paths: list[Path], pattern: str) -> list[Path]:
-        latest: dict[str, Path] = {}
-        for path in paths:
-            match = re.search(pattern, path.name)
-            key = match.group(1) if match else path.stem
-            current = latest.get(key)
-            if current is None or path.stat().st_mtime > current.stat().st_mtime:
-                latest[key] = path
-        return sorted(latest.values(), key=lambda path: path.stat().st_mtime)
-
-    eleme_paths = latest_by_report_date(
-        sorted(RAW_DIR.glob("门店下载_*.xlsx"), key=lambda path: path.stat().st_mtime),
-        r"门店下载_(\d{8})至\1",
-    )
-    meituan_paths = latest_by_report_date(
-        sorted((path for path in RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem), key=lambda path: path.stat().st_mtime),
-        r"门店_全部门店_(\d{8})_\1",
+    eleme_paths = sorted(RAW_DIR.glob("门店下载_*.xlsx"), key=lambda path: path.stat().st_mtime)
+    meituan_paths = sorted(
+        (path for path in RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem),
+        key=lambda path: path.stat().st_mtime,
     )
 
     frames = []

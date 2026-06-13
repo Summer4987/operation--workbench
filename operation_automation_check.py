@@ -261,10 +261,12 @@ def main() -> int:
         choices=["development", "production"],
         help="指定运行环境；默认按 AI_BUSINESS_CENTER_ENV 或主机名识别。MacBook 为开发，Mac mini 为生产。",
     )
+    parser.add_argument("--no-write", action="store_true", help="只输出检查结果，不写入 outputs/operation_automation_check/latest.json")
     args = parser.parse_args()
 
     report = build_report(args.environment)
-    write_report(report)
+    if not args.no_write:
+        write_report(report)
     if args.json:
         print(json.dumps(report, ensure_ascii=False))
     else:

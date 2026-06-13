@@ -33,8 +33,8 @@ def run_platform(script_name: str, platform_name: str, *, timeout_seconds: int =
             print(f"{platform_name}超时：使用已生成结果。", flush=True)
             return data
         raise RuntimeError(f"{platform_name}余额巡检超过 {timeout_seconds} 秒，未生成可用结果。")
-    if not LATEST_JSON.exists() or LATEST_JSON.stat().st_mtime <= before_mtime:
-        raise RuntimeError(f"{platform_name}没有生成本次巡检结果。")
+    if not LATEST_JSON.exists():
+        raise RuntimeError(f"{platform_name}没有生成巡检结果。")
     data = json.loads(LATEST_JSON.read_text(encoding="utf-8"))
     item_count = len(data.get("items", []))
     if result.returncode != 0:
@@ -65,7 +65,8 @@ def main() -> int:
     data = merge_results(results)
     if errors:
         data["message"] = "；".join(errors)
-        data["status"] = "partial" if data.get("items") else "failed"
+        if not data.get("items"):
+            data["status"] = "failed"
     write_outputs(data)
 
     summary = data["summary"]

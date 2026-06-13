@@ -8,7 +8,6 @@ LABELS=(
   com.summer.dianjin.eleme.1100
   com.summer.dianjin.eleme.1130
   com.summer.dianjin.eleme.1730
-  com.summer.dianjin.eleme.1630
 )
 
 for label in "${LABELS[@]}"; do

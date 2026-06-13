@@ -1,5 +1,5 @@
 let inspectionItems = [];
-let threshold = 200;
+let threshold = 100;
 
 const yuan = new Intl.NumberFormat("zh-CN", {
   style: "currency",
@@ -62,7 +62,7 @@ async function loadInspection() {
     data = await response.json();
   }
   inspectionItems = data.items || [];
-  threshold = Number(data.threshold || 200);
+  threshold = Number(data.threshold || 100);
   renderStats(data);
   if (data.status === "failed") {
     rowsEl.innerHTML = `<tr><td class="empty" colspan="6">巡检失败：${data.message || "请确认饿了么页面已登录"}</td></tr>`;

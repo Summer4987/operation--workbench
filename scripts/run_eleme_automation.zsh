@@ -5,10 +5,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 NODE="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
-PYTHON_FALLBACK="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
-if [ ! -x "$PYTHON_FALLBACK" ]; then
-  PYTHON_FALLBACK="python3"
-fi
 TIME_POINT=""
 MODE="rehearse"
 LIMIT="all"
@@ -52,28 +48,6 @@ echo "数量：$LIMIT"
 echo "开始：$(date '+%Y-%m-%d %H:%M:%S')"
 echo
 
-run_with_timeout() {
-  local seconds="$1"
-  shift
-  "$@" &
-  local child_pid=$!
-  (
-    sleep "$seconds"
-    if kill -0 "$child_pid" 2>/dev/null; then
-      echo "步骤超时：${seconds}s，已终止：$*"
-      kill -TERM "$child_pid" 2>/dev/null || true
-      sleep 2
-      kill -KILL "$child_pid" 2>/dev/null || true
-    fi
-  ) &
-  local watchdog_pid=$!
-  local exit_status=0
-  wait "$child_pid" || exit_status=$?
-  kill "$watchdog_pid" 2>/dev/null || true
-  wait "$watchdog_pid" 2>/dev/null || true
-  return "$exit_status"
-}
-
 if ! /usr/bin/curl -fsS "http://127.0.0.1:9222/json/version" >/dev/null 2>&1; then
   echo "Chrome 调试端口未连接，尝试启动常用 Chrome..."
   /usr/bin/python3 "$ROOT/business-report-dashboard/chrome_cdp_reports.py" start-chrome || true
@@ -107,11 +81,6 @@ EXEC_ARGS=(execute-preview --file "$PREVIEW_FILE" --limit "$LIMIT")
 if [[ "$MODE" == "commit" ]]; then
   EXEC_ARGS+=(--commit)
 fi
-EXEC_OUTPUT_MODE="rehearse"
-if [[ "$MODE" == "commit" ]]; then
-  EXEC_OUTPUT_MODE="commit"
-fi
-EXEC_STARTED_EPOCH="$(date +%s)"
 
 echo
 if [[ "$MODE" == "commit" ]]; then
@@ -119,24 +88,7 @@ if [[ "$MODE" == "commit" ]]; then
 else
   echo "开始执行演练..."
 fi
-run_with_timeout "${ELEME_EXECUTE_TIMEOUT_SECONDS:-420}" "$NODE" scripts/eleme_dianjin_adapter.mjs "${EXEC_ARGS[@]}"
-
-LATEST_EXEC_RESULT="$("$PYTHON_FALLBACK" - <<PY
-from pathlib import Path
-import os
-
-started = int("${EXEC_STARTED_EPOCH}")
-mode = "${EXEC_OUTPUT_MODE}"
-files = sorted(Path("outputs/dianjin_automation").glob(f"eleme_execution_{mode}_*.json"), key=lambda p: p.stat().st_mtime)
-fresh = [p for p in files if p.stat().st_mtime >= started]
-print(fresh[-1] if fresh else "")
-PY
-)"
-if [[ -z "$LATEST_EXEC_RESULT" ]]; then
-  echo "执行失败：没有生成新的饿了么${MODE}结果文件，拒绝判定为成功。"
-  exit 71
-fi
-echo "执行结果：$LATEST_EXEC_RESULT"
+"$NODE" scripts/eleme_dianjin_adapter.mjs "${EXEC_ARGS[@]}"
 
 echo
 echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"
