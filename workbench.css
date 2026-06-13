@@ -494,6 +494,20 @@ a {
   background: #fff;
 }
 
+.tool-page-frame {
+  display: block;
+  width: 100%;
+  min-height: calc(100vh - 150px);
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tool-status-grid {
+  margin-top: 0;
+}
+
 .section-head {
   margin-bottom: 12px;
   display: grid;

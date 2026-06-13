@@ -1429,7 +1429,7 @@ function renderTools() {
   text("franchiseContractStatus", contract.status_text || "待模板");
   text("franchiseContractCount", `${requiredFields.length || 0} 项字段`);
   text("franchiseContractSummary", contract.message || "加盟合同生成器等待合同模板和字段确认。");
-  document.querySelector("#franchise-contract")?.classList.toggle("alert", contract.status === "waiting_template");
+  document.querySelector(".module-contract")?.classList.toggle("alert", contract.status === "waiting_template");
   rows(
     "franchiseContractRows",
     [

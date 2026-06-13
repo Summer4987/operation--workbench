@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-sidebar" />
+    <link rel="stylesheet" href="./workbench.css?v=20260614-tool-pages" />
   </head>
   <body>
     <main class="app">
@@ -383,7 +383,12 @@
             <p>小工具仓库</p>
             <h2>销售单生成器</h2>
           </div>
-          <div class="center-grid two">
+          <iframe
+            class="tool-page-frame"
+            src="./sales-receipt-generator/index.html"
+            title="销售单生成器"
+          ></iframe>
+          <div class="center-grid tool-status-grid">
             <article class="module module-receipt">
               <div class="module-head">
                 <div>
@@ -401,7 +406,16 @@
                 <a href="./sales-receipt-generator/index.html">打开销售单</a>
               </div>
             </article>
-            <article class="module" id="franchise-contract">
+          </div>
+        </section>
+
+        <section class="center-section" id="franchise-contract">
+          <div class="section-head">
+            <p>小工具仓库</p>
+            <h2>加盟合同生成器</h2>
+          </div>
+          <div class="center-grid">
+            <article class="module module-contract">
               <div class="module-head">
                 <div>
                   <p>合同</p>
@@ -419,7 +433,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-daily-sidebar"></script>
-    <script src="./workbench.js?v=20260613-daily-sidebar"></script>
+    <script src="./workbench-data.js?v=20260614-tool-pages"></script>
+    <script src="./workbench.js?v=20260614-tool-pages"></script>
   </body>
 </html>
