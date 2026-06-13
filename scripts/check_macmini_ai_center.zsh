@@ -98,6 +98,7 @@ echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/build_promo_budget_retry_plan.py
 "$PYTHON" scripts/build_promo_bid_advice.py
 "$PYTHON" scripts/build_promo_bid_approval_queue.py
+"$PYTHON" scripts/build_promo_bid_execution_plan.py
 "$PYTHON" scripts/build_store_inspection_evidence_manifest.py --days 7
 "$PYTHON" scripts/build_promo_balance_status.py
 "$PYTHON" scripts/build_user_action_queue.py

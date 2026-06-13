@@ -26,6 +26,7 @@ ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "la
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 PROMO_BID_APPROVAL_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
+PROMO_BID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "promo_bid_execution_plan" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
@@ -1110,6 +1111,7 @@ def main() -> None:
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
     promo_bid_approval_queue = read_json(PROMO_BID_APPROVAL_QUEUE_PATH, {})
+    promo_bid_execution_plan = read_json(PROMO_BID_EXECUTION_PLAN_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
@@ -1143,6 +1145,7 @@ def main() -> None:
         "promo_budget_retry": promo_retry,
         "promo_bid_advice": promo_bid_advice,
         "promo_bid_approval_queue": promo_bid_approval_queue,
+        "promo_bid_execution_plan": promo_bid_execution_plan,
         "promo_balance_status": promo_balance_status,
         "tool_warehouse": tool_warehouse,
         "finance_center": finance_center,
