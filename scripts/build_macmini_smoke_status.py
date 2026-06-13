@@ -35,7 +35,7 @@ def build_payload() -> dict[str, Any]:
             "log_path": str(LOG_PATH.relative_to(ROOT)),
             "summary": {"has_log": False, "is_production": False, "completed": False},
             "message": "尚未收到 Mac mini 只读冒烟检查日志。",
-            "next_action": "在 Mac mini 项目目录运行 /bin/zsh scripts/run_macmini_ai_center_smoke.zsh。",
+            "next_action": "在 Mac mini 项目目录双击 Mac mini AI业务中心生产交接.command，或运行 /bin/zsh scripts/macmini_pull_and_check.zsh --smoke --install-launchd。",
             "tail": [],
         }
 
@@ -70,7 +70,7 @@ def build_payload() -> dict[str, Any]:
             "updated_at": datetime.fromtimestamp(LOG_PATH.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
         },
         "message": message,
-        "next_action": "如需生产确认，请在 Mac mini 运行只读冒烟检查并保留 latest.log。",
+        "next_action": "如需生产确认，请在 Mac mini 双击 Mac mini AI业务中心生产交接.command，或运行 /bin/zsh scripts/macmini_pull_and_check.zsh --smoke --install-launchd。",
         "tail": tail_lines(text),
     }
 
