@@ -55,6 +55,7 @@ echo "== 配置与语法检查 =="
   scripts/build_promo_budget_retry_plan.py \
   scripts/build_promo_bid_advice.py \
   scripts/build_promo_bid_approval_queue.py \
+  scripts/build_store_inspection_evidence_manifest.py \
   scripts/build_promo_balance_status.py \
   scripts/build_tool_warehouse_status.py \
   scripts/build_finance_center_status.py \
@@ -68,6 +69,7 @@ echo "== 配置与语法检查 =="
 /bin/zsh -n scripts/run_current_budget.zsh
 /bin/zsh -n scripts/run_evening_budget.zsh
 /bin/zsh -n scripts/deploy_workbench_to_cloud.zsh
+/bin/zsh -n scripts/upload_store_inspection_evidence.zsh
 /bin/zsh -n scripts/install_macmini_operation_launchd.zsh
 if command -v "$NODE" >/dev/null 2>&1; then
   "$NODE" --check workbench.js
@@ -91,6 +93,7 @@ echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/build_promo_budget_retry_plan.py
 "$PYTHON" scripts/build_promo_bid_advice.py
 "$PYTHON" scripts/build_promo_bid_approval_queue.py
+"$PYTHON" scripts/build_store_inspection_evidence_manifest.py --days 7
 "$PYTHON" scripts/build_promo_balance_status.py
 if command -v "$NODE" >/dev/null 2>&1; then
   "$NODE" scripts/check_sales_receipt_print_layout.mjs

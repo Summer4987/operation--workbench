@@ -202,12 +202,15 @@
       "entrypoints": [
         "store-inspection/run_all_balances.py",
         "store-inspection/one_click_eleme_balance.py",
-        "store-inspection/one_click_meituan_balance.py"
+        "store-inspection/one_click_meituan_balance.py",
+        "scripts/build_store_inspection_evidence_manifest.py",
+        "scripts/upload_store_inspection_evidence.zsh"
       ],
       "outputs": [
         "store-inspection/latest.json",
         "store-inspection/latest-data.js",
         "outputs/promo_balance_status/latest.json",
+        "outputs/store_inspection_evidence_manifest/latest.json",
         "outputs/store_inspection/"
       ],
       "health_checks": [
@@ -216,6 +219,7 @@
         "巡检失败和低余额预警分开展示",
         "平台级失败包含恢复指引和复查命令",
         "失败截图和 OCR 证据入口可读取",
+        "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
         "低余额门店进入重点预警"
       ],
       "human_needed_when": [
@@ -223,7 +227,7 @@
         "余额识别失败",
         "推广余额不足需要充值"
       ],
-      "next_integration_step": "失败截图和 OCR 证据入口已接入余额巡检状态，下一步补云端证据上传和保留策略。"
+      "next_integration_step": "证据上传 dry-run 和云端保留策略已接入，下一步在 Mac mini 定时任务中启用证据上传。"
     },
     {
       "id": "growth.promo_bid",

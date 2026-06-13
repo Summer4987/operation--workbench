@@ -595,6 +595,7 @@ function renderBalances() {
   const balances = data.balances || {};
   const promoBalanceStatus = data.promo_balance_status || {};
   const summary = promoBalanceStatus.summary || balances.summary || {};
+  const evidenceSync = promoBalanceStatus.evidence_sync || {};
   const warnings = promoBalanceStatus.low_balance_items || (balances.items || []).filter((item) => item.status === "warning");
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length || 0);
@@ -606,7 +607,7 @@ function renderBalances() {
   text("balanceWarningCount", `${lowBalanceCount} 个`);
   text(
     "balanceSummary",
-    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，阈值 ${yuan(summary.warning_threshold || balances.threshold || 100)}`
+    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，阈值 ${yuan(summary.warning_threshold || balances.threshold || 100)}，证据清单 ${evidenceSync.file_count || 0} 个，云端保留 ${evidenceSync.cloud_retention_days || 0} 天`
   );
   text("balanceStatus", statusText);
   cls("balanceMetricCard", "alert", needsAttention);

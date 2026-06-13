@@ -13,6 +13,7 @@ BALANCE_PATH = ROOT / "store-inspection" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_balance_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 EVIDENCE_DIR = ROOT / "outputs" / "store_inspection"
+EVIDENCE_MANIFEST_PATH = ROOT / "outputs" / "store_inspection_evidence_manifest" / "latest.json"
 
 PLATFORMS = ("饿了么", "美团")
 PLATFORM_TOKENS = {
@@ -165,6 +166,28 @@ def collect_evidence(platform: str, limit: int = 6) -> list[dict[str, Any]]:
     ]
 
 
+def evidence_sync_status() -> dict[str, Any]:
+    manifest = read_json(EVIDENCE_MANIFEST_PATH, {})
+    if not manifest:
+        return {
+            "status": "missing_manifest",
+            "manifest": "outputs/store_inspection_evidence_manifest/latest.json",
+            "upload_command": "scripts/upload_store_inspection_evidence.zsh --dry-run",
+            "message": "巡检证据清单尚未生成，先运行 dry-run 检查可上传证据。",
+        }
+    summary = manifest.get("summary") or {}
+    retention = manifest.get("retention") or {}
+    return {
+        "status": manifest.get("status") or "unknown",
+        "manifest": "outputs/store_inspection_evidence_manifest/latest.json",
+        "file_count": int(summary.get("file_count") or 0),
+        "cloud_retention_days": int(retention.get("cloud_days") or 0),
+        "local_retention_days": int(retention.get("local_days") or 0),
+        "upload_command": "scripts/upload_store_inspection_evidence.zsh --dry-run",
+        "message": manifest.get("message") or "巡检证据清单已生成。",
+    }
+
+
 def split_platform_failures(message: str) -> list[dict]:
     failures: list[dict] = []
     for raw_part in str(message or "").split("；"):
@@ -299,6 +322,7 @@ def build_status(payload: dict) -> dict:
             if evidence_items
             else "未找到可关联的平台巡检截图或 OCR 证据。",
         },
+        "evidence_sync": evidence_sync_status(),
         "platforms": platform_rows_payload,
         "low_balance_items": warnings,
     }

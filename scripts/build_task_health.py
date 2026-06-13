@@ -469,7 +469,9 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         generated_at = parse_time(payload.get("generated_at"))
         summary = status_payload.get("summary") or payload.get("summary") or {}
         evidence_index = status_payload.get("evidence_index") or {}
+        evidence_sync = status_payload.get("evidence_sync") or {}
         evidence_count = int(summary.get("evidence_count") or len(evidence_index.get("items") or []))
+        sync_file_count = int(evidence_sync.get("file_count") or 0)
         source_status = classify_from_json_status(payload.get("status"))
         platform_failure_count = int(summary.get("platform_failure_count") or 0)
         low_balance_count = int(summary.get("low_balance_count") or summary.get("warning_count") or 0)
@@ -499,7 +501,10 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             status = "warn" if low_balance_count else "ok"
             row.update(status=status, reason=f"余额巡检可用，{summary.get('store_count') or 0} 条结果，低余额 {low_balance_count} 条。")
             if low_balance_count:
-                row["human_action"] = status_payload.get("human_action") or "先充值低余额门店，再执行预算或出价自动化。"
+                action = status_payload.get("human_action") or "先充值低余额门店，再执行预算或出价自动化。"
+                if sync_file_count:
+                    action = f"{action} 证据上传 dry-run 可检查 {sync_file_count} 个文件。"
+                row["human_action"] = action
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
         row["evidence"] = "outputs/promo_balance_status/latest.json" if status_payload else "store-inspection/latest.json"
 
