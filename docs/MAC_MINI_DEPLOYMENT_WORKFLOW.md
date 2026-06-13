@@ -52,13 +52,27 @@ MacBook 或 Codex 所在设备：
    git status --short --branch
    ```
 
-3. 如果没有未提交改动，拉取最新代码：
+3. 如果没有未提交改动，优先使用交接脚本拉取并检查：
 
    ```zsh
-   git pull --ff-only origin main
+   /bin/zsh scripts/macmini_pull_and_check.zsh
    ```
 
-4. 如果出现未提交改动，先暂停部署，不要强行覆盖。需要判断这些改动属于：
+   需要同时跑证据上传 dry-run 和上午 preview 时：
+
+   ```zsh
+   /bin/zsh scripts/macmini_pull_and_check.zsh --smoke
+   ```
+
+   交接脚本只允许 fast-forward 更新；如果 Mac mini 本地有改动，会拒绝继续并打印现场状态。
+
+4. 手动拉取路径：
+
+   ```zsh
+   git pull --ff-only origin codex/ai-business-center
+   ```
+
+5. 如果出现未提交改动，先暂停部署，不要强行覆盖。需要判断这些改动属于：
 
    - 本机运行产物：通常不应提交，应该被忽略。
    - 有效代码改动：需要确认是否提交。

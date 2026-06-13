@@ -16,6 +16,22 @@ cd "/Users/summer/Documents/New project"
 git status --short --branch
 ```
 
+如果工作区干净，可以直接运行自动交接脚本：
+
+```zsh
+/bin/zsh scripts/macmini_pull_and_check.zsh
+```
+
+如果这次改动涉及定时任务、证据上传、云端同步或上午一键流程，需要同时跑只读冒烟：
+
+```zsh
+/bin/zsh scripts/macmini_pull_and_check.zsh --smoke
+```
+
+脚本只会在工作区干净时 fast-forward 拉取 `origin/codex/ai-business-center`，然后运行只读检查；如果发现本地改动，会拒绝继续并打印状态，不会覆盖生产现场。
+
+手动路径如下：
+
 如果 Codex 确认可以拉取，再执行：
 
 ```zsh
