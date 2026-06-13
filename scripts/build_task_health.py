@@ -468,6 +468,8 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         status_payload = read_json(PROMO_BALANCE_STATUS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = status_payload.get("summary") or payload.get("summary") or {}
+        evidence_index = status_payload.get("evidence_index") or {}
+        evidence_count = int(summary.get("evidence_count") or len(evidence_index.get("items") or []))
         source_status = classify_from_json_status(payload.get("status"))
         platform_failure_count = int(summary.get("platform_failure_count") or 0)
         low_balance_count = int(summary.get("low_balance_count") or summary.get("warning_count") or 0)
@@ -480,9 +482,13 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         if status_payload.get("status") == "failed":
             row.update(status="danger", reason=status_payload.get("message") or "推广余额巡检失败。")
             row["human_action"] = platform_recovery_text or status_payload.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。"
+            if evidence_count:
+                row["human_action"] = f"{row['human_action']} 已索引 {evidence_count} 个截图/OCR证据。"
         elif platform_failure_count:
             row.update(status="warn", reason=status_payload.get("message") or f"{platform_failure_count} 个平台余额巡检失败。")
             row["human_action"] = platform_recovery_text or status_payload.get("human_action") or "先处理失败平台，再确认低余额预警是否完整。"
+            if evidence_count:
+                row["human_action"] = f"{row['human_action']} 已索引 {evidence_count} 个截图/OCR证据。"
         elif source_status == "danger":
             row.update(status="danger", reason=payload.get("message") or "推广余额巡检失败。")
         elif not generated_at:

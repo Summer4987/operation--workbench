@@ -12,8 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 BALANCE_PATH = ROOT / "store-inspection" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_balance_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+EVIDENCE_DIR = ROOT / "outputs" / "store_inspection"
 
 PLATFORMS = ("饿了么", "美团")
+PLATFORM_TOKENS = {
+    "饿了么": ("eleme", "饿了么"),
+    "美团": ("meituan", "美团"),
+}
+EVIDENCE_SUFFIXES = {".png", ".jpg", ".jpeg", ".json"}
 
 RECOVERY_GUIDES = {
     "permission": {
@@ -124,6 +130,41 @@ def recovery_for(platform: str, failure_type: str, message: str) -> dict[str, An
     }
 
 
+def evidence_kind(path: Path) -> str:
+    name = path.name.lower()
+    if name.endswith(".ocr.json"):
+        return "ocr"
+    if path.suffix.lower() in {".png", ".jpg", ".jpeg"}:
+        return "screenshot"
+    return "data"
+
+
+def collect_evidence(platform: str, limit: int = 6) -> list[dict[str, Any]]:
+    if not EVIDENCE_DIR.exists():
+        return []
+    tokens = PLATFORM_TOKENS.get(platform, (platform,))
+    candidates = []
+    for path in EVIDENCE_DIR.glob("*"):
+        if not path.is_file() or path.suffix.lower() not in EVIDENCE_SUFFIXES:
+            continue
+        name = path.name.lower()
+        if not any(str(token).lower() in name for token in tokens):
+            continue
+        if path.name.endswith(".ocr 2.json"):
+            continue
+        candidates.append(path)
+    newest = sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True)[:limit]
+    return [
+        {
+            "path": str(path.relative_to(ROOT)),
+            "kind": evidence_kind(path),
+            "updated_at": datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+            "size": path.stat().st_size,
+        }
+        for path in newest
+    ]
+
+
 def split_platform_failures(message: str) -> list[dict]:
     failures: list[dict] = []
     for raw_part in str(message or "").split("；"):
@@ -147,6 +188,7 @@ def split_platform_failures(message: str) -> list[dict]:
                 "failure_type": failure_type,
                 "human_action": human_action_for(failure_type, detail),
                 "recovery": recovery_for(platform, failure_type, detail),
+                "evidence": collect_evidence(platform),
             }
         )
     return failures
@@ -226,6 +268,13 @@ def build_status(payload: dict) -> dict:
     elif warnings:
         human_action = "先充值低余额门店，再执行预算或出价自动化。"
 
+    platform_rows_payload = platform_rows(payload, failures)
+    evidence_items = [
+        evidence
+        for platform in platform_rows_payload
+        for evidence in platform.get("evidence", [])
+    ]
+
     return {
         "generated_at": now_text(),
         "source_generated_at": generated_at,
@@ -240,8 +289,17 @@ def build_status(payload: dict) -> dict:
             "platform_count": int(summary.get("platform_count") or 0),
             "warning_threshold": threshold,
             "lowest_balance": float(summary.get("lowest_balance") or 0),
+            "evidence_count": len(evidence_items),
         },
-        "platforms": platform_rows(payload, failures),
+        "evidence_index": {
+            "status": "ready" if evidence_items else "missing",
+            "source_dir": "outputs/store_inspection",
+            "items": evidence_items[:12],
+            "message": f"已索引 {len(evidence_items)} 个巡检截图/OCR证据。"
+            if evidence_items
+            else "未找到可关联的平台巡检截图或 OCR 证据。",
+        },
+        "platforms": platform_rows_payload,
         "low_balance_items": warnings,
     }
 

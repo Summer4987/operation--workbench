@@ -432,11 +432,14 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         recovery_actions = []
         for item in platform_failures[:2]:
             recovery = item.get("recovery") or {}
-            recovery_actions.append(
+            evidence = item.get("evidence") or []
+            evidence_text = f"证据：{evidence[0].get('path')}" if evidence else ""
+            recovery_text = (
                 recovery.get("summary")
                 or item.get("human_action")
                 or f"{item.get('platform', '平台')}：先恢复登录、权限或页面状态。"
             )
+            recovery_actions.append("；".join(part for part in (recovery_text, evidence_text) if part))
         rows.append(
             {
                 "level": "需人工处理",

@@ -357,10 +357,14 @@ function priorityItems() {
     });
   }
   if (platformFailures.length) {
+    const evidenceCount = Number(promoBalanceSummary.evidence_count || 0);
     items.push({
       type: "推广巡检失败",
       title: `${promoBalanceSummary.platform_failure_count || platformFailures.length} 个平台失败`,
-      detail: platformFailures.map((item) => item.recovery?.summary || `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
+      detail: [
+        platformFailures.map((item) => item.recovery?.summary || `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
+        evidenceCount ? `证据 ${evidenceCount} 个` : "",
+      ].filter(Boolean).join("；"),
       level: "danger",
     });
   }
@@ -620,7 +624,9 @@ function renderBalances() {
       }
       const recovery = item.recovery || {};
       const steps = (recovery.steps || []).slice(0, 2).join("；");
-      const detail = [recovery.summary || item.human_action || item.message || "先处理平台状态", steps, recovery.verify_command ? `复查：${recovery.verify_command}` : ""].filter(Boolean).join(" · ");
+      const evidence = item.evidence || [];
+      const evidenceText = evidence.length ? `证据：${evidence.slice(0, 2).map((entry) => `${entry.kind || "file"} ${entry.path}`).join("；")}` : "";
+      const detail = [recovery.summary || item.human_action || item.message || "先处理平台状态", steps, recovery.verify_command ? `复查：${recovery.verify_command}` : "", evidenceText].filter(Boolean).join(" · ");
       return `<div class="warn-row"><span>${escapeHtml(item.platform)} · 巡检失败</span><strong>${escapeHtml(recovery.title || item.failure_type || "需处理")}</strong><em>${escapeHtml(detail)}</em></div>`;
     }
   );
