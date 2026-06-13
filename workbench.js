@@ -1547,6 +1547,33 @@ function activatePage() {
   });
 }
 
+async function loadDailyReportFrame() {
+  const frame = document.querySelector(".daily-report-frame");
+  if (!frame) return;
+  const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
+  const reportUrl = new URL(reportSrc, window.location.href).href;
+  frame.srcdoc = '<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">正在加载经营日报...</body></html>';
+  try {
+    const response = await fetch(reportUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    let html = await response.text();
+    const baseTag = `<base href="${escapeHtml(reportUrl)}">`;
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`);
+    } else {
+      html = `<!doctype html><html lang="zh-CN"><head>${baseTag}</head><body>${html}</body></html>`;
+    }
+    frame.srcdoc = html;
+  } catch (error) {
+    frame.srcdoc = `<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">
+      <strong style="display:block;color:#172033;margin-bottom:8px;">经营日报加载失败</strong>
+      <span>请刷新页面，或临时打开经营日报独立页。</span>
+      <a style="display:inline-block;margin-left:8px;color:#2563eb;" href="${escapeHtml(reportUrl)}" target="_blank" rel="noreferrer">打开经营日报</a>
+    </body></html>`;
+    console.error("Failed to load daily report dashboard", error);
+  }
+}
+
 const gitLabel = data.system?.git?.commit ? ` · 版本 ${data.system.git.commit}` : "";
 text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}${gitLabel}`);
 renderDaily();
@@ -1562,3 +1589,4 @@ renderTools();
 renderFinance();
 window.addEventListener("hashchange", activatePage);
 activatePage();
+loadDailyReportFrame();
