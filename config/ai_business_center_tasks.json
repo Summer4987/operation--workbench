@@ -205,6 +205,8 @@
         "门店级安全重试策略明确可重试和必须人工处理的失败类型",
         "真实执行日志可回填到门店级重试策略",
         "人工处理项生成可复用修复向导",
+        "周末预设状态可区分待配置、已配置未启用和当日生效",
+        "预算执行脚本按步骤写入运行状态、日志路径和失败返回码",
         "失败时写入日志并停止后续高风险动作"
       ],
       "human_needed_when": [
@@ -213,7 +215,7 @@
         "页面提示自动提预算或风险设置",
         "需要临时调整门店预算"
       ],
-      "next_integration_step": "推广预算人工处理项已生成修复向导，下一步让执行脚本写入更精确的门店级结果。"
+      "next_integration_step": "推广预算人工处理项已生成修复向导，周末预设已显性化为待确认配置，执行脚本已写入步骤级运行记录；下一步让平台脚本回填更精确的门店级结果。"
     },
     {
       "id": "growth.promo_balance",
@@ -229,13 +231,15 @@
         "store-inspection/one_click_meituan_balance.py",
         "scripts/build_store_inspection_evidence_manifest.py",
         "scripts/upload_store_inspection_evidence.zsh",
-        "scripts/run_macmini_ai_center_smoke.zsh"
+        "scripts/run_macmini_ai_center_smoke.zsh",
+        "scripts/build_macmini_smoke_status.py"
       ],
       "outputs": [
         "store-inspection/latest.json",
         "store-inspection/latest-data.js",
         "outputs/promo_balance_status/latest.json",
         "outputs/store_inspection_evidence_manifest/latest.json",
+        "outputs/macmini_smoke_status/latest.json",
         "outputs/store_inspection/",
         "云端 on-demand/store_inspection/YYYY-MM-DD/"
       ],
@@ -248,6 +252,7 @@
         "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
         "Mac mini 上午定时任务会在余额巡检后上传证据",
         "Mac mini 只读冒烟检查可验证证据 dry-run 和上午 preview",
+        "Mac mini 冒烟日志可落盘并生成回传状态",
         "低余额门店进入重点预警",
         "低余额充值计划列出平台、门店、余额阈值和差额"
       ],
@@ -269,12 +274,20 @@
       "entrypoints": [
         "scripts/build_promo_bid_advice.py",
         "scripts/build_promo_bid_approval_queue.py",
+        "scripts/record_promo_bid_decision.py",
+        "scripts/build_promo_bid_execution_plan.py",
+        "scripts/build_promo_bid_signal_status.py",
+        "scripts/init_promo_bid_signals.py",
         "scripts/build_execution_preview.mjs",
         "dianjin-prototype/"
       ],
       "outputs": [
         "outputs/promo_bid_advice/latest.json",
         "outputs/promo_bid_approval_queue/latest.json",
+        "outputs/promo_bid_execution_plan/latest.json",
+        "outputs/promo_bid_signal_status/latest.json",
+        "data/promo-bid-signals/templates/promo_bid_signal_template.csv",
+        "data/promo_bid_decisions.json",
         "outputs/dianjin_automation/execution_preview_*.json",
         "dianjin-prototype/execution_preview.js"
       ],
@@ -284,6 +297,12 @@
         "执行前必须进入审批队列",
         "审批摘要列出门店、出价变化、消耗和预算占用",
         "审批队列明确人工确认、禁止自动提交和风险项处理",
+        "审批记录可扣减待处理队列并保留本地审计文件",
+        "审批记录默认校验 approval_id 必须存在于当前队列",
+        "已审批出价只生成 dry-run 执行计划，不自动提交平台",
+        "真实执行闸会检查未审批项、旧预览和信号缺口",
+        "曝光、进店和下单转化输入缺口可见",
+        "推广明细信号接收目录和 CSV 模板可读取",
         "只读建议不会自动提交平台"
       ],
       "human_needed_when": [
@@ -291,7 +310,7 @@
         "单次调价超过阈值",
         "平台提示风险或预算异常"
       ],
-      "next_integration_step": "出价审批摘要已接入统一待办和推广页，下一步补曝光、进店、下单转化输入。"
+      "next_integration_step": "出价审批摘要、本地审批记录、dry-run 执行计划、真实执行安全闸和信号输入缺口已接入，下一步接入平台推广明细。"
     },
     {
       "id": "flow.inventory",
@@ -391,17 +410,20 @@
       "risk": "medium",
       "schedule": "待定，按上传账单触发",
       "entrypoints": [
+        "scripts/init_finance_inbox.py",
         "scripts/build_finance_center_status.py",
         "config/finance_bill_schema.json"
       ],
       "outputs": [
         "outputs/finance_center_status/latest.json",
+        "data/finance-inbox/templates/",
         "data/finance-inbox/bank/",
         "data/finance-inbox/platform/"
       ],
       "health_checks": [
         "账单样例目录和字段字典可检查",
         "样例接收清单列出目录、格式和必需字段",
+        "银行账单和平台账单字段模板可读取",
         "银行账单和平台账单字段映射成功",
         "收入、佣金、配送费、推广费、退款、补贴可拆分",
         "异常费用可追溯到原始行"
@@ -411,7 +433,38 @@
         "确认科目口径",
         "解释无法自动分类的流水"
       ],
-      "next_integration_step": "财务样例接收清单已接入待办和财务页，下一步在样例到位后做字段映射。"
+      "next_integration_step": "财务样例接收清单、接收目录和字段模板已接入，下一步在样例到位后做字段映射。"
+    },
+    {
+      "id": "finance.report_generation",
+      "name": "生成财务报表和数据",
+      "center": "财务中心",
+      "module": "财务报表",
+      "status": "planned",
+      "risk": "medium",
+      "schedule": "待定，账单字段映射稳定后触发",
+      "entrypoints": [
+        "scripts/build_finance_center_status.py",
+        "outputs/finance_center_status/latest.json"
+      ],
+      "outputs": [
+        "outputs/finance_center_status/latest.json",
+        "财务报表待生成"
+      ],
+      "health_checks": [
+        "银行账单和平台账单样例已接收",
+        "字段映射和科目字典已确认",
+        "营业收入、佣金、配送费、推广费、退款、补贴可汇总",
+        "门店利润表可生成",
+        "费用异常可追溯到原始账单行",
+        "生成前可预览并人工确认口径"
+      ],
+      "human_needed_when": [
+        "确认财务科目口径",
+        "确认报表期间和门店归属",
+        "解释无法自动分类的账单行"
+      ],
+      "next_integration_step": "先等待财务账单样例和字段映射完成，再生成门店利润表与费用异常提醒。"
     },
     {
       "id": "tools.sales_receipt",
@@ -448,16 +501,22 @@
       "name": "加盟合同生成器",
       "center": "小工具仓库",
       "module": "加盟合同生成器",
-      "status": "planned",
+      "status": "running_unstable",
       "risk": "medium",
       "schedule": "人工触发",
-      "entrypoints": [],
+      "entrypoints": [
+        "scripts/init_franchise_contract_inbox.py",
+        "scripts/build_tool_warehouse_status.py",
+        "franchise-contract-generator/"
+      ],
       "outputs": [
-        "outputs/tool_warehouse_status/latest.json"
+        "outputs/tool_warehouse_status/latest.json",
+        "franchise-contract-generator/templates/field_template.csv"
       ],
       "health_checks": [
         "合同模板版本明确",
         "模板接收清单列出目录、格式和必需字段",
+        "加盟合同字段清单模板可读取",
         "加盟商资料字段完整",
         "生成前预览并人工确认",
         "工具仓库状态列出缺失模板和字段"
@@ -467,7 +526,7 @@
         "确认加盟条款和费用口径",
         "确认生成后的合同内容"
       ],
-      "next_integration_step": "合同模板接收清单已接入工具仓库、健康报告和统一待办，下一步在模板到位后做字段映射。"
+      "next_integration_step": "合同模板接收清单、初始化脚本和字段清单模板已接入，下一步在模板到位后做字段映射。"
     }
   ]
 }

@@ -40,9 +40,10 @@ globalThis.__files = {
 
 const { rules, logic } = loadRuntime();
 const overrides = await loadOverrides();
+const weekendPreset = buildWeekendPreset(overrides);
 const tasks = logic.buildTasks(rules);
 const elemeLunch = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "10:30").map(applyOverride);
-const elemeDinner = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "17:30").map(applyOverride);
+const elemeDinner = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "16:30").map(applyOverride);
 const meituanLunch = rules.stores
   .map((store) => meituanTask(store, "午餐"))
   .filter((row) => row.status !== "unmatched");
@@ -58,7 +59,7 @@ function meituanTask(store, period) {
     sourceStore: store.name,
     keyword: meituanKeyword(store.name),
     period,
-    time: period === "午餐" ? "上午运营按钮" : "17:30",
+    time: period === "午餐" ? "上午运营按钮" : "16:30",
     type: "budget",
     targetBudget,
     status: matchMeituanName(store.name) ? "auto" : "unmatched",
@@ -71,6 +72,10 @@ function meituanTask(store, period) {
 const payload = {
   generated_at: new Date().toISOString(),
   overrides,
+  weekend_preset: {
+    ...weekendPreset,
+    total_budget: 0,
+  },
   summary: {
     eleme_lunch_count: elemeLunch.length,
     eleme_dinner_count: elemeDinner.length,
@@ -98,10 +103,17 @@ const payload = {
     time: task.time,
     targetBudget: task.budget,
     status: "scheduled",
-    action: `17:30 自动设置晚餐预算 ${task.budget} 元`,
+    action: `16:30 自动设置晚餐预算 ${task.budget} 元`,
   })),
   meituan_dinner: meituanDinner,
 };
+
+payload.weekend_preset.total_budget = [
+  ...payload.eleme_lunch,
+  ...payload.meituan_lunch,
+  ...payload.eleme_dinner,
+  ...payload.meituan_dinner,
+].reduce((sum, item) => sum + Number(item.targetBudget || 0), 0);
 
 async function loadOverrides() {
   try {
@@ -116,11 +128,66 @@ function budgetFor(platform, storeName, period, fallback) {
   const byPlatform = byStore[platform] || byStore.all || {};
   const key = period === "午餐" ? "lunchBudget" : "dinnerBudget";
   const value = Number(byPlatform[key] ?? byStore[key]);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
+  const baseBudget = Number.isFinite(value) && value > 0 ? value : fallback;
+  return applyWeekendPreset(baseBudget, period);
 }
 
 function applyOverride(task) {
   return { ...task, budget: budgetFor(task.platform, task.store, task.period, task.budget) };
+}
+
+function buildWeekendPreset(config) {
+  const preset = config.weekendPreset || {};
+  const today = new Date();
+  const day = today.getDay();
+  const activeDays = Array.isArray(preset.activeDays) ? preset.activeDays : [0, 6];
+  const configured = Object.keys(preset).length > 0;
+  const enabledSetting = Boolean(preset.enabled);
+  const isActiveDay = activeDays.includes(day);
+  const enabled = enabledSetting && isActiveDay;
+  const name = preset.name || "周末预设方案";
+  const status = enabled ? "active" : configured ? "configured_inactive" : "not_configured";
+  const activeDayNames = activeDays.map(dayName).filter(Boolean);
+  const message = enabled
+    ? `${name}今日生效，预算将按周末规则预览。`
+    : configured
+      ? enabledSetting
+        ? `${name}已启用，但今日不在启用日，当前不会改变任何门店预算。`
+        : `${name}已配置但未启用，当前不会改变任何门店预算。`
+      : "周末预设待配置，当前不会改变任何门店预算。";
+  return {
+    enabled,
+    configured,
+    enabled_setting: enabledSetting,
+    status,
+    message,
+    next_action: enabledSetting
+      ? "如需调整周末规则，修改 config/promo_budget_overrides.json 的 weekendPreset 倍率、最低预算或启用日。"
+      : "确认周末预算规则后，把 config/promo_budget_overrides.json 的 weekendPreset.enabled 改为 true，并设置倍率、最低预算和取整规则。",
+    name,
+    today_day: day,
+    is_active_day: isActiveDay,
+    active_days: activeDays,
+    active_day_names: activeDayNames,
+    lunch_multiplier: Number(preset.lunchMultiplier || 1),
+    dinner_multiplier: Number(preset.dinnerMultiplier || 1),
+    min_budget: Number(preset.minBudget || 0),
+    round_to: Number(preset.roundTo || 1),
+    notes: preset.notes || "",
+  };
+}
+
+function dayName(day) {
+  return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][day] || "";
+}
+
+function applyWeekendPreset(budget, period) {
+  if (!weekendPreset.enabled) return budget;
+  const multiplier = period === "午餐" ? weekendPreset.lunch_multiplier : weekendPreset.dinner_multiplier;
+  const roundTo = weekendPreset.round_to > 0 ? weekendPreset.round_to : 1;
+  const minBudget = Math.max(0, weekendPreset.min_budget || 0);
+  const adjusted = Math.max(minBudget, Number(budget || 0) * multiplier);
+  return Math.round(adjusted / roundTo) * roundTo;
 }
 
 function meituanKeyword(storeName) {

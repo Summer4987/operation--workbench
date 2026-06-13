@@ -23,8 +23,8 @@ AX_PRESS_TOOL = ROOT / "ax_press.swift"
 URL = "https://r.ele.me/doujin-isv-manage/index.html?__path__=accountChain/accountDetail"
 
 
-def run(args: list[str], *, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
-    result = subprocess.run(args, cwd=WORKSPACE, text=True, capture_output=capture)
+def run(args: list[str], *, check: bool = True, capture: bool = True, timeout: int | None = None) -> subprocess.CompletedProcess:
+    result = subprocess.run(args, cwd=WORKSPACE, text=True, capture_output=capture, timeout=timeout)
     if check and result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()
         command = " ".join(args)
@@ -52,21 +52,31 @@ def activate_chrome() -> None:
 def preflight_permissions() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     test_image = OUTPUT_DIR / "permission_test.png"
-    result = run(["screencapture", "-x", str(test_image)], check=False)
+    try:
+        result = run(["screencapture", "-x", str(test_image)], check=False, timeout=5)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            "一键巡检需要屏幕录制权限。后台定时环境 5 秒内无法完成截图。"
+            "请在 Mac mini 系统设置里给 Terminal、Codex 或当前执行入口开启“屏幕录制”。"
+        ) from None
     if result.returncode != 0:
         raise RuntimeError(
-            "一键巡检需要屏幕录制权限。请在系统设置里给 Terminal 或 Codex 开启“屏幕录制”，"
+            "一键巡检需要屏幕录制权限。请在 Mac mini 系统设置里给 Terminal、Codex 或当前执行入口开启“屏幕录制”，"
             f"当前截图失败：{(result.stderr or '').strip()}"
         )
     if test_image.exists():
         test_image.unlink()
 
-    result = run(
-        ["osascript", "-e", 'tell application "System Events" to get UI elements enabled'],
-        check=False,
-    )
+    try:
+        result = run(
+            ["osascript", "-e", 'tell application "System Events" to get UI elements enabled'],
+            check=False,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("一键巡检需要辅助功能权限。后台定时环境 5 秒内无法完成辅助功能检测。") from None
     if "true" not in (result.stdout or "").lower():
-        raise RuntimeError("一键巡检需要辅助功能权限。请在系统设置里给 Terminal 或 Codex 开启“辅助功能”。")
+        raise RuntimeError("一键巡检需要辅助功能权限。请在 Mac mini 系统设置里给 Terminal、Codex 或当前执行入口开启“辅助功能”。")
 
 
 def screen_info() -> dict:
@@ -275,7 +285,7 @@ def write_failure(message: str) -> None:
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "status": "failed",
         "message": message,
-        "threshold": 100.0,
+        "threshold": 200.0,
         "summary": {
             "platform_count": 1,
             "store_count": 0,

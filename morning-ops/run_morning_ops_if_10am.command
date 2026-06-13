@@ -6,8 +6,8 @@ LOG_DIR="$ROOT/logs"
 mkdir -p "$LOG_DIR"
 
 now_hhmm="$(date +%H%M)"
-if [ "$now_hhmm" -lt 900 ] || [ "$now_hhmm" -gt 1030 ]; then
-  echo "[$(date '+%F %T')] 跳过：当前不在 09:00-10:30 窗口内。" >> "$LOG_DIR/scheduler.log"
+if [ "$now_hhmm" -lt 900 ] || [ "$now_hhmm" -gt 1050 ]; then
+  echo "[$(date '+%F %T')] 跳过：当前不在 09:00-10:50 窗口内。" >> "$LOG_DIR/scheduler.log"
   exit 0
 fi
 

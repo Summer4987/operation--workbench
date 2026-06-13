@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
+import contextlib
+import fcntl
+import os
 import subprocess
 import sys
 import time
@@ -13,13 +15,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parent
 LOG_DIR = ROOT / "logs"
+LOCK_FILE = WORKSPACE / "outputs" / "locks" / "morning-ops.lock"
 DAILY_RUNNER = WORKSPACE / "business-report-dashboard" / "run_daily_publish.command"
 REPORT_DIR = WORKSPACE / "business-report-dashboard"
 REPORT_AUTOMATION = REPORT_DIR / "chrome_cdp_reports.py"
 REPORT_PROCESSOR = REPORT_DIR / "process_reports.py"
 BALANCE_RUNNER = WORKSPACE / "store-inspection" / "run_all_balances.py"
+EVIDENCE_MANIFEST_RUNNER = WORKSPACE / "scripts" / "build_store_inspection_evidence_manifest.py"
+EVIDENCE_UPLOAD_RUNNER = WORKSPACE / "scripts" / "upload_store_inspection_evidence.zsh"
 ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
-CURRENT_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_current_budget.zsh"
 PROMO_PREVIEW_RUNNER = WORKSPACE / "scripts" / "build_promo_budget_preview.mjs"
 PROMO_BUDGET_SYNC_RUNNER = WORKSPACE / "scripts" / "sync_promo_budget_overrides.py"
 WORKBENCH_DATA_RUNNER = WORKSPACE / "scripts" / "build_workbench_data.py"
@@ -31,12 +35,11 @@ RESUME_FLAG = WORKSPACE / "outputs" / "manual_resume" / "continue.flag"
 NODE = Path("/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node")
 REPORT_VENV_PYTHON = REPORT_DIR / ".venv" / "bin" / "python"
 REPORT_PYTHON = REPORT_VENV_PYTHON if REPORT_VENV_PYTHON.exists() else Path("/usr/bin/python3")
-HEALTH_CHECK_RUNNER = WORKSPACE / "operation_automation_check.py"
 
 
 BUDGET_PERIODS = {
-    "午餐": {"time": "10:30", "label": "午餐", "start_minutes": 9 * 60 + 30, "end_minutes": 10 * 60 + 50},
-    "晚餐": {"time": "16:30", "label": "晚餐", "start_minutes": 16 * 60 + 20, "end_minutes": 16 * 60 + 50},
+    "午餐": {"time": "10:30", "label": "午餐"},
+    "晚餐": {"time": "17:30", "label": "晚餐"},
 }
 
 AUTH_BLOCK_PATTERNS = [
@@ -63,25 +66,48 @@ class StepResult:
     log_path: Path
 
 
+@contextlib.contextmanager
+def morning_ops_lock(source: str):
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
+    with LOCK_FILE.open("a+", encoding="utf-8") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock.seek(0)
+            holder = lock.read().strip() or "已有上午运营任务正在运行。"
+            message = f"已有上午运营任务正在运行，本次不重复启动。当前锁信息：{holder}"
+            print(message, file=sys.stderr, flush=True)
+            with log_path.open("a", encoding="utf-8") as log:
+                log.write(f"\n[{datetime.now().strftime('%F %T')}] {message}\n")
+            raise SystemExit(75)
+        lock.seek(0)
+        lock.truncate()
+        lock.write(
+            "\n".join(
+                [
+                    f"pid={os.getpid()}",
+                    f"source={source}",
+                    f"started_at={datetime.now().strftime('%F %T')}",
+                    f"workspace={WORKSPACE}",
+                ]
+            )
+        )
+        lock.flush()
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            lock.truncate()
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
 def resolve_budget_period(value: str = "auto") -> str:
     if value in BUDGET_PERIODS:
         return value
     now = datetime.now().time()
     return "午餐" if now.hour < 15 else "晚餐"
-
-
-def in_budget_window(period: str) -> bool:
-    info = BUDGET_PERIODS[period]
-    now = datetime.now()
-    total = now.hour * 60 + now.minute
-    return info["start_minutes"] <= total <= info["end_minutes"]
-
-
-def budget_window_label(period: str) -> str:
-    info = BUDGET_PERIODS[period]
-    start = int(info["start_minutes"])
-    end = int(info["end_minutes"])
-    return f"{start // 60:02d}:{start % 60:02d}-{end // 60:02d}:{end % 60:02d}"
 
 
 def notify(text: str) -> None:
@@ -93,6 +119,12 @@ def notify(text: str) -> None:
 
 def looks_like_auth_block(text: str) -> bool:
     return any(pattern in text for pattern in AUTH_BLOCK_PATTERNS)
+
+
+def is_production_environment() -> bool:
+    env = os.environ.get("AI_BUSINESS_CENTER_ENV", "").strip().lower()
+    hostname = os.uname().nodename.lower()
+    return env == "production" or "mini" in hostname
 
 
 def wait_for_manual_resume(reason: str, *, timeout_minutes: int = 60) -> bool:
@@ -143,8 +175,12 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
             output = result.stdout or ""
             returncode = result.returncode
             log.write(output)
-        except subprocess.TimeoutExpired:
-            output = f"\n{name}超时：超过 {timeout_seconds} 秒，已停止本步骤。\n"
+        except subprocess.TimeoutExpired as exc:
+            partial = exc.stdout or ""
+            output = (
+                f"{partial}\n"
+                f"{name}超时：超过 {timeout_seconds} 秒，已停止本步骤。\n"
+            )
             log.write(output)
             returncode = 124
     if returncode == 0:
@@ -171,42 +207,8 @@ def ensure_backend_chrome(report_python: str) -> None:
         "启动/检查后台 Chrome",
         [report_python, str(REPORT_AUTOMATION), "start-chrome"],
         required=False,
-        timeout_seconds=30,
+        timeout_seconds=120,
     )
-
-
-def run_health_check(python_bin: str) -> dict | None:
-    if not HEALTH_CHECK_RUNNER.exists():
-        return None
-    result = run_step(
-        "自动化体检",
-        [python_bin, str(HEALTH_CHECK_RUNNER), "--json"],
-        required=False,
-        timeout_seconds=30,
-    )
-    payload = (result.output or "").strip()
-    if not payload:
-        print("自动化体检未返回内容。", flush=True)
-        return None
-    try:
-        report = json.loads(payload)
-    except json.JSONDecodeError:
-        print("自动化体检输出无法解析，已跳过结构化结果。", flush=True)
-        print(payload, flush=True)
-        return None
-    blockers = report.get("blockers") or []
-    warnings = report.get("warnings") or []
-    print("\n系统阻塞项：", flush=True)
-    if blockers:
-        for item in blockers:
-            print(f"- [{item.get('category', 'unknown')}] {item.get('message', '')}", flush=True)
-    else:
-        print("- 无", flush=True)
-    if warnings:
-        print("补充提醒：", flush=True)
-        for item in warnings:
-            print(f"- [{item.get('category', 'unknown')}] {item.get('message', '')}", flush=True)
-    return report
 
 
 def main() -> int:
@@ -223,66 +225,72 @@ def main() -> int:
         default="commit",
         help="commit 正式执行预算和云端发布；preview 只做安全预演，不保存预算、不上传云端。",
     )
+    parser.add_argument(
+        "--source",
+        default=os.environ.get("MORNING_OPS_SOURCE", "scheduled"),
+        help="运行来源标记，用于区分 launchd 定时、手动入口或排障补跑。",
+    )
     args = parser.parse_args()
-    budget_period = resolve_budget_period(args.budget_period)
-    print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}）。", flush=True)
-    failures = []
-    try:
-        report_python = str(REPORT_PYTHON if REPORT_PYTHON.exists() else Path(sys.executable))
-        run_health_check(sys.executable)
-        if args.mode == "preview":
-            print("预览模式：跳过平台评价下载、日报后台采集、余额巡检，不打开外卖后台页面。", flush=True)
-            if run_step("本地门店日报生成", [report_python, str(REPORT_PROCESSOR)], required=False).returncode != 0:
-                failures.append("本地门店日报")
-        else:
-            ensure_backend_chrome(report_python)
-            if run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240).returncode != 0:
-                failures.append("双平台评价")
-            ensure_backend_chrome(report_python)
-            if run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720).returncode != 0:
-                failures.append("门店日报")
-            if run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420).returncode != 0:
-                failures.append("推广余额总巡检")
-        if run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False).returncode != 0:
-            failures.append("预算配置同步")
-        node = str(NODE if NODE.exists() else "node")
-        if run_step("推广预算初始化预览", [node, str(PROMO_PREVIEW_RUNNER)], required=False).returncode != 0:
-            failures.append("推广预算预览")
-        if args.mode == "preview":
-            if run_step_with_pause(
-                f"{budget_period}预算页面预演",
-                ["/bin/zsh", str(CURRENT_BUDGET_RUNNER), "--period", budget_period, "--mode", "preview", "--limit", "1"],
-                required=False,
-                timeout_seconds=300,
-            ).returncode != 0:
-                failures.append(f"{budget_period}预算页面预演")
-        elif not in_budget_window(budget_period):
-            print(
-                f"{budget_period}预算不在允许窗口 {budget_window_label(budget_period)}，本次不提交预算。",
-                flush=True,
-            )
-        else:
-            if run_step_with_pause(
-                f"{budget_period}预算真实提交",
-                ["/bin/zsh", str(CURRENT_BUDGET_RUNNER), "--period", budget_period, "--mode", "commit", "--limit", "all"],
-                required=False,
-                timeout_seconds=720,
-            ).returncode != 0:
-                failures.append(f"{budget_period}预算")
-        if run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False).returncode != 0:
-            failures.append("运营总看板")
-        if args.mode == "preview":
-            print("预览模式：跳过运营总看板云端发布。", flush=True)
-        elif run_step("运营总看板发布腾讯云", ["/bin/zsh", str(WORKBENCH_DEPLOY_RUNNER)], required=False).returncode != 0:
-            failures.append("总看板云端发布")
-        if failures:
-            print(f"\n运营一键采集完成，但有失败项：{'、'.join(failures)}。", file=sys.stderr, flush=True)
+    with morning_ops_lock(args.source):
+        budget_period = resolve_budget_period(args.budget_period)
+        budget_time = BUDGET_PERIODS[budget_period]["time"]
+        print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}，来源：{args.source}）。", flush=True)
+        failures = []
+        try:
+            report_python = str(REPORT_PYTHON if REPORT_PYTHON.exists() else Path(sys.executable))
+            if args.mode == "preview":
+                print("预览模式：跳过平台评价下载、日报后台采集、余额巡检，不打开外卖后台页面。", flush=True)
+                if run_step("本地门店日报生成", [report_python, str(REPORT_PROCESSOR)], required=False).returncode != 0:
+                    failures.append("本地门店日报")
+            else:
+                ensure_backend_chrome(report_python)
+                if run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240).returncode != 0:
+                    failures.append("双平台评价")
+                ensure_backend_chrome(report_python)
+                if run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720).returncode != 0:
+                    failures.append("门店日报")
+                balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
+                if balance_result.returncode != 0:
+                    if args.source == "scheduled":
+                        print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
+                    else:
+                        failures.append("推广余额总巡检")
+                run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
+                if is_production_environment():
+                    run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
+                else:
+                    print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
+            if run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False).returncode != 0:
+                failures.append("预算配置同步")
+            node = str(NODE if NODE.exists() else "node")
+            if run_step("推广预算初始化预览", [node, str(PROMO_PREVIEW_RUNNER)], required=False).returncode != 0:
+                failures.append("推广预算预览")
+            if args.mode == "preview":
+                print("预览模式：跳过双平台预算页面检查和保存。", flush=True)
+            else:
+                if run_step_with_pause(
+                    f"饿了么{budget_period}预算真实提交",
+                    ["/bin/zsh", str(ELEME_BUDGET_RUNNER), "--time", budget_time, "--mode", "commit", "--limit", "all"],
+                    required=False,
+                    timeout_seconds=300,
+                ).returncode != 0:
+                    failures.append(f"饿了么{budget_period}预算")
+                if run_step_with_pause(f"美团{budget_period}预算真实提交", [str(REPORT_PYTHON), str(MEITUAN_BUDGET_CDP_RUNNER), "--period", budget_period], required=False, timeout_seconds=360).returncode != 0:
+                    failures.append(f"美团{budget_period}预算")
+            if run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False).returncode != 0:
+                failures.append("运营总看板")
+            if args.mode == "preview":
+                print("预览模式：跳过运营总看板云端发布。", flush=True)
+            elif run_step("运营总看板发布腾讯云", ["/bin/zsh", str(WORKBENCH_DEPLOY_RUNNER)], required=False).returncode != 0:
+                failures.append("总看板云端发布")
+            if failures:
+                print(f"\n运营一键采集完成，但有失败项：{'、'.join(failures)}。", file=sys.stderr, flush=True)
+                return 1
+            print("\n运营一键采集完成。", flush=True)
+            return 0
+        except Exception as exc:
+            print(f"\n运营一键采集失败：{exc}", file=sys.stderr, flush=True)
             return 1
-        print("\n运营一键采集完成。", flush=True)
-        return 0
-    except Exception as exc:
-        print(f"\n运营一键采集失败：{exc}", file=sys.stderr, flush=True)
-        return 1
 
 
 if __name__ == "__main__":

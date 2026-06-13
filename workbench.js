@@ -121,6 +121,12 @@ function shortStore(value) {
     .slice(0, 18);
 }
 
+function compactText(value, maxLength = 110) {
+  const textValue = String(value || "").replace(/\s+/g, " ").trim();
+  if (textValue.length <= maxLength) return textValue;
+  return `${textValue.slice(0, maxLength)}...`;
+}
+
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -395,7 +401,7 @@ function priorityItems() {
     items.push({
       type: "用户待办",
       title: item.title || "待处理事项",
-      detail: item.action || item.reason || "请查看 AI 运营建议。",
+      detail: compactText(item.brief_action || item.reason || item.action || "请查看 AI 运营建议。"),
       level: item.priority === "high" ? "danger" : "warning",
     });
   });
@@ -476,15 +482,46 @@ function renderPriority() {
 
 function renderHealth() {
   const taskHealth = data.task_health || {};
+  const macminiSmoke = data.macmini_smoke_status || {};
+  const operationCheck = data.operation_automation_check || {};
   const summary = taskHealth.summary || {};
   const environment = taskHealth.environment || {};
   const tasks = (taskHealth.tasks || []).filter((task) => task.status !== "planned").slice(0, 8);
+  const smokeStatus = macminiSmoke.status || "waiting_log";
+  const operationBlockers = operationCheck.blockers || [];
+  const operationWarnings = operationCheck.warnings || [];
+  const operationEnvironment = operationCheck.environment || environment;
+  const operationRow = {
+    name: "系统体检",
+    status: operationBlockers.length ? "danger" : operationWarnings.length ? "warn" : "ok",
+    status_text: operationBlockers.length ? "阻塞" : operationWarnings.length ? "提醒" : "正常",
+    reason: operationBlockers.length
+      ? `${operationEnvironment.label || "当前环境"}发现 ${operationBlockers.length} 个阻塞项`
+      : operationWarnings.length
+        ? `${operationEnvironment.label || "当前环境"}有 ${operationWarnings.length} 个提醒`
+        : `${operationEnvironment.label || "当前环境"}体检通过`,
+    human_action: (operationBlockers[0] || operationWarnings[0] || {}).message || "",
+    last_seen_at: operationCheck.generated_at || "",
+    environment_label: operationEnvironment.label || "",
+  };
+  const smokeRow = {
+    name: "Mac mini 只读冒烟",
+    status: smokeStatus === "ready" ? "ok" : smokeStatus === "failed" ? "danger" : "warn",
+    status_text: smokeStatus === "ready" ? "已完成" : smokeStatus === "failed" ? "失败" : "待回传",
+    reason: macminiSmoke.message || "等待 Mac mini 生产冒烟日志。",
+    human_action: macminiSmoke.next_action || "",
+    last_seen_at: macminiSmoke.summary?.updated_at || "",
+    environment_label: "Mac mini 生产环境",
+  };
   const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
   const statusPrefix = environment.role === "production" ? "生产" : "开发";
   text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
+  const healthRows = operationEnvironment.role === "production" || operationBlockers.length
+    ? [operationRow, smokeRow, ...tasks]
+    : [smokeRow, ...tasks, operationRow];
   rows(
     "healthRows",
-    tasks,
+    healthRows.slice(0, 8),
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
       const meta = [
@@ -492,7 +529,7 @@ function renderHealth() {
         task.repair_guide ? `向导：${task.repair_guide}` : "",
         task.human_action ? `处理：${task.human_action}` : "",
         task.last_seen_at ? `最近：${task.last_seen_at}` : "",
-        environment.label || "",
+        task.environment_label || environment.label || "",
       ].filter(Boolean).join(" · ");
       return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
     }
@@ -510,7 +547,7 @@ function renderAiAdvice() {
       (item) => {
         const cls = item.level === "需人工处理" || item.level === "建议" ? "warn-row" : "good-row";
         const detail = [item.reason, item.action].filter(Boolean).join("；");
-        return `<div class="${cls}"><span>${escapeHtml(item.level || item.center || "建议")}</span><strong>${escapeHtml(item.title || "-")}</strong><em>${escapeHtml(detail || "-")}</em></div>`;
+        return `<div class="${cls}"><span>${escapeHtml(item.level || item.center || "建议")}</span><strong>${escapeHtml(item.title || "-")}</strong><em>${escapeHtml(compactText(detail || "-", 170))}</em></div>`;
       }
     );
     return;
@@ -823,15 +860,21 @@ function renderBudget() {
   const retryGuide = (retry.repair_guides || [])[0] || {};
   const retryGuideStep = (retryGuide.checklist || [])[0] || "";
   const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工${affectedByLatestRun ? `，最近执行影响 ${affectedByLatestRun} 项` : ""}${retryGuide.title ? `，修复向导 ${retrySummary.repair_guide_count || (retry.repair_guides || []).length} 个` : ""}。` : "门店级重试策略待生成。";
-  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekend.enabled ? weekend.name || "已启用" : "未启用"}。${retryText}`);
+  const weekendStatusText = weekend.status === "active" ? "今日生效" : weekend.status === "configured_inactive" ? "待启用" : "待配置";
+  const weekendMessage = weekend.message || (weekend.enabled ? `${weekend.name || "周末预设"}今日生效。` : "周末预设待配置，当前不会改变任何门店预算。");
+  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekendStatusText}，${weekendMessage}${retryText}`);
   rows(
     "budgetRows",
     [
-      ...(weekend.enabled ? [{ platform: "周末预设", store: weekend.name || "周末方案", targetBudget: weekend.total_budget || 0, status: "preset" }] : []),
+      ...(weekend.status ? [{ platform: "周末预设", store: weekend.name || "周末方案", targetBudget: weekend.total_budget || 0, status: weekend.status, action: weekend.next_action || weekendMessage }] : []),
       ...eleme.slice(0, 4),
       ...meituan.slice(0, 4),
     ],
-    (item) => `<div><span>${item.platform} · ${shortStore(item.store)}</span><strong>${yuan(item.targetBudget)}</strong><em>${item.status === "auto" ? "自动" : item.status === "preset" ? "预设" : "人工"}</em></div>`
+    (item) => {
+      const statusLabel = item.status === "auto" ? "自动" : item.status === "active" ? "今日生效" : item.status === "configured_inactive" ? "待启用" : item.status === "not_configured" ? "待配置" : "人工";
+      const detail = item.platform === "周末预设" && item.action ? `<small>${escapeHtml(item.action)}</small>` : "";
+      return `<div><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store))}</span><strong>${yuan(item.targetBudget)}</strong><em>${escapeHtml(statusLabel)}</em>${detail}</div>`;
+    }
   );
   const retryRows = retry.status === "ready"
     ? [
@@ -851,8 +894,14 @@ function renderBudget() {
 function renderBidding() {
   const advice = data.promo_bid_advice || {};
   const queue = data.promo_bid_approval_queue || {};
+  const executionPlan = data.promo_bid_execution_plan || {};
+  const signalStatus = data.promo_bid_signal_status || {};
   const summary = advice.summary || {};
   const queueSummary = queue.summary || {};
+  const planSummary = executionPlan.summary || {};
+  const signalSummary = signalStatus.summary || {};
+  const signalSetup = signalStatus.setup || {};
+  const realExecutionGate = executionPlan.real_execution_gate || {};
   const items = queue.items || advice.items || [];
   const approvalCount = Number(queueSummary.queue_count || queueSummary.approval_required_count || summary.approval_required_count || 0);
   const staleCount = Number(queueSummary.stale_preview_count || summary.stale_preview_count || 0);
@@ -868,6 +917,10 @@ function renderBidding() {
   const bidUpCount = queueSummary.bid_up_count ?? summary.bid_up_count ?? 0;
   const bidDownCount = queueSummary.bid_down_count ?? summary.bid_down_count ?? 0;
   const riskCount = queueSummary.risk_count ?? summary.risk_count ?? 0;
+  const approvedCount = Number(queueSummary.approved_count || 0);
+  const skippedCount = Number(queueSummary.skipped_count || 0);
+  const manualRecordedCount = Number(queueSummary.manual_review_recorded_count || 0);
+  const firstPendingItem = items.find((item) => item.status === "waiting_approval" || item.status === "manual_review") || {};
   const previewTime = queueSummary.latest_preview_at || summary.latest_preview_at || "";
   const bidItemDetail = (item) => [
     [item.current_bid, item.target_bid].some((value) => value !== undefined && value !== null && value !== "") ? `出价 ${item.current_bid ?? "-"}->${item.target_bid ?? "-"}` : "",
@@ -879,11 +932,15 @@ function renderBidding() {
     "biddingRows",
     [
       { label: "审批队列", value: `${approvalCount} 项`, detail: gate.message || "确认前不自动提交" },
+      { label: "审批进度", value: `${approvedCount}/${skippedCount}/${manualRecordedCount}`, detail: `已批准/已跳过/已转人工复核 · 记录文件 ${queue.decision_source || "data/promo_bid_decisions.json"}` },
+      { label: "执行计划", value: realExecutionGate.status === "blocked" ? "真实阻断" : `${planSummary.plan_count || 0} 项`, detail: realExecutionGate.message || executionPlan.message || "只生成 dry-run 执行计划，不提交平台" },
+      { label: "信号输入", value: `${signalSummary.ready_count || 0}/${signalSummary.missing_count || 0}`, detail: `${signalStatus.message || "等待曝光、进店、转化输入状态"}${signalSetup.template_path ? ` · 模板 ${signalSetup.template_path}` : ""}` },
       { label: "加价/降价", value: `${bidUpCount}/${bidDownCount}`, detail: riskCount ? `风险或不可执行 ${riskCount} 项` : "基于预算消耗与预期消耗" },
       { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: previewTime ? `最新 ${previewTime}` : "等待状态读取" },
+      ...(firstPendingItem.decision_command ? [{ label: "记录命令", value: "本地记录", detail: firstPendingItem.decision_command }] : []),
       ...items.filter((item) => Number(item.bid_delta || 0)).slice(0, 5).map((item) => ({
         label: `${item.platform || "平台"} · ${shortStore(item.store || "未命名门店")}`,
-        value: item.action || "出价建议",
+        value: item.status === "approved" ? "已批准" : item.status === "skipped" ? "已跳过" : item.status === "manual_review_recorded" ? "已转人工" : item.action || "出价建议",
         detail: bidItemDetail(item),
       })),
     ],
@@ -1185,6 +1242,7 @@ function renderTools() {
   const requiredFields = contract.required_fields || [];
   const intakeChecklist = contract.intake_checklist || [];
   const missing = contract.missing || [];
+  const contractSetup = contract.setup || {};
   text("franchiseContractStatus", contract.status_text || "待模板");
   text("franchiseContractCount", `${requiredFields.length || 0} 项字段`);
   text("franchiseContractSummary", contract.message || "加盟合同生成器等待合同模板和字段确认。");
@@ -1193,6 +1251,8 @@ function renderTools() {
     "franchiseContractRows",
     [
       ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、") }] : []),
+      { label: "初始化", value: contractSetup.directory_ready && contractSetup.field_template_ready ? "已准备" : "可执行", detail: contractSetup.init_command || "python3 scripts/init_franchise_contract_inbox.py" },
+      { label: "字段模板", value: contractSetup.field_template_ready ? "已就绪" : "待生成", detail: contractSetup.field_template_path || "franchise-contract-generator/templates/field_template.csv" },
       ...intakeChecklist.slice(0, 1).map((item) => ({
         label: "接收要求",
         value: item.path || "合同模板",
@@ -1211,6 +1271,8 @@ function renderFinance() {
   const intakeChecklist = finance.intake_checklist || [];
   const accounts = finance.accounts || [];
   const missing = finance.missing || [];
+  const setup = finance.setup || {};
+  const reportGeneration = finance.report_generation || {};
   const waiting = finance.status === "waiting_samples";
   text("financeBillStatus", waiting ? "待样例" : finance.status === "ready_for_mapping" ? "待映射" : "待检查");
   text("financeBillCount", `${Number(summary.sample_file_count || 0)} 个样例`);
@@ -1224,6 +1286,7 @@ function renderFinance() {
         value: `${source.file_count || 0} 个文件`,
         detail: [
           source.path || "",
+          source.template_path ? `模板：${source.template_path}` : "",
           (source.required_fields || []).length ? `字段：${(source.required_fields || []).slice(0, 4).join("、")}${(source.required_fields || []).length > 4 ? "等" : ""}` : "",
         ].filter(Boolean).join(" · "),
         warn: !source.file_count,
@@ -1239,16 +1302,30 @@ function renderFinance() {
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 
-  text("financeReportStatus", waiting ? "待样例" : "待映射");
-  text("financeReportCount", `${Number(summary.account_count || accounts.length)} 个科目`);
-  text("financeReportSummary", "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
+  text("financeReportStatus", reportGeneration.status_text || (waiting ? "待样例" : "待映射"));
+  text("financeReportCount", `${Number(reportGeneration.account_count || summary.account_count || accounts.length)} 个科目`);
+  text("financeReportSummary", reportGeneration.message || "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
   rows(
     "financeReportRows",
-    accounts.slice(0, 6).map((account) => ({
-      label: account.direction === "income" ? "收入" : "支出",
-      value: account.name,
-      detail: (account.keywords || []).slice(0, 3).join("、"),
-    })),
+    [
+      { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
+      { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
+      ...(reportGeneration.report_outputs || []).slice(0, 4).map((item) => ({
+        label: "报表",
+        value: item,
+        detail: "字段映射后生成",
+      })),
+      ...(reportGeneration.required_before || []).slice(0, 3).map((item) => ({
+        label: "前置条件",
+        value: item,
+        detail: "未满足前不自动出报表",
+      })),
+      ...accounts.slice(0, 6).map((account) => ({
+        label: account.direction === "income" ? "收入" : "支出",
+        value: account.name,
+        detail: (account.keywords || []).slice(0, 3).join("、"),
+      })),
+    ],
     (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 }
