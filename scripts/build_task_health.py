@@ -667,10 +667,14 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                 )
             else:
                 confirm_text = "需人工确认后再下单" if confirmation.get("status") == "pending" else "当前无需订货"
+                confirm_command = confirmation.get("confirm_command") or ""
+                confirm_action = confirmation.get("message") or "先人工确认订货建议，不要自动下单或付款。"
+                if confirm_command:
+                    confirm_action = f"{confirm_action} 确认后运行：{confirm_command}"
                 row.update(
                     status="warn",
                     reason=f"订货建议已生成，{summary.get('suggestion_count', 0)} 项，{channel_count} 个供应渠道，{confirm_text}。",
-                    human_action=confirmation.get("message") or "先人工确认订货建议，不要自动下单或付款。",
+                    human_action=confirm_action,
                     evidence="outputs/inventory_order_suggestions/latest.json",
                 )
             if order_lists.get("status") == "waiting_confirmation":

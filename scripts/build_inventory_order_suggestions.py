@@ -90,6 +90,16 @@ def group_by_channel(suggestions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(grouped.values(), key=lambda item: (-int(item["item_count"]), item["channel"]))
 
 
+def confirmation_checklist(groups: list[dict[str, Any]]) -> list[str]:
+    if not groups:
+        return []
+    return [
+        "逐个供应渠道核对品项、规格、数量和预估金额。",
+        "确认低库存原因不是盘点延迟或单位录入错误。",
+        "确认后运行 `python3 scripts/build_inventory_order_lists.py --confirmed-by \"确认人\"` 生成渠道下单清单。",
+    ]
+
+
 def build_payload(server: str, timeout: int, buffer_units: float) -> dict[str, Any]:
     summary = fetch_inventory_summary(server, timeout)
     items = summary.get("items")
@@ -112,6 +122,8 @@ def build_payload(server: str, timeout: int, buffer_units: float) -> dict[str, A
         "confirmation": {
             "status": "pending" if suggestions else "not_required",
             "required_before": ["生成渠道下单清单", "远控安卓下单", "付款"],
+            "checklist": confirmation_checklist(groups),
+            "confirm_command": 'python3 scripts/build_inventory_order_lists.py --confirmed-by "确认人"',
             "message": "订货建议只用于人工确认；确认前不会自动下单或付款。",
         },
         "summary": {

@@ -14,6 +14,8 @@ ANDROID_CONFIG_PATH = ROOT / "outputs" / "android_execution_config" / "latest.js
 FINANCE_CENTER_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 TOOL_WAREHOUSE_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 PROMO_BID_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
+ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
+ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 
 
 def now_text() -> str:
@@ -60,6 +62,8 @@ def build_payload() -> dict[str, Any]:
     finance = read_json(FINANCE_CENTER_PATH, {})
     tools = read_json(TOOL_WAREHOUSE_PATH, {})
     bid_queue = read_json(PROMO_BID_QUEUE_PATH, {})
+    order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
+    order_lists = read_json(ORDER_LISTS_PATH, {})
 
     items: list[dict[str, Any]] = []
     environment = (task_health.get("environment") or {}).get("role") or "development"
@@ -95,6 +99,30 @@ def build_payload() -> dict[str, Any]:
                 source="flow.auto_ordering",
                 evidence="outputs/android_execution_config/latest.json",
                 environment="Mac mini 生产环境",
+            )
+        )
+
+    order_summary = order_suggestions.get("summary") or {}
+    order_confirmation = order_suggestions.get("confirmation") or {}
+    suggestion_count = int(order_summary.get("suggestion_count") or 0)
+    if (
+        order_suggestions.get("status") == "ready"
+        and suggestion_count > 0
+        and order_confirmation.get("status") == "pending"
+        and order_lists.get("status") != "ready"
+    ):
+        checklist = "；".join(order_confirmation.get("checklist") or [])
+        command = order_confirmation.get("confirm_command") or 'python3 scripts/build_inventory_order_lists.py --confirmed-by "确认人"'
+        items.append(
+            action_item(
+                item_id="flow.order_confirmation",
+                title="订货建议待人工确认",
+                center="货流中心",
+                priority="medium",
+                reason=f"当前有 {suggestion_count} 项订货建议，分布在 {order_summary.get('channel_count', 0)} 个供应渠道，预估 {float(order_summary.get('estimated_cost') or 0):.2f} 元。",
+                action=f"{checklist or '先核对品项、数量和供应渠道。'} 确认后运行 `{command}`。",
+                source="flow.inventory",
+                evidence="outputs/inventory_order_suggestions/latest.json",
             )
         )
 
