@@ -879,6 +879,7 @@ function renderBidding() {
   const queueSummary = queue.summary || {};
   const planSummary = executionPlan.summary || {};
   const signalSummary = signalStatus.summary || {};
+  const realExecutionGate = executionPlan.real_execution_gate || {};
   const items = queue.items || advice.items || [];
   const approvalCount = Number(queueSummary.queue_count || queueSummary.approval_required_count || summary.approval_required_count || 0);
   const staleCount = Number(queueSummary.stale_preview_count || summary.stale_preview_count || 0);
@@ -910,7 +911,7 @@ function renderBidding() {
     [
       { label: "审批队列", value: `${approvalCount} 项`, detail: gate.message || "确认前不自动提交" },
       { label: "审批进度", value: `${approvedCount}/${skippedCount}/${manualRecordedCount}`, detail: `已批准/已跳过/已转人工复核 · 记录文件 ${queue.decision_source || "data/promo_bid_decisions.json"}` },
-      { label: "执行计划", value: `${planSummary.plan_count || 0} 项`, detail: executionPlan.message || "只生成 dry-run 执行计划，不提交平台" },
+      { label: "执行计划", value: realExecutionGate.status === "blocked" ? "真实阻断" : `${planSummary.plan_count || 0} 项`, detail: realExecutionGate.message || executionPlan.message || "只生成 dry-run 执行计划，不提交平台" },
       { label: "信号输入", value: `${signalSummary.ready_count || 0}/${signalSummary.missing_count || 0}`, detail: signalStatus.message || "等待曝光、进店、转化输入状态" },
       { label: "加价/降价", value: `${bidUpCount}/${bidDownCount}`, detail: riskCount ? `风险或不可执行 ${riskCount} 项` : "基于预算消耗与预期消耗" },
       { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: previewTime ? `最新 ${previewTime}` : "等待状态读取" },

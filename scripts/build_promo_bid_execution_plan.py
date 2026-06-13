@@ -8,6 +8,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
+SIGNAL_STATUS_PATH = ROOT / "outputs" / "promo_bid_signal_status" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_bid_execution_plan"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 
@@ -58,6 +59,7 @@ def build_step(item: dict[str, Any], index: int) -> dict[str, Any]:
 def build_payload() -> dict[str, Any]:
     generated_at = now_text()
     queue = read_json(QUEUE_PATH)
+    signal_status = read_json(SIGNAL_STATUS_PATH)
     if not queue:
         return {
             "generated_at": generated_at,
@@ -71,7 +73,21 @@ def build_payload() -> dict[str, Any]:
 
     approved = [item for item in queue.get("items") or [] if item.get("status") == "approved"]
     steps = [build_step(item, index) for index, item in enumerate(approved)]
-    blocked_count = int((queue.get("summary") or {}).get("queue_count") or 0)
+    queue_summary = queue.get("summary") or {}
+    signal_summary = signal_status.get("summary") or {}
+    blocked_count = int(queue_summary.get("queue_count") or 0)
+    stale_preview_count = int(queue_summary.get("stale_preview_count") or 0)
+    signal_missing_count = int(signal_summary.get("missing_count") or 0)
+    signal_partial_count = int(signal_summary.get("partial_count") or 0)
+    real_execution_blockers = []
+    if blocked_count:
+        real_execution_blockers.append(f"仍有 {blocked_count} 项未审批")
+    if stale_preview_count:
+        real_execution_blockers.append(f"有 {stale_preview_count} 个旧预览")
+    if signal_missing_count:
+        real_execution_blockers.append(f"有 {signal_missing_count} 项信号缺口")
+    if signal_partial_count:
+        real_execution_blockers.append(f"有 {signal_partial_count} 项信号半接入")
     status = "ready" if steps else "no_approved"
     message = (
         f"推广出价只读执行计划已生成：{len(steps)} 项已审批，仍有 {blocked_count} 项未审批。"
@@ -88,10 +104,34 @@ def build_payload() -> dict[str, Any]:
             "message": "本计划只描述已审批出价步骤，不自动打开平台、不点击保存、不提交真实出价。",
             "forbidden_actions": ["自动提交出价", "绕过审批", "自动处理风险项", "自动关闭或调整出价助手"],
         },
+        "real_execution_gate": {
+            "status": "blocked" if real_execution_blockers else "ready_for_manual_preflight",
+            "message": "真实执行仍被阻断：" + "；".join(real_execution_blockers)
+            if real_execution_blockers
+            else "已审批项可进入人工预检；仍需 Mac mini 重新读取平台当前状态并人工确认保存。",
+            "blockers": real_execution_blockers,
+            "requires": [
+                "全部建议完成审批或明确跳过",
+                "无旧预览",
+                "曝光、进店、下单转化等信号接入完整",
+                "Mac mini 生产环境重新读取平台当前状态",
+                "真实保存前人工确认",
+            ],
+        },
+        "signal_gate": {
+            "status": signal_status.get("status") or "missing",
+            "message": signal_status.get("message") or "尚未生成推广出价信号状态。",
+            "summary": signal_summary,
+            "source": "outputs/promo_bid_signal_status/latest.json",
+        },
         "summary": {
             "approved_count": len(approved),
             "plan_count": len(steps),
             "blocked_count": blocked_count,
+            "stale_preview_count": stale_preview_count,
+            "signal_missing_count": signal_missing_count,
+            "signal_partial_count": signal_partial_count,
+            "real_execution_blocked": bool(real_execution_blockers),
             "decision_source": queue.get("decision_source") or "data/promo_bid_decisions.json",
             "queue_generated_at": queue.get("generated_at", ""),
         },
