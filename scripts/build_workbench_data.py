@@ -16,6 +16,7 @@ REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
+ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_plan" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -332,7 +333,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -419,6 +420,19 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
+    android_summary = android_execution_plan.get("summary") or {}
+    if android_execution_plan.get("status") == "ready":
+        rows.append(
+            {
+                "level": "需人工处理",
+                "center": "货流中心",
+                "title": "远控安卓执行计划待接管",
+                "reason": f"只读执行计划已生成，{android_summary.get('channel_count', 0)} 个供应渠道，预估 {float(android_summary.get('estimated_cost') or 0):.0f} 元。",
+                "action": "人工操作员接管远控安卓；系统仍禁止自动提交订单和自动付款。",
+                "source": "flow.auto_ordering",
+            }
+        )
+
     trend = "待积累"
     summary = "AI建议会优先处理自动化异常，再结合实时单量、评价、余额和库存解释经营波动。"
     comparison = realtime_comparison.get("summary") or {}
@@ -495,13 +509,14 @@ def main() -> None:
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
+    android_execution_plan = read_json(ANDROID_EXECUTION_PLAN_PATH, {})
     realtime = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
     inventory = inventory_snapshot()
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -514,6 +529,7 @@ def main() -> None:
         "order_suggestions": order_suggestions,
         "order_lists": order_lists,
         "order_execution_preview": order_execution_preview,
+        "android_execution_plan": android_execution_plan,
         "task_health": task_health,
         "ai_advice": ai_advice,
     }

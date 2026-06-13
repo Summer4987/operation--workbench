@@ -18,6 +18,7 @@ INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
+ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_plan" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -377,11 +378,13 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         payload = read_json(ORDER_SUGGESTIONS_PATH, {})
         order_lists = read_json(ORDER_LISTS_PATH, {})
         execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
+        android_plan = read_json(ANDROID_EXECUTION_PLAN_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
         confirmation = payload.get("confirmation") or {}
         order_list_summary = order_lists.get("summary") or {}
         execution_summary = execution_preview.get("summary") or {}
+        android_summary = android_plan.get("summary") or {}
         if payload.get("status") == "ready":
             channel_count = int(summary.get("channel_count") or 0)
             suggestion_count = int(summary.get("suggestion_count") or 0)
@@ -391,6 +394,20 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                     reason="订货建议已生成，当前没有低库存商品需要订货。",
                     human_action="",
                     evidence="outputs/inventory_order_lists/latest.json" if order_lists else "outputs/inventory_order_suggestions/latest.json",
+                )
+            elif android_plan.get("status") == "ready":
+                row.update(
+                    status="warn",
+                    reason=f"远控安卓执行适配计划已生成，{android_summary.get('channel_count', 0)} 个供应渠道，只读预览。",
+                    human_action=android_plan.get("operator", {}).get("message") or "人工操作员接管远控安卓，系统不自动提交订单或付款。",
+                    evidence="outputs/inventory_android_execution_plan/latest.json",
+                )
+            elif android_plan.get("status") == "waiting_payment_confirmation":
+                row.update(
+                    status="warn",
+                    reason="远控安卓执行计划等待付款确认。",
+                    human_action=android_plan.get("message") or "付款确认前不会生成可执行步骤。",
+                    evidence="outputs/inventory_android_execution_plan/latest.json",
                 )
             elif execution_preview.get("status") == "payment_confirmed":
                 row.update(
@@ -428,6 +445,8 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                 row.update(status="danger", reason=order_lists.get("message") or "渠道下单清单生成失败。", evidence="outputs/inventory_order_lists/latest.json")
             if execution_preview.get("status") == "failed":
                 row.update(status="danger", reason=execution_preview.get("message") or "下单执行预览生成失败。", evidence="outputs/inventory_order_execution_preview/latest.json")
+            if android_plan.get("status") == "failed":
+                row.update(status="danger", reason=android_plan.get("message") or "远控安卓执行适配计划生成失败。", evidence="outputs/inventory_android_execution_plan/latest.json")
         elif payload.get("status") == "failed":
             row.update(status="danger", reason=payload.get("message") or "订货建议生成失败。", evidence="outputs/inventory_order_suggestions/latest.json")
         if generated_at:

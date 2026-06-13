@@ -636,6 +636,14 @@ function executionPreviewStatusText(status) {
   return "未生成";
 }
 
+function androidPlanStatusText(status) {
+  if (status === "ready") return "只读计划";
+  if (status === "waiting_payment_confirmation") return "等待付款确认";
+  if (status === "not_required") return "无需订货";
+  if (status === "failed") return "生成失败";
+  return "未生成";
+}
+
 function orderListPreview(orderList) {
   const lines = orderList.lines || [];
   if (!lines.length) return orderList.next_action || "暂无品项";
@@ -652,10 +660,18 @@ function executionPreviewText(preview) {
   return steps.slice(0, 3).join("；") || "暂无执行步骤";
 }
 
+function androidPlanText(job) {
+  const stops = job.stop_before || [];
+  if (stops.length) return `停止于：${stops.slice(0, 3).join("、")}`;
+  const checks = job.preflight_checks || [];
+  return checks.slice(0, 3).join("；") || "等待人工接管";
+}
+
 function renderOrdering() {
   const orderSuggestions = data.order_suggestions || {};
   const orderLists = data.order_lists || {};
   const executionPreview = data.order_execution_preview || {};
+  const androidPlan = data.android_execution_plan || {};
   const summary = orderSuggestions.summary || {};
   const confirmation = orderSuggestions.confirmation || {};
   const groups = orderSuggestionGroups(orderSuggestions);
@@ -663,6 +679,8 @@ function renderOrdering() {
   const listRows = orderLists.order_lists || [];
   const executionSummary = executionPreview.summary || {};
   const executionRows = executionPreview.channel_previews || [];
+  const androidSummary = androidPlan.summary || {};
+  const androidRows = androidPlan.android_jobs || [];
   const suggestionCount = Number(summary.suggestion_count || groups.reduce((sum, group) => sum + Number(group.item_count || 0), 0));
   const channelCount = Number(summary.channel_count || groups.length);
   const estimatedCost = Number(summary.estimated_cost || groups.reduce((sum, group) => sum + Number(group.estimated_cost || 0), 0));
@@ -690,9 +708,12 @@ function renderOrdering() {
   text("orderingExecutionStatus", executionPreviewStatusText(executionPreview.status));
   text("orderingExecutionMessage", executionPreview.message || executionPreview.payment_confirmation?.message || "远控安卓下单前生成执行预览。");
   text("orderingExecutionCount", `${Number(executionSummary.channel_count || executionRows.length)} 个渠道`);
+  text("orderingAndroidStatus", androidPlanStatusText(androidPlan.status));
+  text("orderingAndroidMessage", androidPlan.message || androidPlan.operator?.message || "只读计划，真实执行前人工接管。");
+  text("orderingAndroidCount", `${Number(androidSummary.channel_count || androidRows.length)} 个渠道`);
   document.querySelector("#ordering")?.classList.toggle(
     "alert",
-    pending || hasOrderLists || executionPreview.status === "waiting_payment_confirmation" || orderSuggestions.status === "failed" || orderLists.status === "failed" || executionPreview.status === "failed"
+    pending || hasOrderLists || executionPreview.status === "waiting_payment_confirmation" || androidPlan.status === "ready" || orderSuggestions.status === "failed" || orderLists.status === "failed" || executionPreview.status === "failed" || androidPlan.status === "failed"
   );
 
   rows(
@@ -711,6 +732,12 @@ function renderOrdering() {
     "orderingExecutionRows",
     executionRows.slice(0, 8),
     (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项 / ${yuan(item.estimated_cost)}</strong><em>${escapeHtml(executionPreviewText(item))}</em></div>`
+  );
+
+  rows(
+    "orderingAndroidRows",
+    androidRows.slice(0, 8),
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${escapeHtml(item.target_app || "供应渠道 App")}</strong><em>${escapeHtml(androidPlanText(item))}</em></div>`
   );
 
   const button = document.querySelector("#orderingChecklistButton");
