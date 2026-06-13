@@ -231,7 +231,7 @@ function dailyStoreCards(records) {
 function renderOverviewDailyStoreCards(records) {
   const el = document.querySelector("#overviewDailyStoreCards");
   if (!el) return;
-  const stores = dailyStoreCards(records).slice(0, 4);
+  const stores = dailyStoreCards(records);
   if (!stores.length) {
     el.innerHTML = '<div class="empty-line">暂无日报门店数据</div>';
     return;

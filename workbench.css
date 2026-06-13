@@ -252,33 +252,39 @@ a {
   gap: 12px;
 }
 
-.brief-grid {
+.brief-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
-.brief-grid div {
-  min-height: 70px;
-  padding: 12px;
+.brief-strip div {
+  min-height: 0;
+  padding: 9px 10px;
   border: 1px solid #e5eaf1;
   border-radius: 8px;
   background: #fbfcfe;
   display: grid;
-  align-content: center;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
   gap: 8px;
 }
 
-.brief-grid span {
+.brief-strip span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
 }
 
-.brief-grid strong {
-  font-size: 22px;
+.brief-strip strong {
+  min-width: 0;
+  color: #111827;
+  font-size: 16px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .summary-card p {
@@ -302,17 +308,17 @@ a {
 
 .overview-daily-store-grid {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .overview-daily-store {
   min-width: 0;
-  padding: 10px;
+  padding: 8px 9px;
   border: 1px solid #dbe5ee;
   border-radius: 8px;
   background: #ffffff;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .overview-daily-store-head {
@@ -326,7 +332,7 @@ a {
 .overview-daily-store-head strong {
   min-width: 0;
   color: #0f172a;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 950;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -335,7 +341,7 @@ a {
 
 .overview-daily-store-head em {
   color: #334155;
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 900;
   white-space: nowrap;
@@ -343,12 +349,12 @@ a {
 
 .overview-daily-platforms {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .overview-daily-platform {
   min-width: 0;
-  padding: 7px 8px;
+  padding: 6px 7px;
   border: 1px solid #e5e7eb;
   border-left: 3px solid #94a3b8;
   border-radius: 7px;
@@ -362,7 +368,7 @@ a {
 .overview-daily-platform span,
 .overview-daily-platform strong {
   min-width: 0;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   line-height: 1.2;
 }
@@ -1430,7 +1436,7 @@ h2 {
   .center-grid.two,
   .center-grid.three,
   .command-board,
-  .brief-grid,
+  .brief-strip,
   .daily-command-grid,
   .daily-platform-list div,
   .daily-focus-list div,
