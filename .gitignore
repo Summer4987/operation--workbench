@@ -26,6 +26,8 @@ data/realtime-history.json
 business-report-dashboard/data/
 store-inspection/latest*.json
 store-inspection/latest-data.js
+store-inspection/cdp-latest*.json
+store-inspection/cdp-latest-data.js
 store-inspection/eleme-cdp-latest*.json
 store-inspection/eleme-cdp-latest-data.js
 store-inspection/meituan-cdp-latest*.json

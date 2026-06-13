@@ -1,35 +1,35 @@
 # Mac mini 下一步任务
 
-## 当前任务：试跑美团 CDP 账户余额“推广页预热 + 账户页读取”版
+## 当前任务：试跑 CDP 余额总巡检旁路脚本
 
 目的：
 
-- 每家门店先进入推广首页路由，让美团前端建立当前门店上下文。
-- 然后再进入账户/充值路由，捕获 `/ad/v4/homepage/account/info`。
-- 如果第一次没有捕获账户接口，允许刷新一次账户页继续等接口。
-- 继续只生成旁路测试文件，不覆盖正式 `store-inspection/latest.json`。
+- 使用饿了么 CDP 接口读取 10 家门店余额。
+- 使用美团 CDP 接口读取 8 家门店余额。
+- 合并生成一份旁路总结果 `store-inspection/cdp-latest.json`。
+- 继续只验证 CDP 方案，不覆盖正式 `store-inspection/latest.json`。
 
 ## 执行范围
 
 允许从 clean 仓库同步到旧生产目录的文件：
 
 ```text
+store-inspection/cdp_eleme_balance.py
 store-inspection/cdp_meituan_balance.py
+store-inspection/cdp_all_balances.py
 ```
 
 允许运行的只读测试脚本：
 
 ```text
-store-inspection/cdp_meituan_balance.py
+store-inspection/cdp_all_balances.py
 ```
 
 允许生成的测试产物：
 
 ```text
-store-inspection/meituan-cdp-latest.json
-store-inspection/meituan-cdp-latest-data.js
-store-inspection/meituan-cdp-network-candidates.json
-store-inspection/meituan-cdp-network-matches.json
+store-inspection/cdp-latest.json
+store-inspection/cdp-latest-data.js
 ```
 
 ## 必须遵守
@@ -50,34 +50,39 @@ cd "/Users/summer/Documents/operation-workbench-clean"
 git pull --ff-only origin main
 git log --oneline -5
 
+cp "store-inspection/cdp_eleme_balance.py" "/Users/summer/Documents/New project/store-inspection/cdp_eleme_balance.py"
 cp "store-inspection/cdp_meituan_balance.py" "/Users/summer/Documents/New project/store-inspection/cdp_meituan_balance.py"
+cp "store-inspection/cdp_all_balances.py" "/Users/summer/Documents/New project/store-inspection/cdp_all_balances.py"
 
 cd "/Users/summer/Documents/New project"
-python3 -m py_compile "store-inspection/cdp_meituan_balance.py"
+python3 -m py_compile \
+  "store-inspection/cdp_eleme_balance.py" \
+  "store-inspection/cdp_meituan_balance.py" \
+  "store-inspection/cdp_all_balances.py"
+
+before_latest="$(shasum -a 256 store-inspection/latest.json store-inspection/latest-data.js 2>/dev/null || true)"
 
 PYTHON="business-report-dashboard/.venv/bin/python"
 if [ ! -x "$PYTHON" ]; then
   PYTHON="python3"
 fi
-"$PYTHON" "store-inspection/cdp_meituan_balance.py"
+"$PYTHON" "store-inspection/cdp_all_balances.py"
+
+after_latest="$(shasum -a 256 store-inspection/latest.json store-inspection/latest-data.js 2>/dev/null || true)"
 
 python3 - <<'PY'
 import json
 from pathlib import Path
 
-data = json.loads(Path("store-inspection/meituan-cdp-latest.json").read_text(encoding="utf-8"))
+data = json.loads(Path("store-inspection/cdp-latest.json").read_text(encoding="utf-8"))
 print("status:", data.get("status"))
 print("generated_at:", data.get("generated_at"))
 print("summary:", json.dumps(data.get("summary", {}), ensure_ascii=False, indent=2))
 print("message:", data.get("message", ""))
-api_count = 0
-api_seen_count = 0
-for item in data.get("items", [])[:8]:
-    if item.get("source") == "Chrome CDP接口读取":
-        api_count += 1
-    if item.get("api_seen"):
-        api_seen_count += 1
+print("source_urls:", json.dumps(data.get("source_urls", {}), ensure_ascii=False, indent=2))
+for item in data.get("items", []):
     compact = {
+        "platform": item.get("platform"),
         "store_name": item.get("store_name"),
         "store_id": item.get("store_id"),
         "balance": item.get("balance"),
@@ -85,28 +90,28 @@ for item in data.get("items", [])[:8]:
         "source": item.get("source"),
         "api_seen": item.get("api_seen"),
         "error": item.get("error"),
-        "account_response_url": item.get("account_response_url"),
-        "page_url": item.get("page_url"),
     }
     print("item:", json.dumps(compact, ensure_ascii=False))
-print("api_count:", api_count)
-print("api_seen_count:", api_seen_count)
-print("items_with_zero_fallback:")
-for item in data.get("items", []):
-    if item.get("source") != "Chrome CDP接口读取" and float(item.get("balance") or 0) == 0:
-        print(json.dumps({
-            "store_name": item.get("store_name"),
-            "store_id": item.get("store_id"),
-            "source": item.get("source"),
-            "api_seen": item.get("api_seen"),
-            "reload_attempted": item.get("reload_attempted"),
-            "error": item.get("error"),
-            "page_url": item.get("page_url"),
-            "promo_url": item.get("promo_url"),
-        }, ensure_ascii=False))
 PY
 
-git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-inspection/meituan-cdp-latest.json store-inspection/meituan-cdp-latest-data.js store-inspection/meituan-cdp-network-candidates.json store-inspection/meituan-cdp-network-matches.json
+echo "latest checksum before:"
+printf '%s\n' "$before_latest"
+echo "latest checksum after:"
+printf '%s\n' "$after_latest"
+if [ "$before_latest" = "$after_latest" ]; then
+  echo "正式 latest 文件未被覆盖。"
+else
+  echo "警告：正式 latest 文件校验值发生变化。"
+fi
+
+git status --short --ignored -- \
+  store-inspection/cdp_eleme_balance.py \
+  store-inspection/cdp_meituan_balance.py \
+  store-inspection/cdp_all_balances.py \
+  store-inspection/cdp-latest.json \
+  store-inspection/cdp-latest-data.js \
+  store-inspection/latest.json \
+  store-inspection/latest-data.js
 ```
 
 ## 回报内容
@@ -114,16 +119,15 @@ git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-in
 请输出：
 
 1. clean 仓库 `git log --oneline -5`；
-2. 脚本是否已同步；
+2. 三个脚本是否已同步；
 3. Python 语法检查是否通过；
 4. 脚本运行是否成功；
-5. `meituan-cdp-latest.json` 的 `status`、`summary`、`message`；
-6. 前 8 条门店余额样例；
-7. `api_count` 和 `api_seen_count`；
-8. `items_with_zero_fallback` 列表；
-9. `git status --short --ignored`，确认测试产物被忽略；
-10. 确认没有运行旧余额巡检、没有截图/OCR、没有点击页面按钮、没有覆盖正式 `latest.json`、没有运行日报/评价/预算/发布、没有提交或推送。
+5. `cdp-latest.json` 的 `status`、`summary`、`message`、`source_urls`；
+6. 全部门店余额明细；
+7. 正式 `latest.json` / `latest-data.js` 的运行前后校验值是否一致；
+8. `git status --short --ignored`，确认测试产物被忽略；
+9. 确认没有运行旧余额巡检、没有截图/OCR、没有点击页面按钮、没有覆盖正式 `latest.json`、没有运行日报/评价/预算/发布、没有提交或推送。
 
 ## 预期效果
 
-如果这版能让更多门店触发账户接口，就继续收敛为正式 CDP 余额巡检。若仍有多家 `api_seen=false` 且 0 元兜底，下一步改为从已登录页面的请求上下文直接调用账户接口。
+理想结果是 2 个平台、18 条门店余额、全部来源为 CDP 接口读取，正式 `latest.json` 不变。若结果稳定，下一步再把正式 `run_all_balances.py` 切换到 CDP 方案。
