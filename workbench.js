@@ -451,7 +451,7 @@ function renderDaily() {
   text("dailyStoreCount", `${stores.length || 0} 家`);
   text("dailySummary", `只看最新日报日期 ${latestDate || "-"}：总收入 ${yuan(dailyIncome)}，总单量 ${num(dailyOrders)} 单，覆盖 ${stores.length || 0} 家门店。`);
   renderOverviewDailyStoreCards(latestRecords);
-  text("dailyPageSummary", `点击卡片进入完整日报。当前页展示 ${latestDate || "-"} 日报摘要，并结合近 7 天与前 7 天环比判断门店涨跌。`);
+  text("dailyPageSummary", `已直接接入完整经营日报。上方 AI 周分析结合近 7 天与前 7 天环比判断门店涨跌。`);
   rows(
     "dailyCommandRows",
     [
@@ -463,33 +463,6 @@ function renderDaily() {
     (item) => `<div class="${item.tone === "warn" ? "warn-row" : item.tone === "good" ? "good-row" : ""}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
   renderDailyWeekAnalysis(dailyTrends);
-  rows(
-    "dailyPlatformRows",
-    platforms,
-    (item) => {
-      const detail = [
-        `曝光 ${num(item.impressions)}`,
-        `访问转化 ${pct(item.visit_conversion)}`,
-        `下单转化 ${pct(item.order_conversion)}`,
-        `新客 ${num(item.new_customer_orders)} 单`,
-        `老客 ${num(item.old_customer_orders)} 单`,
-      ].join(" · ");
-      return `<div class="good-row"><span>${escapeHtml(item.platform || "平台")}</span><strong>${yuan(item.income)} / ${num(item.orders)} 单</strong><em>${escapeHtml(detail)}</em></div>`;
-    }
-  );
-  rows(
-    "dailyFocusRows",
-    focusItems.slice(0, 5),
-    (item) => `<div class="${item.level === "high" ? "warn-row" : "good-row"}"><span>${escapeHtml(item.store || "门店")}</span><strong>${escapeHtml(item.title || "日报异常")}</strong><em>${escapeHtml(item.body || "打开完整日报复核详情。")}</em></div>`
-  );
-  rows(
-    "dailyRows",
-    stores
-      .slice()
-      .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
-      .slice(0, 8),
-    (item) => `<div class="good-row"><span>${escapeHtml(item.store)}</span><strong>${yuan(item.income)}</strong><em>${num(item.orders)} 单 · 曝光 ${num(item.impressions)} · 覆盖 ${num(item.platform_count)} 平台</em></div>`
-  );
 }
 
 function formatMetricDelta(delta, unit = "") {
@@ -553,7 +526,11 @@ function priorityItems() {
   const daily = data.daily || {};
   const taskHealth = data.task_health || {};
   const userActionQueue = data.user_action_queue || {};
-  const balanceWarnings = promoBalanceStatus.low_balance_items || (balances.items || []).filter((item) => item.status === "warning");
+  const balanceThreshold = Number((promoBalanceStatus.summary || balances.summary || {}).warning_threshold || balances.threshold || 200);
+  const balanceWarnings = (balances.items || []).filter((item) => {
+    const value = balanceValue(item);
+    return value !== null && value < balanceThreshold;
+  });
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const inventoryWarnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
   const automationWarnings = groupedAnomalies(daily.focus_items || []).slice(0, 3);
@@ -601,7 +578,7 @@ function priorityItems() {
     items.push({
       type: "推广余额不足",
       title: `${balanceWarnings.length} 个余额预警`,
-      detail: lowest ? `${lowest.platform} · ${shortStore(lowest.store_name)} ${yuan(lowest.balance)}` : "请打开余额巡检",
+      detail: lowest ? `${lowest.platform} · ${shortStore(lowest.store_name)} ${yuan(balanceValue(lowest))}` : "请打开余额巡检",
       level: "warning",
     });
   }
@@ -886,23 +863,46 @@ function renderReviews() {
   );
 }
 
+function isReliableBalance(item) {
+  if (item.balance === null || item.balance === undefined || item.balance === "") return false;
+  const balance = Number(item.balance);
+  if (!Number.isFinite(balance)) return false;
+  if (balance !== 0) return true;
+  if (item.confirmed_zero === true) return true;
+  return false;
+}
+
+function balanceValue(item) {
+  return isReliableBalance(item) ? Number(item.balance) : null;
+}
+
+function balanceDisplay(item) {
+  const value = balanceValue(item);
+  return value === null ? "未确认" : yuan(value);
+}
+
 function renderBalances() {
   const balances = data.balances || {};
   const promoBalanceStatus = data.promo_balance_status || {};
   const summary = promoBalanceStatus.summary || balances.summary || {};
   const evidenceSync = promoBalanceStatus.evidence_sync || {};
-  const warnings = promoBalanceStatus.low_balance_items || (balances.items || []).filter((item) => item.status === "warning");
+  const threshold = Number(summary.warning_threshold || balances.threshold || 200);
+  const allBalanceItems = balances.items || [];
+  const reliableItems = allBalanceItems.filter((item) => balanceValue(item) !== null);
+  const unconfirmedItems = allBalanceItems.filter((item) => balanceValue(item) === null);
+  const warnings = reliableItems.filter((item) => Number(item.balance || 0) < threshold);
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length || 0);
-  const lowBalanceCount = Number(summary.low_balance_count ?? summary.warning_count ?? warnings.length);
+  const lowBalanceCount = warnings.length;
+  const lowestReliable = reliableItems.length ? Math.min(...reliableItems.map((item) => Number(item.balance || 0))) : null;
   const needsAttention = platformFailureCount > 0 || lowBalanceCount > 0;
   const statusText = platformFailureCount ? "巡检失败" : lowBalanceCount ? "需充值" : "正常";
   text("metricWarnings", `${lowBalanceCount} 个`);
-  text("metricLowest", `最低 ${yuan(summary.lowest_balance || 0)} · ${summary.store_count || 0} 条`);
+  text("metricLowest", `最低 ${lowestReliable === null ? "未确认" : yuan(lowestReliable)} · ${reliableItems.length}/${allBalanceItems.length} 条可靠`);
   text("balanceWarningCount", `${lowBalanceCount} 个`);
   text(
     "balanceSummary",
-    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，阈值 ${yuan(summary.warning_threshold || balances.threshold || 100)}，证据清单 ${evidenceSync.file_count || 0} 个，云端保留 ${evidenceSync.cloud_retention_days || 0} 天`
+    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedItems.length} 个，阈值 ${yuan(threshold)}，证据清单 ${evidenceSync.file_count || 0} 个。未可靠读到的 0 元不会当作真实余额。`
   );
   text("balanceStatus", statusText);
   cls("balanceMetricCard", "alert", needsAttention);
@@ -913,11 +913,14 @@ function renderBalances() {
     [
       ...platformFailures.map((item) => ({ ...item, kind: "platform_failure" })),
       ...warnings.slice(0, 6).map((item) => ({ ...item, kind: "low_balance" })),
+      ...unconfirmedItems.slice(0, 6).map((item) => ({ ...item, kind: "unconfirmed_balance" })),
     ],
     (item) => {
       if (item.kind !== "platform_failure") {
-        const gap = Math.max(0, Number(item.threshold || 0) - Number(item.balance || 0));
-        return `<div class="warn-row"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${yuan(item.balance)}</strong><em>阈值 ${yuan(item.threshold || 0)} · 差额 ${yuan(gap)}</em></div>`;
+        const value = balanceValue(item);
+        const gap = value === null ? 0 : Math.max(0, threshold - value);
+        const detail = value === null ? `采集未确认 · 来源 ${item.source || "-"} · 请重跑余额巡检` : `阈值 ${yuan(threshold)} · 差额 ${yuan(gap)}`;
+        return `<div class="${value === null || value < threshold ? "warn-row" : "good-row"}"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${escapeHtml(balanceDisplay(item))}</strong><em>${escapeHtml(detail)}</em></div>`;
       }
       const recovery = item.recovery || {};
       const steps = (recovery.steps || []).slice(0, 2).join("；");
@@ -929,35 +932,122 @@ function renderBalances() {
   );
 }
 
+function budgetStoreNames(budget, saved) {
+  const names = new Set();
+  ["eleme_lunch", "eleme_dinner", "meituan_lunch", "meituan_dinner"].forEach((key) => {
+    (budget[key] || []).forEach((item) => names.add(item.store || item.sourceStore));
+  });
+  Object.keys(saved.stores || {}).forEach((name) => names.add(name));
+  return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+function platformBudget(saved, store, platform, field) {
+  return Number((saved.stores?.[store]?.[platform] || {})[field] || 0);
+}
+
+function renderBudgetEditor(budget, saved) {
+  const container = document.querySelector("#budgetEditorRows");
+  if (!container) return;
+  const names = budgetStoreNames(budget, saved);
+  const fields = [
+    ["工作日 饿了么午餐", "饿了么", "lunchBudget"],
+    ["工作日 饿了么晚餐", "饿了么", "dinnerBudget"],
+    ["工作日 美团午餐", "美团", "lunchBudget"],
+    ["工作日 美团晚餐", "美团", "dinnerBudget"],
+    ["周末 饿了么午餐", "饿了么", "weekendLunchBudget"],
+    ["周末 饿了么晚餐", "饿了么", "weekendDinnerBudget"],
+    ["周末 美团午餐", "美团", "weekendLunchBudget"],
+    ["周末 美团晚餐", "美团", "weekendDinnerBudget"],
+  ];
+  container.innerHTML = names.map((store) => `
+    <div class="budget-edit-row" data-store="${escapeHtml(store)}">
+      <strong>${escapeHtml(shortStore(store))}</strong>
+      ${fields.map(([label, platform, field]) => `
+        <label>${label}<input data-platform="${platform}" data-field="${field}" type="number" min="1" step="1" value="${platformBudget(saved, store, platform, field) || ""}"></label>
+      `).join("")}
+    </div>
+  `).join("");
+}
+
+function collectBudgetEditorPayload() {
+  const stores = {};
+  document.querySelectorAll(".budget-edit-row").forEach((row) => {
+    const store = row.dataset.store;
+    stores[store] = {};
+    row.querySelectorAll("input").forEach((input) => {
+      const value = Number(input.value || 0);
+      if (value <= 0) return;
+      const platform = input.dataset.platform;
+      stores[store][platform] = stores[store][platform] || {};
+      stores[store][platform][input.dataset.field] = value;
+    });
+    if (!Object.keys(stores[store]).length) delete stores[store];
+  });
+  return { stores };
+}
+
+async function saveBudgetEditor() {
+  const button = document.querySelector("#budgetSaveButton");
+  const status = document.querySelector("#budgetSaveStatus");
+  if (!button || !status) return;
+  button.disabled = true;
+  button.textContent = "保存中...";
+  status.className = "save-status pending";
+  status.textContent = "正在同步云端预算配置。";
+  try {
+    const response = await fetch("http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectBudgetEditorPayload()),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "保存失败");
+    status.className = "save-status success";
+    status.textContent = `已保存到云端：${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+    button.textContent = "已保存";
+  } catch (error) {
+    status.className = "save-status error";
+    status.textContent = `保存失败：${error.message || "请稍后重试"}`;
+    button.textContent = "重新保存";
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderBudget() {
   const budget = data.budget || {};
   const retry = data.promo_budget_retry || {};
   const summary = budget.summary || {};
   const retrySummary = retry.summary || {};
+  const saved = budget.overrides || {};
   const eleme = budget.eleme_lunch || [];
   const meituan = budget.meituan_lunch || [];
   text("metricBudget", `${summary.total_initial_budget_items || eleme.length + meituan.length} 项`);
   text("metricBudgetMeta", `饿了么 ${eleme.length} 自动 · 美团 ${meituan.length} 自动`);
   text("budgetCount", `${eleme.length + meituan.length} 项`);
-  const weekend = budget.weekend_preset || {};
   const affectedByLatestRun = retrySummary.affected_by_latest_run_count || 0;
   const retryGuide = (retry.repair_guides || [])[0] || {};
   const retryGuideStep = (retryGuide.checklist || [])[0] || "";
   const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工${affectedByLatestRun ? `，最近执行影响 ${affectedByLatestRun} 项` : ""}${retryGuide.title ? `，修复向导 ${retrySummary.repair_guide_count || (retry.repair_guides || []).length} 个` : ""}。` : "门店级重试策略待生成。";
-  const weekendStatusText = weekend.status === "active" ? "今日生效" : weekend.status === "configured_inactive" ? "待启用" : "待配置";
-  const weekendMessage = weekend.message || (weekend.enabled ? `${weekend.name || "周末预设"}今日生效。` : "周末预设待配置，当前不会改变任何门店预算。");
-  text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekendStatusText}，${weekendMessage}${retryText}`);
+  text("budgetSummary", `云端预算配置读取时间：${budget.generated_at || "-"}。只展示已保存的预算配置；如果执行失败，不显示为已设置成功。${retryText}`);
+  renderBudgetEditor(budget, saved);
+  document.querySelector("#budgetSaveButton")?.addEventListener("click", saveBudgetEditor);
   rows(
     "budgetRows",
-    [
-      ...(weekend.status ? [{ platform: "周末预设", store: weekend.name || "周末方案", targetBudget: weekend.total_budget || 0, status: weekend.status, action: weekend.next_action || weekendMessage }] : []),
-      ...eleme.slice(0, 4),
-      ...meituan.slice(0, 4),
-    ],
-    (item) => {
-      const statusLabel = item.status === "auto" ? "自动" : item.status === "active" ? "今日生效" : item.status === "configured_inactive" ? "待启用" : item.status === "not_configured" ? "待配置" : "人工";
-      const detail = item.platform === "周末预设" && item.action ? `<small>${escapeHtml(item.action)}</small>` : "";
-      return `<div><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store))}</span><strong>${yuan(item.targetBudget)}</strong><em>${escapeHtml(statusLabel)}</em>${detail}</div>`;
+    budgetStoreNames(budget, saved),
+    (store) => {
+      const cfg = saved.stores?.[store] || {};
+      const detail = ["饿了么", "美团"].map((platform) => {
+        const item = cfg[platform] || {};
+        const parts = [
+          item.lunchBudget ? `工作日午 ${yuan(item.lunchBudget)}` : "",
+          item.dinnerBudget ? `工作日晚 ${yuan(item.dinnerBudget)}` : "",
+          item.weekendLunchBudget ? `周末午 ${yuan(item.weekendLunchBudget)}` : "",
+          item.weekendDinnerBudget ? `周末晚 ${yuan(item.weekendDinnerBudget)}` : "",
+        ].filter(Boolean).join(" / ");
+        return parts ? `${platform}：${parts}` : "";
+      }).filter(Boolean).join("；");
+      return `<div class="${detail ? "good-row" : "warn-row"}"><span>${escapeHtml(shortStore(store))}</span><strong>${detail ? "已保存" : "未配置"}</strong><em>${escapeHtml(detail || "云端暂无该门店预算配置")}</em></div>`;
     }
   );
   const retryRows = retry.status === "ready"
@@ -976,62 +1066,17 @@ function renderBudget() {
 }
 
 function renderBidding() {
-  const advice = data.promo_bid_advice || {};
-  const queue = data.promo_bid_approval_queue || {};
-  const executionPlan = data.promo_bid_execution_plan || {};
-  const signalStatus = data.promo_bid_signal_status || {};
-  const summary = advice.summary || {};
-  const queueSummary = queue.summary || {};
-  const planSummary = executionPlan.summary || {};
-  const signalSummary = signalStatus.summary || {};
-  const signalSetup = signalStatus.setup || {};
-  const realExecutionGate = executionPlan.real_execution_gate || {};
-  const items = queue.items || advice.items || [];
-  const approvalCount = Number(queueSummary.queue_count || queueSummary.approval_required_count || summary.approval_required_count || 0);
-  const staleCount = Number(queueSummary.stale_preview_count || summary.stale_preview_count || 0);
-  const statusText = queue.status === "waiting_approval" ? "待审批" : queue.status === "no_action" ? "无需处理" : advice.status === "ready" ? "已生成" : advice.status === "partial" ? "部分旧数据" : advice.status === "stale" ? "输入偏旧" : "待生成";
-  text("biddingStatus", statusText);
-  text("biddingCount", `${approvalCount} 项`);
-  text(
-    "biddingSummary",
-    queue.message || advice.message || `只读出价建议：加价 ${summary.bid_up_count || 0} 项，降价 ${summary.bid_down_count || 0} 项，风险 ${summary.risk_count || 0} 项。`
-  );
-  document.querySelector("#bidding")?.classList.toggle("alert", approvalCount > 0 || staleCount > 0);
-  const gate = queue.approval_gate || advice.approval || {};
-  const bidUpCount = queueSummary.bid_up_count ?? summary.bid_up_count ?? 0;
-  const bidDownCount = queueSummary.bid_down_count ?? summary.bid_down_count ?? 0;
-  const riskCount = queueSummary.risk_count ?? summary.risk_count ?? 0;
-  const approvedCount = Number(queueSummary.approved_count || 0);
-  const skippedCount = Number(queueSummary.skipped_count || 0);
-  const manualRecordedCount = Number(queueSummary.manual_review_recorded_count || 0);
-  const firstPendingItem = items.find((item) => item.status === "waiting_approval" || item.status === "manual_review") || {};
-  const previewTime = queueSummary.latest_preview_at || summary.latest_preview_at || "";
-  const bidItemDetail = (item) => [
-    [item.current_bid, item.target_bid].some((value) => value !== undefined && value !== null && value !== "") ? `出价 ${item.current_bid ?? "-"}->${item.target_bid ?? "-"}` : "",
-    [item.current_spend, item.expected_spend].some((value) => value !== undefined && value !== null && value !== "") ? `消耗 ${item.current_spend ?? "-"}/${item.expected_spend ?? "-"}` : "",
-    item.budget_usage ? `预算 ${item.budget_usage}` : "",
-    item.risk || item.reason || item.human_action || `${item.time || ""} ${item.period || ""}`,
-  ].filter(Boolean).join(" · ");
+  text("biddingStatus", "待规则");
+  text("biddingCount", "框架保留");
+  text("biddingSummary", "旧的推广出价调整逻辑已删除。此页只保留页面框架，等待接入新的调整规则。");
+  document.querySelector("#bidding")?.classList.remove("alert");
   rows(
     "biddingRows",
     [
-      { label: "审批队列", value: `${approvalCount} 项`, detail: gate.message || "确认前不自动提交" },
-      { label: "审批进度", value: `${approvedCount}/${skippedCount}/${manualRecordedCount}`, detail: `已批准/已跳过/已转人工复核 · 记录文件 ${queue.decision_source || "data/promo_bid_decisions.json"}` },
-      { label: "执行计划", value: realExecutionGate.status === "blocked" ? "真实阻断" : `${planSummary.plan_count || 0} 项`, detail: realExecutionGate.message || executionPlan.message || "只生成 dry-run 执行计划，不提交平台" },
-      { label: "信号输入", value: `${signalSummary.ready_count || 0}/${signalSummary.missing_count || 0}`, detail: `${signalStatus.message || "等待曝光、进店、转化输入状态"}${signalSetup.template_path ? ` · 模板 ${signalSetup.template_path}` : ""}` },
-      { label: "加价/降价", value: `${bidUpCount}/${bidDownCount}`, detail: riskCount ? `风险或不可执行 ${riskCount} 项` : "基于预算消耗与预期消耗" },
-      { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: previewTime ? `最新 ${previewTime}` : "等待状态读取" },
-      ...(firstPendingItem.decision_command ? [{ label: "记录命令", value: "本地记录", detail: firstPendingItem.decision_command }] : []),
-      ...items.filter((item) => Number(item.bid_delta || 0)).slice(0, 5).map((item) => ({
-        label: `${item.platform || "平台"} · ${shortStore(item.store || "未命名门店")}`,
-        value: item.status === "approved" ? "已批准" : item.status === "skipped" ? "已跳过" : item.status === "manual_review_recorded" ? "已转人工" : item.action || "出价建议",
-        detail: bidItemDetail(item),
-      })),
+      { label: "规则状态", value: "待接入", detail: "等待新的出价调整逻辑。" },
+      { label: "旧逻辑", value: "已移除", detail: "旧审批队列、旧出价建议和旧执行计划不再展示。" },
     ],
-    (item) => {
-      const needsAttention = (item.label === "输入状态" && staleCount) || (item.label === "审批队列" && approvalCount) || Boolean(Number.parseInt(item.value, 10));
-      return `<div class="${needsAttention ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`;
-    }
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 }
 

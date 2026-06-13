@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-ops-review-cleanup" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-daily-budget-flow" />
   </head>
   <body>
     <main class="app">
@@ -31,7 +31,7 @@
           <section class="nav-section" aria-labelledby="nav-growth">
             <h2 id="nav-growth">商业化推广中心</h2>
             <div class="nav-subgroup">
-              <a href="#budget">推广预算全自动</a>
+              <a href="#budget">推广预算全自动设置</a>
               <a href="#bidding">推广出价调整</a>
               <a href="#balances">推广余额预警</a>
             </div>
@@ -157,7 +157,7 @@
             <p>运营数据中心</p>
             <h2>日报看板</h2>
           </div>
-          <a class="module module-daily wide-module module-link" href="http://139.155.148.169/business-report-dashboard/">
+          <article class="module module-daily wide-module">
             <div class="module-head">
               <div>
                 <p>日报</p>
@@ -170,11 +170,9 @@
               <p id="dailyPageSummary">等待日报数据。</p>
               <div class="daily-command-grid" id="dailyCommandRows"></div>
               <div class="daily-week-analysis" id="dailyWeekAnalysis"></div>
-              <div class="mini-table daily-platform-list" id="dailyPlatformRows"></div>
-              <div class="mini-table daily-focus-list" id="dailyFocusRows"></div>
-              <div class="mini-table daily-list" id="dailyRows"></div>
+              <iframe class="daily-report-frame" src="http://139.155.148.169/business-report-dashboard/" title="完整经营日报"></iframe>
             </div>
-          </a>
+          </article>
         </section>
 
         <section class="center-section" id="reviews">
@@ -206,47 +204,57 @@
         <section class="center-section" id="budget">
           <div class="section-head">
             <p>商业化推广中心</p>
-            <h2>推广预算设置全自动</h2>
+            <h2>推广预算全自动设置</h2>
           </div>
-          <div class="center-grid two">
+          <div class="center-grid">
             <article class="module module-budget">
               <div class="module-head">
                 <div>
                   <p>预算</p>
-                  <h2>午餐/晚餐/周末预设</h2>
+                  <h2>云端预算与录入区</h2>
                 </div>
                 <span class="tag ready">上午按钮</span>
               </div>
               <div class="module-body">
                 <div class="big-number" id="budgetCount">-</div>
                 <p id="budgetSummary">等待预算预览。</p>
-                <div class="mini-table" id="budgetRows"></div>
-                <div class="mini-table" id="budgetRetryRows"></div>
-              </div>
-              <div class="module-actions">
-                <a href="./store-inspection/budget-editor.html?v=20260613-weekend">录入预算</a>
-                <a href="./dianjin-prototype/index.html">饿了么点金</a>
-                <a href="./store-inspection/meituan-budget.html">美团预算</a>
-              </div>
-            </article>
-            <article class="module" id="bidding">
-              <div class="module-head">
-                <div>
-                  <p>出价</p>
-                  <h2>推广出价调整全自动</h2>
+                <div class="budget-current-list" id="budgetRows"></div>
+                <div class="budget-editor-panel">
+                  <div class="budget-editor-head">
+                    <div>
+                      <span>录入预算</span>
+                      <strong>工作日 / 周末</strong>
+                    </div>
+                    <button class="confirm-button" id="budgetSaveButton" type="button">保存到云端</button>
+                  </div>
+                  <div class="save-status" id="budgetSaveStatus"></div>
+                  <div class="budget-editor-grid" id="budgetEditorRows"></div>
                 </div>
-                <span class="tag testing" id="biddingStatus">建议</span>
-              </div>
-              <div class="module-body">
-                <div class="big-number" id="biddingCount">-</div>
-                <p id="biddingSummary">等待出价建议。</p>
-                <div class="mini-table" id="biddingRows"></div>
-              </div>
-              <div class="module-actions">
-                <a href="./dianjin-prototype/index.html">打开出价原型</a>
+                <div class="mini-table" id="budgetRetryRows"></div>
               </div>
             </article>
           </div>
+        </section>
+
+        <section class="center-section" id="bidding">
+          <div class="section-head">
+            <p>商业化推广中心</p>
+            <h2>推广出价调整</h2>
+          </div>
+          <article class="module wide-module">
+            <div class="module-head">
+              <div>
+                <p>出价</p>
+                <h2>新逻辑待接入</h2>
+              </div>
+              <span class="tag planning" id="biddingStatus">待规则</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="biddingCount">框架保留</div>
+              <p id="biddingSummary">旧的推广出价调整逻辑已从页面移除，等待接入新的出价规则。</p>
+              <div class="mini-table" id="biddingRows"></div>
+            </div>
+          </article>
         </section>
 
         <section class="center-section" id="balances">
@@ -278,7 +286,7 @@
             <p>货流中心</p>
             <h2>订货全自动</h2>
           </div>
-          <div class="center-grid two ordering-grid">
+          <div class="center-grid ordering-grid">
             <article class="module module-ordering">
               <div class="module-head">
                 <div>
@@ -337,7 +345,15 @@
                 <div class="mini-table ordering-channel-list" id="orderingDeviceRows"></div>
               </div>
             </article>
-            <article class="module module-inventory" id="inventory">
+          </div>
+        </section>
+
+        <section class="center-section" id="inventory">
+          <div class="section-head">
+            <p>货流中心</p>
+            <h2>库存全自动</h2>
+          </div>
+          <article class="module module-inventory wide-module">
               <div class="module-head">
                 <div>
                   <p>库存</p>
@@ -349,12 +365,12 @@
                 <div class="big-number" id="inventoryProductCount">-</div>
                 <p id="inventorySummary">等待库存数据。</p>
                 <div class="mini-table" id="inventoryRows"></div>
+                <iframe class="inventory-board-frame" src="http://139.155.148.169/" title="完整库存看板"></iframe>
               </div>
               <div class="module-actions">
                 <a href="http://139.155.148.169/">云端库存</a>
               </div>
-            </article>
-          </div>
+          </article>
         </section>
 
         <section class="center-section" id="finance">
@@ -435,7 +451,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-ops-review-cleanup"></script>
-    <script src="./workbench.js?v=20260613-ops-review-cleanup"></script>
+    <script src="./workbench-data.js?v=20260613-daily-budget-flow"></script>
+    <script src="./workbench.js?v=20260613-daily-budget-flow"></script>
   </body>
 </html>

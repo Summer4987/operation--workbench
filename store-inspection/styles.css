@@ -192,6 +192,10 @@ tbody tr:last-child td {
   color: var(--red);
 }
 
+.money.unknown {
+  color: var(--amber);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -210,6 +214,11 @@ tbody tr:last-child td {
 .pill.warning {
   background: #fde5e2;
   color: var(--red);
+}
+
+.pill.unknown {
+  background: #fff0d7;
+  color: var(--amber);
 }
 
 .rule-grid {
