@@ -103,20 +103,22 @@
       "outputs": [
         "business-report-dashboard/data/latest.json",
         "business-report-dashboard/dashboard/index.html",
-        "business-report-dashboard/dashboard/stores/"
+        "business-report-dashboard/dashboard/stores/",
+        "outputs/daily_focus_status/latest.json"
       ],
       "health_checks": [
         "饿了么和美团日报提交、下载分别写入运行状态",
         "latest.json 有最新日期",
         "覆盖门店数量正常",
-        "异常项 focus_items 可读取"
+        "异常项 focus_items 可读取",
+        "异常门店和建议动作进入 AI 建议"
       ],
       "human_needed_when": [
         "Chrome 登录态失效",
         "平台下载失败",
         "日报数据和平台后台明显不一致"
       ],
-      "next_integration_step": "优化日报独立页面排版，并把异常项和分段失败同步到AI建议。"
+      "next_integration_step": "日报异常项已同步到 AI 建议和异常看板，下一步优化日报独立页面排版。"
     },
     {
       "id": "ops.review_dashboard",

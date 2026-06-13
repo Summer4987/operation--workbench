@@ -483,18 +483,21 @@ function renderAiAdvice() {
 
 function renderAnomalies() {
   const daily = data.daily || {};
+  const dailyFocus = data.daily_focus || {};
   const latestDate = latestDailyDate(daily);
-  const anomalies = groupedAnomalies(daily.focus_items || []);
+  const focusItems = dailyFocus.items || [];
+  const anomalies = focusItems.length ? focusItems : groupedAnomalies(daily.focus_items || []);
   text("anomalyCount", `${anomalies.length} 家`);
   text("anomalyStatus", anomalies.length ? "需处理" : "正常");
-  text("anomalySummary", anomalies.length ? `${latestDate || "最新日报"} 发现 ${anomalies.length} 家异常门店，优先处理高风险项。` : `${latestDate || "最新日报"} 暂无异常门店。`);
+  text("anomalySummary", dailyFocus.message || (anomalies.length ? `${latestDate || "最新日报"} 发现 ${anomalies.length} 家异常门店，优先处理高风险项。` : `${latestDate || "最新日报"} 暂无异常门店。`));
   rows(
     "anomalyRows",
     anomalies,
     (group) => {
-      const issues = group.issues.map((item) => item.title).join("；");
-      const body = group.issues.map((item) => item.body).filter(Boolean)[0] || "请打开日报查看详情。";
-      return `<div class="warn-row"><span>${group.store}</span><strong>${group.issues.length} 项异常</strong><em>${issues}。${body}</em></div>`;
+      const issues = (group.issues || []).map((item) => item.title).filter(Boolean).join("；");
+      const body = group.action || (group.issues || []).map((item) => item.body).filter(Boolean)[0] || "请打开日报查看详情。";
+      const highText = group.high_count !== undefined ? `高 ${group.high_count || 0} / 中 ${group.medium_count || 0}` : `${(group.issues || []).length} 项异常`;
+      return `<div class="warn-row"><span>${escapeHtml(group.store)}</span><strong>${escapeHtml(highText)}</strong><em>${escapeHtml(issues)}。${escapeHtml(body)}</em></div>`;
     }
   );
 }

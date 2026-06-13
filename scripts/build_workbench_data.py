@@ -16,6 +16,7 @@ REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
 REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
+DAILY_FOCUS_STATUS_PATH = ROOT / "outputs" / "daily_focus_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 ORDER_EXECUTION_PREVIEW_PATH = ROOT / "outputs" / "inventory_order_execution_preview" / "latest.json"
@@ -342,7 +343,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, review_actions: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -396,6 +397,21 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "source": "ops.realtime_order_income",
             }
         )
+
+    if daily_focus.get("status") == "waiting_review":
+        for item in (daily_focus.get("items") or [])[:2]:
+            issue_titles = "；".join(issue.get("title", "") for issue in (item.get("issues") or [])[:2] if issue.get("title"))
+            rows.append(
+                {
+                    "level": "建议",
+                    "center": "运营数据中心",
+                    "title": f"{item.get('store')}日报异常",
+                    "reason": issue_titles or daily_focus.get("message") or "日报异常需要处理。",
+                    "action": item.get("action") or "先打开日报看板查看异常详情。",
+                    "source": "ops.daily_report",
+                    "store": item.get("store", ""),
+                }
+            )
 
     balance_status_summary = promo_balance_status.get("summary") or {}
     platform_failure_count = int(balance_status_summary.get("platform_failure_count") or 0)
@@ -638,6 +654,7 @@ def main() -> None:
     morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})
     realtime_collection = read_json(REALTIME_COLLECTION_STATUS_PATH, {})
     review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
+    daily_focus = read_json(DAILY_FOCUS_STATUS_PATH, {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
@@ -654,7 +671,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, review_actions, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -663,6 +680,7 @@ def main() -> None:
         "morning_collection": morning_collection,
         "realtime_collection": realtime_collection,
         "daily": daily,
+        "daily_focus": daily_focus,
         "review_actions": review_actions,
         "balances": balances,
         "budget": budget,

@@ -17,6 +17,7 @@ TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
 REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
+DAILY_FOCUS_STATUS_PATH = ROOT / "outputs" / "daily_focus_status" / "latest.json"
 INVENTORY_HEALTH_PATH = ROOT / "outputs" / "inventory_health" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
@@ -378,17 +379,23 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "ops.daily_report":
         payload = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
+        focus_status = read_json(DAILY_FOCUS_STATUS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         records = payload.get("records") or []
         source_dates = payload.get("source_dates") or []
+        focus_suffix = ""
+        if focus_status.get("status") == "waiting_review":
+            focus_summary = focus_status.get("summary") or {}
+            focus_suffix = f"，异常门店 {focus_summary.get('store_action_count', 0)} 家，高优先级 {focus_summary.get('high_count', 0)} 项"
+            row["human_action"] = focus_status.get("human_action", "")
         if not records:
             row.update(status="danger", reason="日报 latest.json 没有可用记录。")
         elif generated_at and not within_today(generated_at, now):
-            row.update(status="warn", reason=f"日报看板不是今天生成：{age_text(generated_at, now)}。")
+            row.update(status="warn", reason=f"日报看板不是今天生成：{age_text(generated_at, now)}{focus_suffix}。")
         else:
-            row.update(status="ok", reason=f"日报已生成，最新数据日期 {source_dates[-1] if source_dates else '-'}。")
+            row.update(status="ok", reason=f"日报已生成，最新数据日期 {source_dates[-1] if source_dates else '-'}{focus_suffix}。")
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
-        row["evidence"] = "business-report-dashboard/data/latest.json"
+        row["evidence"] = "outputs/daily_focus_status/latest.json" if focus_status else "business-report-dashboard/data/latest.json"
 
     elif task_id == "ops.review_dashboard":
         payload = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})

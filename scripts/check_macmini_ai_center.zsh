@@ -42,6 +42,7 @@ echo "== 配置与语法检查 =="
   scripts/record_task_run.py \
   scripts/build_morning_collection_status.py \
   scripts/build_realtime_collection_status.py \
+  scripts/build_daily_focus_status.py \
   scripts/build_review_action_status.py \
   scripts/check_inventory_cloud_health.py \
   scripts/build_inventory_order_suggestions.py \
@@ -76,6 +77,7 @@ echo
 echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/build_morning_collection_status.py
 "$PYTHON" scripts/build_realtime_collection_status.py
+"$PYTHON" scripts/build_daily_focus_status.py
 "$PYTHON" scripts/build_review_action_status.py
 "$PYTHON" scripts/check_inventory_cloud_health.py
 "$PYTHON" scripts/build_inventory_order_suggestions.py
