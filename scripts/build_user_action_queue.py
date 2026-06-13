@@ -179,6 +179,22 @@ def build_payload() -> dict[str, Any]:
             )
         )
 
+    recap_plan = review_actions.get("recap_plan") or {}
+    recap_pending_count = int(recap_plan.get("pending_count") or 0)
+    if recap_pending_count:
+        items.append(
+            action_item(
+                item_id="ops.review_recap",
+                title="评价复盘结果待记录",
+                center="运营数据中心",
+                priority="medium",
+                reason=recap_plan.get("message") or f"当前有 {recap_pending_count} 条评价复盘建议待记录结果。",
+                action=recap_plan.get("next_action") or "记录门店复盘结论和 7 天观察安排。",
+                source="ops.review_recap",
+                evidence="outputs/review_action_status/latest.json",
+            )
+        )
+
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
         intake_messages = [

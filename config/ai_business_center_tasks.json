@@ -137,6 +137,7 @@
         "business-report-dashboard/chrome_cdp_reports.py download-reviews-and-process",
         "scripts/record_review_reply.py",
         "scripts/attach_review_reply_evidence.py",
+        "scripts/record_review_recap.py",
         "scripts/build_review_action_status.py"
       ],
       "outputs": [
@@ -157,13 +158,14 @@
         "本地截图可复制到证据目录并回写回复记录",
         "看板可展示证据链接和截图预览",
         "统一待办可区分待回复、待补证据和已闭环状态",
-        "差评关键词可沉淀为门店复盘和 AI 运营建议"
+        "差评关键词可沉淀为门店复盘和 AI 运营建议",
+        "门店复盘结果可记录并回写闭环状态"
       ],
       "human_needed_when": [
         "评价下载需要登录或验证码",
         "差评需要人工回复或赔付判断"
       ],
-      "next_integration_step": "评价复盘建议已进入 AI 运营建议，下一步把复盘结果和 7 天观察指标做成可记录的闭环。"
+      "next_integration_step": "评价复盘结果记录已接入统一待办，下一步跟踪 7 天观察指标是否复发。"
     },
     {
       "id": "growth.promo_budget",

@@ -454,7 +454,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                     )
                     if part
                 ),
-                "action": "；".join(part for part in (item.get("action", ""), item.get("follow_up_metric", "")) if part),
+                "action": "；".join(
+                    part
+                    for part in (
+                        item.get("action", ""),
+                        item.get("follow_up_metric", ""),
+                        f"记录：{item.get('record_command')}" if item.get("record_command") else "复盘已记录。",
+                    )
+                    if part
+                ),
                 "source": "ops.review_recap",
                 "store": item.get("store", ""),
             }

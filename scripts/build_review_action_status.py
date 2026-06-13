@@ -10,6 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "latest.json"
 REPLY_RECORDS_PATH = Path(os.environ.get("REVIEW_REPLY_RECORDS_PATH", ROOT / "data" / "review_reply_records.json"))
+RECAP_RECORDS_PATH = Path(os.environ.get("REVIEW_RECAP_RECORDS_PATH", ROOT / "data" / "review_recap_records.json"))
 OUTPUT_DIR = ROOT / "outputs" / "review_action_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -218,8 +219,39 @@ def review_recap_action(store: str, issue_type: str) -> str:
     return f"{store}查看差评订单、出餐和售后记录；把共性问题写入门店班后复盘。"
 
 
-def build_recap_plan(items: list[dict[str, Any]], completed_with_evidence: list[dict[str, Any]]) -> dict[str, Any]:
+def recap_record_index(records: dict[str, Any], target_date: str) -> dict[tuple[str, str, str], dict[str, Any]]:
+    index = {}
+    for record in records.get("records") or []:
+        if record.get("status") not in {"recorded", "done", "closed"}:
+            continue
+        if target_date and record.get("date") and record.get("date") != target_date:
+            continue
+        key = (
+            str(record.get("store") or "").strip(),
+            str(record.get("date") or "").strip(),
+            str(record.get("issue_type") or "").strip(),
+        )
+        if key[0] and key[1]:
+            index[key] = record
+    return index
+
+
+def recap_command(item: dict[str, Any]) -> str:
+    issue_arg = f" --issue-type {item.get('issue_type')}" if item.get("issue_type") else ""
+    return (
+        f"python3 scripts/record_review_recap.py --store {item.get('store')} --date {item.get('date')}"
+        f"{issue_arg} --result '<复盘结论/已执行动作>' --follow-up '<7天观察安排>'"
+    )
+
+
+def build_recap_plan(
+    items: list[dict[str, Any]],
+    completed_with_evidence: list[dict[str, Any]],
+    recap_records: dict[str, Any],
+    target_date: str,
+) -> dict[str, Any]:
     recaps = []
+    record_index = recap_record_index(recap_records, target_date)
     for item in items[:5]:
         issue_type = review_issue_type(item.get("keywords") or [], item.get("examples") or [])
         platforms = "、".join(
@@ -227,44 +259,61 @@ def build_recap_plan(items: list[dict[str, Any]], completed_with_evidence: list[
             for platform in item.get("platforms") or []
             if platform.get("platform")
         )
-        recaps.append(
-            {
-                "store": item.get("store", ""),
-                "date": item.get("date", ""),
-                "status": "waiting_reply",
-                "issue_type": issue_type,
-                "negative_count": int(item.get("negative_count") or 0),
-                "platforms": platforms or f"{int(item.get('negative_count') or 0)} 条",
-                "keywords": item.get("keywords") or [],
-                "evidence": "；".join(item.get("examples") or []) or platforms,
-                "root_cause": f"疑似{issue_type}影响评价体验。",
-                "action": review_recap_action(str(item.get("store") or ""), issue_type),
-                "follow_up_metric": "连续 7 天观察差评数、评价均分、下单转化和同品类退款/售后反馈。",
-            }
-        )
+        recap = {
+            "store": item.get("store", ""),
+            "date": item.get("date", ""),
+            "status": "waiting_reply",
+            "issue_type": issue_type,
+            "negative_count": int(item.get("negative_count") or 0),
+            "platforms": platforms or f"{int(item.get('negative_count') or 0)} 条",
+            "keywords": item.get("keywords") or [],
+            "evidence": "；".join(item.get("examples") or []) or platforms,
+            "root_cause": f"疑似{issue_type}影响评价体验。",
+            "action": review_recap_action(str(item.get("store") or ""), issue_type),
+            "follow_up_metric": "连续 7 天观察差评数、评价均分、下单转化和同品类退款/售后反馈。",
+        }
+        matched = record_index.get((str(recap["store"]), str(recap["date"]), issue_type))
+        if matched:
+            recap["status"] = "recorded"
+            recap["record"] = matched
+        else:
+            recap["record_command"] = recap_command(recap)
+        recaps.append(recap)
     for record in completed_with_evidence[:3]:
         evidence = record.get("evidence") or {}
         issue_type = "已回复复盘"
-        recaps.append(
-            {
-                "store": record.get("store", ""),
-                "date": record.get("date", ""),
-                "status": "replied_with_evidence" if evidence.get("status") == "ready" else "replied_waiting_evidence",
-                "issue_type": issue_type,
-                "negative_count": int(record.get("negative_count") or 0),
-                "platforms": record.get("platform", "") or "平台未区分",
-                "keywords": [],
-                "evidence": evidence.get("url") or evidence.get("web_path") or evidence.get("path") or record.get("note", ""),
-                "root_cause": record.get("note") or "已记录人工回复，等待沉淀门店复盘结果。",
-                "action": f"{record.get('store', '对应门店')}把回复结果同步到班后复盘；有证据后复看 7 天评价变化。",
-                "follow_up_metric": "连续 7 天观察同类差评是否复发，若复发则升级为门店 SOP 检查。",
-            }
-        )
+        recap = {
+            "store": record.get("store", ""),
+            "date": record.get("date", ""),
+            "status": "replied_with_evidence" if evidence.get("status") == "ready" else "replied_waiting_evidence",
+            "issue_type": issue_type,
+            "negative_count": int(record.get("negative_count") or 0),
+            "platforms": record.get("platform", "") or "平台未区分",
+            "keywords": [],
+            "evidence": evidence.get("url") or evidence.get("web_path") or evidence.get("path") or record.get("note", ""),
+            "root_cause": record.get("note") or "已记录人工回复，等待沉淀门店复盘结果。",
+            "action": f"{record.get('store', '对应门店')}把回复结果同步到班后复盘；有证据后复看 7 天评价变化。",
+            "follow_up_metric": "连续 7 天观察同类差评是否复发，若复发则升级为门店 SOP 检查。",
+        }
+        matched = record_index.get((str(recap["store"]), str(recap["date"]), issue_type))
+        if matched:
+            recap["status"] = "recorded"
+            recap["record"] = matched
+        else:
+            recap["record_command"] = recap_command(recap)
+        recaps.append(recap)
+    pending = [item for item in recaps if item.get("status") != "recorded"]
+    recorded = [item for item in recaps if item.get("status") == "recorded"]
     return {
         "status": "ready" if recaps else "empty",
         "item_count": len(recaps),
+        "pending_count": len(pending),
+        "recorded_count": len(recorded),
         "items": recaps[:8],
-        "message": f"已生成 {len(recaps)} 条评价复盘建议。" if recaps else "当前没有可生成的评价复盘建议。",
+        "next_action": pending[0].get("record_command") if pending else "评价复盘均已记录。",
+        "message": f"已生成 {len(recaps)} 条评价复盘建议，{len(pending)} 条待记录复盘结果。"
+        if recaps
+        else "当前没有可生成的评价复盘建议。",
     }
 
 
@@ -300,13 +349,14 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     review = daily.get("review_summary") or {}
     target_date = review.get("used_date") or review.get("target_date") or ""
     records_payload = read_json(REPLY_RECORDS_PATH, {"records": []})
+    recap_records_payload = read_json(RECAP_RECORDS_PATH, {"records": []})
     completed = completed_records(records_payload, target_date)
     completed_with_evidence = enrich_completed_records(completed)
     missing_evidence = [record for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "missing"]
     items, completed_negative_count = build_action_items(review, completed)
     plan = reply_plan(items)
     evidence = evidence_plan(missing_evidence, completed_with_evidence)
-    recap = build_recap_plan(items, completed_with_evidence)
+    recap = build_recap_plan(items, completed_with_evidence, recap_records_payload, target_date)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -336,6 +386,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "message": message,
         "source": "business-report-dashboard/data/latest.json",
         "reply_records_source": "data/review_reply_records.json",
+        "recap_records_source": "data/review_recap_records.json",
         "review_status": review.get("status", ""),
         "target_date": review.get("target_date", ""),
         "used_date": review.get("used_date", ""),
@@ -346,6 +397,8 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "completed_negative_count": completed_negative_count,
             "completed_with_evidence_count": len(completed_with_evidence) - len(missing_evidence),
             "missing_evidence_count": len(missing_evidence),
+            "recap_pending_count": int(recap.get("pending_count") or 0),
+            "recap_recorded_count": int(recap.get("recorded_count") or 0),
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
