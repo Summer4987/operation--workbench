@@ -1,42 +1,72 @@
 # Mac mini 下一步任务
 
-## 当前状态：待命
+## 当前任务：部署上午运营防重复锁
 
-当前没有新的生产变更任务需要执行。
+目的：让 09:30 正式上午运营任务和手动 `上午运营一键采集.command` 共用同一把锁，避免 10:22、10:36 这类重复启动再次发生。
 
-这个文件是 MacBook 侧 Codex 给 Mac mini 生产线程的固定任务入口。以后有新任务时，MacBook 侧会更新本文件并推送到 GitHub；Mac mini 只需要拉取 clean 仓库后读取本文件。
+GitHub main 目标提交：
 
-## Mac mini 固定读取方式
+```text
+399f27c Prevent duplicate morning operations runs
+```
 
-在 Mac mini 生产线程里，可以固定执行：
+## 执行范围
+
+只允许从 clean 仓库同步下面两个文件到旧生产目录：
+
+```text
+morning-ops/run_morning_ops.py
+morning-ops/上午运营一键采集.command
+```
+
+旧生产目录：
+
+```text
+/Users/summer/Documents/New project
+```
+
+clean 仓库：
+
+```text
+/Users/summer/Documents/operation-workbench-clean
+```
+
+## 必须遵守
+
+- 不要运行上午运营任务。
+- 不要运行日报、评价、余额巡检、预算提交或云端发布。
+- 不要修改或重载任何 LaunchAgent。
+- 不要修改 `/Users/summer/Library/Scripts/xiong-operation/run_morning_ops.zsh`。
+- 不要提交、不要推送。
+- 只同步上面列出的两个文件。
+
+## 建议执行步骤
 
 ```zsh
 cd "/Users/summer/Documents/operation-workbench-clean"
 git pull --ff-only origin main
-cat docs/MACMINI_NEXT_TASK.md
+git log --oneline -3
+
+cp "morning-ops/run_morning_ops.py" "/Users/summer/Documents/New project/morning-ops/run_morning_ops.py"
+cp "morning-ops/上午运营一键采集.command" "/Users/summer/Documents/New project/morning-ops/上午运营一键采集.command"
+chmod +x "/Users/summer/Documents/New project/morning-ops/上午运营一键采集.command"
+
+cd "/Users/summer/Documents/New project"
+python3 -m py_compile "morning-ops/run_morning_ops.py"
+zsh -n "morning-ops/上午运营一键采集.command"
+git diff -- morning-ops/run_morning_ops.py "morning-ops/上午运营一键采集.command"
 ```
 
-## 当前可做的只读检查
+## 回报内容
 
-如果需要确认收件箱机制正常，可以只做下面的只读检查：
+请输出：
 
-```zsh
-cd "/Users/summer/Documents/operation-workbench-clean"
-git status --short --branch
-test -f docs/MACMINI_TASK_INBOX.md && echo "任务收件箱说明存在"
-test -f docs/MACMINI_NEXT_TASK.md && echo "下一步任务文件存在"
-```
+1. clean 仓库 `git log --oneline -3`；
+2. 两个文件是否已同步；
+3. `py_compile` 和 `zsh -n` 是否通过；
+4. 旧生产目录这两个文件的 `git diff`；
+5. 确认没有运行上午运营任务、没有触碰定时任务、没有提交或推送。
 
-## 禁止事项
+## 预期效果
 
-当前待命状态下：
-
-- 不要修改 `/Users/summer/Documents/New project`。
-- 不要触碰已有定时任务。
-- 不要运行余额巡检、日报采集、预算执行或云端发布。
-- 不要提交或推送。
-- 不要重复执行历史任务。
-
-## 等待下一次任务
-
-当 MacBook 侧完成新代码或规则调整后，会把明确任务写入本文件。届时再按本文件的新内容执行。
+部署后，如果上午运营任务正在运行，再次手动点击或再次启动会输出“已有上午运营任务正在运行，本次不重复启动”，不会开启第二轮日报、余额、预算和发布流程。
