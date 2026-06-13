@@ -483,10 +483,27 @@ function renderPriority() {
 function renderHealth() {
   const taskHealth = data.task_health || {};
   const macminiSmoke = data.macmini_smoke_status || {};
+  const operationCheck = data.operation_automation_check || {};
   const summary = taskHealth.summary || {};
   const environment = taskHealth.environment || {};
   const tasks = (taskHealth.tasks || []).filter((task) => task.status !== "planned").slice(0, 8);
   const smokeStatus = macminiSmoke.status || "waiting_log";
+  const operationBlockers = operationCheck.blockers || [];
+  const operationWarnings = operationCheck.warnings || [];
+  const operationEnvironment = operationCheck.environment || environment;
+  const operationRow = {
+    name: "系统体检",
+    status: operationBlockers.length ? "danger" : operationWarnings.length ? "warn" : "ok",
+    status_text: operationBlockers.length ? "阻塞" : operationWarnings.length ? "提醒" : "正常",
+    reason: operationBlockers.length
+      ? `${operationEnvironment.label || "当前环境"}发现 ${operationBlockers.length} 个阻塞项`
+      : operationWarnings.length
+        ? `${operationEnvironment.label || "当前环境"}有 ${operationWarnings.length} 个提醒`
+        : `${operationEnvironment.label || "当前环境"}体检通过`,
+    human_action: (operationBlockers[0] || operationWarnings[0] || {}).message || "",
+    last_seen_at: operationCheck.generated_at || "",
+    environment_label: operationEnvironment.label || "",
+  };
   const smokeRow = {
     name: "Mac mini 只读冒烟",
     status: smokeStatus === "ready" ? "ok" : smokeStatus === "failed" ? "danger" : "warn",
@@ -494,13 +511,17 @@ function renderHealth() {
     reason: macminiSmoke.message || "等待 Mac mini 生产冒烟日志。",
     human_action: macminiSmoke.next_action || "",
     last_seen_at: macminiSmoke.summary?.updated_at || "",
+    environment_label: "Mac mini 生产环境",
   };
   const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
   const statusPrefix = environment.role === "production" ? "生产" : "开发";
   text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
+  const healthRows = operationEnvironment.role === "production" || operationBlockers.length
+    ? [operationRow, smokeRow, ...tasks]
+    : [smokeRow, ...tasks, operationRow];
   rows(
     "healthRows",
-    [smokeRow, ...tasks].slice(0, 8),
+    healthRows.slice(0, 8),
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
       const meta = [
@@ -508,7 +529,7 @@ function renderHealth() {
         task.repair_guide ? `向导：${task.repair_guide}` : "",
         task.human_action ? `处理：${task.human_action}` : "",
         task.last_seen_at ? `最近：${task.last_seen_at}` : "",
-        environment.label || "",
+        task.environment_label || environment.label || "",
       ].filter(Boolean).join(" · ");
       return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
     }
@@ -1251,6 +1272,7 @@ function renderFinance() {
   const accounts = finance.accounts || [];
   const missing = finance.missing || [];
   const setup = finance.setup || {};
+  const reportGeneration = finance.report_generation || {};
   const waiting = finance.status === "waiting_samples";
   text("financeBillStatus", waiting ? "待样例" : finance.status === "ready_for_mapping" ? "待映射" : "待检查");
   text("financeBillCount", `${Number(summary.sample_file_count || 0)} 个样例`);
@@ -1280,14 +1302,24 @@ function renderFinance() {
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 
-  text("financeReportStatus", waiting ? "待样例" : "待映射");
-  text("financeReportCount", `${Number(summary.account_count || accounts.length)} 个科目`);
-  text("financeReportSummary", "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
+  text("financeReportStatus", reportGeneration.status_text || (waiting ? "待样例" : "待映射"));
+  text("financeReportCount", `${Number(reportGeneration.account_count || summary.account_count || accounts.length)} 个科目`);
+  text("financeReportSummary", reportGeneration.message || "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。");
   rows(
     "financeReportRows",
     [
       { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
       { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
+      ...(reportGeneration.report_outputs || []).slice(0, 4).map((item) => ({
+        label: "报表",
+        value: item,
+        detail: "字段映射后生成",
+      })),
+      ...(reportGeneration.required_before || []).slice(0, 3).map((item) => ({
+        label: "前置条件",
+        value: item,
+        detail: "未满足前不自动出报表",
+      })),
       ...accounts.slice(0, 6).map((account) => ({
         label: account.direction === "income" ? "收入" : "支出",
         value: account.name,

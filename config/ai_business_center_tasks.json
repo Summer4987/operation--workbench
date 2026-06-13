@@ -436,6 +436,37 @@
       "next_integration_step": "财务样例接收清单、接收目录和字段模板已接入，下一步在样例到位后做字段映射。"
     },
     {
+      "id": "finance.report_generation",
+      "name": "生成财务报表和数据",
+      "center": "财务中心",
+      "module": "财务报表",
+      "status": "planned",
+      "risk": "medium",
+      "schedule": "待定，账单字段映射稳定后触发",
+      "entrypoints": [
+        "scripts/build_finance_center_status.py",
+        "outputs/finance_center_status/latest.json"
+      ],
+      "outputs": [
+        "outputs/finance_center_status/latest.json",
+        "财务报表待生成"
+      ],
+      "health_checks": [
+        "银行账单和平台账单样例已接收",
+        "字段映射和科目字典已确认",
+        "营业收入、佣金、配送费、推广费、退款、补贴可汇总",
+        "门店利润表可生成",
+        "费用异常可追溯到原始账单行",
+        "生成前可预览并人工确认口径"
+      ],
+      "human_needed_when": [
+        "确认财务科目口径",
+        "确认报表期间和门店归属",
+        "解释无法自动分类的账单行"
+      ],
+      "next_integration_step": "先等待财务账单样例和字段映射完成，再生成门店利润表与费用异常提醒。"
+    },
+    {
       "id": "tools.sales_receipt",
       "name": "销售单生成器",
       "center": "小工具仓库",

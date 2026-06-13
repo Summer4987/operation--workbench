@@ -43,7 +43,7 @@ def build_payload() -> dict[str, Any]:
     is_production = "环境：production" in text
     completed = "Mac mini 只读冒烟检查完成。" in text
     development_only = "当前不是 Mac mini 生产环境" in text or not is_production
-    failed = any(token in text for token in ["Traceback", "Error:", "ERROR", "失败：", "command not found"])
+    failed = any(token in text for token in ["Traceback", "Error:", "ERROR", "失败：", "步骤失败", "存在失败", "command not found"])
     if completed and is_production and not failed:
         status = "ready"
         message = "Mac mini 只读冒烟检查已完成。"

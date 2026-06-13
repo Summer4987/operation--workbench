@@ -8,6 +8,7 @@ from urllib.request import urlopen
 
 from atomic_io import atomic_write_text
 from build_task_health import build_task_health, write_task_health
+from build_user_action_queue import build_payload as build_user_action_queue_payload
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,7 @@ TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "lates
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 USER_ACTION_QUEUE_PATH = ROOT / "outputs" / "user_action_queue" / "latest.json"
 MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
+OPERATION_AUTOMATION_CHECK_PATH = ROOT / "outputs" / "operation_automation_check" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -1137,8 +1139,8 @@ def main() -> None:
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
-    user_action_queue = read_json(USER_ACTION_QUEUE_PATH, {})
     macmini_smoke_status = read_json(MACMINI_SMOKE_STATUS_PATH, {})
+    operation_automation_check = read_json(OPERATION_AUTOMATION_CHECK_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
@@ -1151,6 +1153,8 @@ def main() -> None:
     daily_trends = build_daily_trends(daily, balances, review_actions, inventory)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
+    user_action_queue = build_user_action_queue_payload()
+    atomic_write_text(USER_ACTION_QUEUE_PATH, json.dumps(user_action_queue, ensure_ascii=False, indent=2) + "\n")
     ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, user_action_queue, morning_collection, realtime_collection, realtime_comparison, daily_trends, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1175,7 +1179,7 @@ def main() -> None:
         "finance_center": finance_center,
         "user_action_queue": user_action_queue,
         "macmini_smoke_status": macmini_smoke_status,
-        "morning_collection": morning_collection,
+        "operation_automation_check": operation_automation_check,
         "inventory": inventory,
         "order_suggestions": order_suggestions,
         "order_lists": order_lists,

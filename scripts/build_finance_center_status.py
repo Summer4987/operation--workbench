@@ -107,6 +107,27 @@ def build_payload() -> dict[str, Any]:
     accounts = schema.get("accounts") or []
     ready_for_mapping = bool(schema and not missing and accounts)
     status = "ready_for_mapping" if ready_for_mapping else "waiting_samples"
+    report_status = "waiting_mapping" if ready_for_mapping else "waiting_samples"
+    report_generation = {
+        "id": "finance_report_generation",
+        "status": report_status,
+        "status_text": "待映射" if ready_for_mapping else "待样例",
+        "account_count": len(accounts),
+        "required_before": [
+            "银行账单样例和平台账单样例已接收",
+            "字段映射可稳定识别收入和费用",
+            "确认门店归属、报表期间和财务科目口径",
+        ],
+        "report_outputs": [
+            "门店利润表",
+            "平台费用明细",
+            "推广费和佣金异常提醒",
+            "无法自动分类流水清单",
+        ],
+        "message": "账单样例到位后进入字段映射，再生成门店利润表和费用异常提醒。"
+        if missing
+        else "样例已到位，下一步确认字段映射和财务口径后生成报表。",
+    }
     return {
         "generated_at": now_text(),
         "status": status,
@@ -124,6 +145,7 @@ def build_payload() -> dict[str, Any]:
         },
         "sources": sources,
         "accounts": accounts,
+        "report_generation": report_generation,
         "missing": missing,
         "intake_checklist": intake_checklist(sources, accepted_extensions),
         "setup": {

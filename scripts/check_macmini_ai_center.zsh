@@ -38,6 +38,7 @@ echo
 echo "== 配置与语法检查 =="
 "$PYTHON" scripts/validate_ai_business_center_tasks.py
 "$PYTHON" -m py_compile \
+  operation_automation_check.py \
   scripts/task_run_state.py \
   scripts/record_task_run.py \
   scripts/build_morning_collection_status.py \
@@ -90,6 +91,7 @@ fi
 echo
 
 echo "== 生成只读健康数据 =="
+"$PYTHON" operation_automation_check.py --environment "$AI_BUSINESS_CENTER_ENV"
 "$PYTHON" scripts/build_morning_collection_status.py
 "$PYTHON" scripts/build_realtime_collection_status.py
 "$PYTHON" scripts/build_daily_focus_status.py

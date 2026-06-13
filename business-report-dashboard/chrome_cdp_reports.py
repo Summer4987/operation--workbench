@@ -18,12 +18,6 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent
-SCRIPTS_DIR = ROOT.parent / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
-from task_run_state import classify_failure_text, record_task_event  # noqa: E402
-
 CONFIG_PATH = ROOT / "chrome_cdp_config.json"
 ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/chain/93331264/comments#app.chainshop.comments"
 MEITUAN_COMMENTS_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw"
@@ -81,7 +75,7 @@ def ensure_cdp_page_target(config: dict) -> None:
         pass
 
 
-def start_chrome() -> bool:
+def start_chrome(*, wait_seconds: int = 90) -> bool:
     config = load_config()
     chrome = config["chrome"]
     if cdp_available(config):
@@ -112,22 +106,24 @@ def start_chrome() -> bool:
     log_file.write(" ".join(args) + "\n")
     log_file.flush()
     subprocess.Popen(args, stdout=log_file, stderr=log_file)
-    for _ in range(20):
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
         if cdp_available(config):
             print(f"Chrome 调试端口已启动：{debug_url(config)}")
             return True
-        time.sleep(0.5)
+        time.sleep(2)
 
     app_path = executable.parents[2] if len(executable.parents) >= 3 else executable
     open_args = ["open", "-na", str(app_path), "--args", *chrome_args]
     log_file.write(" ".join(open_args) + "\n")
     log_file.flush()
     subprocess.Popen(open_args, stdout=log_file, stderr=log_file)
-    for _ in range(20):
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
         if cdp_available(config):
             print(f"Chrome 调试端口已启动：{debug_url(config)}")
             return True
-        time.sleep(0.5)
+        time.sleep(2)
 
     print("Chrome 已尝试启动，但调试端口还不可用。")
     print(f"当前使用的 Chrome 资料夹：{chrome['user_data_dir']}")
@@ -139,7 +135,8 @@ def start_chrome() -> bool:
 def connect_browser(config: dict):
     if not cdp_available(config):
         print("正在启动常用 Chrome...")
-        start_chrome()
+        if not start_chrome():
+            raise SystemExit(2)
 
     ensure_cdp_page_target(config)
     sync_playwright = require_playwright()
@@ -1195,56 +1192,18 @@ def download_meituan_reviews() -> Path:
     raise RuntimeError(f"美团评价任务已提交，但下载列表没有拿到文件：{last_error}")
 
 
-def record_review_platform_event(
-    platform_key: str,
-    platform_name: str,
-    status: str,
-    message: str,
-    *,
-    step: str,
-    log_path: str | Path = "",
-) -> None:
-    extra = {
-        f"{platform_key}_status": status,
-        f"{platform_key}_message": message,
-    }
-    if log_path:
-        extra[f"{platform_key}_path"] = str(log_path)
-    record_task_event(
-        "ops.review_dashboard",
-        status,
-        message=message,
-        step=step,
-        log_path=log_path,
-        failure_type=classify_failure_text(message) if status == "failed" else "",
-        extra=extra,
-    )
-
-
 def download_reviews_and_process() -> None:
     failures: list[str] = []
-    platforms = [
-        ("eleme", "饿了么评价", download_eleme_reviews),
-        ("meituan", "美团评价", download_meituan_reviews),
-    ]
-    record_task_event("ops.review_dashboard", "running", message="双平台评价下载开始。", step="start")
-    for platform_key, name, downloader in platforms:
-        record_review_platform_event(platform_key, name, "running", f"{name}下载开始。", step=f"{platform_key}-download")
+    for name, downloader in [("饿了么评价", download_eleme_reviews), ("美团评价", download_meituan_reviews)]:
         try:
-            target = downloader()
-            record_review_platform_event(platform_key, name, "success", f"{name}下载完成：{target.name}", step=f"{platform_key}-download", log_path=target)
+            downloader()
         except Exception as exc:
             failures.append(f"{name}：{exc}")
             print(f"{name}下载失败：{exc}", file=sys.stderr)
-            record_review_platform_event(platform_key, name, "failed", f"{name}下载失败：{exc}", step=f"{platform_key}-download")
     if failures:
-        message = "评价下载未全部完成：" + "；".join(failures)
-        record_task_event("ops.review_dashboard", "failed", message=message, step="download", failure_type=classify_failure_text(message))
-        raise RuntimeError(message)
+        raise RuntimeError("评价下载未全部完成：" + "；".join(failures))
     print("双平台评价下载完成。")
-    record_task_event("ops.review_dashboard", "running", message="双平台评价下载完成，开始生成评价看板。", step="process")
     process_reports()
-    record_task_event("ops.review_dashboard", "success", message="评价看板已更新。", step="process", log_path=ROOT / "data" / "latest.json")
 
 
 def local_report_candidate(target_date: str, platform: str) -> Path | None:
@@ -1304,75 +1263,21 @@ def download_all_and_process() -> None:
     process_reports()
 
 
-def record_daily_platform_event(
-    platform_key: str,
-    platform_name: str,
-    phase: str,
-    status: str,
-    message: str,
-    *,
-    log_path: str | Path = "",
-) -> None:
-    step = f"{platform_key}-{phase}"
-    extra = {
-        f"{platform_key}_{phase}_status": status,
-        f"{platform_key}_{phase}_message": message,
-    }
-    if log_path:
-        extra[f"{platform_key}_{phase}_path"] = str(log_path)
-    record_task_event(
-        "ops.daily_report",
-        status,
-        message=message,
-        step=step,
-        log_path=log_path,
-        failure_type=classify_failure_text(message) if status == "failed" else "",
-        extra=extra,
-    )
-
-
 def run_daily(target_date: str | None = None) -> None:
     report_date = target_date or yesterday_compact()
     print(f"开始生成日报：{report_date}")
     submit_failures: list[str] = []
-    record_task_event("ops.daily_report", "running", message=f"日报采集开始：{report_date}。", step="start", extra={"report_date": report_date})
     for name, generator in [("饿了么", generate_eleme_report), ("美团", generate_meituan_report)]:
-        platform_key = "eleme" if name == "饿了么" else "meituan"
-        record_daily_platform_event(platform_key, name, "submit", "running", f"{name}日报任务提交开始。")
         try:
             generator(report_date)
-            record_daily_platform_event(platform_key, name, "submit", "success", f"{name}日报任务提交成功。")
         except Exception as exc:
-            message = f"{name}报表任务提交失败：{exc}"
-            submit_failures.append(message)
-            print(message, file=sys.stderr)
-            record_daily_platform_event(platform_key, name, "submit", "failed", message)
+            submit_failures.append(f"{name}报表任务提交失败：{exc}")
+            print(f"{name}报表任务提交失败：{exc}", file=sys.stderr)
     if submit_failures:
-        message = "日报采集未全部提交成功，未生成看板：" + "；".join(submit_failures)
-        record_task_event("ops.daily_report", "failed", message=message, step="submit", failure_type=classify_failure_text(message))
-        raise RuntimeError(message)
-    record_daily_platform_event("eleme", "饿了么", "download", "running", "饿了么日报下载等待开始。")
-    try:
-        eleme_path = wait_for_eleme_report(report_date)
-    except Exception as exc:
-        record_daily_platform_event("eleme", "饿了么", "download", "failed", f"饿了么日报下载失败：{exc}")
-        raise
-    record_daily_platform_event("eleme", "饿了么", "download", "success", f"饿了么日报下载完成：{eleme_path.name}", log_path=eleme_path)
-    record_daily_platform_event("meituan", "美团", "download", "running", "美团日报下载等待开始。")
-    try:
-        meituan_path = wait_for_meituan_report(report_date)
-    except Exception as exc:
-        record_daily_platform_event("meituan", "美团", "download", "failed", f"美团日报下载失败：{exc}")
-        raise
-    record_daily_platform_event("meituan", "美团", "download", "success", f"美团日报下载完成：{meituan_path.name}", log_path=meituan_path)
-    record_task_event("ops.daily_report", "running", message="日报原始报表已齐，开始生成看板。", step="process")
-    try:
-        process_reports(eleme_path, meituan_path)
-    except Exception as exc:
-        message = f"日报看板生成失败：{exc}"
-        record_task_event("ops.daily_report", "failed", message=message, step="process", failure_type=classify_failure_text(message))
-        raise
-    record_task_event("ops.daily_report", "success", message="日报看板已生成。", step="process", log_path=ROOT / "data" / "latest.json")
+        raise RuntimeError("日报采集未全部提交成功，未生成看板：" + "；".join(submit_failures))
+    eleme_path = wait_for_eleme_report(report_date)
+    meituan_path = wait_for_meituan_report(report_date)
+    process_reports(eleme_path, meituan_path)
 
 
 def main() -> None:

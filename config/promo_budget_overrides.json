@@ -1,26 +1,13 @@
 {
-  "weekendPreset": {
-    "enabled": false,
-    "name": "周末保守预设（待确认）",
-    "activeDays": [
-      0,
-      6
-    ],
-    "lunchMultiplier": 1,
-    "dinnerMultiplier": 1,
-    "minBudget": 0,
-    "roundTo": 10,
-    "notes": "待确认周末预算规则后启用；当前不会改变任何门店预算。"
-  },
   "stores": {
     "安贞店": {
       "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       },
       "美团": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       }
     },
     "保利中心店": {
@@ -35,74 +22,74 @@
     },
     "朝阳门店": {
       "饿了么": {
-        "lunchBudget": 120,
-        "dinnerBudget": 200
+        "lunchBudget": 80,
+        "dinnerBudget": 120
       }
     },
     "第2号档口利康金桥美食城": {
       "饿了么": {
-        "lunchBudget": 120,
+        "lunchBudget": 100,
         "dinnerBudget": 200
       },
       "美团": {
-        "lunchBudget": 120,
+        "lunchBudget": 100,
         "dinnerBudget": 200
       }
     },
     "第5号档口川湘府美食城店": {
       "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       },
       "美团": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       }
     },
     "光谷店": {
       "饿了么": {
         "lunchBudget": 65,
-        "dinnerBudget": 100
+        "dinnerBudget": 120
       },
       "美团": {
         "lunchBudget": 65,
-        "dinnerBudget": 100
+        "dinnerBudget": 120
       }
     },
     "金融城店": {
       "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 80,
+        "dinnerBudget": 120
       }
     },
     "金融街店": {
       "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       },
       "美团": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       }
     },
     "丽泽店": {
       "饿了么": {
-        "lunchBudget": 80,
+        "lunchBudget": 70,
         "dinnerBudget": 120
       },
       "美团": {
-        "lunchBudget": 80,
+        "lunchBudget": 70,
         "dinnerBudget": 120
       }
     },
     "双井店": {
       "饿了么": {
-        "lunchBudget": 80,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       },
       "美团": {
-        "lunchBudget": 80,
-        "dinnerBudget": 150
+        "lunchBudget": 70,
+        "dinnerBudget": 120
       }
     },
     "万象城店": {
@@ -123,8 +110,8 @@
     },
     "银泰城店": {
       "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150
+        "lunchBudget": 80,
+        "dinnerBudget": 120
       }
     }
   }

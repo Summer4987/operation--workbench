@@ -20,6 +20,9 @@
 - 不在 MacBook 上假装生产环境已经完成；涉及 launchd 定时任务、真实平台提交、付款、生产登录态和云端发布时，必须明确标注需要 Mac mini 执行或确认。
 - 健康报告会显示数据来源环境；MacBook 的本地检查只代表开发环境，生产判断以 Mac mini 写入的运行记录为准。
 - Mac mini 只读冒烟会保存 `outputs/macmini_smoke/latest.log`，业务中心只根据这份日志判断生产冒烟是否完成。
+- `operation_automation_check.py` 默认按主机识别环境：MacBook 缺少生产 launchd 或 Chrome 9222 只提示提醒，Mac mini 生产环境会把这些作为阻塞项；也可以用 `--environment production` 强制按生产规则检查。
+- `scripts/check_macmini_ai_center.zsh` 已把系统体检纳入统一上线前检查，开发环境跑通不等于生产就绪，生产就绪仍以 Mac mini 上同脚本通过为准。
+- `scripts/deploy_workbench_to_cloud.zsh` 默认使用 `ui-data` 模式，同步首页 `index.html`、`workbench.css`、`workbench.js`、`workbench-data.js` 和实时历史；仅需刷新数据时可显式设置 `OPERATION_CLOUD_DEPLOY_MODE=data-only`。
 
 ## 用户只需要参与的场景
 

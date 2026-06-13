@@ -1,0 +1,4 @@
+__pycache__/
+state/runs/
+state/*.json
+dashboard/index.html

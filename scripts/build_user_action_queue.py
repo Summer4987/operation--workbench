@@ -19,6 +19,7 @@ REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
+OPERATION_CHECK_PATH = ROOT / "outputs" / "operation_automation_check" / "latest.json"
 
 
 def now_text() -> str:
@@ -70,9 +71,27 @@ def build_payload() -> dict[str, Any]:
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     macmini_smoke = read_json(MACMINI_SMOKE_STATUS_PATH, {})
+    operation_check = read_json(OPERATION_CHECK_PATH, {})
 
     items: list[dict[str, Any]] = []
     environment = (task_health.get("environment") or {}).get("role") or "development"
+    operation_env = (operation_check.get("environment") or {}).get("role") or environment
+    operation_blockers = operation_check.get("blockers") or []
+    if operation_env == "production" and operation_blockers:
+        blocker_text = "；".join(f"{item.get('category')}：{item.get('message')}" for item in operation_blockers[:3])
+        items.append(
+            action_item(
+                item_id="system.operation_automation_check",
+                title="Mac mini 系统体检阻塞",
+                center="系统交接",
+                priority="high",
+                reason=f"生产系统体检发现 {len(operation_blockers)} 个阻塞项。",
+                action=blocker_text or "先处理 launchd、Chrome 调试端口、系统权限或云端发布连接，再运行生产冒烟检查。",
+                source="system.operation_automation_check",
+                evidence="outputs/operation_automation_check/latest.json",
+                environment="Mac mini 生产环境",
+            )
+        )
     tasks_by_id = {item.get("id"): item for item in task_health.get("tasks") or []}
     promo_balance = tasks_by_id.get("growth.promo_balance") or {}
     promo_next = promo_balance.get("next_step") or ""
