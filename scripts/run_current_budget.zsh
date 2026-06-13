@@ -21,6 +21,59 @@ failure_tail() {
   fi
 }
 
+
+platform_recovery_action() {
+  local platform_key="$1"
+  if [[ "$platform_key" == "eleme" ]]; then
+    echo "先确认饿了么后台登录和验证码，再打开点金推广页复核目标门店预算。"
+  else
+    echo "先确认美团点金推广页已在本机 Chrome 打开并登录，再复核门店映射和预算弹窗。"
+  fi
+}
+
+record_platform_state() {
+  local platform_key="$1"
+  local platform_name="$2"
+  local status="$3"
+  local message="$4"
+  local rc="${5:-}"
+  local recovery
+  recovery="$(platform_recovery_action "$platform_key")"
+  local args=(
+    "$TASK_ID" "$status"
+    --message "$message"
+    --step "${platform_name}${PERIOD}预算真实提交"
+    --log-path "$RUN_LOG"
+    --extra "${platform_key}_status=${status}"
+    --extra "${platform_key}_message=${message}"
+    --extra "${platform_key}_recovery=${recovery}"
+  )
+  if [[ -n "$rc" ]]; then
+    args+=(--returncode "$rc")
+  fi
+  record_task_run "${args[@]}"
+}
+
+run_platform_budget() {
+  local platform_key="$1"
+  local platform_name="$2"
+  shift 2
+  TASK_STEP="${platform_name}${PERIOD}预算真实提交"
+  record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
+  record_platform_state "$platform_key" "$platform_name" running "$TASK_STEP"
+  set +e
+  "$@"
+  local rc="$?"
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    local detail
+    detail="$(failure_tail)"
+    record_platform_state "$platform_key" "$platform_name" failed "${platform_name}${PERIOD}预算失败：${detail}" "$rc"
+    return "$rc"
+  fi
+  record_platform_state "$platform_key" "$platform_name" success "${platform_name}${PERIOD}预算提交完成。" "$rc"
+}
+
 PERIOD="auto"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -120,15 +173,11 @@ record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --
 
 echo
 echo "执行饿了么${PERIOD}预算真实提交..."
-TASK_STEP="饿了么${PERIOD}预算真实提交"
-record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
-/bin/zsh scripts/run_eleme_automation.zsh --time "$TIME_POINT" --mode commit --limit all
+run_platform_budget eleme 饿了么 /bin/zsh scripts/run_eleme_automation.zsh --time "$TIME_POINT" --mode commit --limit all
 
 echo
 echo "执行美团${PERIOD}预算真实提交..."
-TASK_STEP="美团${PERIOD}预算真实提交"
-record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$RUN_LOG"
-"$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD"
+run_platform_budget meituan 美团 "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD"
 
 echo
 echo "刷新并发布运营总看板..."

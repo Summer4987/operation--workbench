@@ -230,6 +230,21 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
                     platform_parts.append(f"{label}{phase_label}：{message}")
         if platform_parts:
             row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
+    if row["id"] == "growth.promo_budget":
+        extra = task_run.get("extra") or {}
+        platform_parts = []
+        recoveries = []
+        for key, label in (("eleme", "饿了么"), ("meituan", "美团")):
+            message = extra.get(f"{key}_message")
+            recovery = extra.get(f"{key}_recovery")
+            if message:
+                platform_parts.append(f"{label}：{message}")
+            if recovery and extra.get(f"{key}_status") == "failed":
+                recoveries.append(f"{label}：{recovery}")
+        if platform_parts:
+            row["reason"] = f"{row['reason']}｜" + "；".join(platform_parts)
+        if recoveries:
+            row["human_action"] = "；".join(recoveries)
     return row
 
 
@@ -364,7 +379,7 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
 
 def attach_human_action(row: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
-    if row["status"] in {"danger", "warn"} and task.get("human_needed_when"):
+    if row["status"] in {"danger", "warn"} and task.get("human_needed_when") and not row.get("human_action"):
         row["human_action"] = "；".join(task["human_needed_when"][:2])
     return row
 
