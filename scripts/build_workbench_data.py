@@ -24,6 +24,7 @@ ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_pl
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
+PROMO_BID_APPROVAL_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
@@ -343,7 +344,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -537,16 +538,28 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
-    promo_bid_summary = promo_bid_advice.get("summary") or {}
-    bid_approval_count = int(promo_bid_summary.get("approval_required_count") or 0)
-    if promo_bid_advice.get("status") in {"ready", "partial", "stale"} and bid_approval_count:
+    promo_bid_queue_summary = promo_bid_approval_queue.get("summary") or {}
+    promo_bid_summary = promo_bid_queue_summary or promo_bid_advice.get("summary") or {}
+    bid_approval_count = int(promo_bid_summary.get("queue_count") or promo_bid_summary.get("approval_required_count") or 0)
+    if promo_bid_approval_queue.get("status") == "waiting_approval" and bid_approval_count:
+        rows.append(
+            {
+                "level": "建议",
+                "center": "商业化推广中心",
+                "title": "推广出价审批队列待确认",
+                "reason": f"审批队列中 {bid_approval_count} 项需要确认，风险或不可执行 {promo_bid_summary.get('risk_count', 0)} 项。",
+                "action": promo_bid_approval_queue.get("human_action") or "先核对预算消耗、预期消耗和门店状态；确认前不自动提交出价。",
+                "source": "growth.promo_bid",
+            }
+        )
+    elif promo_bid_advice.get("status") in {"ready", "partial", "stale"} and bid_approval_count:
         rows.append(
             {
                 "level": "建议",
                 "center": "商业化推广中心",
                 "title": "推广出价建议待审批",
                 "reason": f"只读出价建议中 {bid_approval_count} 项需要确认，风险或不可执行 {promo_bid_summary.get('risk_count', 0)} 项。",
-                "action": "先核对预算消耗、预期消耗和门店状态；确认前不自动提交出价。",
+                "action": "先生成审批队列，再核对预算消耗、预期消耗和门店状态；确认前不自动提交出价。",
                 "source": "growth.promo_bid",
             }
         )
@@ -657,6 +670,7 @@ def main() -> None:
     daily_focus = read_json(DAILY_FOCUS_STATUS_PATH, {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
+    promo_bid_approval_queue = read_json(PROMO_BID_APPROVAL_QUEUE_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
@@ -671,7 +685,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, morning_collection, realtime_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -686,6 +700,7 @@ def main() -> None:
         "budget": budget,
         "promo_budget_retry": promo_retry,
         "promo_bid_advice": promo_bid_advice,
+        "promo_bid_approval_queue": promo_bid_approval_queue,
         "promo_balance_status": promo_balance_status,
         "tool_warehouse": tool_warehouse,
         "finance_center": finance_center,

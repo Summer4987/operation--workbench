@@ -26,6 +26,7 @@ ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_pl
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
+PROMO_BID_APPROVAL_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
@@ -260,6 +261,19 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
         if recoveries:
             row["human_action"] = "；".join(recoveries)
     if row["id"] == "growth.promo_bid":
+        queue_payload = read_json(PROMO_BID_APPROVAL_QUEUE_PATH, {})
+        queue_summary = queue_payload.get("summary") or {}
+        if queue_payload.get("status") == "waiting_approval":
+            row["status"] = "warn"
+            row["reason"] = (
+                f"出价审批队列待确认，"
+                f"{int(queue_summary.get('queue_count') or queue_summary.get('approval_required_count') or 0)} 项，"
+                f"风险 {int(queue_summary.get('risk_count') or 0)} 项，"
+                f"旧预览 {int(queue_summary.get('stale_preview_count') or 0)} 个。"
+            )
+            row["human_action"] = queue_payload.get("human_action") or "逐项确认出价建议；确认前不自动提交到平台。"
+            row["evidence"] = "outputs/promo_bid_approval_queue/latest.json"
+            return row
         extra = task_run.get("extra") or {}
         stale_count = int(extra.get("stale_preview_count") or 0)
         approval_count = int(extra.get("approval_required_count") or 0)
@@ -467,10 +481,31 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "growth.promo_bid":
         payload = read_json(PROMO_BID_ADVICE_PATH, {})
+        queue_payload = read_json(PROMO_BID_APPROVAL_QUEUE_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
+        queue_summary = queue_payload.get("summary") or {}
+        queue_generated_at = parse_time(queue_payload.get("generated_at"))
+        queue_count = int(queue_summary.get("queue_count") or queue_summary.get("approval_required_count") or 0)
+        queue_risk_count = int(queue_summary.get("risk_count") or 0)
+        queue_stale_count = int(queue_summary.get("stale_preview_count") or 0)
         source_status = classify_from_json_status(payload.get("status"))
-        if payload.get("status") == "missing_preview":
+        if queue_payload.get("status") == "waiting_approval":
+            row.update(
+                status="warn",
+                reason=f"出价审批队列待确认，{queue_count} 项，风险 {queue_risk_count} 项，旧预览 {queue_stale_count} 个。",
+            )
+            row["human_action"] = queue_payload.get("human_action") or "逐项确认出价建议；确认前不自动提交到平台。"
+            row["evidence"] = "outputs/promo_bid_approval_queue/latest.json"
+            if queue_generated_at:
+                row["last_seen_at"] = queue_generated_at.strftime("%Y-%m-%d %H:%M:%S")
+        elif queue_payload.get("status") == "no_action":
+            row.update(status="ok", reason=queue_payload.get("message") or "当前没有需要审批的推广出价调整。")
+            row["human_action"] = queue_payload.get("human_action", "")
+            row["evidence"] = "outputs/promo_bid_approval_queue/latest.json"
+            if queue_generated_at:
+                row["last_seen_at"] = queue_generated_at.strftime("%Y-%m-%d %H:%M:%S")
+        elif payload.get("status") == "missing_preview":
             row.update(status="warn", reason=payload.get("message") or "推广出价建议尚未生成。")
         elif not generated_at:
             row.update(status="warn", reason="推广出价建议没有生成时间。")
@@ -480,9 +515,10 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             row.update(status="ok", reason=f"出价只读建议已生成，{summary.get('approval_required_count', 0)} 项需审批，风险 {summary.get('risk_count', 0)} 项。")
         else:
             row.update(status="warn", reason=payload.get("message") or "推广出价建议待检查。")
-        row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
-        row["evidence"] = "outputs/promo_bid_advice/latest.json"
-        if int(summary.get("approval_required_count") or 0):
+        if row.get("evidence") != "outputs/promo_bid_approval_queue/latest.json":
+            row["evidence"] = "outputs/promo_bid_advice/latest.json"
+            row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
+        if int(summary.get("approval_required_count") or 0) and not row.get("human_action"):
             row["human_action"] = "逐项确认出价建议；确认前不自动提交到平台。"
 
     elif task_id == "flow.inventory":

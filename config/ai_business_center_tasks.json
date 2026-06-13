@@ -229,11 +229,13 @@
       "schedule": "待定，先建议后审批",
       "entrypoints": [
         "scripts/build_promo_bid_advice.py",
+        "scripts/build_promo_bid_approval_queue.py",
         "scripts/build_execution_preview.mjs",
         "dianjin-prototype/"
       ],
       "outputs": [
         "outputs/promo_bid_advice/latest.json",
+        "outputs/promo_bid_approval_queue/latest.json",
         "outputs/dianjin_automation/execution_preview_*.json",
         "dianjin-prototype/execution_preview.js"
       ],
@@ -241,6 +243,7 @@
         "有预算消耗和预期消耗输入",
         "出价建议有证据链",
         "执行前必须进入审批队列",
+        "审批队列明确人工确认、禁止自动提交和风险项处理",
         "只读建议不会自动提交平台"
       ],
       "human_needed_when": [
@@ -248,7 +251,7 @@
         "单次调价超过阈值",
         "平台提示风险或预算异常"
       ],
-      "next_integration_step": "只读出价建议已接入业务中心，下一步补曝光、进店、下单转化输入和审批队列。"
+      "next_integration_step": "出价审批队列已接入业务中心，下一步补曝光、进店、下单转化输入。"
     },
     {
       "id": "flow.inventory",

@@ -53,6 +53,7 @@ echo "== 配置与语法检查 =="
   scripts/init_android_execution_config.py \
   scripts/build_promo_budget_retry_plan.py \
   scripts/build_promo_bid_advice.py \
+  scripts/build_promo_bid_approval_queue.py \
   scripts/build_promo_balance_status.py \
   scripts/build_tool_warehouse_status.py \
   scripts/build_finance_center_status.py \
@@ -87,6 +88,7 @@ echo "== 生成只读健康数据 =="
 "$PYTHON" scripts/check_android_execution_config.py
 "$PYTHON" scripts/build_promo_budget_retry_plan.py
 "$PYTHON" scripts/build_promo_bid_advice.py
+"$PYTHON" scripts/build_promo_bid_approval_queue.py
 "$PYTHON" scripts/build_promo_balance_status.py
 "$PYTHON" scripts/build_tool_warehouse_status.py
 "$PYTHON" scripts/build_finance_center_status.py

@@ -636,31 +636,41 @@ function renderBudget() {
 
 function renderBidding() {
   const advice = data.promo_bid_advice || {};
+  const queue = data.promo_bid_approval_queue || {};
   const summary = advice.summary || {};
-  const items = advice.items || [];
-  const approvalCount = Number(summary.approval_required_count || 0);
-  const staleCount = Number(summary.stale_preview_count || 0);
-  const statusText = advice.status === "ready" ? "已生成" : advice.status === "partial" ? "部分旧数据" : advice.status === "stale" ? "输入偏旧" : "待生成";
+  const queueSummary = queue.summary || {};
+  const items = queue.items || advice.items || [];
+  const approvalCount = Number(queueSummary.queue_count || queueSummary.approval_required_count || summary.approval_required_count || 0);
+  const staleCount = Number(queueSummary.stale_preview_count || summary.stale_preview_count || 0);
+  const statusText = queue.status === "waiting_approval" ? "待审批" : queue.status === "no_action" ? "无需处理" : advice.status === "ready" ? "已生成" : advice.status === "partial" ? "部分旧数据" : advice.status === "stale" ? "输入偏旧" : "待生成";
   text("biddingStatus", statusText);
   text("biddingCount", `${approvalCount} 项`);
   text(
     "biddingSummary",
-    advice.message || `只读出价建议：加价 ${summary.bid_up_count || 0} 项，降价 ${summary.bid_down_count || 0} 项，风险 ${summary.risk_count || 0} 项。`
+    queue.message || advice.message || `只读出价建议：加价 ${summary.bid_up_count || 0} 项，降价 ${summary.bid_down_count || 0} 项，风险 ${summary.risk_count || 0} 项。`
   );
   document.querySelector("#bidding")?.classList.toggle("alert", approvalCount > 0 || staleCount > 0);
+  const gate = queue.approval_gate || advice.approval || {};
+  const bidUpCount = queueSummary.bid_up_count ?? summary.bid_up_count ?? 0;
+  const bidDownCount = queueSummary.bid_down_count ?? summary.bid_down_count ?? 0;
+  const riskCount = queueSummary.risk_count ?? summary.risk_count ?? 0;
+  const previewTime = queueSummary.latest_preview_at || summary.latest_preview_at || "";
   rows(
     "biddingRows",
     [
-      { label: "待审批", value: `${approvalCount} 项`, detail: advice.approval?.message || "确认前不自动提交" },
-      { label: "加价/降价", value: `${summary.bid_up_count || 0}/${summary.bid_down_count || 0}`, detail: "基于预算消耗与预期消耗" },
-      { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: summary.latest_preview_at ? `最新 ${summary.latest_preview_at}` : "等待状态读取" },
+      { label: "审批队列", value: `${approvalCount} 项`, detail: gate.message || "确认前不自动提交" },
+      { label: "加价/降价", value: `${bidUpCount}/${bidDownCount}`, detail: riskCount ? `风险或不可执行 ${riskCount} 项` : "基于预算消耗与预期消耗" },
+      { label: "输入状态", value: staleCount ? `${staleCount} 个旧预览` : "可用", detail: previewTime ? `最新 ${previewTime}` : "等待状态读取" },
       ...items.filter((item) => Number(item.bid_delta || 0)).slice(0, 5).map((item) => ({
-        label: item.store || "未命名门店",
+        label: `${item.platform || "平台"} · ${shortStore(item.store || "未命名门店")}`,
         value: item.action || "出价建议",
-        detail: item.reason || item.risk || `${item.time || ""} ${item.period || ""}`,
+        detail: item.human_action || item.reason || item.risk || `${item.time || ""} ${item.period || ""}`,
       })),
     ],
-    (item) => `<div class="${item.label === "输入状态" && staleCount ? "warn-row" : Number.parseInt(item.value, 10) || item.label === "待审批" && approvalCount ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+    (item) => {
+      const needsAttention = (item.label === "输入状态" && staleCount) || (item.label === "审批队列" && approvalCount) || Boolean(Number.parseInt(item.value, 10));
+      return `<div class="${needsAttention ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`;
+    }
   );
 }
 
