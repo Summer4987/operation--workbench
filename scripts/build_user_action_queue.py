@@ -228,6 +228,22 @@ def build_payload() -> dict[str, Any]:
             )
         )
 
+    sop_closure_plan = review_actions.get("sop_closure_plan") or {}
+    sop_reopen_count = int(sop_closure_plan.get("reopen_count") or 0)
+    if sop_reopen_count:
+        items.append(
+            action_item(
+                item_id="ops.review_sop_reopen",
+                title="已关闭评价 SOP 整改复发",
+                center="运营数据中心",
+                priority="medium",
+                reason=sop_closure_plan.get("message") or f"当前有 {sop_reopen_count} 条已关闭 SOP 整改后再次复发。",
+                action=sop_closure_plan.get("next_action") or "重新打开 SOP 整改并升级门店检查。",
+                source="ops.review_sop",
+                evidence="outputs/review_action_status/latest.json",
+            )
+        )
+
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
         intake_messages = [

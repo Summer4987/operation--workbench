@@ -419,6 +419,73 @@ def build_sop_plan(followup_plan: dict[str, Any], sop_records: dict[str, Any]) -
     }
 
 
+def build_sop_closure_plan(sop_plan: dict[str, Any], review_history: list[dict[str, Any]]) -> dict[str, Any]:
+    items = []
+    for item in sop_plan.get("items") or []:
+        if item.get("status") != "closed":
+            continue
+        record = item.get("record") or {}
+        store = str(item.get("store") or "").strip()
+        issue_type = str(item.get("issue_type") or "").strip()
+        start = parse_date(record.get("due_date")) or parse_date(record.get("recorded_at")) or parse_date(item.get("date"))
+        if not store or not issue_type or not start:
+            continue
+        recurrences = []
+        observed_dates = set()
+        for row in review_history:
+            row_date = parse_date(row.get("date"))
+            if not row_date or row_date <= start or (row_date - start).days > 7:
+                continue
+            if str(row.get("store") or "").strip() != store:
+                continue
+            observed_dates.add(row_date.strftime("%Y-%m-%d"))
+            if row.get("negative") and followup_matches_issue(row, issue_type):
+                recurrences.append(
+                    {
+                        "date": row_date.strftime("%Y-%m-%d"),
+                        "platform": row.get("platform", ""),
+                        "content": row.get("content", "")[:120],
+                        "keywords": row.get("keywords") or [],
+                    }
+                )
+        status = "reopen_needed" if recurrences else ("watching" if len(observed_dates) < 7 else "stable")
+        action = (
+            f"{store}{issue_type}SOP 整改关闭后又复发，建议重新打开整改并升级检查。"
+            if status == "reopen_needed"
+            else f"{store}{issue_type}SOP 整改已关闭，继续观察至第 7 天。"
+            if status == "watching"
+            else f"{store}{issue_type}SOP 整改关闭后 7 天未复发，可保留为稳定案例。"
+        )
+        items.append(
+            {
+                "store": store,
+                "date": item.get("date", ""),
+                "issue_type": issue_type,
+                "status": status,
+                "days_observed": len(observed_dates),
+                "recurrence_count": len(recurrences),
+                "recurrences": recurrences[:3],
+                "action": action,
+                "record": record,
+            }
+        )
+    reopen = [item for item in items if item.get("status") == "reopen_needed"]
+    watching = [item for item in items if item.get("status") == "watching"]
+    stable = [item for item in items if item.get("status") == "stable"]
+    return {
+        "status": "reopen_needed" if reopen else ("watching" if watching else ("stable" if stable else "empty")),
+        "item_count": len(items),
+        "reopen_count": len(reopen),
+        "watching_count": len(watching),
+        "stable_count": len(stable),
+        "items": items[:8],
+        "next_action": reopen[0]["action"] if reopen else (watching[0]["action"] if watching else "暂无已关闭 SOP 整改需要复查。"),
+        "message": f"{len(reopen)} 条已关闭 SOP 整改再次复发，{len(watching)} 条仍在关闭后观察期。"
+        if items
+        else "暂无已关闭 SOP 整改需要复查。",
+    }
+
+
 def recap_command(item: dict[str, Any]) -> str:
     issue_arg = f" --issue-type {item.get('issue_type')}" if item.get("issue_type") else ""
     return (
@@ -544,6 +611,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     recap = build_recap_plan(items, completed_with_evidence, recap_records_payload, target_date)
     followup = build_followup_plan(recap_records_payload, review_history)
     sop = build_sop_plan(followup, sop_records_payload)
+    sop_closure = build_sop_closure_plan(sop, review_history)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -592,6 +660,8 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "followup_watching_count": int(followup.get("watching_count") or 0),
             "sop_waiting_count": int(sop.get("waiting_count") or 0),
             "sop_open_count": int(sop.get("open_count") or 0),
+            "sop_reopen_count": int(sop_closure.get("reopen_count") or 0),
+            "sop_stable_count": int(sop_closure.get("stable_count") or 0),
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
@@ -600,6 +670,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "recap_plan": recap,
         "followup_plan": followup,
         "sop_plan": sop,
+        "sop_closure_plan": sop_closure,
         "workflow": workflow,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],
