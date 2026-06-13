@@ -301,10 +301,13 @@ function renderDaily() {
 
 function priorityItems() {
   const balances = data.balances || {};
+  const promoBalanceStatus = data.promo_balance_status || {};
+  const promoBalanceSummary = promoBalanceStatus.summary || {};
   const inventory = data.inventory || {};
   const daily = data.daily || {};
   const taskHealth = data.task_health || {};
-  const balanceWarnings = (balances.items || []).filter((item) => item.status === "warning");
+  const balanceWarnings = promoBalanceStatus.low_balance_items || (balances.items || []).filter((item) => item.status === "warning");
+  const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const inventoryWarnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
   const automationWarnings = groupedAnomalies(daily.focus_items || []).slice(0, 3);
   const taskWarnings = (taskHealth.tasks || []).filter((item) => item.status === "danger").slice(0, 3);
@@ -315,6 +318,14 @@ function priorityItems() {
       type: "库存不足",
       title: `${inventoryWarnings.length} 个库存预警`,
       detail: inventoryWarnings.slice(0, 3).map((item) => item.name).join("、"),
+      level: "danger",
+    });
+  }
+  if (platformFailures.length) {
+    items.push({
+      type: "推广巡检失败",
+      title: `${promoBalanceSummary.platform_failure_count || platformFailures.length} 个平台失败`,
+      detail: platformFailures.map((item) => `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
       level: "danger",
     });
   }
@@ -507,20 +518,34 @@ function renderReviews() {
 
 function renderBalances() {
   const balances = data.balances || {};
-  const summary = balances.summary || {};
-  const warnings = (balances.items || []).filter((item) => item.status === "warning");
-  text("metricWarnings", `${summary.warning_count ?? warnings.length} 个`);
+  const promoBalanceStatus = data.promo_balance_status || {};
+  const summary = promoBalanceStatus.summary || balances.summary || {};
+  const warnings = promoBalanceStatus.low_balance_items || (balances.items || []).filter((item) => item.status === "warning");
+  const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
+  const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length || 0);
+  const lowBalanceCount = Number(summary.low_balance_count ?? summary.warning_count ?? warnings.length);
+  const needsAttention = platformFailureCount > 0 || lowBalanceCount > 0;
+  const statusText = platformFailureCount ? "巡检失败" : lowBalanceCount ? "需充值" : "正常";
+  text("metricWarnings", `${lowBalanceCount} 个`);
   text("metricLowest", `最低 ${yuan(summary.lowest_balance || 0)} · ${summary.store_count || 0} 条`);
-  text("balanceWarningCount", `${summary.warning_count ?? warnings.length} 个`);
-  text("balanceSummary", `最新巡检：${balances.generated_at || "-"}，阈值 ${yuan(balances.threshold || 100)}`);
-  text("balanceStatus", balances.status === "ok" ? "正常" : "注意");
-  cls("balanceMetricCard", "alert", warnings.length > 0);
-  document.querySelector("#balances")?.classList.toggle("alert", warnings.length > 0);
-  document.querySelector("#metricLowest")?.classList.toggle("danger", warnings.length > 0);
+  text("balanceWarningCount", `${lowBalanceCount} 个`);
+  text(
+    "balanceSummary",
+    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，阈值 ${yuan(summary.warning_threshold || balances.threshold || 100)}`
+  );
+  text("balanceStatus", statusText);
+  cls("balanceMetricCard", "alert", needsAttention);
+  document.querySelector("#balances")?.classList.toggle("alert", needsAttention);
+  document.querySelector("#metricLowest")?.classList.toggle("danger", needsAttention);
   rows(
     "balanceRows",
-    warnings.slice(0, 6),
-    (item) => `<div class="warn-row"><span>${item.platform} · ${shortStore(item.store_name)}</span><strong>${yuan(item.balance)}</strong><em>需充值</em></div>`
+    [
+      ...platformFailures.map((item) => ({ ...item, kind: "platform_failure" })),
+      ...warnings.slice(0, 6).map((item) => ({ ...item, kind: "low_balance" })),
+    ],
+    (item) => item.kind === "platform_failure"
+      ? `<div class="warn-row"><span>${escapeHtml(item.platform)} · 巡检失败</span><strong>${escapeHtml(item.failure_type || "需处理")}</strong><em>${escapeHtml(item.message || item.human_action || "先处理平台状态")}</em></div>`
+      : `<div class="warn-row"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${yuan(item.balance)}</strong><em>需充值</em></div>`
   );
 }
 

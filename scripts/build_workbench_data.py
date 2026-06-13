@@ -22,6 +22,7 @@ ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_pl
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
+PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
@@ -340,7 +341,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_balance_status: dict, tool_warehouse: dict, finance_center: dict, morning_collection: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -372,8 +373,22 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
+    balance_status_summary = promo_balance_status.get("summary") or {}
+    platform_failure_count = int(balance_status_summary.get("platform_failure_count") or 0)
+    if platform_failure_count:
+        rows.append(
+            {
+                "level": "需人工处理",
+                "center": "商业化推广中心",
+                "title": "推广余额巡检失败",
+                "reason": promo_balance_status.get("message") or f"{platform_failure_count} 个平台巡检失败。",
+                "action": promo_balance_status.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。",
+                "source": "growth.promo_balance",
+            }
+        )
+
     balance_summary = balances.get("summary") or {}
-    warning_count = int(balance_summary.get("warning_count") or 0)
+    warning_count = int(balance_status_summary.get("low_balance_count") or balance_summary.get("warning_count") or 0)
     if warning_count:
         rows.append(
             {
@@ -599,6 +614,7 @@ def main() -> None:
     realtime_collection = read_json(REALTIME_COLLECTION_STATUS_PATH, {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
+    promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
@@ -612,7 +628,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, tool_warehouse, finance_center, morning_collection, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_balance_status, tool_warehouse, finance_center, morning_collection, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -625,6 +641,7 @@ def main() -> None:
         "budget": budget,
         "promo_budget_retry": promo_retry,
         "promo_bid_advice": promo_bid_advice,
+        "promo_balance_status": promo_balance_status,
         "tool_warehouse": tool_warehouse,
         "finance_center": finance_center,
         "inventory": inventory,

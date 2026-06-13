@@ -24,6 +24,7 @@ ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_pl
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
+PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
@@ -402,21 +403,31 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
 
     elif task_id == "growth.promo_balance":
         payload = read_json(ROOT / "store-inspection" / "latest.json", {})
+        status_payload = read_json(PROMO_BALANCE_STATUS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
-        summary = payload.get("summary") or {}
+        summary = status_payload.get("summary") or payload.get("summary") or {}
         source_status = classify_from_json_status(payload.get("status"))
-        if source_status == "danger":
+        platform_failure_count = int(summary.get("platform_failure_count") or 0)
+        low_balance_count = int(summary.get("low_balance_count") or summary.get("warning_count") or 0)
+        if status_payload.get("status") == "failed":
+            row.update(status="danger", reason=status_payload.get("message") or "推广余额巡检失败。")
+            row["human_action"] = status_payload.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。"
+        elif platform_failure_count:
+            row.update(status="warn", reason=status_payload.get("message") or f"{platform_failure_count} 个平台余额巡检失败。")
+            row["human_action"] = status_payload.get("human_action") or "先处理失败平台，再确认低余额预警是否完整。"
+        elif source_status == "danger":
             row.update(status="danger", reason=payload.get("message") or "推广余额巡检失败。")
         elif not generated_at:
             row.update(status="warn", reason="推广余额巡检尚未生成。")
         elif now - generated_at > timedelta(days=2):
             row.update(status="warn", reason=f"推广余额巡检偏旧：{age_text(generated_at, now)}。")
         else:
-            warning_count = int(summary.get("warning_count") or 0)
-            status = "warn" if warning_count else "ok"
-            row.update(status=status, reason=f"余额巡检可用，{summary.get('store_count') or 0} 条结果，低余额 {warning_count} 条。")
+            status = "warn" if low_balance_count else "ok"
+            row.update(status=status, reason=f"余额巡检可用，{summary.get('store_count') or 0} 条结果，低余额 {low_balance_count} 条。")
+            if low_balance_count:
+                row["human_action"] = status_payload.get("human_action") or "先充值低余额门店，再执行预算或出价自动化。"
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
-        row["evidence"] = "store-inspection/latest.json"
+        row["evidence"] = "outputs/promo_balance_status/latest.json" if status_payload else "store-inspection/latest.json"
 
     elif task_id == "growth.promo_bid":
         payload = read_json(PROMO_BID_ADVICE_PATH, {})

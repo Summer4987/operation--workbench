@@ -197,11 +197,13 @@
       "outputs": [
         "store-inspection/latest.json",
         "store-inspection/latest-data.js",
+        "outputs/promo_balance_status/latest.json",
         "outputs/store_inspection/"
       ],
       "health_checks": [
         "latest.json 有巡检生成时间",
         "至少一个平台有余额结果",
+        "巡检失败和低余额预警分开展示",
         "低余额门店进入重点预警"
       ],
       "human_needed_when": [
@@ -209,7 +211,7 @@
         "余额识别失败",
         "推广余额不足需要充值"
       ],
-      "next_integration_step": "把余额巡检失败和低余额预警拆开展示。"
+      "next_integration_step": "余额巡检失败和低余额预警已拆分，下一步把权限/登录恢复动作写入平台级指引。"
     },
     {
       "id": "growth.promo_bid",
