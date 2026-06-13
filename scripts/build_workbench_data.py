@@ -417,13 +417,26 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     balance_status_summary = promo_balance_status.get("summary") or {}
     platform_failure_count = int(balance_status_summary.get("platform_failure_count") or 0)
     if platform_failure_count:
+        platform_failures = [
+            item
+            for item in promo_balance_status.get("platforms") or []
+            if item.get("status") == "failed"
+        ]
+        recovery_actions = []
+        for item in platform_failures[:2]:
+            recovery = item.get("recovery") or {}
+            recovery_actions.append(
+                recovery.get("summary")
+                or item.get("human_action")
+                or f"{item.get('platform', '平台')}：先恢复登录、权限或页面状态。"
+            )
         rows.append(
             {
                 "level": "需人工处理",
                 "center": "商业化推广中心",
                 "title": "推广余额巡检失败",
                 "reason": promo_balance_status.get("message") or f"{platform_failure_count} 个平台巡检失败。",
-                "action": promo_balance_status.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。",
+                "action": "；".join(recovery_actions) or promo_balance_status.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。",
                 "source": "growth.promo_balance",
             }
         )

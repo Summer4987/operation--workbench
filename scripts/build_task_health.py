@@ -459,12 +459,18 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         source_status = classify_from_json_status(payload.get("status"))
         platform_failure_count = int(summary.get("platform_failure_count") or 0)
         low_balance_count = int(summary.get("low_balance_count") or summary.get("warning_count") or 0)
+        platform_recoveries = [
+            (item.get("recovery") or {}).get("summary") or item.get("human_action", "")
+            for item in status_payload.get("platforms") or []
+            if item.get("status") == "failed"
+        ]
+        platform_recovery_text = "；".join(item for item in platform_recoveries[:2] if item)
         if status_payload.get("status") == "failed":
             row.update(status="danger", reason=status_payload.get("message") or "推广余额巡检失败。")
-            row["human_action"] = status_payload.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。"
+            row["human_action"] = platform_recovery_text or status_payload.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。"
         elif platform_failure_count:
             row.update(status="warn", reason=status_payload.get("message") or f"{platform_failure_count} 个平台余额巡检失败。")
-            row["human_action"] = status_payload.get("human_action") or "先处理失败平台，再确认低余额预警是否完整。"
+            row["human_action"] = platform_recovery_text or status_payload.get("human_action") or "先处理失败平台，再确认低余额预警是否完整。"
         elif source_status == "danger":
             row.update(status="danger", reason=payload.get("message") or "推广余额巡检失败。")
         elif not generated_at:

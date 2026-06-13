@@ -352,7 +352,7 @@ function priorityItems() {
     items.push({
       type: "推广巡检失败",
       title: `${promoBalanceSummary.platform_failure_count || platformFailures.length} 个平台失败`,
-      detail: platformFailures.map((item) => `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
+      detail: platformFailures.map((item) => item.recovery?.summary || `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
       level: "danger",
     });
   }
@@ -591,9 +591,15 @@ function renderBalances() {
       ...platformFailures.map((item) => ({ ...item, kind: "platform_failure" })),
       ...warnings.slice(0, 6).map((item) => ({ ...item, kind: "low_balance" })),
     ],
-    (item) => item.kind === "platform_failure"
-      ? `<div class="warn-row"><span>${escapeHtml(item.platform)} · 巡检失败</span><strong>${escapeHtml(item.failure_type || "需处理")}</strong><em>${escapeHtml(item.message || item.human_action || "先处理平台状态")}</em></div>`
-      : `<div class="warn-row"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${yuan(item.balance)}</strong><em>需充值</em></div>`
+    (item) => {
+      if (item.kind !== "platform_failure") {
+        return `<div class="warn-row"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${yuan(item.balance)}</strong><em>需充值</em></div>`;
+      }
+      const recovery = item.recovery || {};
+      const steps = (recovery.steps || []).slice(0, 2).join("；");
+      const detail = [recovery.summary || item.human_action || item.message || "先处理平台状态", steps, recovery.verify_command ? `复查：${recovery.verify_command}` : ""].filter(Boolean).join(" · ");
+      return `<div class="warn-row"><span>${escapeHtml(item.platform)} · 巡检失败</span><strong>${escapeHtml(recovery.title || item.failure_type || "需处理")}</strong><em>${escapeHtml(detail)}</em></div>`;
+    }
   );
 }
 

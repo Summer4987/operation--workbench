@@ -15,6 +15,69 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 
 PLATFORMS = ("饿了么", "美团")
 
+RECOVERY_GUIDES = {
+    "permission": {
+        "title": "系统权限未开启",
+        "severity": "blocked",
+        "owner_environment": "Mac mini 生产环境",
+        "steps": [
+            "在 Mac mini 打开系统设置 > 隐私与安全性 > 屏幕录制。",
+            "给 Terminal、Codex 或实际运行巡检脚本的终端应用开启屏幕录制权限。",
+            "完全退出并重新打开终端应用后，重跑推广余额巡检。",
+        ],
+        "verify_command": "python3 store-inspection/run_all_balances.py",
+        "evidence": "store-inspection/latest.json",
+    },
+    "auth_block": {
+        "title": "平台登录或验证码阻塞",
+        "severity": "blocked",
+        "owner_environment": "Mac mini 生产环境",
+        "steps": [
+            "在 Mac mini 的日常 Chrome 打开对应平台推广余额页面。",
+            "人工完成登录、验证码或账号安全确认。",
+            "确认页面能看到余额后，重跑推广余额巡检。",
+        ],
+        "verify_command": "python3 store-inspection/run_all_balances.py",
+        "evidence": "store-inspection/latest.json",
+    },
+    "manual_browser_setup": {
+        "title": "浏览器页面未准备",
+        "severity": "manual_setup",
+        "owner_environment": "Mac mini 生产环境",
+        "steps": [
+            "先在日常 Chrome 打开对应平台推广余额页面。",
+            "确认浏览器允许脚本读取当前页面和截图。",
+            "页面稳定后重跑推广余额巡检。",
+        ],
+        "verify_command": "python3 store-inspection/run_all_balances.py",
+        "evidence": "store-inspection/latest.json",
+    },
+    "page_structure": {
+        "title": "平台页面结构变化",
+        "severity": "script_update",
+        "owner_environment": "MacBook 开发，Mac mini 验证",
+        "steps": [
+            "在 Mac mini 保存失败截图、OCR 文本和当前页面状态。",
+            "在 MacBook 调整余额识别脚本或选择器。",
+            "提交推送后，由 Mac mini 拉取并重跑巡检。",
+        ],
+        "verify_command": "python3 store-inspection/run_all_balances.py",
+        "evidence": "store-inspection/logs/",
+    },
+    "execution_failed": {
+        "title": "巡检执行失败",
+        "severity": "check_logs",
+        "owner_environment": "Mac mini 生产环境",
+        "steps": [
+            "先查看推广余额巡检日志和最新截图。",
+            "确认平台登录、系统权限、页面结构和 OCR 是否正常。",
+            "按具体失败类型处理后重跑巡检。",
+        ],
+        "verify_command": "python3 store-inspection/run_all_balances.py",
+        "evidence": "store-inspection/latest.json",
+    },
+}
+
 
 def read_json(path: Path, fallback: Any) -> Any:
     try:
@@ -47,6 +110,20 @@ def human_action_for(failure_type: str, message: str) -> str:
     return "先查看推广余额巡检日志，确认平台登录、权限、页面结构和截图是否正常。"
 
 
+def recovery_for(platform: str, failure_type: str, message: str) -> dict[str, Any]:
+    guide = RECOVERY_GUIDES.get(failure_type) or RECOVERY_GUIDES["execution_failed"]
+    steps = list(guide["steps"])
+    return {
+        "title": guide["title"],
+        "severity": guide["severity"],
+        "owner_environment": guide["owner_environment"],
+        "steps": steps,
+        "verify_command": guide["verify_command"],
+        "evidence": guide["evidence"],
+        "summary": f"{platform}：{guide['title']}。{human_action_for(failure_type, message)}",
+    }
+
+
 def split_platform_failures(message: str) -> list[dict]:
     failures: list[dict] = []
     for raw_part in str(message or "").split("；"):
@@ -69,6 +146,7 @@ def split_platform_failures(message: str) -> list[dict]:
                 "message": detail,
                 "failure_type": failure_type,
                 "human_action": human_action_for(failure_type, detail),
+                "recovery": recovery_for(platform, failure_type, detail),
             }
         )
     return failures
