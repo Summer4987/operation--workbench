@@ -277,6 +277,7 @@
         "scripts/record_promo_bid_decision.py",
         "scripts/build_promo_bid_execution_plan.py",
         "scripts/build_promo_bid_signal_status.py",
+        "scripts/init_promo_bid_signals.py",
         "scripts/build_execution_preview.mjs",
         "dianjin-prototype/"
       ],
@@ -285,6 +286,7 @@
         "outputs/promo_bid_approval_queue/latest.json",
         "outputs/promo_bid_execution_plan/latest.json",
         "outputs/promo_bid_signal_status/latest.json",
+        "data/promo-bid-signals/templates/promo_bid_signal_template.csv",
         "data/promo_bid_decisions.json",
         "outputs/dianjin_automation/execution_preview_*.json",
         "dianjin-prototype/execution_preview.js"
@@ -300,6 +302,7 @@
         "已审批出价只生成 dry-run 执行计划，不自动提交平台",
         "真实执行闸会检查未审批项、旧预览和信号缺口",
         "曝光、进店和下单转化输入缺口可见",
+        "推广明细信号接收目录和 CSV 模板可读取",
         "只读建议不会自动提交平台"
       ],
       "human_needed_when": [

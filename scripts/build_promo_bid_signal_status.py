@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "latest.json"
 SIGNAL_DIR = ROOT / "data" / "promo-bid-signals"
+TEMPLATE_PATH = SIGNAL_DIR / "templates" / "promo_bid_signal_template.csv"
 OUTPUT_DIR = ROOT / "outputs" / "promo_bid_signal_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 
@@ -103,6 +104,16 @@ def build_payload() -> dict[str, Any]:
             "partial_count": len(partial),
             "missing_count": len(missing),
             "signal_file_count": signal_files,
+            "signal_dir_ready": SIGNAL_DIR.exists(),
+            "template_ready": TEMPLATE_PATH.exists(),
+        },
+        "setup": {
+            "init_command": "python3 scripts/init_promo_bid_signals.py",
+            "signal_dir": "data/promo-bid-signals",
+            "template_path": "data/promo-bid-signals/templates/promo_bid_signal_template.csv",
+            "signal_dir_ready": SIGNAL_DIR.exists(),
+            "template_ready": TEMPLATE_PATH.exists(),
+            "required_fields": ["date", "platform", "store", "period", "impressions", "visits", "orders", "spend", "current_bid", "current_budget"],
         },
         "checks": checks,
         "message": (
@@ -110,7 +121,7 @@ def build_payload() -> dict[str, Any]:
             if status != "ready"
             else "推广出价信号输入已就绪。"
         ),
-        "human_action": "后续把平台推广明细导出到 data/promo-bid-signals/，至少包含门店、日期、曝光、进店、订单或转化字段。",
+        "human_action": "后续把平台推广明细导出到 data/promo-bid-signals/，可参考 data/promo-bid-signals/templates/promo_bid_signal_template.csv，至少包含门店、日期、曝光、进店、订单或转化字段。",
     }
 
 
