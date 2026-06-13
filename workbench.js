@@ -838,6 +838,41 @@ function renderInventory() {
   );
 }
 
+function renderTools() {
+  const warehouse = data.tool_warehouse || {};
+  const sales = warehouse.sales_receipt || {};
+  const contract = warehouse.franchise_contract || {};
+  const salesChecks = sales.checks || [];
+  const salesReadyCount = salesChecks.filter((item) => item.exists).length;
+  text("salesReceiptStatus", sales.status_text || (sales.status === "ready" ? "已接入" : "待检查"));
+  text("salesReceiptCount", sales.status === "ready" ? "可用" : `${salesReadyCount}/${salesChecks.length || 4}`);
+  text("salesReceiptSummary", sales.message || "销售单生成器等待状态检查。");
+  document.querySelector(".module-receipt")?.classList.toggle("alert", sales.status && sales.status !== "ready");
+  rows(
+    "salesReceiptRows",
+    salesChecks.length ? salesChecks : [
+      { label: "页面", exists: false, path: "sales-receipt-generator/index.html" },
+      { label: "脚本", exists: false, path: "sales-receipt-generator/app.js" },
+    ],
+    (item) => `<div class="${item.exists ? "good-row" : "warn-row"}"><span>${escapeHtml(item.label)}</span><strong>${item.exists ? "存在" : "缺失"}</strong><em>${escapeHtml(item.path || "")}</em></div>`
+  );
+
+  const requiredFields = contract.required_fields || [];
+  const missing = contract.missing || [];
+  text("franchiseContractStatus", contract.status_text || "待模板");
+  text("franchiseContractCount", `${requiredFields.length || 0} 项字段`);
+  text("franchiseContractSummary", contract.message || "加盟合同生成器等待合同模板和字段确认。");
+  document.querySelector("#franchise-contract")?.classList.toggle("alert", contract.status === "waiting_template");
+  rows(
+    "franchiseContractRows",
+    [
+      ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、") }] : []),
+      ...requiredFields.slice(0, 6).map((field) => ({ label: "字段", value: field, detail: "生成前确认" })),
+    ],
+    (item) => `<div class="${item.label === "当前缺口" ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+}
+
 function activateNav() {
   const anchorLinks = navLinks.filter((link) => (link.getAttribute("href") || "").startsWith("#"));
   if (!anchorLinks.length) return;
@@ -868,5 +903,6 @@ renderBudget();
 renderBidding();
 renderOrdering();
 renderInventory();
+renderTools();
 window.addEventListener("scroll", activateNav, { passive: true });
 activateNav();

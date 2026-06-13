@@ -355,19 +355,22 @@
       "risk": "low",
       "schedule": "人工打开使用",
       "entrypoints": [
+        "scripts/build_tool_warehouse_status.py",
         "sales-receipt-generator/index.html"
       ],
       "outputs": [
+        "outputs/tool_warehouse_status/latest.json",
         "浏览器打印销售单"
       ],
       "health_checks": [
         "页面可打开",
+        "脚本、样式和默认公章资源存在",
         "打印布局保持一页"
       ],
       "human_needed_when": [
         "销售单字段或公章模板变化"
       ],
-      "next_integration_step": "接入工具仓库状态卡。"
+      "next_integration_step": "工具仓库状态卡已接入，下一步补销售单打印版式自动截图校验。"
     },
     {
       "id": "tools.franchise_contract",
@@ -378,18 +381,21 @@
       "risk": "medium",
       "schedule": "人工触发",
       "entrypoints": [],
-      "outputs": [],
+      "outputs": [
+        "outputs/tool_warehouse_status/latest.json"
+      ],
       "health_checks": [
         "合同模板版本明确",
         "加盟商资料字段完整",
-        "生成前预览并人工确认"
+        "生成前预览并人工确认",
+        "工具仓库状态列出缺失模板和字段"
       ],
       "human_needed_when": [
         "提供合同模板",
         "确认加盟条款和费用口径",
         "确认生成后的合同内容"
       ],
-      "next_integration_step": "整理合同模板字段清单。"
+      "next_integration_step": "合同字段清单已进入工具仓库状态，下一步需要用户提供现用合同模板。"
     }
   ]
 }

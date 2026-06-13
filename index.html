@@ -423,15 +423,12 @@
                   <p>销售单</p>
                   <h2>销售单据生成器</h2>
                 </div>
-                <span class="tag ready">已接入</span>
+                <span class="tag ready" id="salesReceiptStatus">已接入</span>
               </div>
               <div class="module-body">
-                <div class="big-number">一页打印</div>
-                <p>输入收货单位、销售时间、项目、数量和单位即可生成销售单；金额可留空，公章已内置。</p>
-                <div class="mini-table">
-                  <div class="good-row"><span>销售单位</span><strong>成都熊小小餐饮管理有限公司</strong><em>固定</em></div>
-                  <div><span>金额</span><strong>可选填写</strong><em>留空时不显示金额列</em></div>
-                </div>
+                <div class="big-number" id="salesReceiptCount">-</div>
+                <p id="salesReceiptSummary">等待工具状态。</p>
+                <div class="mini-table" id="salesReceiptRows"></div>
               </div>
               <div class="module-actions">
                 <a href="./sales-receipt-generator/index.html">打开销售单</a>
@@ -443,11 +440,12 @@
                   <p>合同</p>
                   <h2>加盟合同生成器</h2>
                 </div>
-                <span class="tag planning">待做</span>
+                <span class="tag planning" id="franchiseContractStatus">待模板</span>
               </div>
               <div class="module-body">
-                <div class="big-number">模板库</div>
-                <p>后续接入加盟合同模板、加盟商资料台账、开店流程清单和到期/回款提醒。</p>
+                <div class="big-number" id="franchiseContractCount">-</div>
+                <p id="franchiseContractSummary">等待合同模板字段。</p>
+                <div class="mini-table" id="franchiseContractRows"></div>
               </div>
             </article>
           </div>

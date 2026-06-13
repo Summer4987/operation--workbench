@@ -22,6 +22,7 @@ ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_pl
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
+TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 
 
@@ -504,9 +505,19 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
 
     elif task_id == "tools.sales_receipt":
-        page = ROOT / "sales-receipt-generator" / "index.html"
-        if page.exists():
-            row.update(status="ok", reason="销售单生成器页面存在，可从工具仓库打开。", evidence="sales-receipt-generator/index.html")
+        payload = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
+        sales = payload.get("sales_receipt") or {}
+        generated_at = parse_time(payload.get("generated_at"))
+        if sales.get("status") == "ready":
+            row.update(status="ok", reason=sales.get("message") or "销售单生成器资源完整。", evidence="outputs/tool_warehouse_status/latest.json")
+        elif sales:
+            row.update(status="danger", reason=sales.get("message") or "销售单生成器资源缺失。", evidence="outputs/tool_warehouse_status/latest.json")
+        else:
+            page = ROOT / "sales-receipt-generator" / "index.html"
+            if page.exists():
+                row.update(status="ok", reason="销售单生成器页面存在，可从工具仓库打开。", evidence="sales-receipt-generator/index.html")
+        if generated_at:
+            row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S")
 
     return row
 

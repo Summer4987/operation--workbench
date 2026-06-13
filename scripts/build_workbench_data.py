@@ -20,6 +20,7 @@ ANDROID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "inventory_android_execution_pl
 ANDROID_CONFIG_HEALTH_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
 PROMO_BUDGET_RETRY_PATH = ROOT / "outputs" / "promo_budget_retry_plan" / "latest.json"
 PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
+TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
 
@@ -336,7 +337,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, realtime_comparison: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, tool_warehouse: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
@@ -479,6 +480,19 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
+    contract = tool_warehouse.get("franchise_contract") or {}
+    if contract.get("status") == "waiting_template":
+        rows.append(
+            {
+                "level": "提醒",
+                "center": "小工具仓库",
+                "title": "加盟合同模板待提供",
+                "reason": contract.get("message") or "合同生成器等待模板和字段。",
+                "action": "提供现用加盟合同模板，并确认加盟费、保证金、期限和授权范围等字段。",
+                "source": "tools.franchise_contract",
+            }
+        )
+
     trend = "待积累"
     summary = "AI建议会优先处理自动化异常，再结合实时单量、评价、余额和库存解释经营波动。"
     comparison = realtime_comparison.get("summary") or {}
@@ -554,6 +568,7 @@ def main() -> None:
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     promo_retry = read_json(PROMO_BUDGET_RETRY_PATH, {})
     promo_bid_advice = read_json(PROMO_BID_ADVICE_PATH, {})
+    tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
@@ -565,7 +580,7 @@ def main() -> None:
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, realtime_comparison, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, tool_warehouse, realtime_comparison, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "realtime": realtime,
@@ -576,6 +591,7 @@ def main() -> None:
         "budget": budget,
         "promo_budget_retry": promo_retry,
         "promo_bid_advice": promo_bid_advice,
+        "tool_warehouse": tool_warehouse,
         "inventory": inventory,
         "order_suggestions": order_suggestions,
         "order_lists": order_lists,
