@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-nearest-compare" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-overview-cleanup" />
   </head>
   <body>
     <main class="app">
@@ -109,19 +109,27 @@
                 <div><span>营业额</span><strong id="briefIncome">-</strong></div>
               </div>
               <p id="dailySummary">等待日报数据。</p>
-            </article>
-
-            <article class="summary-card alert-card">
-              <div class="module-head">
-                <div>
-                  <p>重点预警</p>
-                  <h2>需要先处理的事</h2>
-                </div>
-                <span class="tag danger" id="priorityStatus">待检查</span>
+              <div class="overview-daily-block">
+                <h3>平台拆分</h3>
+                <div class="mini-table overview-daily-list" id="overviewDailyPlatformRows"></div>
               </div>
-              <div class="priority-list" id="priorityRows"></div>
+              <div class="overview-daily-block">
+                <h3>门店排行</h3>
+                <div class="mini-table overview-daily-list" id="overviewDailyStoreRows"></div>
+              </div>
             </article>
           </aside>
+        </section>
+
+        <section class="summary-card alert-card overview-alert">
+          <div class="module-head">
+            <div>
+              <p>重点预警</p>
+              <h2>需要先处理的事</h2>
+            </div>
+            <span class="tag danger" id="priorityStatus">待检查</span>
+          </div>
+          <div class="priority-list" id="priorityRows"></div>
         </section>
 
         <section class="center-section" id="ops-health">
@@ -457,7 +465,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-nearest-compare"></script>
-    <script src="./workbench.js?v=20260613-nearest-compare"></script>
+    <script src="./workbench-data.js?v=20260613-overview-cleanup"></script>
+    <script src="./workbench.js?v=20260613-overview-cleanup"></script>
   </body>
 </html>

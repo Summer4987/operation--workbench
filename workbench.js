@@ -2,6 +2,7 @@ const data = window.WORKBENCH_DATA || {};
 
 const mainView = document.querySelector(".main");
 const commandBoard = document.querySelector(".command-board");
+const overviewAlert = document.querySelector(".overview-alert");
 const pageSections = [...document.querySelectorAll(".center-section")];
 const navLinks = [...document.querySelectorAll(".nav a")];
 
@@ -348,6 +349,19 @@ function renderDaily() {
   text("briefIncome", yuan(dailyIncome));
   text("dailyStoreCount", `${stores.length || 0} 家`);
   text("dailySummary", `只看最新日报日期 ${latestDate || "-"}：总收入 ${yuan(dailyIncome)}，总单量 ${num(dailyOrders)} 单，覆盖 ${stores.length || 0} 家门店。`);
+  rows(
+    "overviewDailyPlatformRows",
+    platforms.slice(0, 3),
+    (item) => `<div class="good-row"><span>${escapeHtml(item.platform || "平台")}</span><strong>${yuan(item.income)} / ${num(item.orders)} 单</strong><em>下单转化 ${pct(item.order_conversion)} · 新客 ${num(item.new_customer_orders)} 单</em></div>`
+  );
+  rows(
+    "overviewDailyStoreRows",
+    stores
+      .slice()
+      .sort((a, b) => Number(b.income || 0) - Number(a.income || 0))
+      .slice(0, 4),
+    (item) => `<div class="good-row"><span>${escapeHtml(shortStore(item.store))}</span><strong>${yuan(item.income)} / ${num(item.orders)} 单</strong><em>覆盖 ${num(item.platform_count)} 平台 · 曝光 ${num(item.impressions)}</em></div>`
+  );
   text("dailyPageSummary", `最新日报日期 ${latestDate || "-"}：按门店、平台和异常项拆开看，优先处理高优先级日报异常。`);
   rows(
     "dailyCommandRows",
@@ -1354,6 +1368,7 @@ function activatePage() {
   const showOverview = !activeSection;
 
   if (commandBoard) commandBoard.hidden = !showOverview;
+  if (overviewAlert) overviewAlert.hidden = !showOverview;
   pageSections.forEach((section) => {
     section.hidden = section !== activeSection;
   });
