@@ -10,6 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORDS_PATH = Path(os.environ.get("PROMO_BID_DECISIONS_PATH", ROOT / "data" / "promo_bid_decisions.json"))
+QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
 VALID_DECISIONS = {"approve", "skip", "manual_review"}
 
 
@@ -36,16 +37,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--decision", required=True, choices=sorted(VALID_DECISIONS), help="approve / skip / manual_review。")
     parser.add_argument("--operator", default="", help="审批人，可选。")
     parser.add_argument("--note", default="", help="审批备注，可选。")
+    parser.add_argument("--allow-unknown", action="store_true", help="允许记录当前审批队列里不存在的 approval_id，默认不允许。")
     return parser.parse_args()
+
+
+def validate_approval_id(approval_id: str, allow_unknown: bool) -> None:
+    queue = read_json(QUEUE_PATH)
+    if not queue or allow_unknown:
+        return
+    valid_ids = {str(item.get("approval_id") or "") for item in queue.get("items") or []}
+    if approval_id not in valid_ids:
+        examples = "、".join(sorted(item for item in valid_ids if item)[:3])
+        raise SystemExit(
+            f"审批 ID 不在当前队列中：{approval_id}。\n"
+            f"请先运行 python3 scripts/build_promo_bid_approval_queue.py 查看最新 approval_id。"
+            + (f"\n示例：{examples}" if examples else "")
+        )
 
 
 def main() -> int:
     args = parse_args()
+    approval_id = args.approval_id.strip()
+    validate_approval_id(approval_id, args.allow_unknown)
     payload = read_json(RECORDS_PATH)
     records = payload.setdefault("records", [])
     record = {
         "recorded_at": now_text(),
-        "approval_id": args.approval_id.strip(),
+        "approval_id": approval_id,
         "decision": args.decision.strip(),
         "operator": args.operator.strip(),
         "note": args.note.strip(),
