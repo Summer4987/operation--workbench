@@ -88,6 +88,7 @@ def build_payload() -> dict[str, Any]:
     android_summary = android_config.get("summary") or {}
     if android_config.get("status") == "missing_config":
         missing = "、".join(android_config.get("missing") or []) or f"{android_summary.get('missing_count', 0)} 项配置"
+        android_action = android_config.get("next_action") or "在 Mac mini 确认 adb 设备号、操作员、付款确认人和供应渠道后，用 init_android_execution_config.py 向导生成配置。"
         items.append(
             action_item(
                 item_id="flow.android_config",
@@ -95,7 +96,7 @@ def build_payload() -> dict[str, Any]:
                 center="货流中心",
                 priority="high",
                 reason=f"订货自动化真实执行前缺少：{missing}。",
-                action="在 Mac mini 确认 adb 设备号、操作员、付款确认人和供应渠道后，用 init_android_execution_config.py 向导生成配置。",
+                action=android_action,
                 source="flow.auto_ordering",
                 evidence="outputs/android_execution_config/latest.json",
                 environment="Mac mini 生产环境",

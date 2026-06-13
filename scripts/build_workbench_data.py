@@ -568,7 +568,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "center": "货流中心",
                 "title": "远控安卓配置待补齐",
                 "reason": f"真实设备连接配置缺少 {android_config_summary.get('missing_count', 0)} 项。",
-                "action": "按 config/android_execution.example.json 创建 config/android_execution.json，填写设备、操作员、付款确认和供应渠道信息。",
+                "action": android_config.get("next_action") or "按 config/android_execution.example.json 创建 config/android_execution.json，填写设备、操作员、付款确认和供应渠道信息。",
                 "source": "flow.auto_ordering",
             }
         )

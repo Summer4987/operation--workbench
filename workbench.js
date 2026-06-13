@@ -881,9 +881,11 @@ function androidPlanText(job) {
 function androidConfigRows(config) {
   const missing = config.missing || [];
   const warnings = config.warnings || [];
+  const setupChecklist = config.setup_checklist || [];
   return [
     ...missing.slice(0, 5).map((item) => ({ type: "缺少", detail: item })),
     ...warnings.slice(0, 3).map((item) => ({ type: "提示", detail: item })),
+    ...setupChecklist.slice(0, 4).map((item) => ({ type: item.label || "配置步骤", detail: item.command || item.detail || "", note: item.detail || "Mac mini 生产环境执行" })),
   ];
 }
 
@@ -969,7 +971,7 @@ function renderOrdering() {
   rows(
     "orderingDeviceRows",
     deviceRows,
-    (item) => `<div class="warn-row"><span>${escapeHtml(item.type)}</span><strong>${escapeHtml(item.detail)}</strong><em>真实执行前处理</em></div>`
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.type)}</span><strong>${escapeHtml(item.detail)}</strong><em>${escapeHtml(item.note || "真实执行前处理")}</em></div>`
   );
 
   const button = document.querySelector("#orderingChecklistButton");

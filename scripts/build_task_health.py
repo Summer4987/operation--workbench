@@ -627,7 +627,7 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                     row.update(
                         status="warn",
                         reason=f"远控安卓执行计划已生成，但设备连接配置缺少 {android_config_summary.get('missing_count', 0)} 项。",
-                        human_action="；".join(android_config.get("missing") or []) or "填写 config/android_execution.json。",
+                        human_action=android_config.get("next_action") or "；".join(android_config.get("missing") or []) or "填写 config/android_execution.json。",
                         evidence="outputs/android_execution_config/latest.json",
                     )
                 else:
