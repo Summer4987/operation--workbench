@@ -244,9 +244,95 @@ def advice_level(task: dict) -> str:
     return "提醒"
 
 
+def normalize_store_name(value: str | None) -> str:
+    return (
+        str(value or "")
+        .replace("熊小小牛排饭", "")
+        .replace("POKEBEAR", "")
+        .replace("（", "")
+        .replace("）", "")
+        .replace("(", "")
+        .replace(")", "")
+        .replace("·", "")
+        .strip()
+    )
+
+
+def store_key(value: str | None) -> str:
+    return normalize_store_name(value).lower().replace(" ", "")
+
+
+def build_store_signal_maps(daily: dict, balances: dict) -> dict[str, dict[str, list]]:
+    signals: dict[str, dict[str, list]] = {}
+
+    def bucket(store: str | None) -> dict[str, list]:
+        key = store_key(store)
+        if not key:
+            key = "unknown"
+        return signals.setdefault(key, {"focus": [], "reviews": [], "balances": []})
+
+    for item in daily.get("focus_items") or []:
+        bucket(item.get("store"))["focus"].append(item)
+
+    review_stores = (daily.get("review_summary") or {}).get("stores") or {}
+    for store, item in review_stores.items():
+        if int(item.get("negative_count") or 0) > 0:
+            bucket(store)["reviews"].append(item)
+
+    for item in balances.get("items") or []:
+        if item.get("status") == "warning":
+            bucket(item.get("store_name") or item.get("store"))["balances"].append(item)
+
+    return signals
+
+
+def store_signals_for(signals: dict[str, dict[str, list]], store: str | None) -> dict[str, list]:
+    key = store_key(store)
+    if key in signals:
+        return signals[key]
+    for candidate_key, value in signals.items():
+        if key and (key in candidate_key or candidate_key in key):
+            return value
+    return {"focus": [], "reviews": [], "balances": []}
+
+
+def explain_store_change(store: str, delta: float, signals: dict[str, list], inventory_warning_count: int) -> tuple[str, str]:
+    reasons: list[str] = [f"较昨日同时段 {delta:+.0f} 单"]
+    actions: list[str] = []
+
+    focus_items = signals.get("focus") or []
+    if focus_items:
+        reasons.append("日报异常：" + "；".join(str(item.get("title") or "") for item in focus_items[:2] if item.get("title")))
+        actions.append("先核对日报异常门店的平台活动、营业状态和客单价变化")
+
+    reviews = signals.get("reviews") or []
+    review_negative = sum(int(item.get("negative_count") or 0) for item in reviews)
+    if review_negative:
+        reasons.append(f"疑似问题评价 {review_negative} 条")
+        actions.append("优先处理差评和关键词问题")
+
+    low_balances = signals.get("balances") or []
+    if low_balances:
+        lowest = min(low_balances, key=lambda item: float(item.get("balance") or 0))
+        reasons.append(f"推广余额偏低：{lowest.get('platform', '')} {float(lowest.get('balance') or 0):.0f} 元")
+        actions.append("先充值低余额平台，再恢复推广动作")
+
+    if inventory_warning_count:
+        reasons.append(f"库存有 {inventory_warning_count} 项预警")
+        actions.append("同步核对是否有畅销品缺货")
+
+    if not actions:
+        actions.append("先检查曝光、进店、差评、库存和推广余额，再决定是否调整预算或活动")
+    if delta > 0:
+        actions = ["复盘上涨时段的品类、活动和推广设置，沉淀可复制动作", *actions[1:]]
+
+    return "；".join(part for part in reasons if part), "；".join(actions[:3])
+
+
 def build_ai_advice(daily: dict, balances: dict, inventory: dict, realtime_comparison: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     tasks = task_by_id(task_health)
+    store_signals = build_store_signal_maps(daily, balances)
 
     for task_id in ("ops.daily_report", "ops.review_dashboard", "growth.promo_budget"):
         task = tasks.get(task_id) or {}
@@ -308,14 +394,17 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, realtime_compa
             delta_store = float(orders.get("delta") or 0)
             if not delta_store:
                 continue
+            store_name = item.get("store") or "未命名门店"
+            reason, action = explain_store_change(store_name, delta_store, store_signals_for(store_signals, store_name), inventory_warning_count)
             rows.append(
                 {
                     "level": "建议" if delta_store < 0 else "提醒",
                     "center": "运营数据中心",
-                    "title": f"{item.get('store') or '未命名门店'}单量{'下跌' if delta_store < 0 else '上涨'}",
-                    "reason": f"较昨日同时段 {delta_store:+.0f} 单。",
-                    "action": "下跌时检查曝光、差评、库存和推广余额；上涨时复盘高峰品类和推广设置。",
+                    "title": f"{store_name}单量{'下跌' if delta_store < 0 else '上涨'}",
+                    "reason": reason,
+                    "action": action,
                     "source": "ops.realtime_order_income",
+                    "store": store_name,
                 }
             )
 
