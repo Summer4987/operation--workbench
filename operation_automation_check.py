@@ -178,10 +178,13 @@ def check_screen_recording(issues: list[dict]) -> None:
             cwd=ROOT,
             text=True,
             capture_output=True,
+            timeout=8,
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
             add_issue(issues, "screen_recording", "blocked", f"屏幕录制不可用：{detail or 'screencapture 返回非 0'}")
+    except subprocess.TimeoutExpired:
+        add_issue(issues, "screen_recording", "blocked", "屏幕录制探测超时；远程会话可能无法弹出权限确认。")
     except Exception as exc:
         add_issue(issues, "screen_recording", "blocked", f"屏幕录制探测失败：{exc}")
     finally:
@@ -196,10 +199,13 @@ def check_accessibility(issues: list[dict]) -> None:
             cwd=ROOT,
             text=True,
             capture_output=True,
+            timeout=8,
         )
         if "true" not in (result.stdout or "").lower():
             detail = (result.stderr or result.stdout or "").strip()
             add_issue(issues, "accessibility", "blocked", f"辅助功能不可用：{detail or 'System Events 未返回 true'}")
+    except subprocess.TimeoutExpired:
+        add_issue(issues, "accessibility", "blocked", "辅助功能探测超时；远程会话可能无法访问 System Events。")
     except Exception as exc:
         add_issue(issues, "accessibility", "blocked", f"辅助功能探测失败：{exc}")
 
