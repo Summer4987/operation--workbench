@@ -1029,6 +1029,70 @@ h2 {
   line-height: 1.45;
 }
 
+.review-command-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.review-command-grid div {
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fbfcfe;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.review-command-grid div.warn-row {
+  background: var(--soft-red-bg);
+  border-color: var(--soft-red-line);
+}
+
+.review-command-grid div.good-row {
+  background: #f7fcfa;
+  border-color: #d5efe6;
+}
+
+.review-command-grid span,
+.review-command-grid em {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.review-command-grid strong {
+  min-width: 0;
+  font-size: 20px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.review-weekly-list,
+.review-workflow-list {
+  margin-top: 10px;
+}
+
+.review-weekly-list div {
+  grid-template-columns: minmax(92px, 0.32fr) minmax(180px, 0.58fr) minmax(0, 1fr);
+}
+
+.review-workflow-list div {
+  grid-template-columns: minmax(92px, 0.32fr) minmax(150px, 0.48fr) minmax(0, 1fr);
+}
+
+.review-weekly-list em,
+.review-workflow-list em {
+  white-space: normal;
+  line-height: 1.45;
+}
+
 .review-list .bad-review-title {
   display: block;
   margin-top: 6px;
@@ -1157,6 +1221,9 @@ h2 {
   .center-grid.three,
   .command-board,
   .brief-grid,
+  .review-command-grid,
+  .review-weekly-list div,
+  .review-workflow-list div,
   .realtime-summary,
   .realtime-store-grid {
     grid-template-columns: 1fr;

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260613-review-weekly-recap" />
+    <link rel="stylesheet" href="./workbench.css?v=20260613-review-page-layers" />
   </head>
   <body>
     <main class="app">
@@ -210,6 +210,9 @@
             <div class="module-body">
               <div class="big-number" id="reviewCount">-</div>
               <p id="reviewSummary">等待评价数据。</p>
+              <div class="review-command-grid" id="reviewCommandRows"></div>
+              <div class="mini-table review-weekly-list" id="reviewWeeklyRows"></div>
+              <div class="mini-table review-workflow-list" id="reviewWorkflowRows"></div>
               <div class="mini-table review-list" id="reviewRows"></div>
             </div>
             <div class="module-actions">
@@ -450,7 +453,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260613-review-weekly-recap"></script>
-    <script src="./workbench.js?v=20260613-review-weekly-recap"></script>
+    <script src="./workbench-data.js?v=20260613-review-page-layers"></script>
+    <script src="./workbench.js?v=20260613-review-page-layers"></script>
   </body>
 </html>

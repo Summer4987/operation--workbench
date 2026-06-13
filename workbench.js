@@ -538,6 +538,13 @@ function renderReviews() {
   const actionItems = reviewActions.items || [];
   const completedItems = reviewActions.completed_items || [];
   const actionSummary = reviewActions.summary || {};
+  const weeklyRecap = reviewActions.weekly_recap || {};
+  const weeklySummary = weeklyRecap.summary || {};
+  const weeklyPeriod = weeklyRecap.period || {};
+  const recapPlan = reviewActions.recap_plan || {};
+  const followupPlan = reviewActions.followup_plan || {};
+  const sopPlan = reviewActions.sop_plan || {};
+  const sopClosurePlan = reviewActions.sop_closure_plan || {};
   const stores = Object.entries(review.stores || {}).map(([store, item]) => ({
     store,
     review_count: Number(item.review_count || 0),
@@ -572,6 +579,95 @@ function renderReviews() {
     `${reviewActions.message || review.message || `当前评价预览覆盖 ${stores.length} 家门店，疑似问题评价 ${totalIssues} 条。`}${completedNegative ? ` 已记录回复 ${completedNegative} 条。` : ""}${missingEvidence ? ` 待补证据 ${missingEvidence} 条。` : ""}`
   );
   document.querySelector("#reviews")?.classList.toggle("alert", pendingNegative > 0);
+
+  rows(
+    "reviewCommandRows",
+    [
+      {
+        label: "本周评价",
+        value: `${num(weeklySummary.review_count || actionSummary.weekly_review_count || 0)} 条`,
+        detail: weeklyPeriod.start_date && weeklyPeriod.end_date ? `${weeklyPeriod.start_date} 至 ${weeklyPeriod.end_date}` : "等待评价历史",
+        tone: "neutral",
+      },
+      {
+        label: "本周问题率",
+        value: `${((Number(weeklySummary.negative_rate || 0)) * 100).toFixed(1)}%`,
+        detail: `疑似问题 ${num(weeklySummary.negative_count || actionSummary.weekly_negative_count || 0)} 条`,
+        tone: Number(weeklySummary.negative_count || 0) ? "warn" : "good",
+      },
+      {
+        label: "今日待回复",
+        value: `${num(pendingNegative)} 条`,
+        detail: actionItems.length ? `${actionItems.length} 家门店需要处理` : "暂无待回复差评",
+        tone: pendingNegative ? "warn" : "good",
+      },
+      {
+        label: "闭环进度",
+        value: `${num(completedNegative)} 条`,
+        detail: missingEvidence ? `待补证据 ${num(missingEvidence)} 条` : "回复证据无缺口",
+        tone: missingEvidence ? "warn" : "good",
+      },
+    ],
+    (item) => `<div class="${item.tone === "warn" ? "warn-row" : item.tone === "good" ? "good-row" : ""}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+
+  const weeklyStores = (weeklyRecap.stores || []).slice(0, 3);
+  const weeklyIssues = (weeklyRecap.issue_types || []).slice(0, 3);
+  rows(
+    "reviewWeeklyRows",
+    [
+      {
+        label: "周复盘结论",
+        value: weeklyRecap.status === "needs_review" ? "需复盘" : weeklyRecap.status === "stable" ? "稳定" : "待生成",
+        detail: weeklyRecap.message || "暂无评价历史可生成周复盘。",
+        className: weeklyRecap.status === "needs_review" ? "warn-row" : "good-row",
+      },
+      {
+        label: "重点门店",
+        value: weeklyStores.length ? weeklyStores.map((item) => `${item.store} ${num(item.negative_count)} 条`).join(" / ") : "暂无",
+        detail: weeklyStores.length ? weeklyStores.map((item) => `${item.store} 问题率 ${(Number(item.negative_rate || 0) * 100).toFixed(1)}%，均分 ${Number(item.avg_rating || 0).toFixed(2)}`).join("；") : "本周暂无明显差评集中门店。",
+        className: weeklyStores.some((item) => Number(item.negative_count || 0)) ? "warn-row" : "good-row",
+      },
+      {
+        label: "高频问题",
+        value: weeklyIssues.length ? weeklyIssues.map((item) => `${item.issue_type} ${num(item.count)}`).join(" / ") : "暂无",
+        detail: (weeklyRecap.actions || []).slice(0, 2).join("；") || weeklyRecap.next_action || "继续观察差评、评分和同类问题复发。",
+        className: weeklyIssues.length ? "warn-row" : "good-row",
+      },
+    ],
+    (item) => `<div class="${item.className}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+
+  rows(
+    "reviewWorkflowRows",
+    [
+      {
+        label: "复盘记录",
+        value: `${num(recapPlan.pending_count || 0)} 待记录 / ${num(recapPlan.recorded_count || 0)} 已记录`,
+        detail: recapPlan.next_action || recapPlan.message || "评价复盘均已记录。",
+        className: Number(recapPlan.pending_count || 0) ? "warn-row" : "good-row",
+      },
+      {
+        label: "7天跟踪",
+        value: `${num(followupPlan.recurred_count || 0)} 复发 / ${num(followupPlan.watching_count || 0)} 观察`,
+        detail: followupPlan.next_action || followupPlan.message || "暂无需要跟踪的评价复盘。",
+        className: Number(followupPlan.recurred_count || 0) ? "warn-row" : "good-row",
+      },
+      {
+        label: "SOP整改",
+        value: `${num(sopPlan.waiting_count || 0)} 待开 / ${num(sopPlan.open_count || 0)} 进行中`,
+        detail: sopPlan.next_action || sopPlan.message || "暂无复发项需要 SOP 整改。",
+        className: Number(sopPlan.waiting_count || sopPlan.open_count || 0) ? "warn-row" : "good-row",
+      },
+      {
+        label: "关闭复查",
+        value: `${num(sopClosurePlan.reopen_count || 0)} 复发 / ${num(sopClosurePlan.stable_count || 0)} 稳定`,
+        detail: sopClosurePlan.next_action || sopClosurePlan.message || "暂无已关闭 SOP 整改需要复查。",
+        className: Number(sopClosurePlan.reopen_count || 0) ? "warn-row" : "good-row",
+      },
+    ],
+    (item) => `<div class="${item.className}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
 
   rows(
     "reviewRows",
