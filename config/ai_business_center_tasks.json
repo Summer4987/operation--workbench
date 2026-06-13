@@ -230,14 +230,15 @@
         "证据清单可生成，上传脚本支持 dry-run 和云端保留期",
         "Mac mini 上午定时任务会在余额巡检后上传证据",
         "Mac mini 只读冒烟检查可验证证据 dry-run 和上午 preview",
-        "低余额门店进入重点预警"
+        "低余额门店进入重点预警",
+        "低余额充值计划列出平台、门店、余额阈值和差额"
       ],
       "human_needed_when": [
         "平台登录失效",
         "余额识别失败",
         "推广余额不足需要充值"
       ],
-      "next_integration_step": "Mac mini 只读冒烟检查入口已建立，下一步需要在 Mac mini 运行并回传完整输出。"
+      "next_integration_step": "低余额充值计划已接入统一待办和推广页，下一步需要在 Mac mini 运行只读冒烟并回传完整输出。"
     },
     {
       "id": "growth.promo_bid",

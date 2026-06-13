@@ -482,13 +482,14 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     balance_summary = balances.get("summary") or {}
     warning_count = int(balance_status_summary.get("low_balance_count") or balance_summary.get("warning_count") or 0)
     if warning_count:
+        recharge_plan = promo_balance_status.get("recharge_plan") or {}
         rows.append(
             {
                 "level": "需人工处理",
                 "center": "商业化推广中心",
                 "title": "推广余额不足",
                 "reason": f"余额巡检发现 {warning_count} 条低余额。",
-                "action": "先充值低余额门店，再执行预算或出价自动化。",
+                "action": recharge_plan.get("next_action") or "先充值低余额门店，再执行预算或出价自动化。",
                 "source": "growth.promo_balance",
             }
         )

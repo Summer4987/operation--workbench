@@ -14,6 +14,7 @@ ANDROID_CONFIG_PATH = ROOT / "outputs" / "android_execution_config" / "latest.js
 FINANCE_CENTER_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 TOOL_WAREHOUSE_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 PROMO_BID_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
+PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 
@@ -62,6 +63,7 @@ def build_payload() -> dict[str, Any]:
     finance = read_json(FINANCE_CENTER_PATH, {})
     tools = read_json(TOOL_WAREHOUSE_PATH, {})
     bid_queue = read_json(PROMO_BID_QUEUE_PATH, {})
+    promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
 
@@ -124,6 +126,22 @@ def build_payload() -> dict[str, Any]:
                 action=f"{checklist or '先核对品项、数量和供应渠道。'} 确认后运行 `{command}`。",
                 source="flow.inventory",
                 evidence="outputs/inventory_order_suggestions/latest.json",
+            )
+        )
+
+    recharge_plan = promo_balance_status.get("recharge_plan") or {}
+    recharge_count = int(recharge_plan.get("item_count") or 0)
+    if recharge_count:
+        items.append(
+            action_item(
+                item_id="growth.promo_balance_recharge",
+                title="推广余额充值待处理",
+                center="商业化推广中心",
+                priority="medium",
+                reason=recharge_plan.get("message") or f"当前有 {recharge_count} 个推广余额低于阈值。",
+                action=recharge_plan.get("next_action") or "先充值低余额门店，再执行预算或出价自动化。",
+                source="growth.promo_balance",
+                evidence="outputs/promo_balance_status/latest.json",
             )
         )
 

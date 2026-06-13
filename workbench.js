@@ -641,7 +641,8 @@ function renderBalances() {
     ],
     (item) => {
       if (item.kind !== "platform_failure") {
-        return `<div class="warn-row"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${yuan(item.balance)}</strong><em>需充值</em></div>`;
+        const gap = Math.max(0, Number(item.threshold || 0) - Number(item.balance || 0));
+        return `<div class="warn-row"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${yuan(item.balance)}</strong><em>阈值 ${yuan(item.threshold || 0)} · 差额 ${yuan(gap)}</em></div>`;
       }
       const recovery = item.recovery || {};
       const steps = (recovery.steps || []).slice(0, 2).join("；");

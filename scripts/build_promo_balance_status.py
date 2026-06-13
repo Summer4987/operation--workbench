@@ -257,6 +257,34 @@ def platform_rows(payload: dict, failures: list[dict]) -> list[dict]:
     return rows + extra
 
 
+def recharge_plan(warnings: list[dict]) -> dict:
+    items = []
+    for item in sorted(warnings, key=lambda row: float(row.get("balance") or 0)):
+        threshold = float(item.get("threshold") or 0)
+        balance = float(item.get("balance") or 0)
+        items.append(
+            {
+                "platform": item.get("platform", ""),
+                "store_name": item.get("store_name", ""),
+                "balance": balance,
+                "threshold": threshold,
+                "gap_to_threshold": max(0, threshold - balance),
+                "action": f"给{item.get('platform', '')} {item.get('store_name', '')}充值，当前余额 {balance:.2f} 元，低于阈值 {threshold:.2f} 元。",
+            }
+        )
+    top_items = items[:6]
+    next_action = "；".join(item["action"] for item in top_items)
+    return {
+        "status": "waiting_recharge" if items else "clear",
+        "item_count": len(items),
+        "top_items": top_items,
+        "next_action": next_action or "当前没有低余额充值项。",
+        "message": f"当前 {len(items)} 个推广余额需要充值，先处理最低余额门店。"
+        if items
+        else "当前没有低余额充值项。",
+    }
+
+
 def build_status(payload: dict) -> dict:
     generated_at = payload.get("generated_at") or ""
     summary = payload.get("summary") or {}
@@ -292,6 +320,7 @@ def build_status(payload: dict) -> dict:
         human_action = "先充值低余额门店，再执行预算或出价自动化。"
 
     platform_rows_payload = platform_rows(payload, failures)
+    recharge = recharge_plan(warnings)
     evidence_items = [
         evidence
         for platform in platform_rows_payload
@@ -325,6 +354,7 @@ def build_status(payload: dict) -> dict:
         "evidence_sync": evidence_sync_status(),
         "platforms": platform_rows_payload,
         "low_balance_items": warnings,
+        "recharge_plan": recharge,
     }
 
 
