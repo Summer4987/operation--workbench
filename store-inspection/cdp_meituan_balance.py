@@ -18,6 +18,7 @@ REPORT_DIR = WORKSPACE / "business-report-dashboard"
 OUTPUT_JSON = ROOT / "meituan-cdp-latest.json"
 OUTPUT_DATA_JS = ROOT / "meituan-cdp-latest-data.js"
 NETWORK_CANDIDATES_JSON = ROOT / "meituan-cdp-network-candidates.json"
+NETWORK_MATCHES_JSON = ROOT / "meituan-cdp-network-matches.json"
 FALLBACK_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
 THRESHOLD = 200.0
 WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
@@ -76,8 +77,44 @@ def response_candidate(url: str) -> bool:
         "ad",
         "poi",
         "wm",
+        "asset",
+        "finance",
+        "query",
+        "charge",
     ]
     return any(keyword in lowered for keyword in keywords)
+
+
+def interesting_json_paths(value, *, path: str = "$", depth: int = 0) -> list[dict]:
+    if depth > 8:
+        return []
+    matches = []
+    interesting_key = re.compile(r"(balance|account|wallet|fund|amount|money|asset|finance|budget|charge|余额|账户)", re.I)
+    if isinstance(value, dict):
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            key_interesting = bool(interesting_key.search(str(key)))
+            if key_interesting and isinstance(item, (str, int, float, bool)) or key_interesting and item is None:
+                matches.append({"path": child_path, "value": item})
+            matches.extend(interesting_json_paths(item, path=child_path, depth=depth + 1))
+    elif isinstance(value, list):
+        for index, item in enumerate(value[:20]):
+            matches.extend(interesting_json_paths(item, path=f"{path}[{index}]", depth=depth + 1))
+    return matches
+
+
+def parse_response_json(body: str):
+    try:
+        return json.loads(body)
+    except Exception:
+        pass
+    jsonp_match = re.search(r"^[^(]+\((.*)\)\s*;?$", body, re.S)
+    if jsonp_match:
+        try:
+            return json.loads(jsonp_match.group(1))
+        except Exception:
+            return None
+    return None
 
 
 def safe_response_preview(response) -> dict | None:
@@ -92,10 +129,13 @@ def safe_response_preview(response) -> dict | None:
     snippet = body[:1200]
     if not any(word in snippet for word in ["余额", "balance", "budget", "账户", "wmPoiId", "poi"]):
         return None
+    payload = parse_response_json(body)
+    matches = interesting_json_paths(payload) if payload is not None else []
     return {
         "url": response.url.split("?")[0],
         "status": response.status,
         "snippet": snippet,
+        "matches": matches[:30],
     }
 
 
@@ -109,6 +149,8 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
     def handle_response(response):
         candidate = safe_response_preview(response)
         if candidate:
+            candidate["store_name"] = store["name"]
+            candidate["wm_poi_id"] = wm_poi_id
             candidates.append(candidate)
 
     page.on("response", handle_response)
@@ -171,6 +213,8 @@ def write_test_outputs(data: dict, network_candidates: list[dict]) -> None:
         encoding="utf-8",
     )
     NETWORK_CANDIDATES_JSON.write_text(json.dumps(network_candidates[:80], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    matches = [item for item in network_candidates if item.get("matches")]
+    NETWORK_MATCHES_JSON.write_text(json.dumps(matches[:80], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -191,6 +235,7 @@ def main() -> int:
     )
     print(f"测试输出：{OUTPUT_JSON}")
     print(f"候选接口输出：{NETWORK_CANDIDATES_JSON}")
+    print(f"候选字段命中输出：{NETWORK_MATCHES_JSON}")
     return 0 if ok_items else 1
 
 

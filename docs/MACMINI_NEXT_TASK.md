@@ -1,10 +1,11 @@
 # Mac mini 下一步任务
 
-## 当前任务：试跑美团 CDP 余额读取旁路脚本
+## 当前任务：试跑美团 CDP 接口定位版余额探针
 
 目的：
 
-- 验证美团余额是否可以通过 Chrome CDP 页面文本/接口候选读取，不依赖截图/OCR。
+- 继续定位美团余额接口。
+- 脚本会保存候选接口摘要，并递归提取疑似余额/账户/金额字段路径。
 - 只生成旁路测试文件，不覆盖正式 `store-inspection/latest.json`。
 
 ## 执行范围
@@ -28,18 +29,7 @@ store-inspection/cdp_meituan_balance.py
 store-inspection/meituan-cdp-latest.json
 store-inspection/meituan-cdp-latest-data.js
 store-inspection/meituan-cdp-network-candidates.json
-```
-
-旧生产目录：
-
-```text
-/Users/summer/Documents/New project
-```
-
-clean 仓库：
-
-```text
-/Users/summer/Documents/operation-workbench-clean
+store-inspection/meituan-cdp-network-matches.json
 ```
 
 ## 必须遵守
@@ -76,25 +66,32 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 
-path = Path("store-inspection/meituan-cdp-latest.json")
-data = json.loads(path.read_text(encoding="utf-8"))
-print("status:", data.get("status"))
-print("generated_at:", data.get("generated_at"))
-print("summary:", json.dumps(data.get("summary", {}), ensure_ascii=False, indent=2))
-print("message:", data.get("message", ""))
-print("base_url:", data.get("base_url", ""))
-for item in data.get("items", [])[:8]:
-    print(json.dumps(item, ensure_ascii=False))
+latest = json.loads(Path("store-inspection/meituan-cdp-latest.json").read_text(encoding="utf-8"))
+print("status:", latest.get("status"))
+print("summary:", json.dumps(latest.get("summary", {}), ensure_ascii=False, indent=2))
+print("message:", latest.get("message", ""))
+for item in latest.get("items", [])[:8]:
+    print("item:", json.dumps(item, ensure_ascii=False)[:1000])
 
 candidate_path = Path("store-inspection/meituan-cdp-network-candidates.json")
-if candidate_path.exists():
-    candidates = json.loads(candidate_path.read_text(encoding="utf-8"))
-    print("network_candidate_count:", len(candidates))
-    for item in candidates[:5]:
-        print(json.dumps(item, ensure_ascii=False)[:800])
+match_path = Path("store-inspection/meituan-cdp-network-matches.json")
+candidates = json.loads(candidate_path.read_text(encoding="utf-8")) if candidate_path.exists() else []
+matches = json.loads(match_path.read_text(encoding="utf-8")) if match_path.exists() else []
+print("network_candidate_count:", len(candidates))
+print("network_match_count:", len(matches))
+for item in matches[:15]:
+    compact = {
+        "store_name": item.get("store_name"),
+        "wm_poi_id": item.get("wm_poi_id"),
+        "url": item.get("url"),
+        "status": item.get("status"),
+        "matches": item.get("matches", [])[:12],
+        "snippet": item.get("snippet", "")[:600],
+    }
+    print("match:", json.dumps(compact, ensure_ascii=False))
 PY
 
-git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-inspection/meituan-cdp-latest.json store-inspection/meituan-cdp-latest-data.js store-inspection/meituan-cdp-network-candidates.json .gitignore
+git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-inspection/meituan-cdp-latest.json store-inspection/meituan-cdp-latest-data.js store-inspection/meituan-cdp-network-candidates.json store-inspection/meituan-cdp-network-matches.json .gitignore
 ```
 
 ## 回报内容
@@ -105,12 +102,13 @@ git status --short --ignored -- store-inspection/cdp_meituan_balance.py store-in
 2. 脚本是否已同步；
 3. Python 语法检查是否通过；
 4. 脚本运行是否成功；
-5. `meituan-cdp-latest.json` 的 `status`、`summary`、`message`、`base_url`；
-6. 前 8 条门店余额样例；
-7. 候选接口数量和前 5 条候选接口摘要；
-8. `git status --short --ignored`，确认测试产物被忽略；
-9. 确认没有运行旧余额巡检、没有截图/OCR、没有覆盖正式 `latest.json`、没有运行日报/评价/预算/发布、没有提交或推送。
+5. `meituan-cdp-latest.json` 的 `status`、`summary`、`message`；
+6. 前 8 条门店样例；
+7. 候选接口数量、字段命中数量；
+8. 前 15 条字段命中摘要；
+9. `git status --short --ignored`，确认测试产物被忽略；
+10. 确认没有运行旧余额巡检、没有截图/OCR、没有覆盖正式 `latest.json`、没有运行日报/评价/预算/发布、没有提交或推送。
 
 ## 预期效果
 
-如果脚本能读到美团 8 家门店余额，后续可以把美团也从截图 OCR 迁移到 CDP 读取。如果页面文本读不到余额，也可以根据候选接口继续定位真实余额接口。
+如果字段命中里出现真实账户余额字段，下一步就能把美团余额解析从页面文本改成接口 JSON 字段。
