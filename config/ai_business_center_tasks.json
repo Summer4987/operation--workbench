@@ -242,6 +242,7 @@
         "scripts/check_inventory_cloud_health.py",
         "scripts/build_inventory_order_suggestions.py",
         "scripts/build_inventory_order_lists.py",
+        "scripts/build_inventory_order_execution_preview.py",
         "inventory-board/app/main.py",
         "inventory-board/scripts/sync_order_outputs.py"
       ],
@@ -249,6 +250,7 @@
         "outputs/inventory_health/latest.json",
         "outputs/inventory_order_suggestions/latest.json",
         "outputs/inventory_order_lists/latest.json",
+        "outputs/inventory_order_execution_preview/latest.json",
         "inventory-board/data/inventory.sqlite3",
         "云端 /api/summary",
         "~/Desktop/库存管理/出库记录"
@@ -277,17 +279,20 @@
       "schedule": "待定，先建议后下单",
       "entrypoints": [
         "scripts/build_inventory_order_suggestions.py",
-        "scripts/build_inventory_order_lists.py"
+        "scripts/build_inventory_order_lists.py",
+        "scripts/build_inventory_order_execution_preview.py"
       ],
       "outputs": [
         "outputs/inventory_order_suggestions/latest.json",
-        "outputs/inventory_order_lists/latest.json"
+        "outputs/inventory_order_lists/latest.json",
+        "outputs/inventory_order_execution_preview/latest.json"
       ],
       "health_checks": [
         "根据库存预警生成只读订货建议",
         "订货建议按供应渠道分组",
         "业务中心页面展示人工确认队列",
         "人工确认后生成渠道下单清单",
+        "远控安卓下单前生成执行预览和付款确认状态",
         "执行前必须人工确认，不自动下单付款",
         "后续再按商品和供应渠道分类"
       ],
@@ -296,7 +301,7 @@
         "付款确认",
         "缺货替代品选择"
       ],
-      "next_integration_step": "渠道下单清单已接入，下一步接远控安卓下单前的付款确认和执行预览。"
+      "next_integration_step": "执行预览和付款确认已接入，下一步接远控安卓执行适配层。"
     },
     {
       "id": "finance.bill_analysis",

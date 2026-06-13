@@ -627,6 +627,15 @@ function orderListStatusText(status) {
   return "未生成";
 }
 
+function executionPreviewStatusText(status) {
+  if (status === "payment_confirmed") return "付款已确认";
+  if (status === "waiting_payment_confirmation") return "等待付款确认";
+  if (status === "waiting_order_lists") return "等待清单";
+  if (status === "not_required") return "无需订货";
+  if (status === "failed") return "生成失败";
+  return "未生成";
+}
+
 function orderListPreview(orderList) {
   const lines = orderList.lines || [];
   if (!lines.length) return orderList.next_action || "暂无品项";
@@ -636,14 +645,24 @@ function orderListPreview(orderList) {
     .join("；");
 }
 
+function executionPreviewText(preview) {
+  const blocked = preview.blocked_actions || [];
+  if (blocked.length) return `禁止：${blocked.slice(0, 3).join("、")}`;
+  const steps = preview.execution_steps || [];
+  return steps.slice(0, 3).join("；") || "暂无执行步骤";
+}
+
 function renderOrdering() {
   const orderSuggestions = data.order_suggestions || {};
   const orderLists = data.order_lists || {};
+  const executionPreview = data.order_execution_preview || {};
   const summary = orderSuggestions.summary || {};
   const confirmation = orderSuggestions.confirmation || {};
   const groups = orderSuggestionGroups(orderSuggestions);
   const listSummary = orderLists.summary || {};
   const listRows = orderLists.order_lists || [];
+  const executionSummary = executionPreview.summary || {};
+  const executionRows = executionPreview.channel_previews || [];
   const suggestionCount = Number(summary.suggestion_count || groups.reduce((sum, group) => sum + Number(group.item_count || 0), 0));
   const channelCount = Number(summary.channel_count || groups.length);
   const estimatedCost = Number(summary.estimated_cost || groups.reduce((sum, group) => sum + Number(group.estimated_cost || 0), 0));
@@ -668,7 +687,13 @@ function renderOrdering() {
   text("orderingListStatus", orderListStatusText(orderLists.status));
   text("orderingListMessage", orderLists.message || orderLists.confirmation?.message || "人工确认后生成渠道下单清单。");
   text("orderingListCount", `${Number(listSummary.order_list_count || listRows.length)} 个渠道`);
-  document.querySelector("#ordering")?.classList.toggle("alert", pending || hasOrderLists || orderSuggestions.status === "failed" || orderLists.status === "failed");
+  text("orderingExecutionStatus", executionPreviewStatusText(executionPreview.status));
+  text("orderingExecutionMessage", executionPreview.message || executionPreview.payment_confirmation?.message || "远控安卓下单前生成执行预览。");
+  text("orderingExecutionCount", `${Number(executionSummary.channel_count || executionRows.length)} 个渠道`);
+  document.querySelector("#ordering")?.classList.toggle(
+    "alert",
+    pending || hasOrderLists || executionPreview.status === "waiting_payment_confirmation" || orderSuggestions.status === "failed" || orderLists.status === "failed" || executionPreview.status === "failed"
+  );
 
   rows(
     "orderingRows",
@@ -680,6 +705,12 @@ function renderOrdering() {
     "orderingListRows",
     listRows.slice(0, 8),
     (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项 / ${yuan(item.estimated_cost)}</strong><em>${escapeHtml(orderListPreview(item))}</em></div>`
+  );
+
+  rows(
+    "orderingExecutionRows",
+    executionRows.slice(0, 8),
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项 / ${yuan(item.estimated_cost)}</strong><em>${escapeHtml(executionPreviewText(item))}</em></div>`
   );
 
   const button = document.querySelector("#orderingChecklistButton");
