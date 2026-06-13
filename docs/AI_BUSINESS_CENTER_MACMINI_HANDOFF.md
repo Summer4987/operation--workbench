@@ -28,6 +28,31 @@ git pull --ff-only origin codex/ai-business-center
 /bin/zsh scripts/check_macmini_ai_center.zsh
 ```
 
+如果检查提示 `远控安卓连接配置缺少必要信息`，先不要手写 JSON。可以先用向导预览配置：
+
+```zsh
+python3 scripts/init_android_execution_config.py \
+  --adb-serial "填 adb devices 看到的设备号" \
+  --operator-name "填操作员" \
+  --operator-contact "填联系方式" \
+  --payment-contact "填付款确认人" \
+  --payment-channel "微信/电话/企业微信" \
+  --channel "供应渠道名|目标App|账号提示|收货地址提示"
+```
+
+确认预览无误后，再加 `--write` 写入 `config/android_execution.json`：
+
+```zsh
+python3 scripts/init_android_execution_config.py \
+  --adb-serial "填 adb devices 看到的设备号" \
+  --operator-name "填操作员" \
+  --operator-contact "填联系方式" \
+  --payment-contact "填付款确认人" \
+  --payment-channel "微信/电话/企业微信" \
+  --channel "供应渠道名|目标App|账号提示|收货地址提示" \
+  --write
+```
+
 ## 输出怎么判断
 
 如果看到 `环境：production`：

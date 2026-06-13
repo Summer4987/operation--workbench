@@ -245,6 +245,7 @@
         "scripts/build_inventory_order_execution_preview.py",
         "scripts/build_inventory_android_execution_plan.py",
         "scripts/check_android_execution_config.py",
+        "scripts/init_android_execution_config.py",
         "inventory-board/app/main.py",
         "inventory-board/scripts/sync_order_outputs.py"
       ],
@@ -286,7 +287,8 @@
         "scripts/build_inventory_order_lists.py",
         "scripts/build_inventory_order_execution_preview.py",
         "scripts/build_inventory_android_execution_plan.py",
-        "scripts/check_android_execution_config.py"
+        "scripts/check_android_execution_config.py",
+        "scripts/init_android_execution_config.py"
       ],
       "outputs": [
         "outputs/inventory_order_suggestions/latest.json",
@@ -303,6 +305,7 @@
         "远控安卓下单前生成执行预览和付款确认状态",
         "远控安卓执行适配层只读计划",
         "远控安卓真实设备连接配置可检查",
+        "远控安卓真实设备连接配置可通过向导生成",
         "执行前必须人工确认，不自动下单付款",
         "后续再按商品和供应渠道分类"
       ],

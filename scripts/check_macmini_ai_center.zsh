@@ -46,6 +46,7 @@ echo "== 配置与语法检查 =="
   scripts/build_inventory_order_execution_preview.py \
   scripts/build_inventory_android_execution_plan.py \
   scripts/check_android_execution_config.py \
+  scripts/init_android_execution_config.py \
   scripts/build_task_health.py \
   scripts/build_workbench_data.py \
   business-report-dashboard/chrome_cdp_reports.py \
