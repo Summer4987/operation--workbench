@@ -349,6 +349,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     rows: list[dict] = []
     review_recap_rows: list[dict] = []
     review_followup_rows: list[dict] = []
+    review_sop_rows: list[dict] = []
     tasks = task_by_id(task_health)
     store_signals = build_store_signal_maps(daily, balances)
 
@@ -440,6 +441,22 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
     missing_review_evidence_count = int(review_summary.get("missing_evidence_count") or 0)
     review_recap_plan = review_actions.get("recap_plan") or {}
     review_followup_plan = review_actions.get("followup_plan") or {}
+    review_sop_plan = review_actions.get("sop_plan") or {}
+    for item in (review_sop_plan.get("items") or [])[:2]:
+        if item.get("status") not in {"waiting_sop", "open"}:
+            continue
+        review_sop_rows.append(
+            {
+                "level": "建议",
+                "center": "运营数据中心",
+                "title": f"{item.get('store', '门店')}SOP整改",
+                "reason": f"{item.get('issue_type')} 复发 {item.get('recurrence_count', 0)} 条；{item.get('reason', '')}",
+                "action": item.get("record_command") or item.get("next_action") or "继续推进 SOP 整改并复查。",
+                "source": "ops.review_sop",
+                "store": item.get("store", ""),
+            }
+        )
+    rows.extend(review_sop_rows)
     for item in (review_followup_plan.get("items") or [])[:2]:
         if item.get("status") == "recurred":
             level = "建议"
@@ -776,6 +793,15 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             rows[replacement_index] = review_followup_rows[0]
         elif len(rows) < 8:
             rows.append(review_followup_rows[0])
+    if review_sop_rows and not any(item.get("source") == "ops.review_sop" for item in rows):
+        replacement_index = next(
+            (index for index in range(len(rows) - 1, -1, -1) if rows[index].get("level") != "需人工处理"),
+            -1,
+        )
+        if replacement_index >= 0:
+            rows[replacement_index] = review_sop_rows[0]
+        elif len(rows) < 8:
+            rows.append(review_sop_rows[0])
     if not rows:
         rows.append(
             {

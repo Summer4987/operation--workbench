@@ -13,6 +13,7 @@ DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "latest.json"
 REVIEWS_CSV_PATH = Path(os.environ.get("REVIEW_HISTORY_CSV_PATH", ROOT / "business-report-dashboard" / "data" / "unified_reviews.csv"))
 REPLY_RECORDS_PATH = Path(os.environ.get("REVIEW_REPLY_RECORDS_PATH", ROOT / "data" / "review_reply_records.json"))
 RECAP_RECORDS_PATH = Path(os.environ.get("REVIEW_RECAP_RECORDS_PATH", ROOT / "data" / "review_recap_records.json"))
+SOP_RECORDS_PATH = Path(os.environ.get("REVIEW_SOP_RECORDS_PATH", ROOT / "data" / "review_sop_records.json"))
 OUTPUT_DIR = ROOT / "outputs" / "review_action_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -355,6 +356,69 @@ def build_followup_plan(recap_records: dict[str, Any], review_history: list[dict
     }
 
 
+def sop_record_index(records: dict[str, Any]) -> dict[tuple[str, str, str], dict[str, Any]]:
+    index = {}
+    for record in records.get("records") or []:
+        key = (
+            str(record.get("store") or "").strip(),
+            str(record.get("date") or "").strip(),
+            str(record.get("issue_type") or "").strip(),
+        )
+        if key[0] and key[1] and key[2]:
+            index[key] = record
+    return index
+
+
+def sop_command(item: dict[str, Any]) -> str:
+    return (
+        f"python3 scripts/record_review_sop.py --store {item.get('store')} --date {item.get('date')}"
+        f" --issue-type {item.get('issue_type')} --action '<整改动作>' --due-date '<复查日期>'"
+    )
+
+
+def build_sop_plan(followup_plan: dict[str, Any], sop_records: dict[str, Any]) -> dict[str, Any]:
+    record_index = sop_record_index(sop_records)
+    items = []
+    for item in followup_plan.get("items") or []:
+        if item.get("status") != "recurred":
+            continue
+        key = (str(item.get("store") or ""), str(item.get("date") or ""), str(item.get("issue_type") or ""))
+        record = record_index.get(key)
+        row = {
+            "store": item.get("store", ""),
+            "date": item.get("date", ""),
+            "issue_type": item.get("issue_type", ""),
+            "recurrence_count": int(item.get("recurrence_count") or 0),
+            "recurrences": item.get("recurrences") or [],
+            "reason": item.get("action") or "复盘后同类差评复发。",
+            "status": "waiting_sop",
+        }
+        if record:
+            row["status"] = "closed" if record.get("status") == "closed" else "open"
+            row["record"] = record
+            row["next_action"] = record.get("result") or record.get("action") or "继续跟踪整改结果。"
+        else:
+            row["record_command"] = sop_command(row)
+            row["next_action"] = f"为 {row['store']} {row['issue_type']} 开 SOP 整改记录。"
+        items.append(row)
+    open_items = [item for item in items if item.get("status") == "open"]
+    waiting_items = [item for item in items if item.get("status") == "waiting_sop"]
+    closed_items = [item for item in items if item.get("status") == "closed"]
+    next_item = waiting_items[0] if waiting_items else (open_items[0] if open_items else None)
+    return {
+        "status": "waiting_sop" if waiting_items else ("open" if open_items else ("closed" if closed_items else "empty")),
+        "item_count": len(items),
+        "waiting_count": len(waiting_items),
+        "open_count": len(open_items),
+        "closed_count": len(closed_items),
+        "items": items[:8],
+        "next_action": (next_item.get("record_command") or next_item.get("next_action")) if next_item else "暂无复发项需要 SOP 整改。",
+        "message": f"{len(waiting_items)} 条复发项待开 SOP 整改，{len(open_items)} 条整改进行中。"
+        if items
+        else "暂无复发项需要 SOP 整改。",
+    }
+
+
 def recap_command(item: dict[str, Any]) -> str:
     issue_arg = f" --issue-type {item.get('issue_type')}" if item.get("issue_type") else ""
     return (
@@ -469,6 +533,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     target_date = review.get("used_date") or review.get("target_date") or ""
     records_payload = read_json(REPLY_RECORDS_PATH, {"records": []})
     recap_records_payload = read_json(RECAP_RECORDS_PATH, {"records": []})
+    sop_records_payload = read_json(SOP_RECORDS_PATH, {"records": []})
     review_history = read_review_history(REVIEWS_CSV_PATH)
     completed = completed_records(records_payload, target_date)
     completed_with_evidence = enrich_completed_records(completed)
@@ -478,6 +543,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     evidence = evidence_plan(missing_evidence, completed_with_evidence)
     recap = build_recap_plan(items, completed_with_evidence, recap_records_payload, target_date)
     followup = build_followup_plan(recap_records_payload, review_history)
+    sop = build_sop_plan(followup, sop_records_payload)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -508,6 +574,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "source": "business-report-dashboard/data/latest.json",
         "reply_records_source": "data/review_reply_records.json",
         "recap_records_source": "data/review_recap_records.json",
+        "sop_records_source": "data/review_sop_records.json",
         "review_history_source": "business-report-dashboard/data/unified_reviews.csv",
         "review_status": review.get("status", ""),
         "target_date": review.get("target_date", ""),
@@ -523,6 +590,8 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "recap_recorded_count": int(recap.get("recorded_count") or 0),
             "followup_recurred_count": int(followup.get("recurred_count") or 0),
             "followup_watching_count": int(followup.get("watching_count") or 0),
+            "sop_waiting_count": int(sop.get("waiting_count") or 0),
+            "sop_open_count": int(sop.get("open_count") or 0),
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
@@ -530,6 +599,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "evidence_plan": evidence,
         "recap_plan": recap,
         "followup_plan": followup,
+        "sop_plan": sop,
         "workflow": workflow,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],

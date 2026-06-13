@@ -211,6 +211,23 @@ def build_payload() -> dict[str, Any]:
             )
         )
 
+    sop_plan = review_actions.get("sop_plan") or {}
+    sop_waiting_count = int(sop_plan.get("waiting_count") or 0)
+    sop_open_count = int(sop_plan.get("open_count") or 0)
+    if sop_waiting_count or sop_open_count:
+        items.append(
+            action_item(
+                item_id="ops.review_sop",
+                title="评价复发 SOP 整改待推进",
+                center="运营数据中心",
+                priority="medium",
+                reason=sop_plan.get("message") or "评价复盘复发项需要 SOP 整改。",
+                action=sop_plan.get("next_action") or "开 SOP 整改记录并跟踪复查结果。",
+                source="ops.review_sop",
+                evidence="outputs/review_action_status/latest.json",
+            )
+        )
+
     if finance.get("status") == "waiting_samples":
         missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
         intake_messages = [

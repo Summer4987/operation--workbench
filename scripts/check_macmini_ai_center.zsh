@@ -46,6 +46,7 @@ echo "== 配置与语法检查 =="
   scripts/record_review_reply.py \
   scripts/attach_review_reply_evidence.py \
   scripts/record_review_recap.py \
+  scripts/record_review_sop.py \
   scripts/build_review_action_status.py \
   scripts/check_inventory_cloud_health.py \
   scripts/build_inventory_order_suggestions.py \
