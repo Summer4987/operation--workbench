@@ -340,15 +340,21 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         payload = read_json(MORNING_COLLECTION_STATUS_PATH, {})
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
+        repair_guides = payload.get("repair_guides") or []
+        repair_suffix = f"，修复向导 {len(repair_guides)} 个" if repair_guides else ""
         if payload.get("status") == "missing_run":
             row.update(status="warn", reason=payload.get("message") or "上午运营一键采集尚未写入运行记录。")
         elif payload.get("status") == "failed":
-            row.update(status="danger", reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个。")
+            row.update(status="danger", reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个{repair_suffix}。")
         elif payload.get("status") in {"success", "partial", "running"}:
             status = "ok" if payload.get("status") == "success" else "warn"
-            row.update(status=status, reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个。")
+            row.update(status=status, reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个{repair_suffix}。")
         if payload.get("human_action"):
             row["human_action"] = payload.get("human_action", "")
+        if repair_guides:
+            first_guide = repair_guides[0]
+            first_step = (first_guide.get("checklist") or [""])[0]
+            row["repair_guide"] = f"{first_guide.get('title', '修复向导')}：{first_step}"
         if payload:
             row["evidence"] = "outputs/morning_collection_status/latest.json"
         if generated_at:

@@ -31,6 +31,57 @@ EXPECTED_STEPS = [
     "运营总看板发布腾讯云",
 ]
 
+REPAIR_GUIDES = {
+    "auth_block": {
+        "title": "登录或验证码恢复向导",
+        "checklist": [
+            "在 Mac mini 的 Chrome 打开对应平台后台。",
+            "确认门店账号已登录，处理验证码或安全验证。",
+            "刷新页面后重新运行上午运营一键采集。",
+        ],
+    },
+    "permission": {
+        "title": "Mac mini 权限恢复向导",
+        "checklist": [
+            "打开系统设置，检查终端、Chrome、Python 的屏幕录制和文件访问权限。",
+            "补齐权限后重启 Chrome 或终端会话。",
+            "先运行只读检查，再重跑上午运营一键采集。",
+        ],
+    },
+    "manual_browser_setup": {
+        "title": "浏览器准备向导",
+        "checklist": [
+            "在 Mac mini 的 Chrome 手动打开对应后台页面。",
+            "确认页面能看到目标门店和操作入口。",
+            "保持浏览器打开，再重跑自动化脚本。",
+        ],
+    },
+    "page_structure": {
+        "title": "平台页面改版排查向导",
+        "checklist": [
+            "人工打开失败页面，确认按钮、表格或弹窗名称是否变化。",
+            "保存失败截图或页面提示，定位对应采集/预算脚本选择器。",
+            "在 MacBook 修复脚本并提交后，再同步到 Mac mini。",
+        ],
+    },
+    "timeout": {
+        "title": "超时和网络恢复向导",
+        "checklist": [
+            "确认 Mac mini 网络和平台后台访问正常。",
+            "关闭卡住的页面或重启 Chrome/CDP。",
+            "连续两次超时后先只跑失败子步骤，不直接继续高风险提交。",
+        ],
+    },
+    "store_mapping": {
+        "title": "门店映射修复向导",
+        "checklist": [
+            "核对平台后台门店名称是否改名、停业或新增。",
+            "更新对应配置中的门店映射。",
+            "先运行只读采集确认覆盖，再恢复定时任务。",
+        ],
+    },
+}
+
 
 def platform_for_step(step: str, message: str = "") -> str:
     text = f"{step} {message}"
@@ -84,6 +135,94 @@ def human_action_for(step: str, failure_type: str, platform: str) -> str:
     if "发布" in step or "云端" in step:
         return "先检查网络和云端发布权限，再重新发布运营总看板。"
     return f"查看{step}日志，确认登录、权限、页面结构和输入数据后重跑。"
+
+
+def repair_guide_for(step: dict[str, Any]) -> dict[str, Any]:
+    failure_type = step.get("failure_type") or "unknown"
+    platform = step.get("platform") or ""
+    module = step.get("module") or module_for_step(step.get("name", ""))
+    guide = REPAIR_GUIDES.get(failure_type)
+    if not guide:
+        if "预算" in str(step.get("name") or ""):
+            guide = {
+                "title": "推广预算失败安全处理向导",
+                "checklist": [
+                    "先暂停真实预算提交，避免重复提交或误调预算。",
+                    "核对平台页面、门店映射和目标预算。",
+                    "确认无风险后，只重跑对应平台和时段的预算步骤。",
+                ],
+            }
+        elif "证据" in str(step.get("name") or "") and "云端" in str(step.get("name") or ""):
+            guide = {
+                "title": "证据上传恢复向导",
+                "checklist": [
+                    "检查 Mac mini 到云端的网络和 SSH 权限。",
+                    "确认证据清单文件存在且日期正确。",
+                    "先运行上传 dry-run，再恢复正式上传。",
+                ],
+            }
+        else:
+            guide = {
+                "title": "通用失败排查向导",
+                "checklist": [
+                    "查看失败子步骤日志和页面提示。",
+                    "确认登录、权限、页面结构、门店映射和输入数据。",
+                    "先做只读复查，再重跑上午运营一键采集。",
+                ],
+            }
+    target = " · ".join(part for part in (platform, module) if part) or module
+    checklist = list(guide["checklist"])
+    human_action = step.get("human_action") or ""
+    if human_action and human_action not in checklist:
+        checklist.append(human_action)
+    return {
+        "id": f"{failure_type}.{module}.{platform or 'all'}",
+        "title": guide["title"],
+        "priority": "high" if failure_type in {"auth_block", "permission", "page_structure"} or "预算" in str(step.get("name") or "") else "medium",
+        "target": target,
+        "step": step.get("name", ""),
+        "module": module,
+        "platform": platform,
+        "failure_type": failure_type,
+        "checklist": checklist,
+        "rerun_command": "/bin/zsh morning-ops/上午运营一键采集.command",
+        "evidence": step.get("log_path") or "outputs/morning_collection_status/latest.json",
+    }
+
+
+def build_repair_guides(failed_steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    guides: dict[str, dict[str, Any]] = {}
+    for step in failed_steps:
+        guide = repair_guide_for(step)
+        existing = guides.get(guide["id"])
+        if not existing:
+            guides[guide["id"]] = guide
+            continue
+        existing["step"] = "、".join(
+            sorted({part for part in [existing.get("step", ""), guide.get("step", "")] if part})
+        )
+        existing["evidence"] = existing.get("evidence") or guide.get("evidence", "")
+    return sorted(guides.values(), key=lambda item: (0 if item["priority"] == "high" else 1, item["target"], item["title"]))
+
+
+def repair_templates() -> list[dict[str, Any]]:
+    labels = {
+        "auth_block": "平台登录/验证码",
+        "permission": "Mac mini 系统权限",
+        "manual_browser_setup": "浏览器后台准备",
+        "page_structure": "平台页面改版",
+        "timeout": "网络或页面超时",
+        "store_mapping": "门店映射变化",
+    }
+    return [
+        {
+            "failure_type": failure_type,
+            "title": guide["title"],
+            "trigger": labels.get(failure_type, failure_type),
+            "checklist": guide["checklist"],
+        }
+        for failure_type, guide in sorted(REPAIR_GUIDES.items())
+    ]
 
 
 def normalize_failure_type(message: str, returncode: int | None, fallback: str = "") -> str:
@@ -200,6 +339,7 @@ def build_payload() -> dict[str, Any]:
         }
         for step in failed_steps
     ]
+    repair_guides = build_repair_guides(failed_steps)
     completed_steps = [step for step in steps if step["status"] == "success"]
     running_steps = [step for step in steps if step["status"] == "running"]
     if not all_events:
@@ -228,10 +368,13 @@ def build_payload() -> dict[str, Any]:
             "failed_count": len(failed_steps),
             "running_count": len(running_steps),
             "event_count": len(all_events),
+            "repair_guide_count": len(repair_guides),
         },
         "steps": steps,
         "failed_steps": failed_steps,
         "recovery_actions": recovery_actions,
+        "repair_guides": repair_guides,
+        "repair_templates": repair_templates(),
         "human_action": "；".join(item["human_action"] for item in recovery_actions[:2] if item.get("human_action")),
         "message": message,
     }

@@ -445,7 +445,13 @@ function renderHealth() {
     tasks,
     (task) => {
       const cls = task.status === "ok" ? "good-row" : "warn-row";
-      const meta = [task.reason, task.human_action ? `处理：${task.human_action}` : "", task.last_seen_at ? `最近：${task.last_seen_at}` : "", environment.label || ""].filter(Boolean).join(" · ");
+      const meta = [
+        task.reason,
+        task.repair_guide ? `向导：${task.repair_guide}` : "",
+        task.human_action ? `处理：${task.human_action}` : "",
+        task.last_seen_at ? `最近：${task.last_seen_at}` : "",
+        environment.label || "",
+      ].filter(Boolean).join(" · ");
       return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
     }
   );

@@ -742,6 +742,7 @@ def main() -> None:
         "tool_warehouse": tool_warehouse,
         "finance_center": finance_center,
         "user_action_queue": user_action_queue,
+        "morning_collection": morning_collection,
         "inventory": inventory,
         "order_suggestions": order_suggestions,
         "order_lists": order_lists,
