@@ -134,6 +134,44 @@ def build_action_items(review: dict[str, Any], completed: list[dict[str, Any]]) 
     return sorted(items, key=lambda item: (-int(item["negative_count"]), item["store"])), completed_negative_count
 
 
+def reply_plan(items: list[dict[str, Any]]) -> dict[str, Any]:
+    top_items = []
+    for item in items[:5]:
+        platforms = "、".join(
+            f"{platform.get('platform')} {platform.get('negative_count')} 条"
+            for platform in item.get("platforms") or []
+            if platform.get("platform")
+        )
+        keywords = "、".join(item.get("keywords") or [])
+        detail_parts = [
+            f"{item.get('store')} {item.get('date')}",
+            platforms or f"{item.get('negative_count', 0)} 条",
+            f"关键词：{keywords}" if keywords else "",
+            item.get("reply_suggestion") or item.get("human_action") or "",
+        ]
+        top_items.append("，".join(part for part in detail_parts if part))
+    record_commands = []
+    for item in items[:3]:
+        platforms = [platform.get("platform") for platform in item.get("platforms") or [] if platform.get("platform")]
+        platform_arg = f" --platform {platforms[0]}" if platforms else ""
+        record_commands.append(
+            f"python3 scripts/record_review_reply.py --store {item.get('store')} --date {item.get('date')}{platform_arg} --note '<回复摘要>' --evidence-url '<平台截图或评价链接>'"
+        )
+    next_action = "；".join(top_items)
+    if record_commands:
+        next_action = f"{next_action}；回复后记录：{record_commands[0]}" if next_action else f"回复后记录：{record_commands[0]}"
+    return {
+        "status": "waiting_reply" if items else "clear",
+        "item_count": len(items),
+        "top_items": top_items,
+        "record_commands": record_commands,
+        "next_action": next_action or "当前没有待回复评价。",
+        "message": f"当前 {len(items)} 家门店有疑似问题评价待回复。"
+        if items
+        else "当前没有待回复评价。",
+    }
+
+
 def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     review = daily.get("review_summary") or {}
     target_date = review.get("used_date") or review.get("target_date") or ""
@@ -142,6 +180,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     completed_with_evidence = enrich_completed_records(completed)
     missing_evidence = [record for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "missing"]
     items, completed_negative_count = build_action_items(review, completed)
+    plan = reply_plan(items)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
@@ -174,6 +213,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
             "review_store_count": len(review.get("stores") or {}),
         },
         "items": items,
+        "reply_plan": plan,
         "completed_items": completed_with_evidence[:20],
         "missing_evidence_items": missing_evidence[:20],
         "human_action": items[0]["reply_suggestion"] if items else (missing_evidence[0]["evidence"]["message"] if missing_evidence else ""),

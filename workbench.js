@@ -578,9 +578,11 @@ function renderReviews() {
       if (item.kind === "action") {
         const keywords = (item.keywords || []).length ? item.keywords.join("、") : "无集中关键词";
         const platforms = (item.platforms || []).map((platform) => `${platform.platform} ${platform.negative_count} 条`).join("；") || "平台待确认";
+        const firstPlatform = (item.platforms || [])[0]?.platform || "";
+        const recordCommand = `python3 scripts/record_review_reply.py --store ${item.store} --date ${item.date || ""}${firstPlatform ? ` --platform ${firstPlatform}` : ""} --note '<回复摘要>' --evidence-url '<平台截图或评价链接>'`;
         const examples = (item.examples || []).map((content, index) => `<span class="bad-review">${index + 1}. ${escapeHtml(content)}</span>`).join("");
         const exampleText = examples ? `<br><b class="bad-review-title">差评内容</b>${examples}` : "";
-        return `<div class="warn-row"><span>${escapeHtml(item.store)}</span><strong>待回复 ${num(item.negative_count)} 条</strong><em>${escapeHtml(platforms)} · 关键词：${escapeHtml(keywords)}<br>${escapeHtml(item.reply_suggestion || item.human_action || "先查看平台评价详情后回复。")}${exampleText}</em></div>`;
+        return `<div class="warn-row"><span>${escapeHtml(item.store)}</span><strong>待回复 ${num(item.negative_count)} 条</strong><em>${escapeHtml(platforms)} · 关键词：${escapeHtml(keywords)}<br>${escapeHtml(item.reply_suggestion || item.human_action || "先查看平台评价详情后回复。")}<br>记录：${escapeHtml(recordCommand)}${exampleText}</em></div>`;
       }
       if (item.kind === "completed") {
         const platform = item.platform ? `${item.platform} · ` : "";

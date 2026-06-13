@@ -15,6 +15,7 @@ FINANCE_CENTER_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 TOOL_WAREHOUSE_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 PROMO_BID_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
+REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
 ORDER_SUGGESTIONS_PATH = ROOT / "outputs" / "inventory_order_suggestions" / "latest.json"
 ORDER_LISTS_PATH = ROOT / "outputs" / "inventory_order_lists" / "latest.json"
 
@@ -64,6 +65,7 @@ def build_payload() -> dict[str, Any]:
     tools = read_json(TOOL_WAREHOUSE_PATH, {})
     bid_queue = read_json(PROMO_BID_QUEUE_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
+    review_actions = read_json(REVIEW_ACTION_STATUS_PATH, {})
     order_suggestions = read_json(ORDER_SUGGESTIONS_PATH, {})
     order_lists = read_json(ORDER_LISTS_PATH, {})
 
@@ -142,6 +144,22 @@ def build_payload() -> dict[str, Any]:
                 action=recharge_plan.get("next_action") or "先充值低余额门店，再执行预算或出价自动化。",
                 source="growth.promo_balance",
                 evidence="outputs/promo_balance_status/latest.json",
+            )
+        )
+
+    reply_plan = review_actions.get("reply_plan") or {}
+    reply_count = int(reply_plan.get("item_count") or 0)
+    if review_actions.get("status") == "waiting_reply" and reply_count:
+        items.append(
+            action_item(
+                item_id="ops.review_reply",
+                title="评价差评待回复",
+                center="运营数据中心",
+                priority="medium",
+                reason=review_actions.get("message") or f"当前有 {reply_count} 家门店评价待回复。",
+                action=reply_plan.get("next_action") or review_actions.get("human_action") or "先在对应平台查看评价和订单，再回复顾客。",
+                source="ops.review_dashboard",
+                evidence="outputs/review_action_status/latest.json",
             )
         )
 
