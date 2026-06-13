@@ -88,13 +88,16 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                 response_url = response.url
 
         page.on("response", handle_response)
-        cdp.goto_backend_page(page, ELEME_BALANCE_URL, timeout=90_000)
-        deadline = time.time() + timeout_seconds
-        while time.time() < deadline and response_payload is None:
-            page.wait_for_timeout(1000)
-            if response_payload is None and BALANCE_API_KEY not in page.url:
-                # Keep the page active without clicking any business controls.
-                page.evaluate("() => document.body && document.body.innerText")
+        try:
+            cdp.goto_backend_page(page, ELEME_BALANCE_URL, timeout=90_000)
+            deadline = time.time() + timeout_seconds
+            while time.time() < deadline and response_payload is None:
+                page.wait_for_timeout(1000)
+                if response_payload is None and BALANCE_API_KEY not in page.url:
+                    # Keep the page active without clicking any business controls.
+                    page.evaluate("() => document.body && document.body.innerText")
+        finally:
+            page.remove_listener("response", handle_response)
         return response_payload, response_url
     finally:
         cdp.disconnect_browser(playwright, browser)

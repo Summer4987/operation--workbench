@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import argparse
 import json
 from datetime import datetime
 from pathlib import Path
 
 import cdp_eleme_balance
 import cdp_meituan_balance
-from parse_balance_ocr import build_result
+from parse_balance_ocr import build_result, write_outputs
 
 
 ROOT = Path(__file__).resolve().parent
@@ -31,7 +32,8 @@ def collect_meituan() -> tuple[list[dict], str]:
     if len(ok_items) < len(items):
         missing = len(items) - len(ok_items)
         raise RuntimeError(f"美团 CDP 有 {missing} 家门店未解析到账户余额。")
-    return ok_items, base_url.split("?")[0] if base_url else ""
+    response_url = next((item.get("account_response_url") for item in ok_items if item.get("account_response_url")), "")
+    return ok_items, response_url or (base_url.split("?")[0] if base_url else "")
 
 
 def write_test_outputs(data: dict) -> None:
@@ -42,7 +44,7 @@ def write_test_outputs(data: dict) -> None:
     )
 
 
-def main() -> int:
+def collect_all_balances() -> tuple[dict, bool]:
     items: list[dict] = []
     errors: list[str] = []
     source_urls: dict[str, str] = {}
@@ -67,16 +69,30 @@ def main() -> int:
     if errors:
         data["message"] = "；".join(errors)
         data["status"] = "partial" if items else "failed"
+    return data, bool(items and not errors)
 
-    write_test_outputs(data)
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="读取饿了么和美团 CDP 余额。")
+    parser.add_argument("--official", action="store_true", help="写入正式 latest.json/latest-data.js。")
+    args = parser.parse_args(argv)
+
+    data, ok = collect_all_balances()
+
+    if args.official:
+        write_outputs(data)
+        output_path = ROOT / "latest.json"
+    else:
+        write_test_outputs(data)
+        output_path = OUTPUT_JSON
     summary = data["summary"]
     print(
         f"CDP 余额总巡检完成：{summary['platform_count']} 个平台，"
         f"{summary['store_count']} 条结果，{summary['warning_count']} 条低余额。",
         flush=True,
     )
-    print(f"测试输出：{OUTPUT_JSON}", flush=True)
-    return 0 if items and not errors else 1
+    print(f"输出：{output_path}", flush=True)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
