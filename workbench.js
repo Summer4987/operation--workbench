@@ -662,7 +662,9 @@ function renderBudget() {
   text("budgetCount", `${eleme.length + meituan.length} 项`);
   const weekend = budget.weekend_preset || {};
   const affectedByLatestRun = retrySummary.affected_by_latest_run_count || 0;
-  const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工${affectedByLatestRun ? `，最近执行影响 ${affectedByLatestRun} 项` : ""}。` : "门店级重试策略待生成。";
+  const retryGuide = (retry.repair_guides || [])[0] || {};
+  const retryGuideStep = (retryGuide.checklist || [])[0] || "";
+  const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工${affectedByLatestRun ? `，最近执行影响 ${affectedByLatestRun} 项` : ""}${retryGuide.title ? `，修复向导 ${retrySummary.repair_guide_count || (retry.repair_guides || []).length} 个` : ""}。` : "门店级重试策略待生成。";
   text("budgetSummary", `预览生成：${budget.generated_at || "-"}。饿了么和美团都已接入上午按钮自动执行；周末预设：${weekend.enabled ? weekend.name || "已启用" : "未启用"}。${retryText}`);
   rows(
     "budgetRows",
@@ -676,6 +678,7 @@ function renderBudget() {
   const retryRows = retry.status === "ready"
     ? [
         ...(affectedByLatestRun || retry.latest_run?.status ? [{ label: "最近执行影响", value: `${affectedByLatestRun || 0} 项`, detail: retry.latest_run?.failure_type || retry.latest_run?.status || "无" }] : []),
+        ...(retryGuide.title ? [{ label: "修复向导", value: `${retrySummary.repair_guide_count || (retry.repair_guides || []).length} 个`, detail: `${retryGuide.title}：${retryGuideStep}` }] : []),
         { label: "可安全重试", value: `${retrySummary.safe_retry_count || 0} 项`, detail: "仅超时/普通执行失败" },
         { label: "需人工处理", value: `${retrySummary.manual_count || 0} 项`, detail: "登录/权限/页面/映射/预算安全" },
       ]

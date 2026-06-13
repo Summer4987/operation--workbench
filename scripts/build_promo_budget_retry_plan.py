@@ -27,6 +27,73 @@ MANUAL_FAILURE_TYPES = {
     "manual_browser_setup",
 }
 
+REPAIR_GUIDES = {
+    "auth_block": {
+        "title": "推广预算登录恢复向导",
+        "checklist": [
+            "在 Mac mini 的 Chrome 打开对应平台推广后台。",
+            "完成登录、验证码或安全验证。",
+            "先重新生成预算预览，再决定是否重跑对应平台时段。",
+        ],
+    },
+    "permission": {
+        "title": "推广预算权限恢复向导",
+        "checklist": [
+            "检查 Mac mini 终端、Chrome、Python 的屏幕录制和文件访问权限。",
+            "补齐权限后重启 Chrome/CDP。",
+            "先做预算预览和只读检查，不直接提交预算。",
+        ],
+    },
+    "budget_guardrail": {
+        "title": "预算安全上限复核向导",
+        "checklist": [
+            "核对门店目标预算、配置上限和当日经营状态。",
+            "确认是否需要临时提高门店安全上限。",
+            "修改配置后重新生成预算预览，确认无异常再提交。",
+        ],
+    },
+    "page_structure": {
+        "title": "推广预算页面改版排查向导",
+        "checklist": [
+            "人工打开失败平台预算页，确认预算按钮、输入框或弹窗名称是否变化。",
+            "保存页面提示或截图，定位对应平台预算脚本选择器。",
+            "在 MacBook 修复脚本并推送后，再同步到 Mac mini 重跑。",
+        ],
+    },
+    "store_mapping": {
+        "title": "推广预算门店映射修复向导",
+        "checklist": [
+            "核对平台后台门店名称是否改名、停业或新增。",
+            "更新门店映射或预算覆盖配置。",
+            "重新生成预算预览，确认门店进入正确平台和时段。",
+        ],
+    },
+    "manual_browser_setup": {
+        "title": "推广预算浏览器准备向导",
+        "checklist": [
+            "在 Mac mini 的 Chrome 手动打开对应平台推广预算页。",
+            "确认当前账号、门店和预算弹窗可见。",
+            "保持浏览器打开，再重跑对应平台和时段。",
+        ],
+    },
+    "timeout": {
+        "title": "推广预算超时重试向导",
+        "checklist": [
+            "确认平台预算页可打开且网络正常。",
+            "关闭卡住的弹窗或重启 Chrome/CDP。",
+            "仅重跑失败的平台和时段，并在保存后复核目标预算。",
+        ],
+    },
+    "execution_failed": {
+        "title": "推广预算普通执行失败重试向导",
+        "checklist": [
+            "查看最近执行日志，确认不是登录、权限、页面改版或预算安全问题。",
+            "只重跑失败的平台和时段。",
+            "保存后复核平台后台预算是否等于目标值。",
+        ],
+    },
+}
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -172,6 +239,76 @@ def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any], latest_run
     }
 
 
+def repair_guide_for(row: dict[str, Any]) -> dict[str, Any]:
+    last_run = row.get("last_run") or {}
+    failure_type = last_run.get("failure_type") or ""
+    manual_reasons = row.get("manual_reasons") or []
+    if not failure_type:
+        if any("门店映射" in reason for reason in manual_reasons):
+            failure_type = "store_mapping"
+        elif any("安全上限" in reason or "预算" in reason for reason in manual_reasons):
+            failure_type = "budget_guardrail"
+        else:
+            failure_type = "manual_review"
+    guide = REPAIR_GUIDES.get(failure_type) or {
+        "title": "推广预算人工复核向导",
+        "checklist": [
+            "核对门店、平台、时段、目标预算和最近执行日志。",
+            "确认不是登录、权限、页面结构、门店映射或预算安全问题。",
+            "需要真实提交前先生成预算预览并保留执行日志。",
+        ],
+    }
+    checklist = list(guide["checklist"])
+    if row.get("next_action") and row["next_action"] not in checklist:
+        checklist.append(row["next_action"])
+    return {
+        "id": f"{failure_type}.{row.get('platform')}.{row.get('period')}.{row.get('store')}",
+        "title": guide["title"],
+        "priority": "high" if failure_type in MANUAL_FAILURE_TYPES or manual_reasons else "medium",
+        "platform": row.get("platform", ""),
+        "store": row.get("store", ""),
+        "period": row.get("period", ""),
+        "target_budget": row.get("target_budget", 0),
+        "failure_type": failure_type,
+        "manual_reasons": manual_reasons,
+        "checklist": checklist,
+        "rerun_scope": "仅对应平台和时段",
+        "evidence": "outputs/promo_budget_retry_plan/latest.json",
+    }
+
+
+def build_repair_guides(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    candidates = [
+        row
+        for row in rows
+        if row.get("manual_reasons") or (row.get("last_run") or {}).get("status") == "failed"
+    ]
+    guides = [repair_guide_for(row) for row in candidates[:12]]
+    return sorted(guides, key=lambda item: (0 if item["priority"] == "high" else 1, item["platform"], item["period"], item["store"]))
+
+
+def repair_templates() -> list[dict[str, Any]]:
+    labels = {
+        "auth_block": "平台登录/验证码",
+        "permission": "Mac mini 系统权限",
+        "budget_guardrail": "预算安全上限",
+        "page_structure": "平台预算页改版",
+        "store_mapping": "门店映射异常",
+        "manual_browser_setup": "浏览器后台准备",
+        "timeout": "网络或页面超时",
+        "execution_failed": "普通执行失败",
+    }
+    return [
+        {
+            "failure_type": failure_type,
+            "title": guide["title"],
+            "trigger": labels.get(failure_type, failure_type),
+            "checklist": guide["checklist"],
+        }
+        for failure_type, guide in sorted(REPAIR_GUIDES.items())
+    ]
+
+
 def build_payload() -> dict[str, Any]:
     preview = read_json(PREVIEW_PATH, {})
     overrides = read_json(OVERRIDES_PATH, {"stores": {}})
@@ -179,6 +316,7 @@ def build_payload() -> dict[str, Any]:
     latest_run = latest_budget_run(run_state)
     items = normalized_items(preview)
     retry_rows = [retry_policy_for(item, overrides, latest_run) for item in items]
+    repair_guides = build_repair_guides(retry_rows)
     safe_count = sum(1 for item in retry_rows if item["safe_to_retry"])
     manual_count = len(retry_rows) - safe_count
     affected_count = sum(1 for item in retry_rows if item.get("last_run", {}).get("scope"))
@@ -194,8 +332,11 @@ def build_payload() -> dict[str, Any]:
             "safe_retry_count": safe_count,
             "manual_count": manual_count,
             "affected_by_latest_run_count": affected_count,
+            "repair_guide_count": len(repair_guides),
             "platforms": sorted({item["platform"] for item in retry_rows if item.get("platform")}),
         },
+        "repair_guides": repair_guides,
+        "repair_templates": repair_templates(),
         "latest_run": {
             "status": latest_run.get("status", ""),
             "step": latest_run.get("step", ""),

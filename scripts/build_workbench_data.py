@@ -559,17 +559,23 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         )
 
     promo_retry_summary = promo_retry.get("summary") or {}
+    promo_retry_guides = promo_retry.get("repair_guides") or []
     manual_budget_count = int(promo_retry_summary.get("manual_count") or 0)
     if promo_retry.get("status") == "ready" and manual_budget_count:
         affected_budget_count = int(promo_retry_summary.get("affected_by_latest_run_count") or 0)
         affected_text = f"最近执行影响 {affected_budget_count} 项；" if affected_budget_count else ""
+        guide_text = ""
+        if promo_retry_guides:
+            first_guide = promo_retry_guides[0]
+            first_step = (first_guide.get("checklist") or [""])[0]
+            guide_text = f"{first_guide.get('title')}：{first_step}"
         rows.append(
             {
                 "level": "建议",
                 "center": "商业化推广中心",
                 "title": "推广预算重试需分级",
                 "reason": f"{affected_text}门店级重试策略中 {promo_retry_summary.get('safe_retry_count', 0)} 项可安全重试，{manual_budget_count} 项需人工处理。",
-                "action": "只允许超时或普通执行失败重试；登录、权限、页面结构、预算安全和门店映射问题必须人工处理。",
+                "action": guide_text or "只允许超时或普通执行失败重试；登录、权限、页面结构、预算安全和门店映射问题必须人工处理。",
                 "source": "growth.promo_budget",
             }
         )

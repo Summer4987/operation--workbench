@@ -461,6 +461,7 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
         retry_summary = retry_plan.get("summary") or {}
+        repair_guides = retry_plan.get("repair_guides") or []
         if not generated_at:
             row.update(status="warn", reason="推广预算预览尚未生成。")
         elif now - generated_at > timedelta(days=2):
@@ -472,7 +473,13 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
                 retry_text = f"，可安全重试 {retry_summary.get('safe_retry_count', 0)} 项，需人工处理 {retry_summary.get('manual_count', 0)} 项"
                 if affected:
                     retry_text = f"{retry_text}，最近执行影响 {affected} 项"
+                if repair_guides:
+                    retry_text = f"{retry_text}，修复向导 {len(repair_guides)} 个"
             row.update(status="ok", reason=f"预算预览可用，午餐 {summary.get('total_initial_budget_items') or 0} 项，晚餐 {summary.get('total_dinner_budget_items') or 0} 项{retry_text}。")
+        if repair_guides:
+            first_guide = repair_guides[0]
+            first_step = (first_guide.get("checklist") or [""])[0]
+            row["repair_guide"] = f"{first_guide.get('title', '修复向导')}：{first_step}"
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
         row["evidence"] = "outputs/promo_budget_retry_plan/latest.json" if retry_plan else "outputs/promo_budget_preview/latest.json"
 
