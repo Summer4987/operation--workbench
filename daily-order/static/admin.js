@@ -237,6 +237,7 @@ function wechatMessageText(groupName, stores) {
     `【${groupName}】`,
     ...stores.map((store) => [
       `${store.storeName}（${store.address}）`,
+      "",
       ...[...store.items.values()].map((item) => plainLine(item)),
     ].join("\n")),
   ].join("\n\n");

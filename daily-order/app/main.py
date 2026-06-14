@@ -589,6 +589,7 @@ def _wechat_group_message_text(group_name: str, stores: list[dict]) -> str:
     for store in stores:
         lines = [
             f"{store['store_name']}（{store['store_address']}）",
+            "",
             *[_plain_order_line(item) for item in store["items"].values()],
         ]
         sections.append("\n".join(lines))
