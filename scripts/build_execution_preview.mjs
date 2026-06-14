@@ -1,5 +1,11 @@
 import fs from "node:fs/promises";
 import vm from "node:vm";
+import {
+  applyWeekendPresetIfNeeded,
+  budgetDateContext,
+  buildWeekendPreset,
+  resolveBudget,
+} from "./promo_budget_resolver.mjs";
 
 const rulesPath = "dianjin-prototype/rules.js";
 const logicPath = "dianjin-prototype/logic.js";
@@ -50,6 +56,8 @@ globalThis.__files = {
 
 const { rules, logic } = loadRuntime();
 const overrides = await loadOverrides();
+const dateContext = budgetDateContext();
+const weekendPreset = buildWeekendPreset(overrides, dateContext);
 const state = JSON.parse(await fs.readFile(statePath, "utf8"));
 const time = argValue("time", "10:40");
 const rowsByShopId = new Map((state.currentRows || []).map((row) => [Number(row.shopId), row]));
@@ -65,11 +73,15 @@ async function loadOverrides() {
 
 function budgetFor(task) {
   if (task.type !== "budget") return task.budget;
-  const byStore = overrides.stores?.[task.store] || {};
-  const byPlatform = byStore[task.platform] || byStore.all || {};
-  const key = task.period === "午餐" ? "lunchBudget" : "dinnerBudget";
-  const value = Number(byPlatform[key] ?? byStore[key]);
-  return Number.isFinite(value) && value > 0 ? value : task.budget;
+  const resolution = resolveBudget({
+    overrides,
+    platform: task.platform,
+    storeName: task.store,
+    period: task.period,
+    fallback: task.budget,
+    dateContext,
+  });
+  return applyWeekendPresetIfNeeded(resolution.budget, task.period, resolution, weekendPreset);
 }
 
 const previewRows = tasks.map((task) => {
@@ -150,6 +162,8 @@ const csvPath = `${outputDir}/execution_preview_${safeTime}.csv`;
 const jsPath = "dianjin-prototype/execution_preview.js";
 
 const payload = { summary, rows: previewRows };
+payload.budget_date_context = dateContext;
+payload.weekend_preset = weekendPreset;
 await fs.writeFile(jsonPath, JSON.stringify(payload, null, 2), "utf8");
 
 const csvRows = [

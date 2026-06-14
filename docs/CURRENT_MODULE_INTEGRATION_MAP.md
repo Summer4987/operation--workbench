@@ -63,7 +63,9 @@
 - `scripts/build_ele_dianjin_rules.mjs`
   - 构建点金规则。
 - `scripts/build_promo_budget_preview.mjs`
-  - 推广预算预览。
+  - 推广预算预览；按执行日期优先读取具体星期预算、周末/工作日预算，再回退默认预算。
+- `scripts/promo_budget_resolver.mjs`
+  - 统一解析云端预算配置，保证看板预览和真实执行使用同一套工作日/周末/周日预算规则。
 - `scripts/run_current_budget.zsh`
   - 当前时段预算执行。
 - `scripts/run_evening_budget.zsh`
