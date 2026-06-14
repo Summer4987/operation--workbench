@@ -12,6 +12,8 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
+const imageVersion = "20260614-icons2";
+
 const els = {
   cartCount: document.querySelector("#cartCount"),
   storeName: document.querySelector("#storeName"),
@@ -100,7 +102,7 @@ function renderItem(item) {
   return `
     <article class="sku-card">
       <div class="sku-image">
-        <img src="${escapeHtml(item.image || "")}" alt="${escapeHtml(item.name)}" loading="lazy" />
+        <img src="${escapeHtml(imageSrc(item.image || ""))}" alt="${escapeHtml(item.name)}" loading="lazy" />
       </div>
       <div class="sku-meta">
         <small>${escapeHtml(item.sku)}</small>
@@ -209,6 +211,10 @@ function formatNumber(value) {
 
 function sourceLabel(source) {
   return sourceLabels[source] || source;
+}
+
+function imageSrc(src) {
+  return src ? `${src}?v=${imageVersion}` : "";
 }
 
 function escapeHtml(value) {

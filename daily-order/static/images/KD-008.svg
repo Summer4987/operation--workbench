@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="汤料">
-  <rect width="240" height="240" rx="30" fill="#ffffff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f2fbff" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#3d8ec7" opacity=".12"/>
   <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <path d="M67 91l53-27 53 27v83l-53 27-53-27V91Z" fill="#dfe8f0" stroke="#657386" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M67 91l53 29 53-29M120 120v81" fill="none" stroke="#657386" stroke-width="5" opacity=".55"/>
-  <path d="M92 103l54-27" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+  <rect x="84" y="53" width="73" height="24" rx="7" fill="#1e5b82"/>
+  <rect x="74" y="76" width="92" height="111" rx="23" fill="#fff7eb" stroke="#1e5b82" stroke-width="5"/>
+  <path d="M82 130c24-14 52-14 76 0v36H82v-36Z" fill="#3d8ec7" opacity=".82"/>
+  <path d="M94 98h52" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+  <circle cx="111" cy="148" r="6" fill="#fff" opacity=".6"/>
 </svg>

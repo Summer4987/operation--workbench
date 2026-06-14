@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="打包袋">
-  <rect width="240" height="240" rx="30" fill="#ffffff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f7f4ff" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#8064c9" opacity=".12"/>
   <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <path d="M76 78h88l16 111H60L76 78Z" fill="#dce8f2" stroke="#8c6b2f" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M87 78c7-22 59-22 66 0" fill="none" stroke="#8c6b2f" stroke-width="7" stroke-linecap="round"/>
-  <path d="M84 121h74M80 150h82" stroke="#fff7d4" stroke-width="9" opacity=".8" stroke-linecap="round"/>
+  <path d="M78 87h84l13 96H65L78 87Z" fill="#ddd2fa" stroke="#493785" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M94 88c4-26 48-26 52 0" fill="none" stroke="#493785" stroke-width="7" stroke-linecap="round"/>
+  <path d="M84 134h72" stroke="#8064c9" stroke-width="11" opacity=".55" stroke-linecap="round"/>
 </svg>

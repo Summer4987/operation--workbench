@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="白玉菇">
-  <rect width="240" height="240" rx="30" fill="#ffffff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f2fbff" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#3d8ec7" opacity=".12"/>
   <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <path d="M72 106c11-39 85-56 111 0 4 9-3 20-14 20H86c-11 0-18-10-14-20Z" fill="#f5eee3" stroke="#cbbba4" stroke-width="5"/>
-  <path d="M100 124h54l13 58H87l13-58Z" fill="#fff8ee" stroke="#cbbba4" stroke-width="5"/>
-  <path d="M92 126c16 13 54 17 79 0" fill="none" stroke="#d6c7b2" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="106" cy="94" r="7" fill="#d9c8b0"/><circle cx="140" cy="88" r="6" fill="#d9c8b0"/>
+  <path d="M71 105c12-39 85-56 112 0 4 10-3 21-14 21H85c-11 0-18-11-14-21Z" fill="#f6eee3" stroke="#1e5b82" stroke-width="5"/>
+  <path d="M99 124h55l13 59H86l13-59Z" fill="#fff8ee" stroke="#1e5b82" stroke-width="5"/>
+  <path d="M91 126c18 13 55 17 80 0" fill="none" stroke="#3d8ec7" stroke-width="5" opacity=".45" stroke-linecap="round"/>
+  <circle cx="104" cy="95" r="7" fill="#cce8f8"/><circle cx="140" cy="88" r="6" fill="#cce8f8"/><circle cx="130" cy="110" r="5" fill="#cce8f8"/>
 </svg>

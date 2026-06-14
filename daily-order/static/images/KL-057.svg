@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="洗洁精">
-  <rect width="240" height="240" rx="30" fill="#ffffff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff1f3" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#d95b68" opacity=".12"/>
   <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <rect x="101" y="45" width="38" height="34" rx="7" fill="#e6b422"/>
-  <path d="M90 78h60l13 28v73c0 12-9 21-21 21H98c-12 0-21-9-21-21v-73l13-28Z" fill="#eef5fb" stroke="#8090a0" stroke-width="5"/>
-  <path d="M82 128h76v45H82z" fill="#45a7c8" opacity=".85"/>
-  <path d="M99 96h42" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+  <path d="M95 62h50l11 36v82c0 12-10 22-22 22h-29c-12 0-22-10-22-22V98l12-36Z" fill="#f5bdc5" stroke="#87313b" stroke-width="5"/>
+  <rect x="101" y="44" width="38" height="22" rx="7" fill="#d95b68"/>
+  <path d="M88 127h64v46H88z" fill="#d95b68" opacity=".65"/>
+  <circle cx="107" cy="111" r="6" fill="#fff" opacity=".7"/><circle cx="132" cy="102" r="5" fill="#fff" opacity=".7"/>
 </svg>
