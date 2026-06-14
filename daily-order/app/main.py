@@ -105,15 +105,14 @@ async def submit_order(request: Request, payload: dict):
     submitted_time = datetime.now(timezone.utc).astimezone()
     submitted_at = submitted_time.isoformat(timespec="seconds")
     order_id = f"DO-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
-    auto_processed_channels = _auto_processed_channels(lines)
     order = {
         "order_id": order_id,
         "store_name": store_name,
         "store_address": store_records.get(store_name, {}).get("address", ""),
         "remark": remark,
-        "status": "processed" if auto_processed_channels and set(_order_channels({"items": lines})).issubset(auto_processed_channels) else "pending",
-        "processed_at": now_iso() if auto_processed_channels and set(_order_channels({"items": lines})).issubset(auto_processed_channels) else "",
-        "processed_channels": sorted(auto_processed_channels),
+        "status": "pending",
+        "processed_at": "",
+        "processed_channels": [],
         "submitted_at": submitted_at,
         "client_host": request.client.host if request.client else "",
         "items": lines,
@@ -377,14 +376,12 @@ def _normalize_order(order: dict) -> dict:
     channels = _order_channels(order)
     if "processed_channels" not in order:
         processed_channels = set(channels if order.get("status") == "processed" else [])
-        processed_channels.update(_auto_processed_channels(order.get("items") or []))
         order["processed_channels"] = sorted(processed_channels)
     else:
         processed_channels = set(order.get("processed_channels") or [])
         migrated_channels = {channel for channel in processed_channels if channel in channels}
         if "微信群" in processed_channels:
             migrated_channels.update(channel for channel in channels if "群" in channel or channel == "微信群")
-        migrated_channels.update(_auto_processed_channels(order.get("items") or []))
         if order.get("status") == "processed":
             migrated_channels.update(channels)
         order["processed_channels"] = sorted(migrated_channels)
@@ -429,10 +426,6 @@ def _channel_sort_key(channel: dict) -> tuple[int, str]:
     order = {"快驴": 0, "微信群": 1, "工作餐": 2, "淘宝": 3, "拼多多": 4, "京东": 5}
     name = str(channel.get("channel") or "")
     return (order.get(name, 99), name)
-
-
-def _auto_processed_channels(items: list[dict]) -> set[str]:
-    return {_item_channel(item) for item in items if _display_channel(_item_channel(item)) == "微信群"}
 
 
 def _channel_is_processed(order: dict, channel: str) -> bool:

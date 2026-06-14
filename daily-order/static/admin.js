@@ -12,6 +12,7 @@ lockPageZoom();
 
 const channelShortcuts = [
   { channel: "快驴", label: "快驴订货" },
+  { channel: "微信群", label: "微信群" },
   { channel: "淘宝", label: "淘宝" },
   { channel: "拼多多", label: "拼多多" },
   { channel: "京东", label: "京东" },
@@ -101,7 +102,7 @@ function renderChannels() {
 }
 
 function visibleChannels() {
-  return (state.payload.channels || []).filter((channel) => channel.channel !== "微信群");
+  return state.payload.channels || [];
 }
 
 function renderChannel(channel) {
