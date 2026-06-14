@@ -7,7 +7,7 @@ LAUNCHD_LOG_DIR="$HOME/Library/Logs/xiong-operation/launchd"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
 mkdir -p "$LAUNCH_DIR" "$LAUNCHD_LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
 
-chmod +x "$ROOT/morning-ops/上午运营一键采集.command" \
+chmod u+rwX,go+rX "$ROOT/morning-ops/上午运营一键采集.command" \
   "$ROOT/morning-ops/我已处理验证码继续.command" \
   "$ROOT/morning-ops/run_morning_ops_if_10am.command" \
   "$ROOT/scripts/run_realtime_order_income.zsh" \
