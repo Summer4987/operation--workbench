@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="保鲜膜">
   <rect width="240" height="240" rx="30" fill="#fff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f7f4ff" stroke="#e3ebf3" stroke-width="2"/>
-  <circle cx="196" cy="42" r="18" fill="#8064c9" opacity=".12"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff7df" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#c7a233" opacity=".12"/>
   <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <ellipse cx="120" cy="84" rx="47" ry="22" fill="#ddd2fa" stroke="#493785" stroke-width="5"/>
-  <path d="M73 84v82c0 12 21 23 47 23s47-11 47-23V84" fill="#ddd2fa" stroke="#493785" stroke-width="5"/>
-  <ellipse cx="120" cy="166" rx="47" ry="22" fill="#fff" stroke="#493785" stroke-width="5"/>
-  <ellipse cx="120" cy="166" rx="18" ry="8" fill="#8064c9" opacity=".45"/>
+  <ellipse cx="120" cy="84" rx="47" ry="22" fill="#f1dfa0" stroke="#725b17" stroke-width="5"/>
+  <path d="M73 84v82c0 12 21 23 47 23s47-11 47-23V84" fill="#f1dfa0" stroke="#725b17" stroke-width="5"/>
+  <ellipse cx="120" cy="166" rx="47" ry="22" fill="#fff" stroke="#725b17" stroke-width="5"/>
+  <ellipse cx="120" cy="166" rx="18" ry="8" fill="#c7a233" opacity=".45"/>
 </svg>

@@ -20,28 +20,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-002",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "味增酱",
-      "spec": "10袋/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-002.svg",
-      "purchase_channel": "淘宝"
-    },
-    {
-      "sku": "TC-003",
-      "source": "同城物流配送",
-      "category": "同城物流配送",
-      "name": "大米",
-      "spec": "",
-      "unit": "袋",
-      "note": "2袋起订",
-      "image": "/daily-order/static/images/TC-003.svg",
-      "purchase_channel": "微信群"
-    },
-    {
       "sku": "KL-004",
       "source": "快驴配送",
       "category": "蔬菜",
@@ -51,28 +29,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-004.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-005",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "裙带菜",
-      "spec": "10袋/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-005.svg",
-      "purchase_channel": "淘宝"
-    },
-    {
-      "sku": "TC-006",
-      "source": "同城物流配送",
-      "category": "同城物流配送",
-      "name": "黑米/燕麦米",
-      "spec": "",
-      "unit": "袋",
-      "note": "尽量和大米一起下单",
-      "image": "/daily-order/static/images/TC-006.svg",
-      "purchase_channel": "微信群"
     },
     {
       "sku": "KL-007",
@@ -86,17 +42,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-008",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "汤料",
-      "spec": "14袋/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-008.svg",
-      "purchase_channel": "淘宝"
-    },
-    {
       "sku": "KL-009",
       "source": "快驴配送",
       "category": "蔬菜",
@@ -106,17 +51,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-009.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-010",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "菠萝罐头",
-      "spec": "24瓶/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-010.svg",
-      "purchase_channel": "拼多多"
     },
     {
       "sku": "KL-011",
@@ -130,17 +64,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-012",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "红酒",
-      "spec": "12瓶/箱",
-      "unit": "12箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-012.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
       "sku": "KL-013",
       "source": "快驴配送",
       "category": "蔬菜",
@@ -150,28 +73,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-013.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-014",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "白葡萄酒",
-      "spec": "4瓶/份",
-      "unit": "份",
-      "note": "",
-      "image": "/daily-order/static/images/KD-014.svg",
-      "purchase_channel": "淘宝"
-    },
-    {
-      "sku": "CJ-015",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "辣白菜",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "2箱起送",
-      "image": "/daily-order/static/images/CJ-015.svg",
-      "purchase_channel": "微信群"
     },
     {
       "sku": "KL-016",
@@ -185,17 +86,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-017",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "黑胡椒粒",
-      "spec": "",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KD-017.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
       "sku": "KL-018",
       "source": "快驴配送",
       "category": "蔬菜",
@@ -205,28 +95,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-018.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-019",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "大粒海盐",
-      "spec": "",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KD-019.svg",
-      "purchase_channel": "淘宝"
-    },
-    {
-      "sku": "CJ-020",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "虾仁",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-020.svg",
-      "purchase_channel": "微信群"
     },
     {
       "sku": "KL-021",
@@ -240,17 +108,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-022",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "牛奶",
-      "spec": "12瓶/箱",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KD-022.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
       "sku": "KL-023",
       "source": "快驴配送",
       "category": "蔬菜",
@@ -262,15 +119,15 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-024",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "黄油",
-      "spec": "",
-      "unit": "块",
-      "note": "",
-      "image": "/daily-order/static/images/KD-024.svg",
-      "purchase_channel": "淘宝"
+      "sku": "CJ-015",
+      "source": "厂家配送（2日内）",
+      "category": "蔬菜",
+      "name": "辣白菜",
+      "spec": "10kg/箱",
+      "unit": "箱",
+      "note": "2箱起送",
+      "image": "/daily-order/static/images/CJ-015.svg",
+      "purchase_channel": "微信群"
     },
     {
       "sku": "KL-025",
@@ -284,25 +141,135 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-026",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "木鱼精",
-      "spec": "2袋/盒",
-      "unit": "盒",
+      "sku": "KL-039",
+      "source": "快驴配送",
+      "category": "粮油",
+      "name": "大豆油",
+      "spec": "",
+      "unit": "桶",
       "note": "",
-      "image": "/daily-order/static/images/KD-026.svg",
+      "image": "/daily-order/static/images/KL-039.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "TC-003",
+      "source": "同城物流配送",
+      "category": "粮油",
+      "name": "大米",
+      "spec": "",
+      "unit": "袋",
+      "note": "2袋起订",
+      "image": "/daily-order/static/images/TC-003.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "TC-006",
+      "source": "同城物流配送",
+      "category": "粮油",
+      "name": "黑米/燕麦米",
+      "spec": "",
+      "unit": "袋",
+      "note": "尽量和大米一起下单",
+      "image": "/daily-order/static/images/TC-006.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "CJ-020",
+      "source": "厂家配送（2日内）",
+      "category": "冻品",
+      "name": "虾仁",
+      "spec": "10kg/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-020.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "KD-050",
+      "source": "快递到店",
+      "category": "包材",
+      "name": "小牛皮纸碗",
+      "spec": "500个/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-050.svg",
       "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-052",
+      "source": "快递到店",
+      "category": "包材",
+      "name": "汤碗",
+      "spec": "240个/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-052.svg",
+      "purchase_channel": "拼多多"
     },
     {
       "sku": "CJ-027",
       "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
+      "category": "包材",
       "name": "玉米淀粉盒",
       "spec": "300/箱",
       "unit": "箱",
       "note": "这三个是一个厂商",
       "image": "/daily-order/static/images/CJ-027.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "CJ-030",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "小塑料碗",
+      "spec": "1000/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-030.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "CJ-033",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "餐具",
+      "spec": "800/袋",
+      "unit": "袋",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-033.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "CJ-038",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "餐盒",
+      "spec": "300/箱",
+      "unit": "箱",
+      "note": "这三个是一个厂商",
+      "image": "/daily-order/static/images/CJ-038.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "CJ-041",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "酱料盒",
+      "spec": "1000/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-041.svg",
+      "purchase_channel": "微信群"
+    },
+    {
+      "sku": "CJ-044",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "打包袋",
+      "spec": "1000/袋",
+      "unit": "袋",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-044.svg",
       "purchase_channel": "微信群"
     },
     {
@@ -317,28 +284,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-029",
-      "source": "快递到店",
-      "category": "调料",
-      "name": "淡奶油",
-      "spec": "12瓶/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-029.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
-      "sku": "CJ-030",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "小塑料碗",
-      "spec": "1000/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-030.svg",
-      "purchase_channel": "微信群"
-    },
-    {
       "sku": "KL-031",
       "source": "快驴配送",
       "category": "调料",
@@ -348,28 +293,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-031.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-032",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "一次性手套",
-      "spec": "2000个/份",
-      "unit": "份",
-      "note": "",
-      "image": "/daily-order/static/images/KD-032.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
-      "sku": "CJ-033",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "餐具",
-      "spec": "800/袋",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-033.svg",
-      "purchase_channel": "微信群"
     },
     {
       "sku": "KL-034",
@@ -383,17 +306,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-035",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "黑手套",
-      "spec": "2盒/份",
-      "unit": "份",
-      "note": "",
-      "image": "/daily-order/static/images/KD-035.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
       "sku": "KL-036",
       "source": "快驴配送",
       "category": "调料",
@@ -405,61 +317,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-037",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "塑料袋",
-      "spec": "10斤/份",
-      "unit": "份",
-      "note": "",
-      "image": "/daily-order/static/images/KD-037.svg",
-      "purchase_channel": "淘宝"
-    },
-    {
-      "sku": "CJ-038",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "餐盒",
-      "spec": "300/箱",
-      "unit": "箱",
-      "note": "这三个是一个厂商",
-      "image": "/daily-order/static/images/CJ-038.svg",
-      "purchase_channel": "微信群"
-    },
-    {
-      "sku": "KL-039",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "大豆油",
-      "spec": "",
-      "unit": "桶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-039.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-040",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "订书针",
-      "spec": "10小盒/条",
-      "unit": "条",
-      "note": "",
-      "image": "/daily-order/static/images/KD-040.svg",
-      "purchase_channel": "京东"
-    },
-    {
-      "sku": "CJ-041",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "酱料盒",
-      "spec": "1000/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-041.svg",
-      "purchase_channel": "微信群"
-    },
-    {
       "sku": "KL-042",
       "source": "快驴配送",
       "category": "调料",
@@ -469,28 +326,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-042.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-043",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "打印纸",
-      "spec": "",
-      "unit": "盒",
-      "note": "",
-      "image": "/daily-order/static/images/KD-043.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
-      "sku": "CJ-044",
-      "source": "厂家配送（2日内）",
-      "category": "厂家配送（2日内）",
-      "name": "打包袋",
-      "spec": "1000/袋",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-044.svg",
-      "purchase_channel": "微信群"
     },
     {
       "sku": "KL-045",
@@ -526,17 +361,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-048",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "评价卡",
-      "spec": "10000个/份",
-      "unit": "份",
-      "note": "",
-      "image": "/daily-order/static/images/KD-048.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
       "sku": "KL-049",
       "source": "快驴配送",
       "category": "调料",
@@ -546,17 +370,6 @@
       "note": "",
       "image": "/daily-order/static/images/KL-049.svg",
       "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KD-050",
-      "source": "快递到店",
-      "category": "包材",
-      "name": "小牛皮纸碗",
-      "spec": "500个/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/KD-050.svg",
-      "purchase_channel": "淘宝"
     },
     {
       "sku": "KL-051",
@@ -570,14 +383,135 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "KD-052",
+      "sku": "KD-002",
       "source": "快递到店",
-      "category": "包材",
-      "name": "汤碗",
-      "spec": "240个/箱",
+      "category": "调料",
+      "name": "味增酱",
+      "spec": "10袋/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-052.svg",
+      "image": "/daily-order/static/images/KD-002.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-005",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "裙带菜",
+      "spec": "10袋/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-005.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-008",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "汤料",
+      "spec": "14袋/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-008.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-010",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "菠萝罐头",
+      "spec": "24瓶/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-010.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-012",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "红酒",
+      "spec": "12瓶/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-012.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-014",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "白葡萄酒",
+      "spec": "4瓶/份",
+      "unit": "份",
+      "note": "",
+      "image": "/daily-order/static/images/KD-014.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-017",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "黑胡椒粒",
+      "spec": "",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KD-017.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-019",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "大粒海盐",
+      "spec": "",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KD-019.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-022",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "牛奶",
+      "spec": "12瓶/箱",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KD-022.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-024",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "黄油",
+      "spec": "",
+      "unit": "块",
+      "note": "",
+      "image": "/daily-order/static/images/KD-024.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-026",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "木鱼精",
+      "spec": "2袋/盒",
+      "unit": "盒",
+      "note": "",
+      "image": "/daily-order/static/images/KD-026.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-029",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "淡奶油",
+      "spec": "12瓶/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/KD-029.svg",
       "purchase_channel": "拼多多"
     },
     {
@@ -645,6 +579,149 @@
       "note": "",
       "image": "/daily-order/static/images/KL-058.svg",
       "purchase_channel": "快驴"
+    },
+    {
+      "sku": "HC-059",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "海绵百洁布",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-059.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "HC-060",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "绿色百洁布",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-060.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "HC-061",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "火碱",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-061.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "HC-062",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "84消毒液",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-062.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "HC-063",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "抹布",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-063.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "HC-064",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "围裙",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-064.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "HC-065",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "拖把",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-065.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-032",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "一次性手套",
+      "spec": "2000个/份",
+      "unit": "份",
+      "note": "",
+      "image": "/daily-order/static/images/KD-032.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-035",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "黑手套",
+      "spec": "2盒/份",
+      "unit": "份",
+      "note": "",
+      "image": "/daily-order/static/images/KD-035.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-037",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "塑料袋",
+      "spec": "10斤/份",
+      "unit": "份",
+      "note": "",
+      "image": "/daily-order/static/images/KD-037.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-040",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "订书针",
+      "spec": "10小盒/条",
+      "unit": "条",
+      "note": "",
+      "image": "/daily-order/static/images/KD-040.svg",
+      "purchase_channel": "京东"
+    },
+    {
+      "sku": "KD-043",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "打印纸",
+      "spec": "",
+      "unit": "盒",
+      "note": "",
+      "image": "/daily-order/static/images/KD-043.svg",
+      "purchase_channel": "拼多多"
+    },
+    {
+      "sku": "KD-048",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "评价卡",
+      "spec": "10000个/份",
+      "unit": "份",
+      "note": "",
+      "image": "/daily-order/static/images/KD-048.svg",
+      "purchase_channel": "拼多多"
     }
   ]
 }

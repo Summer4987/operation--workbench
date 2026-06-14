@@ -1,10 +1,12 @@
 const state = {
   catalog: [],
   stores: [],
-  source: "",
+  category: "",
   quantities: new Map(),
   recentOrders: [],
 };
+
+const categoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "包材", "调料", "耗材"];
 
 const sourceLabels = {
   "快驴配送": "快驴配送（次日）",
@@ -13,7 +15,7 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
-const imageVersion = "20260614-icons2";
+const imageVersion = "20260614-categories";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -49,7 +51,7 @@ async function loadCatalog() {
   const payload = await response.json();
   state.catalog = payload.items || [];
   state.stores = payload.stores || [];
-  state.source = Object.keys(sourceLabels).find((source) => state.catalog.some((item) => item.source === source)) || state.catalog[0]?.source || "";
+  state.category = categoryOrder.find((category) => state.catalog.some((item) => item.category === category)) || state.catalog[0]?.category || "";
   renderStoreOptions();
   renderTabs();
   renderCatalog();
@@ -66,13 +68,16 @@ function renderStoreOptions() {
 }
 
 function renderTabs() {
-  const sources = Object.keys(sourceLabels).filter((source) => state.catalog.some((item) => item.source === source));
-  els.sourceTabs.innerHTML = sources
-    .map((source) => `<button type="button" class="${source === state.source ? "active" : ""}" data-source="${escapeHtml(source)}">${escapeHtml(sourceLabel(source))}</button>`)
+  const categories = [
+    ...categoryOrder.filter((category) => state.catalog.some((item) => item.category === category)),
+    ...Array.from(new Set(state.catalog.map((item) => item.category).filter(Boolean))).filter((category) => !categoryOrder.includes(category)),
+  ];
+  els.sourceTabs.innerHTML = categories
+    .map((category) => `<button type="button" class="${category === state.category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`)
     .join("");
   els.sourceTabs.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
-      state.source = button.dataset.source;
+      state.category = button.dataset.category;
       renderTabs();
       renderCatalog();
     });
@@ -82,9 +87,9 @@ function renderTabs() {
 function renderCatalog() {
   const term = els.search.value.trim().toLowerCase();
   const items = state.catalog.filter((item) => {
-    const sourceMatch = item.source === state.source;
+    const categoryMatch = item.category === state.category;
     const text = `${item.sku} ${item.name} ${item.category} ${item.spec} ${item.unit} ${item.note}`.toLowerCase();
-    return sourceMatch && (!term || text.includes(term));
+    return categoryMatch && (!term || text.includes(term));
   });
 
   els.catalogGrid.innerHTML = items.length

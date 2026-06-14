@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="樟树椒">
   <rect width="240" height="240" rx="30" fill="#fff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f4fbf8" stroke="#e3ebf3" stroke-width="2"/>
-  <circle cx="196" cy="42" r="18" fill="#2f9b83" opacity=".12"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f7fbf3" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#4f9d55" opacity=".12"/>
   <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <path d="M84 83c34-10 72 14 85 50 10 30-4 57-32 65-33-45-54-80-53-115Z" fill="#2f9b83" stroke="#1d6658" stroke-width="5"/>
-  <path d="M89 82c-17-12-26-25-21-39 23 5 38 16 47 37" fill="none" stroke="#1d6658" stroke-width="8" stroke-linecap="round"/>
-  <path d="M103 108c21 17 35 42 40 71" fill="none" stroke="#c9eee4" stroke-width="7" opacity=".6" stroke-linecap="round"/>
+  <path d="M84 83c34-10 72 14 85 50 10 30-4 57-32 65-33-45-54-80-53-115Z" fill="#4f9d55" stroke="#2f6f38" stroke-width="5"/>
+  <path d="M89 82c-17-12-26-25-21-39 23 5 38 16 47 37" fill="none" stroke="#2f6f38" stroke-width="8" stroke-linecap="round"/>
+  <path d="M103 108c21 17 35 42 40 71" fill="none" stroke="#d9efcf" stroke-width="7" opacity=".6" stroke-linecap="round"/>
 </svg>

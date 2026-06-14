@@ -121,6 +121,18 @@ def shape_for(item: dict, index: int, main: str, dark: str, pale: str) -> str:
         return detergent(main, dark, pale)
     if name == "保鲜膜":
         return wrap(main, dark, pale)
+    if name in {"海绵百洁布", "绿色百洁布"}:
+        return sponge(main, dark, pale, green=name == "绿色百洁布")
+    if name == "火碱":
+        return caustic_soda(main, dark, pale)
+    if name == "84消毒液":
+        return disinfectant(main, dark, pale)
+    if name == "抹布":
+        return rag(main, dark, pale)
+    if name == "围裙":
+        return apron(main, dark, pale)
+    if name == "拖把":
+        return mop(main, dark, pale)
     return cube(main, dark, pale, diagonal=False)
 
 
@@ -340,6 +352,51 @@ def wrap(main: str, dark: str, pale: str) -> str:
   <path d="M73 84v82c0 12 21 23 47 23s47-11 47-23V84" fill="{pale}" stroke="{dark}" stroke-width="5"/>
   <ellipse cx="120" cy="166" rx="47" ry="22" fill="#fff" stroke="{dark}" stroke-width="5"/>
   <ellipse cx="120" cy="166" rx="18" ry="8" fill="{main}" opacity=".45"/>"""
+
+
+def sponge(main: str, dark: str, pale: str, green: bool) -> str:
+    scrub = "#278f5a" if green else "#2f6f38"
+    foam = "#f0c94a" if not green else "#b7df69"
+    return f"""<path d="M69 104l94-31 31 49-95 31-30-49Z" fill="{foam}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M99 153l95-31v43l-95 32-30-43v-50l30 49Z" fill="{scrub}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M88 107l27 40M115 98l27 40M142 89l27 40M97 174l82-27" stroke="#fff" stroke-width="5" opacity=".42" stroke-linecap="round"/>
+  <circle cx="100" cy="122" r="5" fill="#fff" opacity=".55"/><circle cx="135" cy="112" r="4" fill="#fff" opacity=".55"/><circle cx="160" cy="139" r="5" fill="#fff" opacity=".5"/>"""
+
+
+def caustic_soda(main: str, dark: str, pale: str) -> str:
+    return f"""<path d="M82 88h76l15 95H67l15-95Z" fill="#f7f7ee" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M92 64h56l10 24H82l10-24Z" fill="{main}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M120 112l33 55H87l33-55Z" fill="#fff4b8" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M120 130v18" stroke="{dark}" stroke-width="7" stroke-linecap="round"/><circle cx="120" cy="158" r="5" fill="{dark}"/>
+  <path d="M93 183c25 9 54 9 79 0" stroke="{main}" stroke-width="7" opacity=".55" stroke-linecap="round"/>"""
+
+
+def disinfectant(main: str, dark: str, pale: str) -> str:
+    return f"""<rect x="93" y="51" width="54" height="30" rx="8" fill="{dark}"/>
+  <path d="M84 80h72l14 28v74c0 12-10 21-22 21h-56c-12 0-22-9-22-21v-74l14-28Z" fill="#eef8fb" stroke="{dark}" stroke-width="5"/>
+  <path d="M81 128h78v43H81z" fill="{main}" opacity=".75"/>
+  <path d="M120 107v64M96 139h48" stroke="#fff" stroke-width="10" opacity=".78" stroke-linecap="round"/>
+  <path d="M100 94h40" stroke="{pale}" stroke-width="7" opacity=".8" stroke-linecap="round"/>"""
+
+
+def rag(main: str, dark: str, pale: str) -> str:
+    return f"""<path d="M69 101c30-25 72 11 103-12 11 30-7 58 1 92-35-11-69 14-105-5 16-23-7-48 1-75Z" fill="{pale}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M83 121c26 11 54 6 80-10M82 151c27 11 57 7 84-6M98 97c-6 25-4 54 8 84M133 102c-4 23-3 46 8 69" fill="none" stroke="{main}" stroke-width="6" opacity=".62" stroke-linecap="round"/>
+  <circle cx="91" cy="170" r="5" fill="#fff" opacity=".65"/>"""
+
+
+def apron(main: str, dark: str, pale: str) -> str:
+    return f"""<path d="M101 61h39c0 27 15 45 28 58l-14 78H86l-14-78c14-13 29-31 29-58Z" fill="{pale}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M104 62c4 27 28 27 33 0M77 122c-18 4-28 17-33 34M163 122c18 4 28 17 33 34" fill="none" stroke="{dark}" stroke-width="7" stroke-linecap="round"/>
+  <path d="M95 138h50v39H95z" fill="{main}" opacity=".65" stroke="{dark}" stroke-width="4"/>
+  <path d="M96 101h49" stroke="#fff" stroke-width="8" opacity=".55" stroke-linecap="round"/>"""
+
+
+def mop(main: str, dark: str, pale: str) -> str:
+    return f"""<path d="M150 52L96 155" stroke="{dark}" stroke-width="10" stroke-linecap="round"/>
+  <path d="M97 150l44 23-19 28-50-26 25-25Z" fill="{main}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M79 177l-18 25M94 183l-12 27M110 188l-5 25M126 188l8 22M138 179l18 20" stroke="{pale}" stroke-width="8" stroke-linecap="round"/>
+  <path d="M144 62l19-15" stroke="#fff" stroke-width="5" opacity=".55" stroke-linecap="round"/>"""
 
 
 def escape(value: str) -> str:

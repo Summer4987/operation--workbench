@@ -7,5 +7,5 @@
   <rect x="74" y="76" width="92" height="111" rx="23" fill="#fff7eb" stroke="#725b17" stroke-width="5"/>
   <path d="M82 127c24-14 52-14 76 0v39H82v-39Z" fill="#c7a233" opacity=".82"/>
   <path d="M94 98h52" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
-  <circle cx="120" cy="148" r="6" fill="#fff" opacity=".6"/>
+  <circle cx="110" cy="148" r="6" fill="#fff" opacity=".6"/>
 </svg>
