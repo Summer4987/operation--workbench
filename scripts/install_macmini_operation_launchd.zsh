@@ -121,9 +121,11 @@ import shutil
 root = Path("${ROOT}")
 stage = Path.home() / "Library" / "Application Support" / "xiong-operation" / "deploy"
 (stage / "data").mkdir(parents=True, exist_ok=True)
-shutil.copy2(root / "workbench-data.js", stage / "workbench-data.js")
+for name in ("index.html", "workbench.css", "workbench.js", "workbench-data.js"):
+    shutil.copy2(root / name, stage / name)
 shutil.copy2(root / "data" / "realtime-history.json", stage / "data" / "realtime-history.json")
-(stage / "workbench-data.js").chmod(0o644)
+for name in ("index.html", "workbench.css", "workbench.js", "workbench-data.js"):
+    (stage / name).chmod(0o644)
 (stage / "data" / "realtime-history.json").chmod(0o644)
 PY
 
@@ -166,7 +168,10 @@ else
   ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/data'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh \${SSH_OPTS[*]}" \
-    index.html workbench.css workbench.js workbench-data.js \
+    "\$STAGE_DIR/index.html" \
+    "\$STAGE_DIR/workbench.css" \
+    "\$STAGE_DIR/workbench.js" \
+    "\$STAGE_DIR/workbench-data.js" \
     "\$SERVER:\$REMOTE_DIR/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh \${SSH_OPTS[*]}" \
