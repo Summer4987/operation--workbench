@@ -521,98 +521,85 @@ function renderDailyWeekAnalysis(dailyTrends) {
   );
 }
 
-function priorityItems() {
-  const balances = data.balances || {};
-  const promoBalanceStatus = data.promo_balance_status || {};
-  const promoBalanceSummary = promoBalanceStatus.summary || {};
-  const realtimeCollection = data.realtime_collection || {};
-  const realtimeFailures = realtimeCollection.platform_failures || [];
-  const realtimeSummary = realtimeCollection.summary || {};
-  const inventory = data.inventory || {};
-  const daily = data.daily || {};
-  const taskHealth = data.task_health || {};
-  const userActionQueue = data.user_action_queue || {};
-  const balanceThreshold = Number((promoBalanceStatus.summary || balances.summary || {}).warning_threshold || balances.threshold || 200);
+let dailyOrderPendingSummary = null;
+
+function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshold) {
+  const summary = promoBalanceStatus.summary || {};
+  const lowBalanceCount = Number(summary.low_balance_count ?? balances.summary?.warning_count ?? 0);
+  const platformFailureCount = Number(summary.platform_failure_count || 0);
+  const unconfirmedCount = (balances.items || []).filter((item) => balanceValue(item) === null).length;
+  if (lowBalanceCount || platformFailureCount || unconfirmedCount) {
+    return {
+      count: lowBalanceCount + platformFailureCount + unconfirmedCount,
+      detail: [
+        lowBalanceCount ? `低余额 ${lowBalanceCount} 个` : "",
+        platformFailureCount ? `巡检失败 ${platformFailureCount} 个` : "",
+        unconfirmedCount ? `余额未确认 ${unconfirmedCount} 个` : "",
+      ].filter(Boolean).join("；"),
+    };
+  }
   const balanceWarnings = (balances.items || []).filter((item) => {
     const value = balanceValue(item);
     return value !== null && value < balanceThreshold;
   });
-  const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
-  const inventoryWarnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
-  const automationWarnings = groupedAnomalies(daily.focus_items || []).slice(0, 3);
-  const taskWarnings = (taskHealth.tasks || []).filter((item) => item.status === "danger").slice(0, 3);
-  const items = [];
+  return {
+    count: balanceWarnings.length,
+    detail: balanceWarnings.length ? `低于 ${yuan(balanceThreshold)} 的余额 ${balanceWarnings.length} 个` : "无余额异常",
+  };
+}
 
-  (userActionQueue.items || []).slice(0, 3).forEach((item) => {
-    items.push({
-      type: "用户待办",
-      title: item.title || "待处理事项",
-      detail: compactText(item.brief_action || item.reason || item.action || "请查看 AI 运营建议。"),
-      level: item.priority === "high" ? "danger" : "warning",
-    });
-  });
-  if (inventoryWarnings.length) {
-    items.push({
-      type: "库存不足",
-      title: `${inventoryWarnings.length} 个库存预警`,
-      detail: inventoryWarnings.slice(0, 3).map((item) => item.name).join("、"),
-      level: "danger",
-    });
+function countInventoryAbnormal(inventory) {
+  const warnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
+  const count = Number(inventory.warning_count ?? warnings.length);
+  return {
+    count,
+    detail: count ? warnings.slice(0, 3).map((item) => item.name).join("、") : "无库存异常",
+  };
+}
+
+function countPendingDailyOrders() {
+  if (!dailyOrderPendingSummary) {
+    return { count: null, detail: "正在读取日常订货后台" };
   }
-  if (platformFailures.length) {
-    const evidenceCount = Number(promoBalanceSummary.evidence_count || 0);
-    items.push({
-      type: "推广巡检失败",
-      title: `${promoBalanceSummary.platform_failure_count || platformFailures.length} 个平台失败`,
-      detail: [
-        platformFailures.map((item) => item.recovery?.summary || `${item.platform}：${item.failure_type || "需处理"}`).join("；"),
-        evidenceCount ? `证据 ${evidenceCount} 个` : "",
-      ].filter(Boolean).join("；"),
-      level: "danger",
-    });
+  if (dailyOrderPendingSummary.status === "failed") {
+    return { count: null, detail: dailyOrderPendingSummary.message || "未处理订货订单读取失败" };
   }
-  if (realtimeFailures.length) {
-    items.push({
-      type: "实时采集失败",
-      title: `${realtimeSummary.platform_failure_count || realtimeFailures.length} 个平台失败`,
-      detail: realtimeFailures.map((item) => item.recovery_summary || `${item.platform}：缺 ${item.missing_count || 0} 个门店`).join("；"),
-      level: realtimeCollection.status === "missing_latest" ? "danger" : "warning",
-    });
-  }
-  if (balanceWarnings.length) {
-    const lowest = balanceWarnings.slice().sort((a, b) => Number(a.balance || 0) - Number(b.balance || 0))[0];
-    items.push({
-      type: "推广余额不足",
-      title: `${balanceWarnings.length} 个余额预警`,
-      detail: lowest ? `${lowest.platform} · ${shortStore(lowest.store_name)} ${yuan(balanceValue(lowest))}` : "请打开余额巡检",
-      level: "warning",
-    });
-  }
-  automationWarnings.forEach((group) => {
-    items.push({
-      type: "自动化异常",
-      title: `${group.store} ${group.issues.length} 项异常`,
-      detail: group.issues.map((item) => item.title).join("；"),
-      level: "danger",
-    });
-  });
-  taskWarnings.forEach((task) => {
-    items.push({
-      type: "任务健康",
-      title: `${task.name} ${task.status_text || "需处理"}`,
-      detail: task.human_action || task.reason || "请查看自动化任务健康报告。",
-      level: "danger",
-    });
-  });
-  if (!items.length) {
-    items.push({
-      type: "今日状态",
-      title: "暂无重点预警",
-      detail: "库存、余额和日报异常未发现需要优先处理的事项。",
-      level: "ok",
-    });
-  }
-  return items;
+  const count = Number(dailyOrderPendingSummary.pending_count || 0);
+  return {
+    count,
+    detail: count ? `待处理 ${count} 单，涉及 ${Number(dailyOrderPendingSummary.channel_count || 0)} 个渠道` : "无未处理订货订单",
+  };
+}
+
+function priorityItems() {
+  const balances = data.balances || {};
+  const promoBalanceStatus = data.promo_balance_status || {};
+  const inventory = data.inventory || {};
+  const balanceThreshold = Number((promoBalanceStatus.summary || balances.summary || {}).warning_threshold || balances.threshold || 200);
+  const balanceAbnormal = countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshold);
+  const inventoryAbnormal = countInventoryAbnormal(inventory);
+  const pendingOrders = countPendingDailyOrders();
+
+  return [
+    {
+      type: "余额异常",
+      title: `${num(balanceAbnormal.count)} 个`,
+      detail: balanceAbnormal.detail,
+      level: balanceAbnormal.count ? "warning" : "ok",
+    },
+    {
+      type: "库存异常",
+      title: `${num(inventoryAbnormal.count)} 个`,
+      detail: inventoryAbnormal.detail,
+      level: inventoryAbnormal.count ? "danger" : "ok",
+    },
+    {
+      type: "未处理订货订单",
+      title: pendingOrders.count === null ? "读取中" : `${num(pendingOrders.count)} 单`,
+      detail: pendingOrders.detail,
+      level: pendingOrders.count === null ? "warning" : pendingOrders.count ? "danger" : "ok",
+    },
+  ];
 }
 
 function renderPriority() {
@@ -624,6 +611,22 @@ function renderPriority() {
     items,
     (item) => `<div class="${item.level === "ok" ? "good-row" : "warn-row"}"><span>${escapeHtml(item.type)}</span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
+}
+
+async function loadDailyOrderPendingSummary() {
+  try {
+    const response = await fetch("/daily-order/api/admin/summary?status=pending&token=daily-order-admin", { cache: "no-store" });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "订货后台读取失败");
+    dailyOrderPendingSummary = {
+      status: "ready",
+      pending_count: Number(payload.stats?.pending_count ?? payload.stats?.order_count ?? (payload.orders || []).length),
+      channel_count: (payload.channels || []).length,
+    };
+  } catch (error) {
+    dailyOrderPendingSummary = { status: "failed", message: error.message };
+  }
+  renderPriority();
 }
 
 function renderHealth() {
@@ -1625,6 +1628,7 @@ renderTools();
 renderFinance();
 window.addEventListener("hashchange", activatePage);
 activatePage();
+loadDailyOrderPendingSummary();
 loadDailyOrderAdminFrame();
 loadDailyReportFrame();
 loadInventoryBoardFrame();
