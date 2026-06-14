@@ -523,18 +523,43 @@ function renderDailyWeekAnalysis(dailyTrends) {
 
 let dailyOrderPendingSummary = null;
 
+function priorityDetailList(items, formatter, emptyText, limit = 6) {
+  if (!items.length) return emptyText;
+  const shown = items.slice(0, limit).map(formatter);
+  const remaining = items.length - shown.length;
+  return `${shown.join("；")}${remaining > 0 ? `；另 ${remaining} 个` : ""}`;
+}
+
 function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshold) {
   const summary = promoBalanceStatus.summary || {};
+  const lowBalanceItems = promoBalanceStatus.low_balance_items || [];
+  const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
+  const unconfirmedItems = (balances.items || []).filter((item) => balanceValue(item) === null);
   const lowBalanceCount = Number(summary.low_balance_count ?? balances.summary?.warning_count ?? 0);
-  const platformFailureCount = Number(summary.platform_failure_count || 0);
-  const unconfirmedCount = (balances.items || []).filter((item) => balanceValue(item) === null).length;
+  const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length);
+  const unconfirmedCount = unconfirmedItems.length;
   if (lowBalanceCount || platformFailureCount || unconfirmedCount) {
+    const lowBalanceDetail = priorityDetailList(
+      lowBalanceItems,
+      (item) => `${item.platform || "-"} ${shortStore(item.store_name)} ${yuan(balanceValue(item))}`,
+      "",
+    );
+    const failureDetail = priorityDetailList(
+      platformFailures,
+      (item) => `${item.platform || "-"}巡检失败`,
+      "",
+    );
+    const unconfirmedDetail = priorityDetailList(
+      unconfirmedItems,
+      (item) => `${item.platform || "-"} ${shortStore(item.store_name)}未确认`,
+      "",
+    );
     return {
       count: lowBalanceCount + platformFailureCount + unconfirmedCount,
       detail: [
-        lowBalanceCount ? `低余额 ${lowBalanceCount} 个` : "",
-        platformFailureCount ? `巡检失败 ${platformFailureCount} 个` : "",
-        unconfirmedCount ? `余额未确认 ${unconfirmedCount} 个` : "",
+        lowBalanceDetail,
+        failureDetail,
+        unconfirmedDetail,
       ].filter(Boolean).join("；"),
     };
   }
@@ -544,7 +569,11 @@ function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshol
   });
   return {
     count: balanceWarnings.length,
-    detail: balanceWarnings.length ? `低于 ${yuan(balanceThreshold)} 的余额 ${balanceWarnings.length} 个` : "无余额异常",
+    detail: priorityDetailList(
+      balanceWarnings,
+      (item) => `${item.platform || "-"} ${shortStore(item.store_name)} ${yuan(balanceValue(item))}`,
+      "无余额异常",
+    ),
   };
 }
 
@@ -553,21 +582,25 @@ function countInventoryAbnormal(inventory) {
   const count = Number(inventory.warning_count ?? warnings.length);
   return {
     count,
-    detail: count ? warnings.slice(0, 3).map((item) => item.name).join("、") : "无库存异常",
+    detail: priorityDetailList(
+      warnings,
+      (item) => `${item.sku || "-"} ${item.name || ""} ${num(item.balance, 2)}${item.unit || ""}/${num(item.warning_threshold, 2)}${item.unit || ""}`,
+      "无库存异常",
+    ),
   };
 }
 
 function countPendingDailyOrders() {
   if (!dailyOrderPendingSummary) {
-    return { count: null, detail: "正在读取日常订货后台" };
+    return { count: null, detail: "" };
   }
   if (dailyOrderPendingSummary.status === "failed") {
-    return { count: null, detail: dailyOrderPendingSummary.message || "未处理订货订单读取失败" };
+    return { count: null, detail: "" };
   }
   const count = Number(dailyOrderPendingSummary.pending_count || 0);
   return {
     count,
-    detail: count ? `待处理 ${count} 单，涉及 ${Number(dailyOrderPendingSummary.channel_count || 0)} 个渠道` : "无未处理订货订单",
+    detail: "",
   };
 }
 
