@@ -453,7 +453,7 @@ def frame_with_any_text(page, texts: list[str], timeout_seconds: int = 45):
 def eleme_download_form_frame(page, timeout_seconds: int = 60):
     deadline = time.time() + timeout_seconds
     last_seen = ""
-    required = ["门店下载", "下载数据", "日期", "至"]
+    required = ["门店下载", "日期", "至"]
     while time.time() < deadline:
         for frame in page.frames:
             try:
