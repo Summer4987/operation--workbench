@@ -1,0 +1,388 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --ink: #17202a;
+  --muted: #667280;
+  --line: #dce4ed;
+  --brand: #176b5f;
+  --blue: #2d72d9;
+  --danger: #c83b3b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+}
+
+.shell {
+  width: min(1180px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 14px 0 96px;
+}
+
+.topbar,
+.store-panel,
+.filters,
+.sku-card,
+.dialog-card,
+.success-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.topbar {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.topbar span {
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  margin-top: 2px;
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.topbar strong {
+  min-width: 76px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #eaf6f2;
+  color: var(--brand);
+  font-size: 14px;
+}
+
+.store-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, .6fr);
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #293848;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+input,
+textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 0 11px;
+  font: inherit;
+}
+
+textarea {
+  min-height: 78px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tabs button,
+.ghost-button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: #304050;
+  padding: 0 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sku-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 126px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.sku-meta {
+  min-width: 0;
+}
+
+.sku-meta small,
+.sku-meta span,
+.submit-inner span,
+.message,
+.success-card p {
+  color: var(--muted);
+}
+
+.sku-meta small {
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sku-meta strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: #1d2b3a;
+  font-size: 17px;
+}
+
+.sku-meta span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.qty-control {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.qty-control button {
+  min-height: 40px;
+  border: 0;
+  background: #eef3f7;
+  color: #243447;
+  font-size: 20px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.qty-control input {
+  min-height: 40px;
+  border: 0;
+  border-radius: 0;
+  padding: 0 4px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.qty-control input::-webkit-outer-spin-button,
+.qty-control input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.submit-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(12px);
+}
+
+.submit-inner {
+  width: min(1180px, calc(100% - 24px));
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 168px;
+  gap: 12px;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.submit-inner strong,
+.submit-inner span {
+  display: block;
+}
+
+button#submitButton,
+button#confirmSubmitButton,
+.success-card button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--blue);
+  color: white;
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+dialog {
+  width: min(680px, calc(100% - 24px));
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+dialog::backdrop {
+  background: rgba(23, 32, 42, .34);
+}
+
+.dialog-card {
+  padding: 18px;
+}
+
+.confirm-list {
+  display: grid;
+  gap: 7px;
+  max-height: 42vh;
+  margin: 12px 0;
+  overflow: auto;
+}
+
+.confirm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 7px;
+}
+
+.confirm-row strong,
+.confirm-row small {
+  display: block;
+}
+
+.confirm-row small {
+  color: var(--muted);
+}
+
+.confirm-row b {
+  color: var(--brand);
+}
+
+.dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.message {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+.success-screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: var(--bg);
+  padding: 24px;
+}
+
+.success-card {
+  width: min(520px, 100%);
+  padding: 28px 22px;
+  text-align: center;
+}
+
+.success-card span {
+  color: var(--brand);
+  font-weight: 900;
+}
+
+.success-card h2 {
+  margin: 6px 0;
+  font-size: 24px;
+}
+
+.success-card button {
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .catalog-grid {
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+
+  .filters,
+  .store-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .catalog-grid,
+  .sku-card,
+  .submit-inner,
+  .dialog-actions {
+    grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+}
