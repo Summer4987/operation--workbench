@@ -6,6 +6,8 @@ const state = {
   quantities: new Map(),
   customNotes: new Map(),
   recentOrders: [],
+  recentOrdersStore: "",
+  ordersExpanded: false,
 };
 
 lockPageZoom();
@@ -56,16 +58,20 @@ const els = {
   successScreen: document.querySelector("#successScreen"),
   successOrderId: document.querySelector("#successOrderId"),
   newOrder: document.querySelector("#newOrderButton"),
+  storeOrdersPanel: document.querySelector("#storeOrdersPanel"),
   storeOrdersList: document.querySelector("#storeOrdersList"),
+  toggleOrders: document.querySelector("#toggleOrdersButton"),
   refreshOrders: document.querySelector("#refreshOrdersButton"),
 };
 
 els.search.addEventListener("input", renderCatalog);
-els.storeName.addEventListener("change", loadStoreOrders);
+els.storeName.addEventListener("change", handleStoreChange);
 els.submitButton.addEventListener("click", openConfirm);
 els.confirmSubmit.addEventListener("click", submitOrder);
 els.newOrder.addEventListener("click", resetOrder);
-els.refreshOrders.addEventListener("click", loadStoreOrders);
+els.toggleOrders.addEventListener("click", toggleStoreOrders);
+els.refreshOrders.addEventListener("click", refreshStoreOrders);
+renderOrdersPanelState();
 
 async function loadCatalog() {
   const response = await fetch("/daily-order/api/catalog");
@@ -286,7 +292,7 @@ async function submitOrder() {
     els.confirmDialog.close();
     els.successOrderId.textContent = payload.order_id;
     els.successScreen.style.display = "grid";
-    await loadStoreOrders();
+    if (state.ordersExpanded) await loadStoreOrders();
   } catch (error) {
     els.message.textContent = error.message;
     els.message.className = "message error";
@@ -304,10 +310,47 @@ function resetOrder() {
   updateSummary();
 }
 
+function handleStoreChange() {
+  state.recentOrders = [];
+  state.recentOrdersStore = "";
+  if (state.ordersExpanded) {
+    loadStoreOrders();
+  } else {
+    renderStoreOrders();
+  }
+}
+
+function toggleStoreOrders() {
+  state.ordersExpanded = !state.ordersExpanded;
+  renderOrdersPanelState();
+  if (state.ordersExpanded && els.storeName.value.trim() && state.recentOrdersStore !== els.storeName.value.trim()) {
+    loadStoreOrders();
+  } else {
+    renderStoreOrders();
+  }
+}
+
+function refreshStoreOrders() {
+  if (!state.ordersExpanded) {
+    state.ordersExpanded = true;
+    renderOrdersPanelState();
+  }
+  loadStoreOrders();
+}
+
+function renderOrdersPanelState() {
+  els.storeOrdersPanel.classList.toggle("is-collapsed", !state.ordersExpanded);
+  els.storeOrdersList.hidden = !state.ordersExpanded;
+  els.toggleOrders.textContent = state.ordersExpanded ? "收起" : "展开";
+  els.toggleOrders.setAttribute("aria-expanded", String(state.ordersExpanded));
+  els.refreshOrders.hidden = !state.ordersExpanded;
+}
+
 async function loadStoreOrders() {
   const storeName = els.storeName.value.trim();
   if (!storeName) {
     state.recentOrders = [];
+    state.recentOrdersStore = "";
     renderStoreOrders();
     return;
   }
@@ -317,6 +360,7 @@ async function loadStoreOrders() {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "订单读取失败");
     state.recentOrders = payload.items || [];
+    state.recentOrdersStore = storeName;
     renderStoreOrders();
   } catch (error) {
     els.storeOrdersList.innerHTML = `<p class="error-text">${escapeHtml(error.message)}</p>`;
@@ -324,6 +368,11 @@ async function loadStoreOrders() {
 }
 
 function renderStoreOrders() {
+  renderOrdersPanelState();
+  if (!state.ordersExpanded) {
+    els.storeOrdersList.innerHTML = "";
+    return;
+  }
   if (!els.storeName.value.trim()) {
     els.storeOrdersList.innerHTML = `<p>选择门店后可查看最近提交的订单。</p>`;
     return;

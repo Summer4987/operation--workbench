@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>日常订货</title>
-    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260614-work-meal-no-qty" />
+    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260614-orders-collapse" />
   </head>
   <body>
     <main class="shell">
@@ -28,7 +28,10 @@
       <section id="storeOrdersPanel" class="store-orders-panel">
         <div class="section-heading">
           <h2>已下单订单</h2>
-          <button id="refreshOrdersButton" type="button">刷新</button>
+          <div class="section-actions">
+            <button id="toggleOrdersButton" type="button" aria-expanded="false">展开</button>
+            <button id="refreshOrdersButton" type="button">刷新</button>
+          </div>
         </div>
         <div id="storeOrdersList" class="store-orders-list">
           <p>选择门店后可查看最近提交的订单。</p>
@@ -78,6 +81,6 @@
       </div>
     </section>
 
-    <script src="/daily-order/static/app.js?v=20260614-work-meal-no-qty"></script>
+    <script src="/daily-order/static/app.js?v=20260614-orders-collapse"></script>
   </body>
 </html>

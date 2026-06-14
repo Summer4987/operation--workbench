@@ -109,6 +109,12 @@ h1 {
   font-size: 18px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .section-heading button,
 .admin-topbar button,
 .channel-order-card button,
@@ -127,6 +133,14 @@ h1 {
   display: grid;
   gap: 8px;
   margin-top: 10px;
+}
+
+.store-orders-panel.is-collapsed {
+  padding-bottom: 12px;
+}
+
+.store-orders-panel.is-collapsed .section-heading {
+  margin-bottom: 0;
 }
 
 .store-orders-list p,
