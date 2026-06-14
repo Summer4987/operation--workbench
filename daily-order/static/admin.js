@@ -12,7 +12,6 @@ lockPageZoom();
 
 const channelShortcuts = [
   { channel: "快驴", label: "快驴订货" },
-  { channel: "微信群", label: "微信群" },
   { channel: "工作餐", label: "工作餐" },
   { channel: "淘宝", label: "淘宝" },
   { channel: "拼多多", label: "拼多多" },
@@ -72,7 +71,7 @@ function renderAll() {
 
 function renderChannelNav() {
   if (!els.channelNav) return;
-  const available = new Set((state.payload.channels || []).map((channel) => channel.channel));
+  const available = new Set(visibleChannels().map((channel) => channel.channel));
   els.channelNav.innerHTML = channelShortcuts.map((item) => `
     <button
       class="${available.has(item.channel) ? "" : "is-empty"}"
@@ -86,7 +85,7 @@ function renderChannelNav() {
 }
 
 function renderChannels() {
-  const channels = state.payload.channels || [];
+  const channels = visibleChannels();
   state.copyTexts.clear();
   els.channelBoard.innerHTML = channels.length
     ? channels.map(renderChannel).join("")
@@ -100,6 +99,10 @@ function renderChannels() {
   els.channelBoard.querySelectorAll("[data-copy-wechat]").forEach((button) => {
     button.addEventListener("click", () => copyWechatText(button.dataset.copyWechat, button));
   });
+}
+
+function visibleChannels() {
+  return (state.payload.channels || []).filter((channel) => channel.channel !== "微信群");
 }
 
 function renderChannel(channel) {

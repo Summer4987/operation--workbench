@@ -102,14 +102,15 @@ async def submit_order(request: Request, payload: dict):
     submitted_time = datetime.now(timezone.utc).astimezone()
     submitted_at = submitted_time.isoformat(timespec="seconds")
     order_id = f"DO-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
+    auto_processed_channels = _auto_processed_channels(lines)
     order = {
         "order_id": order_id,
         "store_name": store_name,
         "store_address": store_records.get(store_name, {}).get("address", ""),
         "remark": remark,
-        "status": "pending",
-        "processed_at": "",
-        "processed_channels": [],
+        "status": "processed" if auto_processed_channels and set(_order_channels({"items": lines})).issubset(auto_processed_channels) else "pending",
+        "processed_at": now_iso() if auto_processed_channels and set(_order_channels({"items": lines})).issubset(auto_processed_channels) else "",
+        "processed_channels": sorted(auto_processed_channels),
         "submitted_at": submitted_at,
         "client_host": request.client.host if request.client else "",
         "items": lines,
@@ -123,6 +124,7 @@ async def submit_order(request: Request, payload: dict):
     _write_order_csv(csv_path, order)
     _append_order_lines(order)
     _notify_order(order)
+    _notify_wechat_groups(order)
 
     return {
         "status": "success",
@@ -362,15 +364,21 @@ def _normalize_order(order: dict) -> dict:
         item["purchase_channel"] = _purchase_channel(product)
     channels = _order_channels(order)
     if "processed_channels" not in order:
-        order["processed_channels"] = channels if order.get("status") == "processed" else []
+        processed_channels = set(channels if order.get("status") == "processed" else [])
+        processed_channels.update(_auto_processed_channels(order.get("items") or []))
+        order["processed_channels"] = sorted(processed_channels)
     else:
         processed_channels = set(order.get("processed_channels") or [])
         migrated_channels = {channel for channel in processed_channels if channel in channels}
         if "微信群" in processed_channels:
             migrated_channels.update(channel for channel in channels if "群" in channel or channel == "微信群")
+        migrated_channels.update(_auto_processed_channels(order.get("items") or []))
         if order.get("status") == "processed":
             migrated_channels.update(channels)
         order["processed_channels"] = sorted(migrated_channels)
+    if channels and set(channels).issubset(set(order.get("processed_channels") or [])):
+        order["status"] = "processed"
+        order["processed_at"] = order.get("processed_at") or now_iso()
     return order
 
 
@@ -406,6 +414,10 @@ def _channel_sort_key(channel: dict) -> tuple[int, str]:
     order = {"快驴": 0, "微信群": 1, "工作餐": 2, "淘宝": 3, "拼多多": 4, "京东": 5}
     name = str(channel.get("channel") or "")
     return (order.get(name, 99), name)
+
+
+def _auto_processed_channels(items: list[dict]) -> set[str]:
+    return {_item_channel(item) for item in items if _display_channel(_item_channel(item)) == "微信群"}
 
 
 def _channel_is_processed(order: dict, channel: str) -> bool:
@@ -497,6 +509,19 @@ def _notify_order(order: dict) -> None:
         return
     notify_type = os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "generic").strip().lower()
     text = _order_message(order)
+    _send_notify_text(webhook, notify_type, text, {"order": order})
+
+
+def _notify_wechat_groups(order: dict) -> None:
+    webhook = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "").strip() or os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
+    if not webhook:
+        return
+    notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
+    for text in _wechat_group_messages(order):
+        _send_notify_text(webhook, notify_type, text, {"order": order, "message_type": "wechat_group_order"})
+
+
+def _send_notify_text(webhook: str, notify_type: str, text: str, extra_payload: dict | None = None) -> None:
     if notify_type == "wecom":
         payload = {"msgtype": "text", "text": {"content": text}}
     elif notify_type == "feishu":
@@ -504,13 +529,68 @@ def _notify_order(order: dict) -> None:
     elif notify_type == "dingtalk":
         payload = {"msgtype": "text", "text": {"content": text}}
     else:
-        payload = {"text": text, "order": order}
+        payload = {"text": text, **(extra_payload or {})}
     try:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = url_request.Request(webhook, data=body, headers={"Content-Type": "application/json"})
         url_request.urlopen(req, timeout=8).read()
     except Exception:
         pass
+
+
+def _wechat_group_messages(order: dict) -> list[str]:
+    groups: dict[str, dict[str, dict]] = {}
+    for item in order.get("items") or []:
+        item_channel = _item_channel(item)
+        if _display_channel(item_channel) != "微信群":
+            continue
+        stores = groups.setdefault(item_channel, {})
+        store_key = f"{order.get('store_name', '')}||{order.get('store_address', '')}"
+        store = stores.setdefault(
+            store_key,
+            {
+                "store_name": order.get("store_name") or "未命名门店",
+                "store_address": order.get("store_address") or "未填写地址",
+                "items": {},
+            },
+        )
+        item_key = f"{item.get('name', '')}||{item.get('spec', '')}||{item.get('unit', '')}||{item.get('note', '')}"
+        line = store["items"].setdefault(
+            item_key,
+            {
+                "name": item.get("name", ""),
+                "spec": item.get("spec", ""),
+                "unit": item.get("unit", ""),
+                "note": item.get("note", ""),
+                "quantity": 0,
+            },
+        )
+        line["quantity"] += _to_number(item.get("quantity"))
+    return [_wechat_group_message_text(group_name, list(stores.values())) for group_name, stores in groups.items()]
+
+
+def _wechat_group_message_text(group_name: str, stores: list[dict]) -> str:
+    sections = [f"【{group_name}】"]
+    for store in stores:
+        lines = [
+            store["store_name"],
+            f"地址：{store['store_address']}",
+            "货品：",
+            *[f"- {_plain_order_line(item)}" for item in store["items"].values()],
+        ]
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
+def _plain_order_line(item: dict) -> str:
+    spec = f" {item.get('spec')}" if item.get("spec") else ""
+    note = f" · {item.get('note')}" if item.get("note") else ""
+    return f"{item.get('name', '')}{spec}{note} {_format_number(item.get('quantity'))}{item.get('unit') or ''}"
+
+
+def _format_number(value) -> str:
+    number = _to_number(value)
+    return str(int(number)) if number.is_integer() else f"{number:.2f}"
 
 
 def _order_message(order: dict) -> str:
