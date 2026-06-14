@@ -250,12 +250,23 @@ echo "[\$(date '+%F %T')] 上午运营采集结束。" >> "\$LOG_DIR/scheduler.l
 EOF
 chmod +x "$SCRIPT_DIR/run_morning_ops.zsh"
 
+/bin/cp "$ROOT/scripts/run_current_budget.zsh" "$SCRIPT_DIR/run_current_budget.zsh"
+/bin/cp "$ROOT/scripts/run_eleme_automation.zsh" "$SCRIPT_DIR/run_eleme_automation.zsh"
+/bin/cp "$ROOT/scripts/run_evening_budget.zsh" "$SCRIPT_DIR/run_evening_budget_entry.zsh"
+chmod u+rwX,go+rX \
+  "$SCRIPT_DIR/run_current_budget.zsh" \
+  "$SCRIPT_DIR/run_eleme_automation.zsh" \
+  "$SCRIPT_DIR/run_evening_budget_entry.zsh"
+
 cat > "$SCRIPT_DIR/run_evening_budget.zsh" <<EOF
 #!/bin/zsh
 set -euo pipefail
 
 ROOT="${ROOT}"
-RUNNER="\$ROOT/scripts/run_evening_budget.zsh"
+RUNNER="${SCRIPT_DIR}/run_evening_budget_entry.zsh"
+CURRENT_RUNNER="${SCRIPT_DIR}/run_current_budget.zsh"
+ELEME_RUNNER="${SCRIPT_DIR}/run_eleme_automation.zsh"
+DEPLOY_RUNNER="${SCRIPT_DIR}/deploy_workbench_to_cloud.zsh"
 LOG_DIR="\$HOME/Library/Logs/xiong-operation/evening_budget"
 mkdir -p "\$LOG_DIR"
 LOG_FILE="\$LOG_DIR/\$(date +%F).log"
@@ -268,6 +279,10 @@ LOG_FILE="\$LOG_DIR/\$(date +%F).log"
     exit 127
   fi
   cd "\$ROOT"
+  OPERATION_ROOT="\$ROOT" \
+  CURRENT_BUDGET_RUNNER="\$CURRENT_RUNNER" \
+  ELEME_AUTOMATION_RUNNER="\$ELEME_RUNNER" \
+  WORKBENCH_DEPLOY_RUNNER="\$DEPLOY_RUNNER" \
   /bin/zsh "\$RUNNER"
   echo "[\$(date '+%F %T')] 晚间预算初始化完成"
 } >> "\$LOG_FILE" 2>&1

@@ -6,5 +6,6 @@ cd "$ROOT"
 
 MODE="${BUDGET_MODE:-commit}"
 LIMIT="${BUDGET_LIMIT:-all}"
+CURRENT_RUNNER="${CURRENT_BUDGET_RUNNER:-$ROOT/scripts/run_current_budget.zsh}"
 
-exec /bin/zsh "$ROOT/scripts/run_current_budget.zsh" --period 晚餐 --mode "$MODE" --limit "$LIMIT"
+exec /bin/zsh "$CURRENT_RUNNER" --period 晚餐 --mode "$MODE" --limit "$LIMIT"
