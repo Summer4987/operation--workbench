@@ -102,6 +102,7 @@ async def submit_order(request: Request, payload: dict):
         "remark": remark,
         "status": "pending",
         "processed_at": "",
+        "processed_channels": [],
         "submitted_at": submitted_at,
         "client_host": request.client.host if request.client else "",
         "items": lines,
@@ -136,9 +137,9 @@ def admin_summary(request: Request, status: str = "pending"):
     _require_admin(request)
     if status not in {"pending", "processed", "all"}:
         raise HTTPException(status_code=400, detail="状态不正确")
-    orders = _read_orders()
-    if status != "all":
-        orders = [order for order in orders if order.get("status") == status]
+    all_orders = _read_orders()
+    orders = [_order_for_status(order, status) for order in all_orders]
+    orders = [order for order in orders if order.get("items")]
     return {
         "status": status,
         "orders": orders,
@@ -146,7 +147,7 @@ def admin_summary(request: Request, status: str = "pending"):
         "stats": {
             "order_count": len(orders),
             "line_count": sum(len(order.get("items") or []) for order in orders),
-            "pending_count": sum(1 for order in _read_orders() if order.get("status") == "pending"),
+            "pending_count": sum(1 for order in all_orders if _order_for_status(order, "pending").get("items")),
         },
     }
 
@@ -160,12 +161,45 @@ async def update_order_status(order_id: str, request: Request, payload: dict):
     path = _order_path(order_id)
     if path is None:
         raise HTTPException(status_code=404, detail="订单不存在")
-    order = json.loads(path.read_text(encoding="utf-8"))
+    order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
     order["status"] = status
     order["processed_at"] = now_iso() if status == "processed" else ""
+    order["processed_channels"] = _order_channels(order) if status == "processed" else []
     path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_order_csv(path.with_suffix(".csv"), order)
     return {"status": "success", "order": _normalize_order(order)}
+
+
+@app.patch("/daily-order/api/admin/channels/{channel}/status")
+async def update_channel_status(channel: str, request: Request, payload: dict):
+    _require_admin(request)
+    status = str(payload.get("status") or "").strip()
+    if status not in {"pending", "processed"}:
+        raise HTTPException(status_code=400, detail="状态不正确")
+    channel = channel.strip()
+    if not channel:
+        raise HTTPException(status_code=400, detail="渠道不正确")
+    changed = []
+    for path in SUBMISSION_DIR.glob("*.json"):
+        try:
+            order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+        channels = _order_channels(order)
+        if channel not in channels:
+            continue
+        processed_channels = set(order.get("processed_channels") or [])
+        if status == "processed":
+            processed_channels.add(channel)
+        else:
+            processed_channels.discard(channel)
+        order["processed_channels"] = sorted(processed_channels)
+        order["status"] = "processed" if set(channels).issubset(processed_channels) else "pending"
+        order["processed_at"] = now_iso() if order["status"] == "processed" else ""
+        path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _write_order_csv(path.with_suffix(".csv"), order)
+        changed.append(order["order_id"])
+    return {"status": "success", "channel": channel, "order_count": len(changed), "order_ids": changed}
 
 
 def _load_catalog() -> dict:
@@ -248,7 +282,33 @@ def _normalize_order(order: dict) -> dict:
     for item in order.get("items") or []:
         product = products.get(item.get("sku"), item)
         item.setdefault("purchase_channel", product.get("purchase_channel") or _default_purchase_channel(product))
+    if "processed_channels" not in order:
+        order["processed_channels"] = _order_channels(order) if order.get("status") == "processed" else []
     return order
+
+
+def _order_for_status(order: dict, status: str) -> dict:
+    if status == "all":
+        return order
+    scoped = {**order}
+    scoped["items"] = [
+        item
+        for item in order.get("items") or []
+        if _channel_is_processed(order, item.get("purchase_channel") or _default_purchase_channel(item)) == (status == "processed")
+    ]
+    return scoped
+
+
+def _order_channels(order: dict) -> list[str]:
+    return sorted({_item_channel(item) for item in order.get("items") or []})
+
+
+def _item_channel(item: dict) -> str:
+    return item.get("purchase_channel") or _default_purchase_channel(item)
+
+
+def _channel_is_processed(order: dict, channel: str) -> bool:
+    return channel in set(order.get("processed_channels") or [])
 
 
 def _order_path(order_id: str) -> Path | None:

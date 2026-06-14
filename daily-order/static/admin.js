@@ -63,14 +63,22 @@ function renderChannels() {
   els.channelBoard.innerHTML = channels.length
     ? channels.map(renderChannel).join("")
     : `<div class="empty-panel">当前没有订单。</div>`;
+  els.channelBoard.querySelectorAll("[data-channel-status]").forEach((button) => {
+    button.addEventListener("click", () => updateChannelStatus(button.dataset.channel, button.dataset.channelStatus));
+  });
 }
 
 function renderChannel(channel) {
+  const nextStatus = state.status === "processed" ? "pending" : "processed";
+  const buttonText = nextStatus === "processed" ? "标记本渠道已处理" : "改回本渠道未处理";
   return `
     <article class="channel-card">
       <header>
-        <h2>${escapeHtml(channel.channel)}</h2>
-        <span>${(channel.stores || []).length} 个门店</span>
+        <div>
+          <h2>${escapeHtml(channel.channel)}</h2>
+          <span>${(channel.stores || []).length} 个门店</span>
+        </div>
+        <button type="button" data-channel="${escapeHtml(channel.channel)}" data-channel-status="${nextStatus}">${buttonText}</button>
       </header>
       <div class="channel-totals">
         ${(channel.totals || []).map((item) => `<span>${renderLine(item)}</span>`).join("")}
@@ -138,6 +146,23 @@ async function updateStatus(orderId, status) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "状态更新失败");
+    await loadSummary();
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+}
+
+async function updateChannelStatus(channel, status) {
+  showMessage(`正在更新 ${channel} 渠道状态...`, false);
+  try {
+    const response = await fetch(`/daily-order/api/admin/channels/${encodeURIComponent(channel)}/status?token=${encodeURIComponent(token)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "渠道状态更新失败");
+    showMessage(`${channel} 已更新 ${payload.order_count || 0} 个订单`, false);
     await loadSummary();
   } catch (error) {
     showMessage(error.message, true);

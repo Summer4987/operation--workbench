@@ -106,7 +106,8 @@ h1 {
 
 .section-heading button,
 .admin-topbar button,
-.admin-order-card button {
+.admin-order-card button,
+.channel-card header button {
   min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -718,6 +719,17 @@ dialog::backdrop {
 
 .channel-card h2 {
   font-size: 22px;
+}
+
+.channel-card header div span {
+  display: block;
+  margin-top: 3px;
+}
+
+.channel-card header button {
+  border-color: var(--brand);
+  background: #eef7f4;
+  color: var(--brand);
 }
 
 .channel-card header span,
