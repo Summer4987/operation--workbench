@@ -106,6 +106,39 @@ python3 download_reports.py download --manual
 
 `--manual` 会在每个平台下载前暂停，方便你手动进入正确页面、选择昨日日期。等页面路径和按钮确认稳定后，再改成全自动下载。
 
+## 饿了么固定生产流程
+
+饿了么评价下载固定走 `chrome_cdp_reports.py` 的 `download_eleme_reviews()`：
+
+1. 打开 `ELEME_COMMENTS_URL`。
+2. 等待包含 `导出评价` 的真实评价 iframe，当前 iframe 是 `https://melody-comment.faas.ele.me/`。
+3. 点击 `导出评价`。
+4. 监听 `ExportRatingTaskService.exportRatingData` 获取 `taskId`。
+5. 调用 `ExportRatingTaskService.getExportRatingTask` 轮询导出完成。
+6. 下载返回的文件链接到 `data/reviews/raw/`。
+7. 运行 `process_reports.py --allow-missing-platform` 重新生成看板数据。
+
+单独验证饿了么评价，不打开美团：
+
+```bash
+python3 - <<'PY'
+import importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("chrome_cdp_reports", Path("chrome_cdp_reports.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+print(mod.download_eleme_reviews())
+PY
+```
+
+饿了么日报固定走 `chrome_cdp_reports.py` 的 `generate_eleme_report()` 和 `wait_for_eleme_report()`。成功文件名必须匹配当天 `门店下载_YYYYMMDD至YYYYMMDD_*.xlsx`。
+
+重要准则：
+
+- 没拿到当天饿了么日报时，不允许自动使用更早日期的饿了么日报补位。
+- 没拿到当天评价时，不允许展示历史评价作为当天评价。
+- `--allow-missing-platform` 只表示缺失平台不自动找历史文件；看板必须如实缺失该平台当天记录。
+- 修复前先复核上述固定函数和最近日志，不重新发明流程。
 
 ## 当前门店
 
