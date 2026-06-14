@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="白葡萄酒">
+  <rect width="240" height="240" rx="28" fill="#eef7ff"/>
+  <ellipse cx="120" cy="194" rx="68" ry="13" fill="#000" opacity=".08"/>
+  
+  <rect x="101" y="43" width="38" height="35" rx="8" fill="#1f4f78"/>
+  <path d="M92 75h56l13 27v76c0 11-9 20-20 20H99c-11 0-20-9-20-20v-76l13-27Z" fill="#a8d4f5" stroke="#1f4f78" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M83 126h74v45H83z" fill="#3a86c8" opacity=".75"/>
+  <path d="M101 92h38" stroke="#fff" stroke-width="8" opacity=".6" stroke-linecap="round"/>
+
+</svg>

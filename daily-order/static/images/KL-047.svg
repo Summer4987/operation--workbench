@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="厨邦酱油">
+  <rect width="240" height="240" rx="28" fill="#fff3ec"/>
+  <ellipse cx="120" cy="194" rx="68" ry="13" fill="#000" opacity=".08"/>
+  
+  <rect x="83" y="52" width="74" height="25" rx="7" fill="#6d3521"/>
+  <rect x="74" y="75" width="92" height="111" rx="23" fill="#f1b08b" stroke="#6d3521" stroke-width="5"/>
+  <path d="M82 122c22-15 54-15 76 0v42H82v-42Z" fill="#b85c38" opacity=".82"/>
+  <path d="M93 98h54" stroke="#fff" stroke-width="8" opacity=".55" stroke-linecap="round"/>
+
+</svg>

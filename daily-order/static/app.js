@@ -98,8 +98,8 @@ function renderItem(item) {
   const detail = [sourceLabel(item.source), item.category, item.spec, item.note].filter(Boolean).join(" · ");
   return `
     <article class="sku-card">
-      <div class="sku-image" aria-hidden="true">
-        <span>${escapeHtml(imageText(item.name))}</span>
+      <div class="sku-image">
+        <img src="${escapeHtml(item.image || "")}" alt="${escapeHtml(item.name)}" loading="lazy" />
       </div>
       <div class="sku-meta">
         <small>${escapeHtml(item.sku)}</small>
@@ -210,12 +210,6 @@ function formatNumber(value) {
 
 function sourceLabel(source) {
   return sourceLabels[source] || source;
-}
-
-function imageText(name) {
-  const text = String(name || "").replace(/[（）()]/g, "").trim();
-  if (text.length <= 3) return text;
-  return text.slice(0, 3);
 }
 
 function escapeHtml(value) {
