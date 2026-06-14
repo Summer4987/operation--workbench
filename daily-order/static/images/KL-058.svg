@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="保鲜膜">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <ellipse cx="120" cy="84" rx="47" ry="22" fill="#e9eef3" stroke="#667280" stroke-width="5"/>
+  <path d="M73 84v82c0 12 21 23 47 23s47-11 47-23V84" fill="#e9eef3" stroke="#667280" stroke-width="5"/>
+  <ellipse cx="120" cy="166" rx="47" ry="22" fill="#fff" stroke="#667280" stroke-width="5"/>
+  <ellipse cx="120" cy="166" rx="18" ry="8" fill="#d9e2ea"/>
+</svg>

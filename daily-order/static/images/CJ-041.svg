@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="酱料盒">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M67 91l53-27 53 27v83l-53 27-53-27V91Z" fill="#e8eef5" stroke="#657386" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M67 91l53 29 53-29M120 120v81" fill="none" stroke="#657386" stroke-width="5" opacity=".55"/>
+  <path d="M92 103l54-27" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+</svg>

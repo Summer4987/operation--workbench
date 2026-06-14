@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="一次性手套">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M82 164V87c0-12 16-12 16 0v49h8V67c0-12 17-12 17 0v69h8V73c0-12 17-12 17 0v65h7V92c0-11 16-11 16 0v68c0 25-20 42-45 42h-4c-25 0-40-14-40-38Z" fill="#dce8f2" stroke="#2f3b48" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M91 173c22 10 45 10 66 0" stroke="#ffffff" stroke-width="6" opacity=".25" stroke-linecap="round"/>
+</svg>

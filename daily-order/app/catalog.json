@@ -16,7 +16,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-001.jpg"
+      "image": "/daily-order/static/images/KL-001.svg"
     },
     {
       "sku": "KD-002",
@@ -26,7 +26,7 @@
       "spec": "10袋/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-002.jpg"
+      "image": "/daily-order/static/images/KD-002.svg"
     },
     {
       "sku": "TC-003",
@@ -36,7 +36,7 @@
       "spec": "",
       "unit": "袋",
       "note": "2袋起订",
-      "image": "/daily-order/static/images/TC-003.jpg"
+      "image": "/daily-order/static/images/TC-003.svg"
     },
     {
       "sku": "KL-004",
@@ -46,7 +46,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-004.jpg"
+      "image": "/daily-order/static/images/KL-004.svg"
     },
     {
       "sku": "KD-005",
@@ -56,7 +56,7 @@
       "spec": "10袋/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-005.jpg"
+      "image": "/daily-order/static/images/KD-005.svg"
     },
     {
       "sku": "TC-006",
@@ -66,7 +66,7 @@
       "spec": "",
       "unit": "袋",
       "note": "尽量和大米一起下单",
-      "image": "/daily-order/static/images/TC-006.jpg"
+      "image": "/daily-order/static/images/TC-006.svg"
     },
     {
       "sku": "KL-007",
@@ -76,7 +76,7 @@
       "spec": "",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KL-007.jpg"
+      "image": "/daily-order/static/images/KL-007.svg"
     },
     {
       "sku": "KD-008",
@@ -86,7 +86,7 @@
       "spec": "14袋/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-008.jpg"
+      "image": "/daily-order/static/images/KD-008.svg"
     },
     {
       "sku": "KL-009",
@@ -96,7 +96,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-009.jpg"
+      "image": "/daily-order/static/images/KL-009.svg"
     },
     {
       "sku": "KD-010",
@@ -106,7 +106,7 @@
       "spec": "24瓶/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-010.jpg"
+      "image": "/daily-order/static/images/KD-010.svg"
     },
     {
       "sku": "KL-011",
@@ -116,7 +116,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-011.jpg"
+      "image": "/daily-order/static/images/KL-011.svg"
     },
     {
       "sku": "KD-012",
@@ -126,7 +126,7 @@
       "spec": "12瓶/箱",
       "unit": "12箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-012.jpg"
+      "image": "/daily-order/static/images/KD-012.svg"
     },
     {
       "sku": "KL-013",
@@ -136,7 +136,7 @@
       "spec": "",
       "unit": "盒",
       "note": "",
-      "image": "/daily-order/static/images/KL-013.jpg"
+      "image": "/daily-order/static/images/KL-013.svg"
     },
     {
       "sku": "KD-014",
@@ -146,7 +146,7 @@
       "spec": "4瓶/份",
       "unit": "份",
       "note": "",
-      "image": "/daily-order/static/images/KD-014.jpg"
+      "image": "/daily-order/static/images/KD-014.svg"
     },
     {
       "sku": "CJ-015",
@@ -156,7 +156,7 @@
       "spec": "10kg/箱",
       "unit": "箱",
       "note": "2箱起送",
-      "image": "/daily-order/static/images/CJ-015.jpg"
+      "image": "/daily-order/static/images/CJ-015.svg"
     },
     {
       "sku": "KL-016",
@@ -166,7 +166,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-016.jpg"
+      "image": "/daily-order/static/images/KL-016.svg"
     },
     {
       "sku": "KD-017",
@@ -176,7 +176,7 @@
       "spec": "",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KD-017.jpg"
+      "image": "/daily-order/static/images/KD-017.svg"
     },
     {
       "sku": "KL-018",
@@ -186,7 +186,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-018.jpg"
+      "image": "/daily-order/static/images/KL-018.svg"
     },
     {
       "sku": "KD-019",
@@ -196,7 +196,7 @@
       "spec": "",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KD-019.jpg"
+      "image": "/daily-order/static/images/KD-019.svg"
     },
     {
       "sku": "CJ-020",
@@ -206,7 +206,7 @@
       "spec": "10kg/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/CJ-020.jpg"
+      "image": "/daily-order/static/images/CJ-020.svg"
     },
     {
       "sku": "KL-021",
@@ -216,7 +216,7 @@
       "spec": "",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/KL-021.jpg"
+      "image": "/daily-order/static/images/KL-021.svg"
     },
     {
       "sku": "KD-022",
@@ -226,7 +226,7 @@
       "spec": "12瓶/箱",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KD-022.jpg"
+      "image": "/daily-order/static/images/KD-022.svg"
     },
     {
       "sku": "KL-023",
@@ -236,7 +236,7 @@
       "spec": "",
       "unit": "斤",
       "note": "",
-      "image": "/daily-order/static/images/KL-023.jpg"
+      "image": "/daily-order/static/images/KL-023.svg"
     },
     {
       "sku": "KD-024",
@@ -246,7 +246,7 @@
       "spec": "",
       "unit": "块",
       "note": "",
-      "image": "/daily-order/static/images/KD-024.jpg"
+      "image": "/daily-order/static/images/KD-024.svg"
     },
     {
       "sku": "KL-025",
@@ -256,7 +256,7 @@
       "spec": "",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KL-025.jpg"
+      "image": "/daily-order/static/images/KL-025.svg"
     },
     {
       "sku": "KD-026",
@@ -266,7 +266,7 @@
       "spec": "2袋/盒",
       "unit": "盒",
       "note": "",
-      "image": "/daily-order/static/images/KD-026.jpg"
+      "image": "/daily-order/static/images/KD-026.svg"
     },
     {
       "sku": "CJ-027",
@@ -276,7 +276,7 @@
       "spec": "300/箱",
       "unit": "箱",
       "note": "这三个是一个厂商",
-      "image": "/daily-order/static/images/CJ-027.jpg"
+      "image": "/daily-order/static/images/CJ-027.svg"
     },
     {
       "sku": "KL-028",
@@ -286,7 +286,7 @@
       "spec": "",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/KL-028.jpg"
+      "image": "/daily-order/static/images/KL-028.svg"
     },
     {
       "sku": "KD-029",
@@ -296,7 +296,7 @@
       "spec": "12瓶/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-029.jpg"
+      "image": "/daily-order/static/images/KD-029.svg"
     },
     {
       "sku": "CJ-030",
@@ -306,7 +306,7 @@
       "spec": "1000/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/CJ-030.jpg"
+      "image": "/daily-order/static/images/CJ-030.svg"
     },
     {
       "sku": "KL-031",
@@ -316,7 +316,7 @@
       "spec": "",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KL-031.jpg"
+      "image": "/daily-order/static/images/KL-031.svg"
     },
     {
       "sku": "KD-032",
@@ -326,7 +326,7 @@
       "spec": "2000个/份",
       "unit": "份",
       "note": "",
-      "image": "/daily-order/static/images/KD-032.jpg"
+      "image": "/daily-order/static/images/KD-032.svg"
     },
     {
       "sku": "CJ-033",
@@ -336,7 +336,7 @@
       "spec": "800/袋",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/CJ-033.jpg"
+      "image": "/daily-order/static/images/CJ-033.svg"
     },
     {
       "sku": "KL-034",
@@ -346,7 +346,7 @@
       "spec": "",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KL-034.jpg"
+      "image": "/daily-order/static/images/KL-034.svg"
     },
     {
       "sku": "KD-035",
@@ -356,7 +356,7 @@
       "spec": "2盒/份",
       "unit": "份",
       "note": "",
-      "image": "/daily-order/static/images/KD-035.jpg"
+      "image": "/daily-order/static/images/KD-035.svg"
     },
     {
       "sku": "KL-036",
@@ -366,7 +366,7 @@
       "spec": "",
       "unit": "桶",
       "note": "",
-      "image": "/daily-order/static/images/KL-036.jpg"
+      "image": "/daily-order/static/images/KL-036.svg"
     },
     {
       "sku": "KD-037",
@@ -376,7 +376,7 @@
       "spec": "10斤/份",
       "unit": "份",
       "note": "",
-      "image": "/daily-order/static/images/KD-037.jpg"
+      "image": "/daily-order/static/images/KD-037.svg"
     },
     {
       "sku": "CJ-038",
@@ -386,7 +386,7 @@
       "spec": "300/箱",
       "unit": "箱",
       "note": "这三个是一个厂商",
-      "image": "/daily-order/static/images/CJ-038.jpg"
+      "image": "/daily-order/static/images/CJ-038.svg"
     },
     {
       "sku": "KL-039",
@@ -396,7 +396,7 @@
       "spec": "",
       "unit": "桶",
       "note": "",
-      "image": "/daily-order/static/images/KL-039.jpg"
+      "image": "/daily-order/static/images/KL-039.svg"
     },
     {
       "sku": "KD-040",
@@ -406,7 +406,7 @@
       "spec": "10小盒/条",
       "unit": "条",
       "note": "",
-      "image": "/daily-order/static/images/KD-040.jpg"
+      "image": "/daily-order/static/images/KD-040.svg"
     },
     {
       "sku": "CJ-041",
@@ -416,7 +416,7 @@
       "spec": "1000/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/CJ-041.jpg"
+      "image": "/daily-order/static/images/CJ-041.svg"
     },
     {
       "sku": "KL-042",
@@ -426,7 +426,7 @@
       "spec": "",
       "unit": "桶",
       "note": "",
-      "image": "/daily-order/static/images/KL-042.jpg"
+      "image": "/daily-order/static/images/KL-042.svg"
     },
     {
       "sku": "KD-043",
@@ -436,7 +436,7 @@
       "spec": "",
       "unit": "盒",
       "note": "",
-      "image": "/daily-order/static/images/KD-043.jpg"
+      "image": "/daily-order/static/images/KD-043.svg"
     },
     {
       "sku": "CJ-044",
@@ -446,7 +446,7 @@
       "spec": "1000/袋",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/CJ-044.jpg"
+      "image": "/daily-order/static/images/CJ-044.svg"
     },
     {
       "sku": "KL-045",
@@ -456,7 +456,7 @@
       "spec": "",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/KL-045.jpg"
+      "image": "/daily-order/static/images/KL-045.svg"
     },
     {
       "sku": "KL-046",
@@ -466,7 +466,7 @@
       "spec": "",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/KL-046.jpg"
+      "image": "/daily-order/static/images/KL-046.svg"
     },
     {
       "sku": "KL-047",
@@ -476,7 +476,7 @@
       "spec": "",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KL-047.jpg"
+      "image": "/daily-order/static/images/KL-047.svg"
     },
     {
       "sku": "KD-048",
@@ -486,7 +486,7 @@
       "spec": "10000个/份",
       "unit": "份",
       "note": "",
-      "image": "/daily-order/static/images/KD-048.jpg"
+      "image": "/daily-order/static/images/KD-048.svg"
     },
     {
       "sku": "KL-049",
@@ -496,7 +496,7 @@
       "spec": "",
       "unit": "瓶",
       "note": "",
-      "image": "/daily-order/static/images/KL-049.jpg"
+      "image": "/daily-order/static/images/KL-049.svg"
     },
     {
       "sku": "KD-050",
@@ -506,7 +506,7 @@
       "spec": "500个/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-050.jpg"
+      "image": "/daily-order/static/images/KD-050.svg"
     },
     {
       "sku": "KL-051",
@@ -516,7 +516,7 @@
       "spec": "",
       "unit": "袋",
       "note": "",
-      "image": "/daily-order/static/images/KL-051.jpg"
+      "image": "/daily-order/static/images/KL-051.svg"
     },
     {
       "sku": "KD-052",
@@ -526,7 +526,7 @@
       "spec": "240个/箱",
       "unit": "箱",
       "note": "",
-      "image": "/daily-order/static/images/KD-052.jpg"
+      "image": "/daily-order/static/images/KD-052.svg"
     },
     {
       "sku": "KL-053",
@@ -536,7 +536,7 @@
       "spec": "",
       "unit": "个",
       "note": "",
-      "image": "/daily-order/static/images/KL-053.jpg"
+      "image": "/daily-order/static/images/KL-053.svg"
     },
     {
       "sku": "KL-054",
@@ -546,7 +546,7 @@
       "spec": "",
       "unit": "个",
       "note": "",
-      "image": "/daily-order/static/images/KL-054.jpg"
+      "image": "/daily-order/static/images/KL-054.svg"
     },
     {
       "sku": "KL-055",
@@ -556,7 +556,7 @@
       "spec": "",
       "unit": "个",
       "note": "",
-      "image": "/daily-order/static/images/KL-055.jpg"
+      "image": "/daily-order/static/images/KL-055.svg"
     },
     {
       "sku": "KL-056",
@@ -566,7 +566,7 @@
       "spec": "",
       "unit": "包",
       "note": "",
-      "image": "/daily-order/static/images/KL-056.jpg"
+      "image": "/daily-order/static/images/KL-056.svg"
     },
     {
       "sku": "KL-057",
@@ -576,7 +576,7 @@
       "spec": "",
       "unit": "桶",
       "note": "",
-      "image": "/daily-order/static/images/KL-057.jpg"
+      "image": "/daily-order/static/images/KL-057.svg"
     },
     {
       "sku": "KL-058",
@@ -586,7 +586,7 @@
       "spec": "",
       "unit": "卷",
       "note": "",
-      "image": "/daily-order/static/images/KL-058.jpg"
+      "image": "/daily-order/static/images/KL-058.svg"
     }
   ]
 }

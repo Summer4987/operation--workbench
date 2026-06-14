@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="圣女果">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <circle cx="119" cy="132" r="58" fill="#e84c45" stroke="#b83232" stroke-width="5"/>
+  <path d="M119 75l10 24 26-12-14 24 27 8-29 5 12 25-23-17-16 23-1-29-28 8 22-18-22-18 29 5 7-28Z" fill="#4d9a52"/>
+  <path d="M91 111c19-20 51-25 77-9" fill="none" stroke="#ff9b92" stroke-width="9" opacity=".65" stroke-linecap="round"/>
+</svg>

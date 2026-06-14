@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="菠萝罐头">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <ellipse cx="120" cy="73" rx="46" ry="15" fill="#d9e3ec" stroke="#718293" stroke-width="5"/>
+  <path d="M74 73v103c0 9 21 17 46 17s46-8 46-17V73" fill="#f6d36f" stroke="#718293" stroke-width="5"/>
+  <ellipse cx="120" cy="176" rx="46" ry="15" fill="#f1c24f" stroke="#718293" stroke-width="5"/>
+  <path d="M89 116h62v36H89z" fill="#ffffff" opacity=".75"/>
+</svg>

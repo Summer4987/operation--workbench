@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="白玉菇">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M72 106c11-39 85-56 111 0 4 9-3 20-14 20H86c-11 0-18-10-14-20Z" fill="#f5eee3" stroke="#cbbba4" stroke-width="5"/>
+  <path d="M100 124h54l13 58H87l13-58Z" fill="#fff8ee" stroke="#cbbba4" stroke-width="5"/>
+  <path d="M92 126c16 13 54 17 79 0" fill="none" stroke="#d6c7b2" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="106" cy="94" r="7" fill="#d9c8b0"/><circle cx="140" cy="88" r="6" fill="#d9c8b0"/>
+</svg>

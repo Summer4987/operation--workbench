@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="土豆">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M74 126c7-40 41-67 82-54 34 11 46 48 23 81-24 35-82 43-103 8-6-10-6-22-2-35Z" fill="#c99a5b" stroke="#8c6132" stroke-width="5"/>
+  <circle cx="113" cy="111" r="5" fill="#8c6132" opacity=".45"/><circle cx="149" cy="132" r="5" fill="#8c6132" opacity=".45"/><circle cx="113" cy="154" r="4" fill="#8c6132" opacity=".45"/>
+  <path d="M93 101c20-20 54-26 77-2" fill="none" stroke="#e0bd83" stroke-width="8" opacity=".55" stroke-linecap="round"/>
+</svg>

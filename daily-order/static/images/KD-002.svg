@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="味增酱">
+  <rect width="240" height="240" rx="30" fill="#ffffff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fbfcfd" stroke="#e5ecf3" stroke-width="2"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <rect x="84" y="53" width="73" height="24" rx="7" fill="#3d4a58"/>
+  <rect x="74" y="76" width="92" height="111" rx="23" fill="#fff1dd" stroke="#9a6a3f" stroke-width="5"/>
+  <path d="M82 124c24-14 52-14 76 0v42H82v-42Z" fill="#f0a22e" opacity=".82"/>
+  <path d="M94 98h52" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+</svg>
