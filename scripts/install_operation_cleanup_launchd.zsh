@@ -23,8 +23,6 @@ LOG_DAYS="\${OPERATION_CLEAN_LOG_DAYS:-30}"
 DRY_RUN="\${OPERATION_CLEAN_DRY_RUN:-false}"
 PYTHON_BIN="\${PYTHON_BIN:-/usr/bin/python3}"
 
-cd "\$ROOT"
-
 delete_old() {
   local label="\$1"
   local days="\$2"
@@ -64,7 +62,7 @@ if [[ -d "outputs/store_inspection" && -x "\$PYTHON_BIN" ]]; then
   "\$PYTHON_BIN" - <<PY
 from pathlib import Path
 
-root = Path("outputs/store_inspection")
+root = Path("\$ROOT") / "outputs" / "store_inspection"
 max_bytes = int("\$EVIDENCE_MAX_MB") * 1024 * 1024
 dry_run = "\$DRY_RUN" == "true"
 files = [p for p in root.rglob("*") if p.is_file()]
