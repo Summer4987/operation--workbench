@@ -95,7 +95,8 @@ function renderCatalog() {
 
 function renderItem(item) {
   const quantity = state.quantities.get(item.sku) || "";
-  const detail = [sourceLabel(item.source), item.category, item.spec, item.note].filter(Boolean).join(" · ");
+  const detail = [sourceLabel(item.source), item.category, item.note].filter(Boolean).join(" · ");
+  const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
   return `
     <article class="sku-card">
       <div class="sku-image">
@@ -103,7 +104,7 @@ function renderItem(item) {
       </div>
       <div class="sku-meta">
         <small>${escapeHtml(item.sku)}</small>
-        <strong>${escapeHtml(item.name)}</strong>
+        <strong>${escapeHtml(nameLine)}</strong>
         <span>${escapeHtml(detail)}</span>
       </div>
       <div class="qty-control">
