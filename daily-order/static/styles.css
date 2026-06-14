@@ -420,6 +420,34 @@ textarea {
   line-height: 1.35;
 }
 
+.vendor-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-top: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 7px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.vendor-A {
+  border-color: #c8dcf7;
+  background: #eef6ff;
+  color: #2f5f92;
+}
+
+.vendor-B {
+  border-color: #efd5ad;
+  background: #fff5e8;
+  color: #855326;
+}
+
 .qty-control {
   display: grid;
   grid-template-columns: 30px minmax(32px, 1fr) 30px;

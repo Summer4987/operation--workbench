@@ -23,7 +23,16 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
-const imageVersion = "20260614-order-detail";
+const vendorGroups = {
+  "玉米淀粉盒": "A",
+  "小塑料碗": "A",
+  "餐具": "A",
+  "酱料盒": "B",
+  "打包袋": "B",
+  "餐盒": "B",
+};
+
+const imageVersion = "20260614-vendor-badge";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -143,6 +152,7 @@ function renderItem(item) {
   const quantity = state.quantities.get(item.sku) || "";
   const detail = [sourceLabel(item.source), item.category, item.note].filter(Boolean).join(" · ");
   const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
+  const vendorGroup = vendorGroups[item.name] || "";
   return `
     <article class="sku-card">
       <div class="sku-image">
@@ -152,6 +162,7 @@ function renderItem(item) {
         <small>${escapeHtml(item.sku)}</small>
         <strong>${escapeHtml(nameLine)}</strong>
         <span>${escapeHtml(detail)}</span>
+        ${vendorGroup ? `<em class="vendor-badge vendor-${escapeHtml(vendorGroup)}">同厂商 ${escapeHtml(vendorGroup)}</em>` : ""}
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
