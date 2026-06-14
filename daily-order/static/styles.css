@@ -264,7 +264,7 @@ textarea {
 }
 
 .secondary-tabs {
-  grid-template-columns: repeat(4, minmax(66px, 1fr));
+  grid-template-columns: repeat(5, minmax(66px, 1fr));
   margin-top: 10px;
 }
 
@@ -349,6 +349,12 @@ textarea {
   color: #2d668f;
 }
 
+.secondary-tabs button[data-food-category="工作餐"] {
+  border-color: #bfe9df;
+  background: #effbf8;
+  color: #176b5f;
+}
+
 .secondary-tabs button.active {
   border-color: currentColor;
   box-shadow: inset 0 0 0 1px currentColor;
@@ -367,6 +373,25 @@ textarea {
   gap: 10px;
   align-items: center;
   padding: 12px;
+}
+
+.custom-meal-card {
+  grid-column: 1 / -1;
+  grid-template-columns: 84px minmax(0, 1fr) 112px auto;
+  align-items: start;
+  border-color: #b9e3da;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fcfa 100%);
+}
+
+.custom-meal-icon {
+  width: 84px;
+  font-size: 34px;
+}
+
+.custom-meal-meta textarea {
+  min-height: 72px;
+  margin-top: 10px;
+  resize: vertical;
 }
 
 .sku-image {
@@ -1057,6 +1082,23 @@ dialog::backdrop {
 
   .sku-image {
     width: 64px;
+  }
+
+  .custom-meal-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .custom-meal-card .qty-control {
+    grid-column: 2;
+  }
+
+  .custom-meal-card .qty-unit {
+    grid-column: 2;
+  }
+
+  .custom-meal-icon {
+    width: 64px;
+    font-size: 28px;
   }
 
   dialog {

@@ -13,6 +13,7 @@ lockPageZoom();
 const channelShortcuts = [
   { channel: "快驴", label: "快驴订货" },
   { channel: "微信群", label: "微信群" },
+  { channel: "工作餐", label: "工作餐" },
   { channel: "淘宝", label: "淘宝" },
   { channel: "拼多多", label: "拼多多" },
   { channel: "京东", label: "京东" },
@@ -386,12 +387,14 @@ function notifyNewOrders(orders) {
 
 function renderLine(item) {
   const spec = item.spec ? ` ${item.spec}` : "";
-  return `${escapeHtml(item.name)}${escapeHtml(spec)} <b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b>`;
+  const note = item.note ? ` · ${escapeHtml(item.note)}` : "";
+  return `${escapeHtml(item.name)}${escapeHtml(spec)}${note} <b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b>`;
 }
 
 function plainLine(item) {
   const spec = item.spec ? ` ${item.spec}` : "";
-  return `${item.name}${spec} ${formatNumber(item.quantity)}${item.unit || ""}`;
+  const note = item.note ? ` · ${item.note}` : "";
+  return `${item.name}${spec}${note} ${formatNumber(item.quantity)}${item.unit || ""}`;
 }
 
 function renderChannelLine(item, displayChannel) {

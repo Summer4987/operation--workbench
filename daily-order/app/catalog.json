@@ -185,6 +185,17 @@
       "purchase_channel": "虾仁群"
     },
     {
+      "sku": "MEAL-001",
+      "source": "自主填写",
+      "category": "工作餐",
+      "name": "工作餐（自主填写）",
+      "spec": "",
+      "unit": "份",
+      "note": "",
+      "image": "",
+      "purchase_channel": "工作餐"
+    },
+    {
       "sku": "KD-050",
       "source": "快递到店",
       "category": "包材",

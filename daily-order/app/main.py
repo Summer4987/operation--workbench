@@ -77,6 +77,11 @@ async def submit_order(request: Request, payload: dict):
         quantity = _to_number(raw.get("quantity"))
         if not product or quantity <= 0:
             continue
+        line_note = product["note"]
+        if sku == "MEAL-001":
+            line_note = str(raw.get("note") or "").strip()
+            if not line_note:
+                raise HTTPException(status_code=400, detail="请填写工作餐内容")
         lines.append(
             {
                 "sku": sku,
@@ -86,7 +91,7 @@ async def submit_order(request: Request, payload: dict):
                 "name": product["name"],
                 "spec": product["spec"],
                 "unit": product["unit"],
-                "note": product["note"],
+                "note": line_note,
                 "quantity": quantity,
             }
         )
@@ -398,7 +403,7 @@ def _matching_order_channels(channels: list[str], display_channel: str) -> set[s
 
 
 def _channel_sort_key(channel: dict) -> tuple[int, str]:
-    order = {"快驴": 0, "微信群": 1, "淘宝": 2, "拼多多": 3, "京东": 4}
+    order = {"快驴": 0, "微信群": 1, "工作餐": 2, "淘宝": 3, "拼多多": 4, "京东": 5}
     name = str(channel.get("channel") or "")
     return (order.get(name, 99), name)
 
@@ -451,6 +456,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                     "name": item["name"],
                     "spec": item.get("spec", ""),
                     "unit": item.get("unit", ""),
+                    "note": item.get("note", ""),
                     "purchase_channel": item_channel,
                     "status": "processed" if _channel_is_processed(order, item_channel) else "pending",
                     "quantity": 0,

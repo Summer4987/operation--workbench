@@ -4,13 +4,15 @@ const state = {
   section: "食材",
   foodCategory: "蔬菜",
   quantities: new Map(),
+  customNotes: new Map(),
   recentOrders: [],
 };
 
 lockPageZoom();
 
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
-const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品"];
+const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "工作餐"];
+const customMealSku = "MEAL-001";
 const sectionLabels = {
   "食材": "🥬 食材",
   "包材": "📦 包材",
@@ -23,6 +25,7 @@ const sourceLabels = {
   "快递到店": "快递到店（3-5天）",
   "同城物流配送": "同城物流配送（次日）",
   "厂家配送（2日内）": "厂家配送（2日内）",
+  "自主填写": "自主填写",
 };
 
 const vendorGroups = {
@@ -131,6 +134,9 @@ function renderCatalog() {
   els.catalogGrid.querySelectorAll("[data-qty]").forEach((input) => {
     input.addEventListener("input", () => setQuantity(input.dataset.sku, input.value));
   });
+  els.catalogGrid.querySelectorAll("[data-custom-note]").forEach((input) => {
+    input.addEventListener("input", () => setCustomNote(input.dataset.sku, input.value));
+  });
   els.catalogGrid.querySelectorAll("[data-step]").forEach((button) => {
     button.addEventListener("click", () => {
       const current = Number(state.quantities.get(button.dataset.sku) || 0);
@@ -151,6 +157,7 @@ function sectionMatchesItem(section, item) {
 }
 
 function renderItem(item) {
+  if (isCustomMealItem(item)) return renderCustomMealItem(item);
   const quantity = state.quantities.get(item.sku) || "";
   const detail = [sourceLabel(item.source), item.category, item.note].filter(Boolean).join(" · ");
   const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
@@ -176,6 +183,33 @@ function renderItem(item) {
   `;
 }
 
+function renderCustomMealItem(item) {
+  const quantity = state.quantities.get(item.sku) || "";
+  const note = state.customNotes.get(item.sku) || "";
+  return `
+    <article class="sku-card custom-meal-card">
+      <div class="sku-image custom-meal-icon" aria-hidden="true">🍱</div>
+      <div class="sku-meta custom-meal-meta">
+        <small>${escapeHtml(item.sku)} · 自定义</small>
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>在食材下填写当天需要补充的工作餐原料</span>
+        <textarea
+          data-custom-note
+          data-sku="${escapeHtml(item.sku)}"
+          placeholder="例如：猪肉2斤/芹菜3斤/泡椒1袋"
+          aria-label="工作餐内容"
+        >${escapeHtml(note)}</textarea>
+      </div>
+      <div class="qty-control">
+        <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
+        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
+        <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}">+</button>
+      </div>
+      <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
+    </article>
+  `;
+}
+
 function setQuantity(sku, rawValue) {
   const quantity = Number(rawValue || 0);
   if (quantity > 0) {
@@ -186,9 +220,19 @@ function setQuantity(sku, rawValue) {
   updateSummary();
 }
 
+function setCustomNote(sku, rawValue) {
+  const note = String(rawValue || "").trim();
+  if (note) {
+    state.customNotes.set(sku, note);
+  } else {
+    state.customNotes.delete(sku);
+  }
+  updateSummary();
+}
+
 function selectedItems() {
   return state.catalog
-    .map((item) => ({ ...item, quantity: Number(state.quantities.get(item.sku) || 0) }))
+    .map((item) => ({ ...item, quantity: Number(state.quantities.get(item.sku) || 0), custom_note: state.customNotes.get(item.sku) || "" }))
     .filter((item) => item.quantity > 0);
 }
 
@@ -204,12 +248,18 @@ function updateSummary() {
 function openConfirm() {
   const items = selectedItems();
   if (!items.length) return;
+  const missingCustomNote = items.find((item) => isCustomMealItem(item) && !item.custom_note.trim());
+  if (missingCustomNote) {
+    window.alert("请先填写工作餐内容，例如：猪肉2斤/芹菜3斤/泡椒1袋");
+    return;
+  }
   els.confirmList.innerHTML = items
     .map((item) => `
       <div class="confirm-row">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
           <small>${escapeHtml([sourceLabel(item.source), item.spec, item.note].filter(Boolean).join(" · "))}</small>
+          ${item.custom_note ? `<small>内容：${escapeHtml(item.custom_note)}</small>` : ""}
         </div>
         <b>${formatNumber(item.quantity)} ${escapeHtml(item.unit || "")}</b>
       </div>
@@ -227,7 +277,7 @@ async function submitOrder() {
     els.message.className = "message error";
     return;
   }
-  const items = selectedItems().map((item) => ({ sku: item.sku, quantity: item.quantity }));
+  const items = selectedItems().map((item) => ({ sku: item.sku, quantity: item.quantity, note: item.custom_note || "" }));
   els.confirmSubmit.disabled = true;
   els.message.textContent = "正在提交...";
   try {
@@ -256,6 +306,7 @@ async function submitOrder() {
 
 function resetOrder() {
   state.quantities.clear();
+  state.customNotes.clear();
   els.remark.value = "";
   els.successScreen.style.display = "none";
   renderCatalog();
@@ -305,7 +356,7 @@ function renderStoreOrders() {
             <b>明细</b>
           </summary>
           <ul>
-            ${items.map((item) => `<li><span>${escapeHtml(item.name)} ${escapeHtml(item.spec || "")}</span><b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
+            ${items.map((item) => `<li><span>${escapeHtml(item.name)} ${escapeHtml(item.spec || "")}${item.note ? ` · ${escapeHtml(item.note)}` : ""}</span><b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
           </ul>
           ${order.remark ? `<small>备注：${escapeHtml(order.remark)}</small>` : ""}
         </details>
@@ -332,6 +383,10 @@ function sourceLabel(source) {
 
 function imageSrc(src) {
   return src ? `${src}?v=${imageVersion}` : "";
+}
+
+function isCustomMealItem(item) {
+  return item.sku === customMealSku;
 }
 
 function escapeHtml(value) {
