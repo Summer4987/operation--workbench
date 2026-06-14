@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import re
@@ -10,7 +11,7 @@ from urllib import request as url_request
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 
@@ -18,6 +19,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 STATIC_DIR = BASE_DIR / "static"
 DATA_DIR = BASE_DIR / "data"
 SUBMISSION_DIR = DATA_DIR / "submissions"
+ORDER_LINES_PATH = DATA_DIR / "order-lines.csv"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
 
 app = FastAPI(title="Daily Order")
@@ -114,6 +116,7 @@ async def submit_order(request: Request, payload: dict):
     csv_path = SUBMISSION_DIR / f"{stem}.csv"
     json_path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_order_csv(csv_path, order)
+    _append_order_lines(order)
     _notify_order(order)
 
     return {
@@ -150,6 +153,31 @@ def admin_summary(request: Request, status: str = "pending"):
             "pending_count": sum(1 for order in all_orders if _order_for_status(order, "pending").get("items")),
         },
     }
+
+
+@app.get("/daily-order/api/admin/order-lines")
+def admin_order_lines(request: Request, month: str = ""):
+    _require_admin(request)
+    rows = _order_line_rows(month.strip())
+    return {
+        "month": month.strip(),
+        "line_count": len(rows),
+        "rows": rows,
+        "totals": _order_line_totals(rows),
+    }
+
+
+@app.get("/daily-order/api/admin/order-lines.csv")
+def admin_order_lines_csv(request: Request, month: str = ""):
+    _require_admin(request)
+    rows = _order_line_rows(month.strip())
+    text = _rows_to_csv(ORDER_LINE_HEADERS, rows)
+    filename = f"daily-order-lines-{month.strip() or 'all'}.csv"
+    return Response(
+        content=text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.patch("/daily-order/api/admin/orders/{order_id}/status")
@@ -493,6 +521,73 @@ def _order_message(order: dict) -> str:
         spec = f" {item.get('spec')}" if item.get("spec") else ""
         lines.append(f"- {item['name']}{spec} {item['quantity']}{item.get('unit', '')}")
     return "\n".join(lines)
+
+
+ORDER_LINE_HEADERS = ["订单号", "提交时间", "月份", "状态", "门店", "地址", "采购渠道", "配送方式", "分类", "SKU", "品名", "规格", "数量", "单位", "备注", "门店备注"]
+
+
+def _order_line_row(order: dict, item: dict) -> dict:
+    submitted_at = order.get("submitted_at", "")
+    return {
+        "订单号": order.get("order_id", ""),
+        "提交时间": submitted_at,
+        "月份": submitted_at[:7],
+        "状态": order.get("status", "pending"),
+        "门店": order.get("store_name", ""),
+        "地址": order.get("store_address", ""),
+        "采购渠道": item.get("purchase_channel", ""),
+        "配送方式": item.get("source", ""),
+        "分类": item.get("category", ""),
+        "SKU": item.get("sku", ""),
+        "品名": item.get("name", ""),
+        "规格": item.get("spec", ""),
+        "数量": item.get("quantity", 0),
+        "单位": item.get("unit", ""),
+        "备注": item.get("note", ""),
+        "门店备注": order.get("remark", ""),
+    }
+
+
+def _order_line_rows(month: str = "") -> list[dict]:
+    rows = [
+        _order_line_row(order, item)
+        for order in _read_orders()
+        for item in order.get("items") or []
+        if not month or str(order.get("submitted_at", "")).startswith(month)
+    ]
+    rows.sort(key=lambda row: (row["提交时间"], row["订单号"], row["SKU"]), reverse=True)
+    return rows
+
+
+def _order_line_totals(rows: list[dict]) -> list[dict]:
+    totals: dict[tuple[str, str, str, str, str], float] = {}
+    for row in rows:
+        key = (row["采购渠道"], row["门店"], row["SKU"], row["品名"], row["单位"])
+        totals[key] = totals.get(key, 0.0) + _to_number(row["数量"])
+    return [
+        {"采购渠道": channel, "门店": store, "SKU": sku, "品名": name, "单位": unit, "数量": quantity}
+        for (channel, store, sku, name, unit), quantity in sorted(totals.items())
+    ]
+
+
+def _rows_to_csv(headers: list[str], rows: list[dict]) -> str:
+    output = io.StringIO()
+    output.write("\ufeff")
+    writer = csv.DictWriter(output, fieldnames=headers, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+def _append_order_lines(order: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    exists = ORDER_LINES_PATH.exists()
+    with ORDER_LINES_PATH.open("a", encoding="utf-8-sig", newline="") as target:
+        writer = csv.DictWriter(target, fieldnames=ORDER_LINE_HEADERS)
+        if not exists or ORDER_LINES_PATH.stat().st_size == 0:
+            writer.writeheader()
+        for item in order.get("items") or []:
+            writer.writerow(_order_line_row(order, item))
 
 
 def _write_order_csv(path: Path, order: dict) -> None:
