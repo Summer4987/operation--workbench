@@ -140,6 +140,19 @@ h1 {
   background: #fbfcfd;
 }
 
+.store-order-card summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.store-order-card summary::-webkit-details-marker {
+  display: none;
+}
+
 .store-order-card strong,
 .store-order-card span,
 .store-order-card small {
@@ -171,6 +184,23 @@ h1 {
   font-weight: 800;
 }
 
+.store-order-card summary > b {
+  border-radius: 8px;
+  background: #eef6f3;
+  color: var(--brand);
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.store-order-card[open] summary > b {
+  font-size: 0;
+}
+
+.store-order-card[open] summary > b::after {
+  content: "收起";
+  font-size: 12px;
+}
+
 .store-order-card b,
 .channel-card b,
 .admin-order-card b {
@@ -197,6 +227,7 @@ textarea {
   color: var(--ink);
   padding: 0 11px;
   font: inherit;
+  font-size: 16px;
 }
 
 textarea {
@@ -477,10 +508,12 @@ button:disabled {
 }
 
 dialog {
-  width: min(680px, calc(100% - 24px));
+  width: min(680px, calc(100vw - 24px));
+  max-height: min(88dvh, 760px);
   border: 0;
   padding: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 dialog::backdrop {
@@ -488,6 +521,8 @@ dialog::backdrop {
 }
 
 .dialog-card {
+  max-height: min(88dvh, 760px);
+  overflow: auto;
   padding: 18px;
 }
 
@@ -802,6 +837,20 @@ dialog::backdrop {
 
   .sku-image {
     width: 64px;
+  }
+
+  dialog {
+    width: calc(100vw - 16px);
+    max-height: 86dvh;
+  }
+
+  .dialog-card {
+    max-height: 86dvh;
+    padding: 12px;
+  }
+
+  .confirm-list {
+    max-height: 34dvh;
   }
 
   h1 {

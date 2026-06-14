@@ -23,7 +23,7 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
-const imageVersion = "20260614-category-tabs4";
+const imageVersion = "20260614-order-detail";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -279,19 +279,23 @@ function renderStoreOrders() {
   }
   els.storeOrdersList.innerHTML = state.recentOrders
     .map((order) => {
-      const items = (order.items || []).slice(0, 4);
-      const more = (order.items || []).length > items.length ? `<small>另有 ${(order.items || []).length - items.length} 个 SKU</small>` : "";
+      const items = order.items || [];
+      const total = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      const statusText = order.status === "processed" ? "已处理" : "未处理";
       return `
-        <article class="store-order-card">
-          <div>
-            <strong>${escapeHtml(order.order_id)}</strong>
-            <span>${escapeHtml(formatDate(order.submitted_at))} · ${order.status === "processed" ? "已处理" : "未处理"}</span>
-          </div>
+        <details class="store-order-card">
+          <summary>
+            <span>
+              <strong>${escapeHtml(order.order_id)}</strong>
+              <small>${escapeHtml(formatDate(order.submitted_at))} · ${statusText} · ${items.length} 个 SKU · 合计 ${formatNumber(total)}</small>
+            </span>
+            <b>明细</b>
+          </summary>
           <ul>
-            ${items.map((item) => `<li>${escapeHtml(item.name)} ${escapeHtml(item.spec || "")}<b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
+            ${items.map((item) => `<li><span>${escapeHtml(item.name)} ${escapeHtml(item.spec || "")}</span><b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
           </ul>
-          ${more}
-        </article>
+          ${order.remark ? `<small>备注：${escapeHtml(order.remark)}</small>` : ""}
+        </details>
       `;
     })
     .join("");

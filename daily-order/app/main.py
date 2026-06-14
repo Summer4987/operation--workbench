@@ -7,7 +7,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request as url_request
-from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -93,8 +92,9 @@ async def submit_order(request: Request, payload: dict):
     if not lines:
         raise HTTPException(status_code=400, detail="请至少填写一个订货数量")
 
-    submitted_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
-    order_id = f"DO-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:6].upper()}"
+    submitted_time = datetime.now(timezone.utc).astimezone()
+    submitted_at = submitted_time.isoformat(timespec="seconds")
+    order_id = f"DO-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
     order = {
         "order_id": order_id,
         "store_name": store_name,
@@ -128,7 +128,7 @@ def recent_store_orders(store_name: str):
     store_name = store_name.strip()
     if not store_name:
         raise HTTPException(status_code=400, detail="请选择门店")
-    return {"items": [order for order in _read_orders() if order["store_name"] == store_name][:20]}
+    return {"items": [order for order in _read_orders() if order["store_name"] == store_name]}
 
 
 @app.get("/daily-order/api/admin/summary")
@@ -219,11 +219,12 @@ def now_iso() -> str:
 def _read_orders() -> list[dict]:
     SUBMISSION_DIR.mkdir(parents=True, exist_ok=True)
     orders = []
-    for path in sorted(SUBMISSION_DIR.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for path in SUBMISSION_DIR.glob("*.json"):
         try:
             orders.append(_normalize_order(json.loads(path.read_text(encoding="utf-8"))))
         except Exception:
             continue
+    orders.sort(key=lambda order: (order.get("submitted_at", ""), order.get("order_id", "")), reverse=True)
     return orders
 
 
