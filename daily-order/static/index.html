@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>日常订货</title>
-    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260614-icons2" />
+    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260614-admin" />
   </head>
   <body>
     <main class="shell">
@@ -23,6 +23,16 @@
             <option value="">请选择门店</option>
           </select>
         </label>
+      </section>
+
+      <section id="storeOrdersPanel" class="store-orders-panel">
+        <div class="section-heading">
+          <h2>已下单订单</h2>
+          <button id="refreshOrdersButton" type="button">刷新</button>
+        </div>
+        <div id="storeOrdersList" class="store-orders-list">
+          <p>选择门店后可查看最近提交的订单。</p>
+        </div>
       </section>
 
       <section class="filters">
@@ -68,6 +78,6 @@
       </div>
     </section>
 
-    <script src="/daily-order/static/app.js?v=20260614-icons2"></script>
+    <script src="/daily-order/static/app.js?v=20260614-admin"></script>
   </body>
 </html>

@@ -3,6 +3,7 @@ const state = {
   stores: [],
   source: "",
   quantities: new Map(),
+  recentOrders: [],
 };
 
 const sourceLabels = {
@@ -31,12 +32,16 @@ const els = {
   successScreen: document.querySelector("#successScreen"),
   successOrderId: document.querySelector("#successOrderId"),
   newOrder: document.querySelector("#newOrderButton"),
+  storeOrdersList: document.querySelector("#storeOrdersList"),
+  refreshOrders: document.querySelector("#refreshOrdersButton"),
 };
 
 els.search.addEventListener("input", renderCatalog);
+els.storeName.addEventListener("change", loadStoreOrders);
 els.submitButton.addEventListener("click", openConfirm);
 els.confirmSubmit.addEventListener("click", submitOrder);
 els.newOrder.addEventListener("click", resetOrder);
+els.refreshOrders.addEventListener("click", loadStoreOrders);
 
 async function loadCatalog() {
   const response = await fetch("/daily-order/api/catalog");
@@ -53,7 +58,10 @@ async function loadCatalog() {
 
 function renderStoreOptions() {
   els.storeName.innerHTML = `<option value="">请选择门店</option>${state.stores
-    .map((store) => `<option value="${escapeHtml(store)}">${escapeHtml(store)}</option>`)
+    .map((store) => {
+      const name = typeof store === "string" ? store : store.name;
+      return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+    })
     .join("")}`;
 }
 
@@ -188,6 +196,7 @@ async function submitOrder() {
     els.confirmDialog.close();
     els.successOrderId.textContent = payload.order_id;
     els.successScreen.style.display = "grid";
+    await loadStoreOrders();
   } catch (error) {
     els.message.textContent = error.message;
     els.message.className = "message error";
@@ -204,9 +213,64 @@ function resetOrder() {
   updateSummary();
 }
 
+async function loadStoreOrders() {
+  const storeName = els.storeName.value.trim();
+  if (!storeName) {
+    state.recentOrders = [];
+    renderStoreOrders();
+    return;
+  }
+  els.storeOrdersList.innerHTML = `<p>正在读取订单...</p>`;
+  try {
+    const response = await fetch(`/daily-order/api/orders?store_name=${encodeURIComponent(storeName)}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "订单读取失败");
+    state.recentOrders = payload.items || [];
+    renderStoreOrders();
+  } catch (error) {
+    els.storeOrdersList.innerHTML = `<p class="error-text">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderStoreOrders() {
+  if (!els.storeName.value.trim()) {
+    els.storeOrdersList.innerHTML = `<p>选择门店后可查看最近提交的订单。</p>`;
+    return;
+  }
+  if (!state.recentOrders.length) {
+    els.storeOrdersList.innerHTML = `<p>这个门店暂时没有已提交订单。</p>`;
+    return;
+  }
+  els.storeOrdersList.innerHTML = state.recentOrders
+    .map((order) => {
+      const items = (order.items || []).slice(0, 4);
+      const more = (order.items || []).length > items.length ? `<small>另有 ${(order.items || []).length - items.length} 个 SKU</small>` : "";
+      return `
+        <article class="store-order-card">
+          <div>
+            <strong>${escapeHtml(order.order_id)}</strong>
+            <span>${escapeHtml(formatDate(order.submitted_at))} · ${order.status === "processed" ? "已处理" : "未处理"}</span>
+          </div>
+          <ul>
+            ${items.map((item) => `<li>${escapeHtml(item.name)} ${escapeHtml(item.spec || "")}<b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
+          </ul>
+          ${more}
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function formatNumber(value) {
   const number = Number(value || 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(2);
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function sourceLabel(source) {

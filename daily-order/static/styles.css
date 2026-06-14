@@ -85,6 +85,99 @@ h1 {
   padding: 12px;
 }
 
+.store-orders-panel {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading h2 {
+  font-size: 18px;
+}
+
+.section-heading button,
+.admin-topbar button,
+.admin-order-card button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: #243447;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.store-orders-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.store-orders-list p,
+.empty-panel {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.store-order-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e7edf3;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+}
+
+.store-order-card strong,
+.store-order-card span,
+.store-order-card small {
+  display: block;
+}
+
+.store-order-card span,
+.store-order-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.store-order-card ul,
+.admin-store-card ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.store-order-card li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #263646;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.store-order-card b,
+.channel-card b,
+.admin-order-card b {
+  color: var(--brand);
+  white-space: nowrap;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -394,6 +487,211 @@ dialog::backdrop {
   margin-top: 18px;
 }
 
+.admin-page {
+  background: #eef2f5;
+}
+
+.admin-shell {
+  width: min(1240px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 14px 0 40px;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 14px 16px;
+}
+
+.admin-topbar span {
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.admin-stats div,
+.channel-card,
+.admin-order-card,
+.empty-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.admin-stats div {
+  padding: 12px;
+}
+
+.admin-stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-stats strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 28px;
+}
+
+.admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.admin-tabs button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: #304050;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.admin-tabs button.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+}
+
+.admin-message {
+  min-height: 28px;
+  padding: 8px 2px 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-message.error,
+.error-text {
+  color: var(--danger);
+}
+
+.channel-board,
+.order-board {
+  display: grid;
+  gap: 12px;
+}
+
+.channel-card {
+  padding: 14px;
+}
+
+.channel-card header,
+.admin-order-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.channel-card h2 {
+  font-size: 22px;
+}
+
+.channel-card header span,
+.admin-order-card header span,
+.admin-order-card p,
+.admin-store-card span,
+.admin-store-card small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.channel-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.channel-totals > span,
+.admin-order-items span {
+  border-radius: 8px;
+  background: #edf5f3;
+  color: #22313f;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.store-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-store-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e7edf3;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+}
+
+.admin-store-card strong,
+.admin-store-card span,
+.admin-store-card small {
+  display: block;
+}
+
+.admin-store-card li {
+  color: #263646;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-order-card {
+  padding: 12px;
+}
+
+.admin-order-card + .admin-order-card {
+  margin-top: 0;
+}
+
+.admin-order-card header strong {
+  display: block;
+  font-size: 17px;
+}
+
+.admin-order-card p {
+  margin-top: 8px;
+}
+
+.admin-order-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.admin-remark {
+  color: #293848;
+}
+
+.empty-panel {
+  padding: 18px;
+}
+
 @media (max-width: 900px) {
   .catalog-grid {
     grid-template-columns: 1fr;
@@ -406,6 +704,10 @@ dialog::backdrop {
 
   .tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-breakdown {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -432,5 +734,17 @@ dialog::backdrop {
 
   .tabs {
     grid-template-columns: 1fr;
+  }
+
+  .admin-stats,
+  .admin-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-topbar,
+  .channel-card header,
+  .admin-order-card header {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
