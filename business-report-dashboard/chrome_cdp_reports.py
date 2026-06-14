@@ -450,6 +450,24 @@ def frame_with_any_text(page, texts: list[str], timeout_seconds: int = 45):
     raise RuntimeError(f"没有找到包含任一文本的内嵌页面：{texts}；最后看到：{last_seen}")
 
 
+def eleme_download_form_frame(page, timeout_seconds: int = 60):
+    deadline = time.time() + timeout_seconds
+    last_seen = ""
+    required = ["门店下载", "下载数据", "开始日期", "结束日期"]
+    while time.time() < deadline:
+        for frame in page.frames:
+            try:
+                body = frame.locator("body").inner_text(timeout=2_000)
+            except Exception:
+                continue
+            if body:
+                last_seen = body[:800]
+            if all(text in body for text in required) and ("顾客实付" in body or "营业额及明细" in body):
+                return frame
+        page.wait_for_timeout(1000)
+    raise RuntimeError(f"没有找到饿了么日报下载表单；最后看到：{last_seen}")
+
+
 def click_visible_text(target, text: str) -> bool:
     return target.evaluate(
         """
@@ -663,7 +681,7 @@ def generate_eleme_report(target_date: str) -> None:
         if auth_errors:
             auth_error = auth_errors[-1]
             raise RuntimeError(f"饿了么数据中心登录已失效：{auth_error.get('fullMsg') or auth_error.get('msg') or auth_error}")
-        frame = frame_with_any_text(page, ["下载数据", "数据下载", "报表下载"], timeout_seconds=45)
+        frame = eleme_download_form_frame(page, timeout_seconds=60)
         field_result = frame.evaluate(
             """(keywords) => {
               const visible = (element) => {
@@ -698,7 +716,7 @@ def generate_eleme_report(target_date: str) -> None:
             if attempt > 1:
                 goto_backend_page(page, platform["download_url"])
                 page.wait_for_timeout(5000)
-                frame = frame_with_any_text(page, ["下载数据", "数据下载", "报表下载"], timeout_seconds=45)
+                frame = eleme_download_form_frame(page, timeout_seconds=60)
 
             def capture_download_request(route, request):
                 captured_request["url"] = request.url
@@ -773,18 +791,30 @@ def generate_eleme_report(target_date: str) -> None:
         }
         forwarded_headers.setdefault("content-type", "application/json")
 
-        body = frame.evaluate(
-            """async ({ url, payload, headers }) => {
-              const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'include',
-                headers,
-                body: JSON.stringify(payload),
-              });
-              return await response.json();
-            }""",
-            {"url": captured_request["url"], "payload": payload, "headers": forwarded_headers},
-        )
+        submit_attempts = int(os.environ.get("ELEME_REPORT_SUBMIT_RETRIES", "4"))
+        submit_delay = int(os.environ.get("ELEME_REPORT_SUBMIT_RETRY_DELAY_SECONDS", "75"))
+        body: dict = {}
+        for submit_attempt in range(1, submit_attempts + 1):
+            body = frame.evaluate(
+                """async ({ url, payload, headers }) => {
+                  const response = await fetch(url, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers,
+                    body: JSON.stringify(payload),
+                  });
+                  return await response.json();
+                }""",
+                {"url": captured_request["url"], "payload": payload, "headers": forwarded_headers},
+            )
+            if body.get("code") == 0:
+                break
+            message = str(body.get("fullMsg") or body.get("msg") or body.get("message") or body)
+            if body.get("code") == 500203 and submit_attempt < submit_attempts:
+                print(f"饿了么报表提交被限流，{submit_delay}s 后重试（{submit_attempt}/{submit_attempts}）：{message}")
+                time.sleep(submit_delay)
+                continue
+            break
         if body.get("code") != 0:
             raise RuntimeError(f"饿了么生成报表失败：{body}")
         print(f"饿了么报表任务已提交：{target_date}")
