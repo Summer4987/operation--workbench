@@ -1840,7 +1840,7 @@ def resolve_input_files(
         missing.append("饿了么 Excel")
     if not meituan_path:
         missing.append("美团 CSV")
-    if missing:
+    if missing and not allow_missing_platform:
         raise FileNotFoundError(
             f"未找到：{'、'.join(missing)}。请放到下载目录或 data/raw，或用 --eleme / --meituan 指定文件。"
         )
