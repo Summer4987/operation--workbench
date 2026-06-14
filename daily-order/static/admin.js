@@ -12,7 +12,6 @@ lockPageZoom();
 
 const channelShortcuts = [
   { channel: "快驴", label: "快驴订货" },
-  { channel: "工作餐", label: "工作餐" },
   { channel: "淘宝", label: "淘宝" },
   { channel: "拼多多", label: "拼多多" },
   { channel: "京东", label: "京东" },

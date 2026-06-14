@@ -186,14 +186,14 @@
     },
     {
       "sku": "MEAL-001",
-      "source": "自主填写",
+      "source": "快驴配送",
       "category": "工作餐",
       "name": "工作餐（自主填写）",
       "spec": "",
       "unit": "份",
       "note": "",
       "image": "",
-      "purchase_channel": "工作餐"
+      "purchase_channel": "快驴"
     },
     {
       "sku": "KD-050",
