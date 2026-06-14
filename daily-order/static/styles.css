@@ -129,12 +129,13 @@ textarea {
 
 .tabs button,
 .ghost-button {
-  min-height: 36px;
+  min-height: 48px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
   color: #304050;
   padding: 0 11px;
+  font-size: 17px;
   font-weight: 800;
   cursor: pointer;
 }
