@@ -140,6 +140,8 @@ def record_task_event(
     elif status in {"success", "failed", "skipped"}:
         task["finished_at"] = timestamp
         task.setdefault("started_at", previous.get("started_at") or timestamp)
+    if status == "success":
+        task.pop("extra", None)
     if extra:
         task["extra"] = {**previous.get("extra", {}), **extra}
     tasks[task_id] = task
