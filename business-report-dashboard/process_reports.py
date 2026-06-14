@@ -266,8 +266,13 @@ def summarize_reviews(review_df: pd.DataFrame, target_stores: list[str], report_
         used_date = report_date
         status = "ready"
     else:
-        used_date = max(available_dates) if available_dates else ""
-        status = "stale" if used_date else "missing"
+        return {
+            "status": "missing",
+            "target_date": report_date,
+            "used_date": "",
+            "message": f"暂无 {report_date} 评价导出，本次不展示历史评价",
+            "stores": {},
+        }
     selected = review_df[review_df["date"] == used_date].copy() if used_date else review_df.iloc[0:0].copy()
     stores: dict[str, dict] = {}
     for store in target_stores:
@@ -1718,13 +1723,15 @@ def write_store_reports(payload: dict) -> list[Path]:
     return paths
 
 
-def process(eleme_path: Path, meituan_path: Path) -> dict:
+def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
     config = load_config()
     alias_lookup = build_alias_lookup(config)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     for path in (eleme_path, meituan_path):
+        if path is None:
+            continue
         target = RAW_DIR / path.name
         if path.resolve() != target.resolve():
             shutil.copy2(path, target)
@@ -1814,10 +1821,20 @@ def latest_report_file(search_dirs: list[Path], patterns: list[str]) -> Path | N
     return None
 
 
-def resolve_input_files(eleme: Path | None, meituan: Path | None, downloads_dir: Path) -> tuple[Path, Path]:
+def resolve_input_files(
+    eleme: Path | None,
+    meituan: Path | None,
+    downloads_dir: Path,
+    *,
+    allow_missing_platform: bool = False,
+) -> tuple[Path | None, Path | None]:
     search_dirs = [downloads_dir, RAW_DIR]
-    eleme_path = eleme or latest_report_file(search_dirs, ["门店下载_*.xlsx", "*饿了么*.xlsx", "eleme.xlsx"])
-    meituan_path = meituan or latest_report_file(search_dirs, ["门店_全部门店_*.csv", "*美团*.csv", "meituan.csv"])
+    if allow_missing_platform:
+        eleme_path = eleme
+        meituan_path = meituan
+    else:
+        eleme_path = eleme or latest_report_file(search_dirs, ["门店下载_*.xlsx", "*饿了么*.xlsx", "eleme.xlsx"])
+        meituan_path = meituan or latest_report_file(search_dirs, ["门店_全部门店_*.csv", "*美团*.csv", "meituan.csv"])
     missing = []
     if not eleme_path:
         missing.append("饿了么 Excel")
@@ -1827,7 +1844,10 @@ def resolve_input_files(eleme: Path | None, meituan: Path | None, downloads_dir:
         raise FileNotFoundError(
             f"未找到：{'、'.join(missing)}。请放到下载目录或 data/raw，或用 --eleme / --meituan 指定文件。"
         )
-    return eleme_path.expanduser().resolve(), meituan_path.expanduser().resolve()
+    return (
+        eleme_path.expanduser().resolve() if eleme_path else None,
+        meituan_path.expanduser().resolve() if meituan_path else None,
+    )
 
 
 def main() -> None:
@@ -1835,11 +1855,17 @@ def main() -> None:
     parser.add_argument("--eleme", type=Path, help="饿了么 Excel 文件路径；不填则自动从下载目录找最新文件")
     parser.add_argument("--meituan", type=Path, help="美团 CSV 文件路径；不填则自动从下载目录找最新文件")
     parser.add_argument("--downloads-dir", type=Path, default=Path.home() / "Downloads", help="自动查找报表的下载目录")
+    parser.add_argument("--allow-missing-platform", action="store_true", help="只处理显式传入的平台文件；缺失平台不自动使用历史文件")
     args = parser.parse_args()
 
-    eleme_path, meituan_path = resolve_input_files(args.eleme, args.meituan, args.downloads_dir)
-    print(f"使用饿了么报表：{eleme_path}")
-    print(f"使用美团报表：{meituan_path}")
+    eleme_path, meituan_path = resolve_input_files(
+        args.eleme,
+        args.meituan,
+        args.downloads_dir,
+        allow_missing_platform=args.allow_missing_platform,
+    )
+    print(f"使用饿了么报表：{eleme_path if eleme_path else '缺失，本次不自动使用历史文件'}")
+    print(f"使用美团报表：{meituan_path if meituan_path else '缺失，本次不自动使用历史文件'}")
     result = process(eleme_path, meituan_path)
     payload = result["payload"]
     print(f"已生成统一数据：{result['unified_path']}")

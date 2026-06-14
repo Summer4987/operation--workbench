@@ -961,7 +961,7 @@ def download_eleme_reviews() -> Path:
         page = reusable_page(context)
         page.goto(ELEME_COMMENTS_URL, wait_until="domcontentloaded", timeout=90_000)
         page.wait_for_timeout(8000)
-        comment_frame = frame_or_page_with_any_text(page, ["顾客评价", "导出评价"], timeout_seconds=45)
+        comment_frame = frame_or_page_with_any_text(page, ["导出评价"], timeout_seconds=45)
         task_ids: list[str] = []
         export_metas: list[dict] = []
 
@@ -996,17 +996,54 @@ def download_eleme_reviews() -> Path:
                 const style = getComputedStyle(el);
                 return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
               };
-              const button = Array.from(document.querySelectorAll('span.download-btn,button,span,div'))
-                .find((el) => visible(el) && (el.innerText || el.textContent || '').trim() === '导出评价');
-              if (!button) return false;
-              button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-              button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-              button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-              return true;
+              const textOf = (el) => (el.innerText || el.textContent || '').trim().replace(/\\s+/g, '');
+              const score = (el) => {
+                const text = textOf(el);
+                const cls = String(el.className || '');
+                let value = 0;
+                if (text === '导出评价') value += 100;
+                if (text.includes('导出评价')) value += 90;
+                if (text.includes('评价') || text.includes('评论')) value += 35;
+                if (text.includes('导出') || text.includes('下载')) value += 35;
+                if (text.includes('数据')) value += 10;
+                if (/download|export/i.test(cls)) value += 20;
+                if (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') value += 15;
+                if (/取消|关闭|重置|删除/.test(text)) value -= 100;
+                return value;
+              };
+              const candidates = Array.from(document.querySelectorAll('button,[role="button"],a,span.download-btn,[class*="download"],[class*="export"],span,div'))
+                .filter(visible)
+                .map((el) => {
+                  const target = el.closest('button,[role="button"],a') || el;
+                  return { el: target, value: score(el) + (target === el ? 0 : score(target)) };
+                })
+                .filter((item) => item.value >= 60)
+                .sort((a, b) => b.value - a.value);
+              const button = candidates[0]?.el;
+              if (!button) {
+                return {
+                  ok: false,
+                  controls: Array.from(document.querySelectorAll('button,[role="button"],a,span,div'))
+                    .filter(visible)
+                    .map((el) => ({ tag: el.tagName, text: textOf(el).slice(0, 80), className: String(el.className || '').slice(0, 120), score: score(el) }))
+                    .filter((item) => item.text.includes('导出') || item.text.includes('下载') || item.text.includes('评价') || item.text.includes('评论') || /download|export/i.test(item.className))
+                    .slice(0, 80)
+                };
+              }
+              button.scrollIntoView({ block: 'center', inline: 'center' });
+              const rect = button.getBoundingClientRect();
+              const init = { bubbles: true, cancelable: true, view: window, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
+              button.dispatchEvent(new PointerEvent('pointerdown', init));
+              button.dispatchEvent(new MouseEvent('mousedown', init));
+              button.dispatchEvent(new PointerEvent('pointerup', init));
+              button.dispatchEvent(new MouseEvent('mouseup', init));
+              button.dispatchEvent(new MouseEvent('click', init));
+              if (typeof button.click === 'function') button.click();
+              return { ok: true, text: textOf(button).slice(0, 80), className: String(button.className || '').slice(0, 120) };
             }"""
         )
-        if not clicked:
-            raise RuntimeError("没有找到饿了么评价页的导出评价按钮")
+        if not clicked or not clicked.get("ok"):
+            raise RuntimeError(f"没有找到饿了么评价页的导出评价按钮，页面候选控件：{clicked}")
         deadline = time.time() + 30
         while not task_ids and time.time() < deadline:
             page.wait_for_timeout(500)
@@ -1249,6 +1286,8 @@ def process_reports(eleme: Path | None = None, meituan: Path | None = None) -> N
         args.extend(["--eleme", str(eleme)])
     if meituan:
         args.extend(["--meituan", str(meituan)])
+    if eleme is None or meituan is None:
+        args.append("--allow-missing-platform")
     subprocess.run(args, cwd=ROOT, check=True)
 
 
@@ -1301,11 +1340,11 @@ def run_daily(target_date: str | None = None) -> None:
             print(f"美团报表下载失败：{exc}", file=sys.stderr)
 
     if eleme_path is None:
-        eleme_path = local_report_candidate(report_date, "eleme") or latest_local_report_candidate("eleme")
+        eleme_path = local_report_candidate(report_date, "eleme")
         if eleme_path:
             print(f"饿了么日报改用本地候选文件：{eleme_path}", file=sys.stderr)
     if meituan_path is None:
-        meituan_path = local_report_candidate(report_date, "meituan") or latest_local_report_candidate("meituan")
+        meituan_path = local_report_candidate(report_date, "meituan")
         if meituan_path:
             print(f"美团日报改用本地候选文件：{meituan_path}", file=sys.stderr)
 
