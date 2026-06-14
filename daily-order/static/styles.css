@@ -290,11 +290,33 @@ textarea {
   font-weight: 900;
 }
 
+.secondary-tabs button[data-food-category="蔬菜"] {
+  border-color: #bfe5c8;
+  background: #f0fbf2;
+  color: #2f7043;
+}
+
+.secondary-tabs button[data-food-category="禽蛋"] {
+  border-color: #eddca7;
+  background: #fff9df;
+  color: #80621d;
+}
+
+.secondary-tabs button[data-food-category="粮油"] {
+  border-color: #efcfaa;
+  background: #fff4e9;
+  color: #875526;
+}
+
+.secondary-tabs button[data-food-category="冻品"] {
+  border-color: #beddf4;
+  background: #eef8ff;
+  color: #2d668f;
+}
+
 .secondary-tabs button.active {
-  border-color: #8fc7ba;
-  background: #dff2ed;
-  color: #0f5f54;
-  box-shadow: inset 0 0 0 1px rgba(23, 107, 95, .16);
+  border-color: currentColor;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 
 .catalog-grid {
