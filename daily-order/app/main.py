@@ -389,6 +389,9 @@ def _notify_order(order: dict) -> None:
 
 
 def _order_message(order: dict) -> str:
+    message = os.environ.get("DAILY_ORDER_NOTIFY_MESSAGE", "").strip()
+    if message:
+        return message
     channels = sorted({item.get("purchase_channel", "") for item in order.get("items") or [] if item.get("purchase_channel")})
     lines = [
         f"新订货订单：{order['store_name']}",
