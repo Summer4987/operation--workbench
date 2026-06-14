@@ -184,13 +184,14 @@ async def update_order_channel_status(order_id: str, channel: str, request: Requ
         raise HTTPException(status_code=404, detail="订单不存在")
     order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
     channels = _order_channels(order)
-    if channel not in channels:
+    target_channels = _matching_order_channels(channels, channel)
+    if not target_channels:
         raise HTTPException(status_code=404, detail="该订单没有这个渠道")
     processed_channels = set(order.get("processed_channels") or [])
     if status == "processed":
-        processed_channels.add(channel)
+        processed_channels.update(target_channels)
     else:
-        processed_channels.discard(channel)
+        processed_channels.difference_update(target_channels)
     order["processed_channels"] = sorted(processed_channels)
     order["status"] = "processed" if set(channels).issubset(processed_channels) else "pending"
     order["processed_at"] = now_iso() if order["status"] == "processed" else ""
@@ -215,13 +216,14 @@ async def update_channel_status(channel: str, request: Request, payload: dict):
         except Exception:
             continue
         channels = _order_channels(order)
-        if channel not in channels:
+        target_channels = _matching_order_channels(channels, channel)
+        if not target_channels:
             continue
         processed_channels = set(order.get("processed_channels") or [])
         if status == "processed":
-            processed_channels.add(channel)
+            processed_channels.update(target_channels)
         else:
-            processed_channels.discard(channel)
+            processed_channels.difference_update(target_channels)
         order["processed_channels"] = sorted(processed_channels)
         order["status"] = "processed" if set(channels).issubset(processed_channels) else "pending"
         order["processed_at"] = now_iso() if order["status"] == "processed" else ""
@@ -359,6 +361,14 @@ def _item_channel(item: dict) -> str:
     return item.get("purchase_channel") or _default_purchase_channel(item)
 
 
+def _display_channel(channel: str) -> str:
+    return "微信群" if "群" in channel else channel
+
+
+def _matching_order_channels(channels: list[str], display_channel: str) -> set[str]:
+    return {channel for channel in channels if channel == display_channel or _display_channel(channel) == display_channel}
+
+
 def _channel_is_processed(order: dict, channel: str) -> bool:
     return channel in set(order.get("processed_channels") or [])
 
@@ -372,7 +382,8 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
     channels: dict[str, dict] = {}
     for order in orders:
         for item in order.get("items") or []:
-            channel_name = item.get("purchase_channel") or _default_purchase_channel(item)
+            item_channel = item.get("purchase_channel") or _default_purchase_channel(item)
+            channel_name = _display_channel(item_channel)
             channel = channels.setdefault(channel_name, {"channel": channel_name, "stores": {}, "orders": {}, "totals": {}})
             store = channel["stores"].setdefault(
                 order["store_name"],
@@ -392,10 +403,12 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                     "store_address": order.get("store_address", ""),
                     "submitted_at": order.get("submitted_at", ""),
                     "remark": order.get("remark", ""),
-                    "status": "processed" if _channel_is_processed(order, channel_name) else "pending",
+                    "status": "processed",
                     "items": {},
                 },
             )
+            if not _channel_is_processed(order, item_channel):
+                channel_order["status"] = "pending"
             sku = item["sku"]
             line = store["items"].setdefault(
                 sku,
@@ -404,6 +417,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                     "name": item["name"],
                     "spec": item.get("spec", ""),
                     "unit": item.get("unit", ""),
+                    "purchase_channel": item_channel,
                     "quantity": 0,
                 },
             )

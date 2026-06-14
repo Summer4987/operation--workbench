@@ -85,7 +85,7 @@ function renderChannel(channel) {
         <button type="button" data-channel="${escapeHtml(channel.channel)}" data-channel-status="${nextStatus}">${buttonText}</button>
       </header>
       <div class="channel-totals">
-        ${(channel.totals || []).map((item) => `<span>${renderLine(item)}</span>`).join("")}
+        ${(channel.totals || []).map((item) => `<span>${renderChannelLine(item, channel.channel)}</span>`).join("")}
       </div>
       <div class="channel-order-list">
         ${orders.length ? orders.map((order) => renderChannelOrder(order, channel.channel)).join("") : `<div class="empty-panel">当前渠道没有订单。</div>`}
@@ -122,7 +122,7 @@ function renderChannelOrder(order, channelName) {
       </header>
       <p>${escapeHtml(order.store_address || "未填写地址")}</p>
       <div class="admin-order-items">
-        ${(order.items || []).map((item) => `<span>${renderLine(item)}</span>`).join("")}
+        ${(order.items || []).map((item) => `<span>${renderChannelLine(item, channelName)}</span>`).join("")}
       </div>
       ${order.remark ? `<p class="admin-remark">备注：${escapeHtml(order.remark)}</p>` : ""}
     </section>
@@ -182,6 +182,15 @@ function notifyNewOrders(orders) {
 function renderLine(item) {
   const spec = item.spec ? ` ${item.spec}` : "";
   return `${escapeHtml(item.name)}${escapeHtml(spec)} <b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b>`;
+}
+
+function renderChannelLine(item, displayChannel) {
+  const line = renderLine(item);
+  const itemChannel = item.purchase_channel || "";
+  if (displayChannel === "微信群" && itemChannel && itemChannel !== "微信群") {
+    return `${escapeHtml(itemChannel)} · ${line}`;
+  }
+  return line;
 }
 
 function showMessage(text, isError) {
