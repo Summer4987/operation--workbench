@@ -1194,15 +1194,20 @@ def download_meituan_reviews() -> Path:
 
 def download_reviews_and_process() -> None:
     failures: list[str] = []
+    downloaded_count = 0
     for name, downloader in [("饿了么评价", download_eleme_reviews), ("美团评价", download_meituan_reviews)]:
         try:
             downloader()
+            downloaded_count += 1
         except Exception as exc:
             failures.append(f"{name}：{exc}")
             print(f"{name}下载失败：{exc}", file=sys.stderr)
     if failures:
-        raise RuntimeError("评价下载未全部完成：" + "；".join(failures))
-    print("双平台评价下载完成。")
+        if downloaded_count == 0:
+            raise RuntimeError("评价下载未全部完成，且没有拿到任何新评价文件：" + "；".join(failures))
+        print("评价下载存在失败项，继续用已下载文件和本地最新文件生成看板：" + "；".join(failures), file=sys.stderr)
+    else:
+        print("双平台评价下载完成。")
     process_reports()
 
 
@@ -1267,16 +1272,48 @@ def run_daily(target_date: str | None = None) -> None:
     report_date = target_date or yesterday_compact()
     print(f"开始生成日报：{report_date}")
     submit_failures: list[str] = []
-    for name, generator in [("饿了么", generate_eleme_report), ("美团", generate_meituan_report)]:
+    submitted: dict[str, bool] = {"eleme": False, "meituan": False}
+    for key, name, generator in [
+        ("eleme", "饿了么", generate_eleme_report),
+        ("meituan", "美团", generate_meituan_report),
+    ]:
         try:
             generator(report_date)
+            submitted[key] = True
         except Exception as exc:
             submit_failures.append(f"{name}报表任务提交失败：{exc}")
             print(f"{name}报表任务提交失败：{exc}", file=sys.stderr)
-    if submit_failures:
-        raise RuntimeError("日报采集未全部提交成功，未生成看板：" + "；".join(submit_failures))
-    eleme_path = wait_for_eleme_report(report_date)
-    meituan_path = wait_for_meituan_report(report_date)
+
+    eleme_path: Path | None = None
+    meituan_path: Path | None = None
+    download_failures: list[str] = []
+    if submitted["eleme"]:
+        try:
+            eleme_path = wait_for_eleme_report(report_date)
+        except Exception as exc:
+            download_failures.append(f"饿了么报表下载失败：{exc}")
+            print(f"饿了么报表下载失败：{exc}", file=sys.stderr)
+    if submitted["meituan"]:
+        try:
+            meituan_path = wait_for_meituan_report(report_date)
+        except Exception as exc:
+            download_failures.append(f"美团报表下载失败：{exc}")
+            print(f"美团报表下载失败：{exc}", file=sys.stderr)
+
+    if eleme_path is None:
+        eleme_path = local_report_candidate(report_date, "eleme") or latest_local_report_candidate("eleme")
+        if eleme_path:
+            print(f"饿了么日报改用本地候选文件：{eleme_path}", file=sys.stderr)
+    if meituan_path is None:
+        meituan_path = local_report_candidate(report_date, "meituan") or latest_local_report_candidate("meituan")
+        if meituan_path:
+            print(f"美团日报改用本地候选文件：{meituan_path}", file=sys.stderr)
+
+    if not eleme_path and not meituan_path:
+        details = "；".join(submit_failures + download_failures)
+        raise RuntimeError("日报采集没有可用平台文件，未生成看板：" + details)
+    if submit_failures or download_failures:
+        print("日报采集存在失败项，继续用可用文件生成看板：" + "；".join(submit_failures + download_failures), file=sys.stderr)
     process_reports(eleme_path, meituan_path)
 
 

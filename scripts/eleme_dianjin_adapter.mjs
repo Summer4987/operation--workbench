@@ -766,6 +766,8 @@ async function runExecutionPreview(config, args) {
     .filter((row) => row.type !== "budget" || row.currentBudget !== row.targetBudget)
     .slice(0, limit);
   const commit = args.commit === true || args.commit === "true";
+  const useSuggestedBudgetFloor = process.env.ELEME_USE_SUGGESTED_BUDGET_FLOOR !== "0";
+  const maxSuggestedBudget = Number(process.env.ELEME_MAX_SUGGESTED_BUDGET || 300);
   if (commit && config.safety?.dryRun !== false) {
     throw new Error("当前 automation_config.json 的 safety.dryRun 仍为 true，禁止正式保存");
   }
@@ -791,7 +793,7 @@ async function runExecutionPreview(config, args) {
       const result = await cdp.send("Runtime.evaluate", {
         returnByValue: true,
         awaitPromise: true,
-        expression: `(async ({ row, value, actionButton, commit }) => {
+        expression: `(async ({ row, value, actionButton, commit, useSuggestedBudgetFloor, maxSuggestedBudget }) => {
           const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
           const visible = (el) => {
             if (!el) return false;
@@ -872,6 +874,13 @@ async function runExecutionPreview(config, args) {
                 className: String(button.className || '').slice(0, 140)
               }))
             };
+          };
+          const parseSuggestedBudget = (modal) => {
+            const text = textOf(modal).replace(/\\s/g, '');
+            const match = text.match(/建议预算(?:为|:|：)?(\\d+(?:\\.\\d+)?)元/);
+            if (!match) return null;
+            const parsed = Number(match[1]);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
           };
           const chooseRadioByText = async (modal, labelText) => {
             const normalizedLabel = labelText.replace(/\\s/g, '');
@@ -960,14 +969,32 @@ async function runExecutionPreview(config, args) {
             .find((input) => String(input.className || '').includes('ant-input-number-input')) ||
             Array.from(modal.querySelectorAll('input')).filter(visible)[0];
           if (!valueInput) return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '弹窗里没有找到数值输入框' };
-          setInputValue(valueInput, value);
+          let effectiveValue = value;
+          const suggestedBudget = row.type === 'budget' ? parseSuggestedBudget(modal) : null;
+          if (row.type === 'budget' && useSuggestedBudgetFloor && suggestedBudget && Number(value) < suggestedBudget) {
+            if (Number.isFinite(maxSuggestedBudget) && maxSuggestedBudget > 0 && suggestedBudget > maxSuggestedBudget) {
+              return {
+                ok: false,
+                store: row.store,
+                shopId: row.shopId,
+                rowText,
+                modal: snapshotModal(),
+                error: '饿了么建议预算 ' + suggestedBudget + ' 元超过安全上限 ' + maxSuggestedBudget + ' 元，未保存',
+                requestedValue: value,
+                suggestedBudget,
+                saved: false
+              };
+            }
+            effectiveValue = suggestedBudget;
+          }
+          setInputValue(valueInput, effectiveValue);
           if (row.type === 'budget' && textOf(modal).includes('快速获量')) {
             const quickChosen = await chooseRadioByText(modal, '快速获量');
             if (!quickChosen) {
               return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '预算弹窗要求获量速度，但没有找到快速获量选项', saved: false };
             }
             await wait(300);
-            setInputValue(valueInput, value);
+            setInputValue(valueInput, effectiveValue);
           }
           if (row.type === 'bid-check') {
             if (/出价助手|出价模式/.test(textOf(modal))) {
@@ -1023,7 +1050,9 @@ async function runExecutionPreview(config, args) {
             shopId: row.shopId,
             type: row.type,
             actionButton,
-            value,
+            value: effectiveValue,
+            requestedValue: value,
+            suggestedBudget,
             currentBid: row.currentBid,
             targetBid: row.targetBid,
             currentBudget: row.currentBudget,
