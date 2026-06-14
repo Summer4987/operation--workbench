@@ -14,6 +14,11 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  touch-action: pan-x pan-y;
+}
+
 body {
   margin: 0;
   background: var(--bg);

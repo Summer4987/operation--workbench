@@ -7,6 +7,8 @@ const state = {
   recentOrders: [],
 };
 
+lockPageZoom();
+
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
 const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品"];
 const sectionLabels = {
@@ -340,6 +342,20 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   }[char]));
+}
+
+function lockPageZoom() {
+  const preventZoom = (event) => event.preventDefault();
+  ["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {
+    document.addEventListener(eventName, preventZoom, { passive: false });
+  });
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.scale && event.scale !== 1) event.preventDefault();
+    },
+    { passive: false }
+  );
 }
 
 loadCatalog().catch((error) => {

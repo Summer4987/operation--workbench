@@ -7,6 +7,8 @@ const state = {
   loadedOnce: false,
 };
 
+lockPageZoom();
+
 const els = {
   tabs: document.querySelectorAll(".admin-tabs button"),
   pendingCount: document.querySelector("#pendingCount"),
@@ -207,6 +209,20 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   }[char]));
+}
+
+function lockPageZoom() {
+  const preventZoom = (event) => event.preventDefault();
+  ["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {
+    document.addEventListener(eventName, preventZoom, { passive: false });
+  });
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.scale && event.scale !== 1) event.preventDefault();
+    },
+    { passive: false }
+  );
 }
 
 loadSummary();
