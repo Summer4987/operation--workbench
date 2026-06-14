@@ -4,7 +4,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLIST="$HOME/Library/LaunchAgents/com.summer.operation.cleanup-data.plist"
 LOG_DIR="$HOME/Library/Logs/xiong-operation/launchd"
-mkdir -p "$LOG_DIR" "$(dirname "$PLIST")"
+SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
+RUNNER="$SCRIPT_DIR/run_cleanup_operation_data.zsh"
+mkdir -p "$LOG_DIR" "$(dirname "$PLIST")" "$SCRIPT_DIR"
+
+cat > "$RUNNER" <<EOF
+#!/bin/zsh
+set -euo pipefail
+
+ROOT="${ROOT}"
+cd "\$ROOT"
+/bin/zsh "\$ROOT/scripts/cleanup_operation_data.zsh"
+EOF
+chmod +x "$RUNNER"
 
 cat > "$PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -17,7 +29,7 @@ cat > "$PLIST" <<PLIST
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>/bin/zsh '$ROOT/scripts/cleanup_operation_data.zsh'</string>
+    <string>/bin/zsh '$RUNNER'</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -31,7 +43,7 @@ cat > "$PLIST" <<PLIST
   <key>StandardErrorPath</key>
   <string>$LOG_DIR/com.summer.operation.cleanup-data.err.log</string>
   <key>WorkingDirectory</key>
-  <string>$HOME/Library/Scripts/xiong-operation</string>
+  <string>$SCRIPT_DIR</string>
 </dict>
 </plist>
 PLIST
