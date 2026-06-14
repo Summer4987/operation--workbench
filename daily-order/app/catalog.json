@@ -213,7 +213,7 @@
       "name": "玉米淀粉盒",
       "spec": "300/箱",
       "unit": "箱",
-      "note": "这三个是一个厂商",
+      "note": "",
       "image": "/daily-order/static/images/CJ-027.svg",
       "purchase_channel": "微信群"
     },
@@ -246,7 +246,7 @@
       "name": "餐盒",
       "spec": "300/箱",
       "unit": "箱",
-      "note": "这三个是一个厂商",
+      "note": "",
       "image": "/daily-order/static/images/CJ-038.svg",
       "purchase_channel": "微信群"
     },
