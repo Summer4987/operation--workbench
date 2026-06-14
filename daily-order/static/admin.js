@@ -99,7 +99,7 @@ function channelTone(channel) {
   if (channel.includes("淘宝")) return "tone-taobao";
   if (channel.includes("京东")) return "tone-jingdong";
   if (channel.includes("拼多多")) return "tone-pdd";
-  if (channel.includes("微信")) return "tone-wechat";
+  if (channel.includes("微信") || channel.includes("群")) return "tone-wechat";
   return "tone-default";
 }
 

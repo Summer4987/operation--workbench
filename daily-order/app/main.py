@@ -79,7 +79,7 @@ async def submit_order(request: Request, payload: dict):
             {
                 "sku": sku,
                 "source": product["source"],
-                "purchase_channel": product.get("purchase_channel") or _default_purchase_channel(product),
+                "purchase_channel": _purchase_channel(product),
                 "category": product["category"],
                 "name": product["name"],
                 "spec": product["spec"],
@@ -262,6 +262,20 @@ def _default_purchase_channel(product: dict) -> str:
     return "淘宝"
 
 
+def _purchase_channel(product: dict) -> str:
+    name = str(product.get("name") or "")
+    sku = str(product.get("sku") or "")
+    if name == "虾仁" or sku == "CJ-020":
+        return "虾仁群"
+    if name == "辣白菜" or sku == "CJ-015":
+        return "辣白菜群"
+    if name in {"玉米淀粉盒", "餐具包", "餐具", "小塑料盒", "小塑料碗"} or sku in {"CJ-027", "CJ-030", "CJ-033"}:
+        return "颂李包装群"
+    if name in {"打包袋", "餐盒", "酱料盒"} or sku in {"CJ-038", "CJ-041", "CJ-044"}:
+        return "四川鸿鹄包装群"
+    return product.get("purchase_channel") or _default_purchase_channel(product)
+
+
 def _to_number(value) -> float:
     try:
         number = float(value or 0)
@@ -310,9 +324,18 @@ def _normalize_order(order: dict) -> dict:
             products = {}
     for item in order.get("items") or []:
         product = products.get(item.get("sku"), item)
-        item.setdefault("purchase_channel", product.get("purchase_channel") or _default_purchase_channel(product))
+        item["purchase_channel"] = _purchase_channel(product)
+    channels = _order_channels(order)
     if "processed_channels" not in order:
-        order["processed_channels"] = _order_channels(order) if order.get("status") == "processed" else []
+        order["processed_channels"] = channels if order.get("status") == "processed" else []
+    else:
+        processed_channels = set(order.get("processed_channels") or [])
+        migrated_channels = {channel for channel in processed_channels if channel in channels}
+        if "微信群" in processed_channels:
+            migrated_channels.update(channel for channel in channels if "群" in channel or channel == "微信群")
+        if order.get("status") == "processed":
+            migrated_channels.update(channels)
+        order["processed_channels"] = sorted(migrated_channels)
     return order
 
 

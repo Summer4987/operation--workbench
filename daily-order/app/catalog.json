@@ -127,7 +127,7 @@
       "unit": "箱",
       "note": "2箱起送",
       "image": "/daily-order/static/images/CJ-015.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "辣白菜群"
     },
     {
       "sku": "KL-025",
@@ -182,7 +182,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-020.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "虾仁群"
     },
     {
       "sku": "KD-050",
@@ -215,7 +215,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-027.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "颂李包装群"
     },
     {
       "sku": "CJ-030",
@@ -226,7 +226,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-030.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "颂李包装群"
     },
     {
       "sku": "CJ-033",
@@ -237,7 +237,7 @@
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/CJ-033.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "颂李包装群"
     },
     {
       "sku": "CJ-038",
@@ -248,7 +248,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-038.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "四川鸿鹄包装群"
     },
     {
       "sku": "CJ-041",
@@ -259,7 +259,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-041.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "四川鸿鹄包装群"
     },
     {
       "sku": "CJ-044",
@@ -270,7 +270,7 @@
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/CJ-044.svg",
-      "purchase_channel": "微信群"
+      "purchase_channel": "四川鸿鹄包装群"
     },
     {
       "sku": "KL-028",
