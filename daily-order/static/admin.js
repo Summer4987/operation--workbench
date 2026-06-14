@@ -236,10 +236,8 @@ function wechatMessageText(groupName, stores) {
   return [
     `【${groupName}】`,
     ...stores.map((store) => [
-      store.storeName,
-      `地址：${store.address}`,
-      "货品：",
-      ...[...store.items.values()].map((item) => `- ${plainLine(item)}`),
+      `${store.storeName}（${store.address}）`,
+      ...[...store.items.values()].map((item) => plainLine(item)),
     ].join("\n")),
   ].join("\n\n");
 }

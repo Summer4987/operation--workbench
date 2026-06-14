@@ -305,6 +305,15 @@ def _default_purchase_channel(product: dict) -> str:
 def _purchase_channel(product: dict) -> str:
     name = str(product.get("name") or "")
     sku = str(product.get("sku") or "")
+    wechat_group = _wechat_group_channel(name, sku)
+    if wechat_group:
+        return wechat_group
+    return product.get("purchase_channel") or _default_purchase_channel(product)
+
+
+def _wechat_group_channel(name: str, sku: str) -> str:
+    if name == "大米" or "黑米" in name or "燕麦米" in name:
+        return "大米群"
     if name == "虾仁" or sku == "CJ-020":
         return "虾仁群"
     if name == "辣白菜" or sku == "CJ-015":
@@ -313,7 +322,7 @@ def _purchase_channel(product: dict) -> str:
         return "颂李包装群"
     if name in {"打包袋", "餐盒", "酱料盒"} or sku in {"CJ-038", "CJ-041", "CJ-044"}:
         return "四川鸿鹄包装群"
-    return product.get("purchase_channel") or _default_purchase_channel(product)
+    return ""
 
 
 def _to_number(value) -> float:
@@ -402,6 +411,9 @@ def _order_channels(order: dict) -> list[str]:
 
 
 def _item_channel(item: dict) -> str:
+    wechat_group = _wechat_group_channel(str(item.get("name") or ""), str(item.get("sku") or ""))
+    if wechat_group:
+        return wechat_group
     return item.get("purchase_channel") or _default_purchase_channel(item)
 
 
@@ -576,10 +588,8 @@ def _wechat_group_message_text(group_name: str, stores: list[dict]) -> str:
     sections = [f"【{group_name}】"]
     for store in stores:
         lines = [
-            store["store_name"],
-            f"地址：{store['store_address']}",
-            "货品：",
-            *[f"- {_plain_order_line(item)}" for item in store["items"].values()],
+            f"{store['store_name']}（{store['store_address']}）",
+            *[_plain_order_line(item) for item in store["items"].values()],
         ]
         sections.append("\n".join(lines))
     return "\n\n".join(sections)
