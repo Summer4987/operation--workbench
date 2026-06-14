@@ -27,7 +27,7 @@ delete_old() {
   echo "清理 $label：保留最近 $days 天"
   for path in "${paths[@]}"; do
     [[ -e "$path" ]] || continue
-    if ! "$FIND_BIN" "$path" -type f -mtime "+$days" "${action[@]}"; then
+    if ! "$FIND_BIN" "$path" -type f -mtime "+$days" "${action[@]}" 2>/dev/null; then
       echo "跳过 $path：当前进程没有访问权限或目录暂不可用"
       continue
     fi

@@ -39,7 +39,7 @@ delete_old() {
       target="\$ROOT/\$target"
     fi
     [[ -e "\$target" ]] || continue
-    if ! "\$FIND_BIN" "\$target" -type f -mtime "+\$days" "\${action[@]}"; then
+    if ! "\$FIND_BIN" "\$target" -type f -mtime "+\$days" "\${action[@]}" 2>/dev/null; then
       echo "跳过 \$target：当前进程没有访问权限或目录暂不可用"
       continue
     fi
