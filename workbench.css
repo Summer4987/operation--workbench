@@ -102,7 +102,7 @@ a {
 .brand-emoji {
   display: block;
   line-height: 1;
-  transform: translate(5px, 1px);
+  transform: translate(2px, 1px);
 }
 
 .brand-mark b,
