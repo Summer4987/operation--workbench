@@ -418,6 +418,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                     "spec": item.get("spec", ""),
                     "unit": item.get("unit", ""),
                     "purchase_channel": item_channel,
+                    "status": "processed" if _channel_is_processed(order, item_channel) else "pending",
                     "quantity": 0,
                 },
             )

@@ -5,6 +5,7 @@ const state = {
   payload: { orders: [], channels: [], stats: {} },
   seenPendingIds: new Set(),
   loadedOnce: false,
+  copyTexts: new Map(),
 };
 
 lockPageZoom();
@@ -60,6 +61,7 @@ function renderAll() {
 
 function renderChannels() {
   const channels = state.payload.channels || [];
+  state.copyTexts.clear();
   els.channelBoard.innerHTML = channels.length
     ? channels.map(renderChannel).join("")
     : `<div class="empty-panel">当前没有订单。</div>`;
@@ -68,6 +70,9 @@ function renderChannels() {
   });
   els.channelBoard.querySelectorAll("[data-order-channel-status]").forEach((button) => {
     button.addEventListener("click", () => updateOrderChannelStatus(button.dataset.orderId, button.dataset.channel, button.dataset.orderChannelStatus));
+  });
+  els.channelBoard.querySelectorAll("[data-copy-wechat]").forEach((button) => {
+    button.addEventListener("click", () => copyWechatText(button.dataset.copyWechat));
   });
 }
 
@@ -88,9 +93,116 @@ function renderChannel(channel) {
         ${(channel.totals || []).map((item) => `<span>${renderChannelLine(item, channel.channel)}</span>`).join("")}
       </div>
       <div class="channel-order-list">
-        ${orders.length ? orders.map((order) => renderChannelOrder(order, channel.channel)).join("") : `<div class="empty-panel">当前渠道没有订单。</div>`}
+        ${renderChannelOrderList(channel)}
       </div>
     </article>
+  `;
+}
+
+function renderChannelOrderList(channel) {
+  const orders = channel.orders || [];
+  if (channel.channel === "微信群") return renderWechatGroupCards(channel);
+  return orders.length ? orders.map((order) => renderChannelOrder(order, channel.channel)).join("") : `<div class="empty-panel">当前渠道没有订单。</div>`;
+}
+
+function renderWechatGroupCards(channel) {
+  const groups = wechatMessageGroups(channel);
+  if (!groups.length) return `<div class="empty-panel">当前渠道没有订单。</div>`;
+  return groups.map((group) => {
+    const key = `wechat-${state.copyTexts.size}`;
+    state.copyTexts.set(key, group.text);
+    return `
+      <article class="wechat-group-card">
+        <header>
+          <div>
+            <strong>${escapeHtml(group.name)}</strong>
+            <span>${group.orderEntries.length} 个订单 · ${group.stores.length} 个门店</span>
+          </div>
+          <button type="button" data-copy-wechat="${escapeHtml(key)}">复制群消息</button>
+        </header>
+        <pre>${escapeHtml(group.text)}</pre>
+        <div class="wechat-order-actions">
+          ${group.orderEntries.map((entry) => renderWechatOrderAction(entry, group.name)).join("")}
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function wechatMessageGroups(channel) {
+  const byGroup = new Map();
+  (channel.orders || []).forEach((order) => {
+    (order.items || []).forEach((item) => {
+      const groupName = item.purchase_channel || "微信群";
+      const group = byGroup.get(groupName) || { stores: new Map(), orders: new Map() };
+      const storeKey = `${order.store_name}||${order.store_address || ""}`;
+      const store = group.stores.get(storeKey) || {
+        storeName: order.store_name || "未命名门店",
+        address: order.store_address || "未填写地址",
+        items: new Map(),
+      };
+      const orderEntry = group.orders.get(order.order_id) || {
+        orderId: order.order_id,
+        storeName: order.store_name || "未命名门店",
+        submittedAt: order.submitted_at || "",
+        status: "processed",
+        items: new Map(),
+      };
+      if (item.status !== "processed") orderEntry.status = "pending";
+      const itemKey = `${item.name}||${item.spec || ""}||${item.unit || ""}`;
+      const line = store.items.get(itemKey) || {
+        name: item.name || "",
+        spec: item.spec || "",
+        unit: item.unit || "",
+        quantity: 0,
+      };
+      line.quantity += Number(item.quantity || 0);
+      store.items.set(itemKey, line);
+      const orderLine = orderEntry.items.get(itemKey) || { ...line, quantity: 0 };
+      orderLine.quantity += Number(item.quantity || 0);
+      orderEntry.items.set(itemKey, orderLine);
+      group.stores.set(storeKey, store);
+      group.orders.set(order.order_id, orderEntry);
+      byGroup.set(groupName, group);
+    });
+  });
+  return [...byGroup.entries()].map(([name, group]) => ({
+    name,
+    stores: [...group.stores.values()],
+    orderEntries: [...group.orders.values()],
+    text: wechatMessageText(name, [...group.stores.values()]),
+  }));
+}
+
+function wechatMessageText(groupName, stores) {
+  return [
+    `【${groupName}】`,
+    ...stores.map((store) => [
+      store.storeName,
+      `地址：${store.address}`,
+      "货品：",
+      ...[...store.items.values()].map((item) => `- ${plainLine(item)}`),
+    ].join("\n")),
+  ].join("\n\n");
+}
+
+function renderWechatOrderAction(entry, groupName) {
+  const nextStatus = entry.status === "processed" ? "pending" : "processed";
+  const buttonText = nextStatus === "processed" ? "标记已处理" : "改回未处理";
+  return `
+    <section class="wechat-order-row ${entry.status === "processed" ? "is-processed" : ""}">
+      <div>
+        <strong>${escapeHtml(entry.storeName)}</strong>
+        <span>${escapeHtml(entry.orderId)} · ${escapeHtml(formatDate(entry.submittedAt))}</span>
+        <em>${[...entry.items.values()].map((item) => escapeHtml(plainLine(item))).join("、")}</em>
+      </div>
+      <button
+        type="button"
+        data-order-id="${escapeHtml(entry.orderId)}"
+        data-channel="${escapeHtml(groupName)}"
+        data-order-channel-status="${nextStatus}"
+      >${buttonText}</button>
+    </section>
   `;
 }
 
@@ -162,6 +274,34 @@ async function updateOrderChannelStatus(orderId, channel, status) {
   }
 }
 
+async function copyWechatText(key) {
+  const text = state.copyTexts.get(key);
+  if (!text) return;
+  try {
+    await copyText(text);
+    showMessage("群消息已复制。", false);
+  } catch (error) {
+    showMessage("复制失败，请手动复制预览内容。", true);
+  }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("copy failed");
+}
+
 function requestNotificationPermission() {
   if (!("Notification" in window)) {
     showMessage("当前浏览器不支持桌面提醒。", true);
@@ -182,6 +322,11 @@ function notifyNewOrders(orders) {
 function renderLine(item) {
   const spec = item.spec ? ` ${item.spec}` : "";
   return `${escapeHtml(item.name)}${escapeHtml(spec)} <b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b>`;
+}
+
+function plainLine(item) {
+  const spec = item.spec ? ` ${item.spec}` : "";
+  return `${item.name}${spec} ${formatNumber(item.quantity)}${item.unit || ""}`;
 }
 
 function renderChannelLine(item, displayChannel) {
