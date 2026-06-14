@@ -105,14 +105,16 @@ async def submit_order(request: Request, payload: dict):
     submitted_time = datetime.now(timezone.utc).astimezone()
     submitted_at = submitted_time.isoformat(timespec="seconds")
     order_id = f"DO-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
+    auto_processed_channels = _auto_processed_channels(lines)
+    order_channels = set(_order_channels({"items": lines}))
     order = {
         "order_id": order_id,
         "store_name": store_name,
         "store_address": store_records.get(store_name, {}).get("address", ""),
         "remark": remark,
-        "status": "pending",
-        "processed_at": "",
-        "processed_channels": [],
+        "status": "processed" if auto_processed_channels and order_channels.issubset(auto_processed_channels) else "pending",
+        "processed_at": now_iso() if auto_processed_channels and order_channels.issubset(auto_processed_channels) else "",
+        "processed_channels": sorted(auto_processed_channels),
         "submitted_at": submitted_at,
         "client_host": request.client.host if request.client else "",
         "items": lines,
@@ -426,6 +428,10 @@ def _channel_sort_key(channel: dict) -> tuple[int, str]:
     order = {"快驴": 0, "微信群": 1, "工作餐": 2, "淘宝": 3, "拼多多": 4, "京东": 5}
     name = str(channel.get("channel") or "")
     return (order.get(name, 99), name)
+
+
+def _auto_processed_channels(items: list[dict]) -> set[str]:
+    return {_item_channel(item) for item in items if _display_channel(_item_channel(item)) == "微信群"}
 
 
 def _channel_is_processed(order: dict, channel: str) -> bool:
