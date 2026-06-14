@@ -231,13 +231,22 @@ def _normalize_order(order: dict) -> dict:
     order.setdefault("status", "pending")
     order.setdefault("processed_at", "")
     order.setdefault("store_address", "")
+    products = {}
     if not order["store_address"] and order.get("store_name"):
         try:
-            order["store_address"] = _store_records(_load_catalog()).get(order["store_name"], {}).get("address", "")
+            catalog_data = _load_catalog()
+            products = {item["sku"]: item for item in catalog_data.get("items", [])}
+            order["store_address"] = _store_records(catalog_data).get(order["store_name"], {}).get("address", "")
         except Exception:
             order["store_address"] = ""
+    elif order.get("items"):
+        try:
+            products = {item["sku"]: item for item in _load_catalog().get("items", [])}
+        except Exception:
+            products = {}
     for item in order.get("items") or []:
-        item.setdefault("purchase_channel", _default_purchase_channel(item))
+        product = products.get(item.get("sku"), item)
+        item.setdefault("purchase_channel", product.get("purchase_channel") or _default_purchase_channel(product))
     return order
 
 
