@@ -377,7 +377,7 @@ textarea {
 
 .custom-meal-card {
   grid-column: 1 / -1;
-  grid-template-columns: 84px minmax(0, 1fr) 112px auto;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
   align-items: start;
   border-color: #b9e3da;
   background: linear-gradient(135deg, #ffffff 0%, #f7fcfa 100%);
@@ -392,6 +392,21 @@ textarea {
   min-height: 72px;
   margin-top: 10px;
   resize: vertical;
+}
+
+.custom-meal-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid #b9e3da;
+  border-radius: 8px;
+  background: #eefaf7;
+  color: var(--brand);
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .sku-image {
@@ -1088,12 +1103,9 @@ dialog::backdrop {
     grid-template-columns: 64px minmax(0, 1fr);
   }
 
-  .custom-meal-card .qty-control {
+  .custom-meal-status {
     grid-column: 2;
-  }
-
-  .custom-meal-card .qty-unit {
-    grid-column: 2;
+    width: fit-content;
   }
 
   .custom-meal-icon {

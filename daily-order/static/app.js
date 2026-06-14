@@ -184,7 +184,6 @@ function renderItem(item) {
 }
 
 function renderCustomMealItem(item) {
-  const quantity = state.quantities.get(item.sku) || "";
   const note = state.customNotes.get(item.sku) || "";
   return `
     <article class="sku-card custom-meal-card">
@@ -200,12 +199,7 @@ function renderCustomMealItem(item) {
           aria-label="工作餐内容"
         >${escapeHtml(note)}</textarea>
       </div>
-      <div class="qty-control">
-        <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
-        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
-        <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}">+</button>
-      </div>
-      <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
+      <span class="custom-meal-status">${note.trim() ? "已填写" : "待填写"}</span>
     </article>
   `;
 }
@@ -224,8 +218,10 @@ function setCustomNote(sku, rawValue) {
   const note = String(rawValue || "").trim();
   if (note) {
     state.customNotes.set(sku, note);
+    if (sku === customMealSku) state.quantities.set(sku, 1);
   } else {
     state.customNotes.delete(sku);
+    if (sku === customMealSku) state.quantities.delete(sku);
   }
   updateSummary();
 }
@@ -248,11 +244,6 @@ function updateSummary() {
 function openConfirm() {
   const items = selectedItems();
   if (!items.length) return;
-  const missingCustomNote = items.find((item) => isCustomMealItem(item) && !item.custom_note.trim());
-  if (missingCustomNote) {
-    window.alert("请先填写工作餐内容，例如：猪肉2斤/芹菜3斤/泡椒1袋");
-    return;
-  }
   els.confirmList.innerHTML = items
     .map((item) => `
       <div class="confirm-row">
@@ -261,7 +252,7 @@ function openConfirm() {
           <small>${escapeHtml([sourceLabel(item.source), item.spec, item.note].filter(Boolean).join(" · "))}</small>
           ${item.custom_note ? `<small>内容：${escapeHtml(item.custom_note)}</small>` : ""}
         </div>
-        <b>${formatNumber(item.quantity)} ${escapeHtml(item.unit || "")}</b>
+        <b>${isCustomMealItem(item) ? "已填写" : `${formatNumber(item.quantity)} ${escapeHtml(item.unit || "")}`}</b>
       </div>
     `)
     .join("");

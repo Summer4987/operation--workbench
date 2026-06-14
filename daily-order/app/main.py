@@ -75,13 +75,16 @@ async def submit_order(request: Request, payload: dict):
         sku = str(raw.get("sku") or "").strip()
         product = products.get(sku)
         quantity = _to_number(raw.get("quantity"))
-        if not product or quantity <= 0:
+        if not product:
             continue
         line_note = product["note"]
         if sku == "MEAL-001":
             line_note = str(raw.get("note") or "").strip()
             if not line_note:
                 raise HTTPException(status_code=400, detail="请填写工作餐内容")
+            quantity = 1
+        if quantity <= 0:
+            continue
         lines.append(
             {
                 "sku": sku,
