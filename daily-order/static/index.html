@@ -19,12 +19,9 @@
       <section class="store-panel">
         <label>
           门店名称
-          <input id="storeName" list="storeOptions" autocomplete="organization" placeholder="填写或选择门店" />
-          <datalist id="storeOptions"></datalist>
-        </label>
-        <label>
-          联系人
-          <input id="contact" autocomplete="name" placeholder="可选" />
+          <select id="storeName" required>
+            <option value="">请选择门店</option>
+          </select>
         </label>
       </section>
 

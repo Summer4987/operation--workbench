@@ -79,7 +79,7 @@ h1 {
 
 .store-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(180px, .6fr);
+  grid-template-columns: minmax(220px, 420px);
   gap: 12px;
   margin-top: 10px;
   padding: 12px;
@@ -94,6 +94,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   min-height: 42px;
@@ -121,8 +122,8 @@ textarea {
 }
 
 .tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 7px;
 }
 
@@ -153,10 +154,32 @@ textarea {
 
 .sku-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 126px;
-  gap: 12px;
+  grid-template-columns: 70px minmax(0, 1fr) 112px;
+  gap: 10px;
   align-items: center;
   padding: 12px;
+}
+
+.sku-image {
+  width: 70px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e4ebf2;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(23, 107, 95, .08), transparent 58%),
+    #fff;
+}
+
+.sku-image span {
+  max-width: 58px;
+  color: var(--brand);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .sku-meta {
@@ -194,7 +217,7 @@ textarea {
 
 .qty-control {
   display: grid;
-  grid-template-columns: 36px 1fr 36px;
+  grid-template-columns: 30px minmax(46px, 1fr) 30px;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -203,7 +226,7 @@ textarea {
 }
 
 .qty-control button {
-  min-height: 40px;
+  min-height: 36px;
   border: 0;
   background: #eef3f7;
   color: #243447;
@@ -213,13 +236,32 @@ textarea {
 }
 
 .qty-control input {
-  min-height: 40px;
+  width: 42px;
+  min-height: 36px;
   border: 0;
   border-radius: 0;
-  padding: 0 4px;
+  padding: 0 2px;
   text-align: center;
   font-size: 16px;
   font-weight: 900;
+}
+
+.qty-control label {
+  min-height: 36px;
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 3px;
+  color: #23313f;
+  font-size: 14px;
+}
+
+.qty-control label span {
+  color: #23313f;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .qty-control input::-webkit-outer-spin-button,
@@ -365,24 +407,41 @@ dialog::backdrop {
 
 @media (max-width: 900px) {
   .catalog-grid {
-    grid-template-columns: repeat(2, minmax(240px, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .filters,
   .store-panel {
     grid-template-columns: 1fr;
   }
+
+  .tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
   .catalog-grid,
-  .sku-card,
   .submit-inner,
   .dialog-actions {
     grid-template-columns: 1fr;
   }
 
+  .sku-card {
+    grid-template-columns: 64px minmax(0, 1fr) 104px;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .sku-image {
+    width: 64px;
+  }
+
   h1 {
     font-size: 24px;
+  }
+
+  .tabs {
+    grid-template-columns: 1fr;
   }
 }

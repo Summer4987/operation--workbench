@@ -49,13 +49,15 @@ def health():
 async def submit_order(request: Request, payload: dict):
     catalog_data = _load_catalog()
     products = {item["sku"]: item for item in catalog_data["items"]}
+    stores = set(catalog_data.get("stores") or [])
     store_name = str(payload.get("store_name") or "").strip()
-    contact = str(payload.get("contact") or "").strip()
     remark = str(payload.get("remark") or "").strip()
     raw_items = payload.get("items") or []
 
     if not store_name:
-        raise HTTPException(status_code=400, detail="请填写门店名称")
+        raise HTTPException(status_code=400, detail="请选择门店")
+    if stores and store_name not in stores:
+        raise HTTPException(status_code=400, detail="请选择有效门店")
     if not isinstance(raw_items, list):
         raise HTTPException(status_code=400, detail="订货明细格式不正确")
 
@@ -87,7 +89,6 @@ async def submit_order(request: Request, payload: dict):
     order = {
         "order_id": order_id,
         "store_name": store_name,
-        "contact": contact,
         "remark": remark,
         "submitted_at": submitted_at,
         "client_host": request.client.host if request.client else "",
@@ -129,14 +130,13 @@ def _safe_name(value: str) -> str:
 def _write_order_csv(path: Path, order: dict) -> None:
     with path.open("w", encoding="utf-8-sig", newline="") as target:
         writer = csv.writer(target)
-        writer.writerow(["订单号", "提交时间", "门店", "联系人", "配送方式", "分类", "SKU", "品名", "规格", "数量", "单位", "备注", "门店备注"])
+        writer.writerow(["订单号", "提交时间", "门店", "配送方式", "分类", "SKU", "品名", "规格", "数量", "单位", "备注", "门店备注"])
         for item in order["items"]:
             writer.writerow(
                 [
                     order["order_id"],
                     order["submitted_at"],
                     order["store_name"],
-                    order["contact"],
                     item["source"],
                     item["category"],
                     item["sku"],

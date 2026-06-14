@@ -1,15 +1,20 @@
 const state = {
   catalog: [],
   stores: [],
-  source: "全部",
+  source: "",
   quantities: new Map(),
+};
+
+const sourceLabels = {
+  "快驴配送": "快驴配送（次日）",
+  "快递到店": "快递到店（3日内）",
+  "同城物流配送": "同城物流配送（次日）",
+  "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
   storeName: document.querySelector("#storeName"),
-  contact: document.querySelector("#contact"),
-  storeOptions: document.querySelector("#storeOptions"),
   search: document.querySelector("#searchInput"),
   sourceTabs: document.querySelector("#sourceTabs"),
   catalogGrid: document.querySelector("#catalogGrid"),
@@ -37,6 +42,7 @@ async function loadCatalog() {
   const payload = await response.json();
   state.catalog = payload.items || [];
   state.stores = payload.stores || [];
+  state.source = Object.keys(sourceLabels).find((source) => state.catalog.some((item) => item.source === source)) || state.catalog[0]?.source || "";
   renderStoreOptions();
   renderTabs();
   renderCatalog();
@@ -44,13 +50,15 @@ async function loadCatalog() {
 }
 
 function renderStoreOptions() {
-  els.storeOptions.innerHTML = state.stores.map((store) => `<option value="${escapeHtml(store)}"></option>`).join("");
+  els.storeName.innerHTML = `<option value="">请选择门店</option>${state.stores
+    .map((store) => `<option value="${escapeHtml(store)}">${escapeHtml(store)}</option>`)
+    .join("")}`;
 }
 
 function renderTabs() {
-  const sources = ["全部", ...new Set(state.catalog.map((item) => item.source))];
+  const sources = Object.keys(sourceLabels).filter((source) => state.catalog.some((item) => item.source === source));
   els.sourceTabs.innerHTML = sources
-    .map((source) => `<button type="button" class="${source === state.source ? "active" : ""}" data-source="${escapeHtml(source)}">${escapeHtml(source)}</button>`)
+    .map((source) => `<button type="button" class="${source === state.source ? "active" : ""}" data-source="${escapeHtml(source)}">${escapeHtml(sourceLabel(source))}</button>`)
     .join("");
   els.sourceTabs.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -64,7 +72,7 @@ function renderTabs() {
 function renderCatalog() {
   const term = els.search.value.trim().toLowerCase();
   const items = state.catalog.filter((item) => {
-    const sourceMatch = state.source === "全部" || item.source === state.source;
+    const sourceMatch = item.source === state.source;
     const text = `${item.sku} ${item.name} ${item.category} ${item.spec} ${item.unit} ${item.note}`.toLowerCase();
     return sourceMatch && (!term || text.includes(term));
   });
@@ -87,9 +95,12 @@ function renderCatalog() {
 
 function renderItem(item) {
   const quantity = state.quantities.get(item.sku) || "";
-  const detail = [item.source, item.category, item.spec, item.unit ? `单位：${item.unit}` : "", item.note].filter(Boolean).join(" · ");
+  const detail = [sourceLabel(item.source), item.category, item.spec, item.note].filter(Boolean).join(" · ");
   return `
     <article class="sku-card">
+      <div class="sku-image" aria-hidden="true">
+        <span>${escapeHtml(imageText(item.name))}</span>
+      </div>
       <div class="sku-meta">
         <small>${escapeHtml(item.sku)}</small>
         <strong>${escapeHtml(item.name)}</strong>
@@ -97,7 +108,10 @@ function renderItem(item) {
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
-        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
+        <label>
+          <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
+          <span>${escapeHtml(item.unit || "")}</span>
+        </label>
         <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}">+</button>
       </div>
     </article>
@@ -137,7 +151,7 @@ function openConfirm() {
       <div class="confirm-row">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
-          <small>${escapeHtml([item.source, item.spec, item.note].filter(Boolean).join(" · "))}</small>
+          <small>${escapeHtml([sourceLabel(item.source), item.spec, item.note].filter(Boolean).join(" · "))}</small>
         </div>
         <b>${formatNumber(item.quantity)} ${escapeHtml(item.unit || "")}</b>
       </div>
@@ -151,7 +165,7 @@ function openConfirm() {
 async function submitOrder() {
   const storeName = els.storeName.value.trim();
   if (!storeName) {
-    els.message.textContent = "请先填写门店名称";
+    els.message.textContent = "请先选择门店";
     els.message.className = "message error";
     return;
   }
@@ -164,7 +178,6 @@ async function submitOrder() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         store_name: storeName,
-        contact: els.contact.value.trim(),
         remark: els.remark.value.trim(),
         items,
       }),
@@ -193,6 +206,16 @@ function resetOrder() {
 function formatNumber(value) {
   const number = Number(value || 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(2);
+}
+
+function sourceLabel(source) {
+  return sourceLabels[source] || source;
+}
+
+function imageText(name) {
+  const text = String(name || "").replace(/[（）()]/g, "").trim();
+  if (text.length <= 3) return text;
+  return text.slice(0, 3);
 }
 
 function escapeHtml(value) {
