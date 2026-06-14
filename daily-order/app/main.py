@@ -170,6 +170,35 @@ async def update_order_status(order_id: str, request: Request, payload: dict):
     return {"status": "success", "order": _normalize_order(order)}
 
 
+@app.patch("/daily-order/api/admin/orders/{order_id}/channels/{channel}/status")
+async def update_order_channel_status(order_id: str, channel: str, request: Request, payload: dict):
+    _require_admin(request)
+    status = str(payload.get("status") or "").strip()
+    if status not in {"pending", "processed"}:
+        raise HTTPException(status_code=400, detail="状态不正确")
+    channel = channel.strip()
+    if not channel:
+        raise HTTPException(status_code=400, detail="渠道不正确")
+    path = _order_path(order_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
+    channels = _order_channels(order)
+    if channel not in channels:
+        raise HTTPException(status_code=404, detail="该订单没有这个渠道")
+    processed_channels = set(order.get("processed_channels") or [])
+    if status == "processed":
+        processed_channels.add(channel)
+    else:
+        processed_channels.discard(channel)
+    order["processed_channels"] = sorted(processed_channels)
+    order["status"] = "processed" if set(channels).issubset(processed_channels) else "pending"
+    order["processed_at"] = now_iso() if order["status"] == "processed" else ""
+    path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_order_csv(path.with_suffix(".csv"), order)
+    return {"status": "success", "order": _normalize_order(order), "channel": channel}
+
+
 @app.patch("/daily-order/api/admin/channels/{channel}/status")
 async def update_channel_status(channel: str, request: Request, payload: dict):
     _require_admin(request)
@@ -321,7 +350,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
     for order in orders:
         for item in order.get("items") or []:
             channel_name = item.get("purchase_channel") or _default_purchase_channel(item)
-            channel = channels.setdefault(channel_name, {"channel": channel_name, "stores": {}, "totals": {}})
+            channel = channels.setdefault(channel_name, {"channel": channel_name, "stores": {}, "orders": {}, "totals": {}})
             store = channel["stores"].setdefault(
                 order["store_name"],
                 {
@@ -332,6 +361,18 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                 },
             )
             store["orders"].append(order["order_id"])
+            channel_order = channel["orders"].setdefault(
+                order["order_id"],
+                {
+                    "order_id": order["order_id"],
+                    "store_name": order["store_name"],
+                    "store_address": order.get("store_address", ""),
+                    "submitted_at": order.get("submitted_at", ""),
+                    "remark": order.get("remark", ""),
+                    "status": "processed" if _channel_is_processed(order, channel_name) else "pending",
+                    "items": {},
+                },
+            )
             sku = item["sku"]
             line = store["items"].setdefault(
                 sku,
@@ -344,11 +385,17 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                 },
             )
             line["quantity"] += float(item.get("quantity") or 0)
+            order_line = channel_order["items"].setdefault(sku, {**line, "quantity": 0})
+            order_line["quantity"] += float(item.get("quantity") or 0)
             total = channel["totals"].setdefault(sku, {**line, "quantity": 0})
             total["quantity"] += float(item.get("quantity") or 0)
     return [
         {
             "channel": channel["channel"],
+            "orders": [
+                {**order, "items": list(order["items"].values())}
+                for order in sorted(channel["orders"].values(), key=lambda item: (item.get("submitted_at", ""), item.get("order_id", "")), reverse=True)
+            ],
             "stores": [
                 {**store, "orders": sorted(set(store["orders"])), "items": list(store["items"].values())}
                 for store in channel["stores"].values()

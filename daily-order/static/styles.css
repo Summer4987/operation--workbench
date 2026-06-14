@@ -106,7 +106,7 @@ h1 {
 
 .section-heading button,
 .admin-topbar button,
-.admin-order-card button,
+.channel-order-card button,
 .channel-card header button {
   min-height: 36px;
   border: 1px solid var(--line);
@@ -167,8 +167,7 @@ h1 {
   font-weight: 800;
 }
 
-.store-order-card ul,
-.admin-store-card ul {
+.store-order-card ul {
   display: grid;
   gap: 5px;
   margin: 0;
@@ -203,8 +202,7 @@ h1 {
 }
 
 .store-order-card b,
-.channel-card b,
-.admin-order-card b {
+.channel-card b {
   color: var(--brand);
   white-space: nowrap;
 }
@@ -667,7 +665,7 @@ dialog::backdrop {
 
 .admin-stats div,
 .channel-card,
-.admin-order-card,
+.channel-order-card,
 .empty-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -727,26 +725,72 @@ dialog::backdrop {
   color: var(--danger);
 }
 
-.channel-board,
-.order-board {
+.channel-board {
   display: grid;
-  gap: 12px;
+  gap: 18px;
 }
 
 .channel-card {
-  padding: 14px;
+  overflow: hidden;
+  border-color: #cbd5e1;
+  border-top: 7px solid var(--channel-color, var(--brand));
+  box-shadow: 0 12px 28px rgba(31, 41, 55, 0.08);
+}
+
+.channel-card.tone-kuailv {
+  --channel-color: #0f766e;
+  --channel-soft: #f0fdfa;
+  --channel-chip: #e8f4f1;
+}
+
+.channel-card.tone-taobao {
+  --channel-color: #ea580c;
+  --channel-soft: #fff7ed;
+  --channel-chip: #ffedd5;
+}
+
+.channel-card.tone-jingdong {
+  --channel-color: #dc2626;
+  --channel-soft: #fef2f2;
+  --channel-chip: #fee2e2;
+}
+
+.channel-card.tone-pdd {
+  --channel-color: #16a34a;
+  --channel-soft: #f0fdf4;
+  --channel-chip: #dcfce7;
+}
+
+.channel-card.tone-wechat {
+  --channel-color: #22c55e;
+  --channel-soft: #f0fdf4;
+  --channel-chip: #dcfce7;
+}
+
+.channel-card.tone-default {
+  --channel-color: #475569;
+  --channel-soft: #f8fafc;
+  --channel-chip: #e2e8f0;
 }
 
 .channel-card header,
-.admin-order-card header {
+.channel-order-card header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
+.channel-card > header {
+  padding: 16px 18px;
+  background: linear-gradient(90deg, var(--channel-soft, #f0fdfa) 0%, #f8fafc 72%);
+  border-bottom: 1px solid #dbe5ee;
+}
+
 .channel-card h2 {
-  font-size: 22px;
+  color: var(--channel-color, #0f3f3a);
+  font-size: 26px;
+  line-height: 1.1;
 }
 
 .channel-card header div span {
@@ -755,16 +799,14 @@ dialog::backdrop {
 }
 
 .channel-card header button {
-  border-color: var(--brand);
-  background: #eef7f4;
-  color: var(--brand);
+  border-color: var(--channel-color, var(--brand));
+  background: #fff;
+  color: var(--channel-color, var(--brand));
 }
 
 .channel-card header span,
-.admin-order-card header span,
-.admin-order-card p,
-.admin-store-card span,
-.admin-store-card small {
+.channel-order-card header span,
+.channel-order-card p {
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
@@ -774,7 +816,7 @@ dialog::backdrop {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin-top: 10px;
+  padding: 12px 18px 0;
 }
 
 .channel-totals > span,
@@ -787,48 +829,49 @@ dialog::backdrop {
   font-weight: 900;
 }
 
-.store-breakdown {
+.channel-totals > span {
+  background: var(--channel-chip, #e8f4f1);
+  border: 1px solid #cfe4dd;
+}
+
+.channel-order-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  gap: 12px;
+  padding: 14px 18px 18px;
 }
 
-.admin-store-card {
-  display: grid;
-  gap: 8px;
-  border: 1px solid #e7edf3;
-  border-radius: 8px;
-  padding: 10px;
-  background: #fbfcfd;
+.channel-order-card {
+  padding: 14px;
+  background: #fff;
+  border-color: #dbe5ee;
+  border-left: 5px solid var(--channel-color, #14b8a6);
 }
 
-.admin-store-card strong,
-.admin-store-card span,
-.admin-store-card small {
+.channel-order-card.is-processed {
+  border-left-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.channel-order-card header strong {
   display: block;
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
 }
 
-.admin-store-card li {
-  color: #263646;
-  font-size: 13px;
-  font-weight: 800;
+.channel-order-card header button {
+  border-color: #cfd8e3;
+  background: #fff;
+  color: #22313f;
 }
 
-.admin-order-card {
-  padding: 12px;
+.channel-order-card:not(.is-processed) header button {
+  border-color: var(--channel-color, var(--brand));
+  background: var(--channel-color, var(--brand));
+  color: #fff;
 }
 
-.admin-order-card + .admin-order-card {
-  margin-top: 0;
-}
-
-.admin-order-card header strong {
-  display: block;
-  font-size: 17px;
-}
-
-.admin-order-card p {
+.channel-order-card p {
   margin-top: 8px;
 }
 
@@ -857,9 +900,6 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 
-  .store-breakdown {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 620px) {
@@ -923,7 +963,7 @@ dialog::backdrop {
 
   .admin-topbar,
   .channel-card header,
-  .admin-order-card header {
+  .channel-order-card header {
     align-items: stretch;
     flex-direction: column;
   }
