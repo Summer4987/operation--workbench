@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260614-ordering-admin-shell" />
+    <link rel="stylesheet" href="./workbench.css?v=20260614-direct-dashboard-links" />
   </head>
   <body>
     <main class="app">
@@ -23,7 +23,7 @@
             <h2 id="nav-ops">运营数据中心</h2>
             <div class="nav-subgroup">
               <a href="#ops-health">自动化任务健康报告</a>
-              <a href="#daily">日报看板</a>
+              <a href="/business-report-dashboard/">日报看板</a>
               <a href="#reviews">评价看板</a>
             </div>
           </section>
@@ -41,7 +41,7 @@
             <h2 id="nav-flow">货流中心</h2>
             <div class="nav-subgroup">
               <a href="#ordering">订货管理</a>
-              <a href="#inventory">库存管理</a>
+              <a href="/">库存管理</a>
             </div>
           </section>
 
@@ -155,19 +155,6 @@
               </div>
             </article>
           </div>
-        </section>
-
-        <section class="center-section report-section" id="daily">
-          <div class="section-head">
-            <p>运营数据中心</p>
-            <h2>日报看板</h2>
-          </div>
-          <iframe
-            class="daily-report-frame"
-            data-report-src="/business-report-dashboard/"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            title="经营日报看板"
-          ></iframe>
         </section>
 
         <section class="center-section" id="reviews">
@@ -297,19 +284,6 @@
           </div>
         </section>
 
-        <section class="center-section inventory-section" id="inventory">
-          <div class="section-head">
-            <p>货流中心</p>
-            <h2>库存管理</h2>
-          </div>
-          <iframe
-            class="inventory-board-frame"
-            data-inventory-src="/"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            title="库存管理"
-          ></iframe>
-        </section>
-
         <section class="center-section" id="finance">
           <div class="section-head">
             <p>财务中心</p>
@@ -402,7 +376,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260614-ordering-admin-shell"></script>
-    <script src="./workbench.js?v=20260614-ordering-admin-shell"></script>
+    <script src="./workbench-data.js?v=20260614-direct-dashboard-links"></script>
+    <script src="./workbench.js?v=20260614-direct-dashboard-links"></script>
   </body>
 </html>

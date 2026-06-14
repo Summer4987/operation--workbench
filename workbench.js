@@ -1565,20 +1565,6 @@ function activatePage() {
   });
 }
 
-async function loadDailyReportFrame() {
-  const frame = document.querySelector(".daily-report-frame");
-  if (!frame) return;
-  const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
-  await loadEmbeddedFrame(frame, reportSrc, "正在加载经营日报...", "经营日报加载失败", "打开经营日报");
-}
-
-async function loadInventoryBoardFrame() {
-  const frame = document.querySelector(".inventory-board-frame");
-  if (!frame) return;
-  const inventorySrc = frame.dataset.inventorySrc || "/";
-  await loadEmbeddedFrame(frame, inventorySrc, "正在加载库存管理...", "库存管理加载失败", "打开库存管理");
-}
-
 async function loadDailyOrderAdminFrame() {
   const frame = document.querySelector(".ordering-admin-frame");
   if (!frame) return;
@@ -1625,6 +1611,4 @@ renderTools();
 renderFinance();
 window.addEventListener("hashchange", activatePage);
 activatePage();
-loadDailyReportFrame();
-loadInventoryBoardFrame();
 loadDailyOrderAdminFrame();
