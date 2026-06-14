@@ -108,12 +108,10 @@ function renderItem(item) {
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
-        <label>
-          <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
-          <span>${escapeHtml(item.unit || "")}</span>
-        </label>
+        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
         <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}">+</button>
       </div>
+      <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
     </article>
   `;
 }

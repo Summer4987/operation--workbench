@@ -154,7 +154,7 @@ textarea {
 
 .sku-card {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr) 112px;
+  grid-template-columns: 70px minmax(0, 1fr) 92px auto;
   gap: 10px;
   align-items: center;
   padding: 12px;
@@ -215,7 +215,7 @@ textarea {
 
 .qty-control {
   display: grid;
-  grid-template-columns: 30px minmax(46px, 1fr) 30px;
+  grid-template-columns: 30px minmax(32px, 1fr) 30px;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -234,7 +234,7 @@ textarea {
 }
 
 .qty-control input {
-  width: 42px;
+  width: 100%;
   min-height: 36px;
   border: 0;
   border-radius: 0;
@@ -244,20 +244,9 @@ textarea {
   font-weight: 900;
 }
 
-.qty-control label {
-  min-height: 36px;
-  display: flex;
-  grid-template-columns: none;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0 3px;
+.qty-unit {
   color: #23313f;
-  font-size: 14px;
-}
-
-.qty-control label span {
-  color: #23313f;
+  font-size: 15px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -426,7 +415,7 @@ dialog::backdrop {
   }
 
   .sku-card {
-    grid-template-columns: 64px minmax(0, 1fr) 104px;
+    grid-template-columns: 64px minmax(0, 1fr) 90px auto;
     gap: 8px;
     padding: 10px;
   }
