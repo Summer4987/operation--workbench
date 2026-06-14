@@ -72,7 +72,7 @@ function renderChannels() {
     button.addEventListener("click", () => updateOrderChannelStatus(button.dataset.orderId, button.dataset.channel, button.dataset.orderChannelStatus));
   });
   els.channelBoard.querySelectorAll("[data-copy-wechat]").forEach((button) => {
-    button.addEventListener("click", () => copyWechatText(button.dataset.copyWechat));
+    button.addEventListener("click", () => copyWechatText(button.dataset.copyWechat, button));
   });
 }
 
@@ -118,11 +118,14 @@ function renderWechatGroupCards(channel) {
             <strong>${escapeHtml(group.name)}</strong>
             <span>${group.orderEntries.length} 个订单 · ${group.stores.length} 个门店</span>
           </div>
-          <button type="button" data-copy-wechat="${escapeHtml(key)}">复制群消息</button>
+          <div class="wechat-group-actions">
+            <button type="button" data-copy-wechat="${escapeHtml(key)}">复制群消息</button>
+            <button type="button" data-channel="${escapeHtml(group.name)}" data-channel-status="${group.nextStatus}">${group.buttonText}</button>
+          </div>
         </header>
         <pre>${escapeHtml(group.text)}</pre>
         <div class="wechat-order-actions">
-          ${group.orderEntries.map((entry) => renderWechatOrderAction(entry, group.name)).join("")}
+          ${group.orderEntries.map(renderWechatOrderAction).join("")}
         </div>
       </article>
     `;
@@ -171,7 +174,14 @@ function wechatMessageGroups(channel) {
     stores: [...group.stores.values()],
     orderEntries: [...group.orders.values()],
     text: wechatMessageText(name, [...group.stores.values()]),
-  }));
+  })).map((group) => {
+    const processed = group.orderEntries.length > 0 && group.orderEntries.every((entry) => entry.status === "processed");
+    return {
+      ...group,
+      nextStatus: processed ? "pending" : "processed",
+      buttonText: processed ? "改回未处理" : "标记本群已处理",
+    };
+  });
 }
 
 function wechatMessageText(groupName, stores) {
@@ -186,9 +196,7 @@ function wechatMessageText(groupName, stores) {
   ].join("\n\n");
 }
 
-function renderWechatOrderAction(entry, groupName) {
-  const nextStatus = entry.status === "processed" ? "pending" : "processed";
-  const buttonText = nextStatus === "processed" ? "标记已处理" : "改回未处理";
+function renderWechatOrderAction(entry) {
   return `
     <section class="wechat-order-row ${entry.status === "processed" ? "is-processed" : ""}">
       <div>
@@ -196,12 +204,6 @@ function renderWechatOrderAction(entry, groupName) {
         <span>${escapeHtml(entry.orderId)} · ${escapeHtml(formatDate(entry.submittedAt))}</span>
         <em>${[...entry.items.values()].map((item) => escapeHtml(plainLine(item))).join("、")}</em>
       </div>
-      <button
-        type="button"
-        data-order-id="${escapeHtml(entry.orderId)}"
-        data-channel="${escapeHtml(groupName)}"
-        data-order-channel-status="${nextStatus}"
-      >${buttonText}</button>
     </section>
   `;
 }
@@ -274,11 +276,19 @@ async function updateOrderChannelStatus(orderId, channel, status) {
   }
 }
 
-async function copyWechatText(key) {
+async function copyWechatText(key, button) {
   const text = state.copyTexts.get(key);
   if (!text) return;
   try {
     await copyText(text);
+    if (button) {
+      button.classList.add("copied");
+      button.textContent = "已复制";
+      window.setTimeout(() => {
+        button.classList.remove("copied");
+        button.textContent = "复制群消息";
+      }, 1800);
+    }
     showMessage("群消息已复制。", false);
   } catch (error) {
     showMessage("复制失败，请手动复制预览内容。", true);
