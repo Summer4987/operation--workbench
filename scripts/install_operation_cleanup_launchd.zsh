@@ -39,7 +39,10 @@ delete_old() {
       target="\$ROOT/\$target"
     fi
     [[ -e "\$target" ]] || continue
-    "\$FIND_BIN" "\$target" -type f -mtime "+\$days" "\${action[@]}"
+    if ! "\$FIND_BIN" "\$target" -type f -mtime "+\$days" "\${action[@]}"; then
+      echo "跳过 \$target：当前进程没有访问权限或目录暂不可用"
+      continue
+    fi
     "\$FIND_BIN" "\$target" -type d -empty -delete 2>/dev/null || true
   done
 }
@@ -58,14 +61,18 @@ delete_old "自动化 JSON 和实时记录" "\$JSON_DAYS" \
 delete_old "巡检截图和 OCR 证据" "\$EVIDENCE_DAYS" \
   "outputs/store_inspection"
 
-if [[ -d "outputs/store_inspection" && -x "\$PYTHON_BIN" ]]; then
+if [[ -d "\$ROOT/outputs/store_inspection" && -x "\$PYTHON_BIN" ]]; then
   "\$PYTHON_BIN" - <<PY
 from pathlib import Path
 
 root = Path("\$ROOT") / "outputs" / "store_inspection"
 max_bytes = int("\$EVIDENCE_MAX_MB") * 1024 * 1024
 dry_run = "\$DRY_RUN" == "true"
-files = [p for p in root.rglob("*") if p.is_file()]
+try:
+    files = [p for p in root.rglob("*") if p.is_file()]
+except PermissionError:
+    print(f"跳过 {root}：当前进程没有访问权限")
+    raise SystemExit(0)
 total = sum(p.stat().st_size for p in files)
 if total > max_bytes:
     print(f"巡检证据超过体量上限：当前 {total / 1024 / 1024:.1f}MB，上限 {max_bytes / 1024 / 1024:.1f}MB")

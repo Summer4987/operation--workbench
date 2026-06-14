@@ -199,6 +199,11 @@ def maybe_notify(title: str, message: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Mac mini 自动化守护器")
     parser.add_argument("--json", action="store_true", help="同时把报告 JSON 打印到终端")
+    parser.add_argument(
+        "--strict-exit",
+        action="store_true",
+        help="报告发现异常时返回 1；默认只在脚本运行失败时返回非 0，避免 launchd 误判。",
+    )
     args = parser.parse_args()
 
     report = run_guardian()
@@ -220,7 +225,9 @@ def main() -> int:
     maybe_notify("Mac mini 自动化守护", status)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if report["ok"] else 1
+    if args.strict_exit and not report["ok"]:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

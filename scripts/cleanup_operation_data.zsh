@@ -27,7 +27,10 @@ delete_old() {
   echo "清理 $label：保留最近 $days 天"
   for path in "${paths[@]}"; do
     [[ -e "$path" ]] || continue
-    "$FIND_BIN" "$path" -type f -mtime "+$days" "${action[@]}"
+    if ! "$FIND_BIN" "$path" -type f -mtime "+$days" "${action[@]}"; then
+      echo "跳过 $path：当前进程没有访问权限或目录暂不可用"
+      continue
+    fi
     "$FIND_BIN" "$path" -type d -empty -delete 2>/dev/null || true
   done
 }
@@ -53,7 +56,11 @@ from pathlib import Path
 root = Path("outputs/store_inspection")
 max_bytes = int("$EVIDENCE_MAX_MB") * 1024 * 1024
 dry_run = "$DRY_RUN" == "true"
-files = [p for p in root.rglob("*") if p.is_file()]
+try:
+    files = [p for p in root.rglob("*") if p.is_file()]
+except PermissionError:
+    print(f"跳过 {root}：当前进程没有访问权限")
+    raise SystemExit(0)
 total = sum(p.stat().st_size for p in files)
 if total > max_bytes:
     print(f"巡检证据超过体量上限：当前 {total / 1024 / 1024:.1f}MB，上限 {max_bytes / 1024 / 1024:.1f}MB")
