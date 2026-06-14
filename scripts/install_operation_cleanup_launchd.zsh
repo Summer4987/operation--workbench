@@ -36,9 +36,13 @@ delete_old() {
   fi
   echo "清理 \$label：保留最近 \$days 天"
   for path in "\${paths[@]}"; do
-    [[ -e "\$path" ]] || continue
-    "\$FIND_BIN" "\$path" -type f -mtime "+\$days" "\${action[@]}"
-    "\$FIND_BIN" "\$path" -type d -empty -delete 2>/dev/null || true
+    local target="\$path"
+    if [[ "\$target" != /* ]]; then
+      target="\$ROOT/\$target"
+    fi
+    [[ -e "\$target" ]] || continue
+    "\$FIND_BIN" "\$target" -type f -mtime "+\$days" "\${action[@]}"
+    "\$FIND_BIN" "\$target" -type d -empty -delete 2>/dev/null || true
   done
 }
 
