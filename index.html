@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260614-inventory-sidebar" />
+    <link rel="stylesheet" href="./workbench.css?v=20260614-ordering-admin-shell" />
   </head>
   <body>
     <main class="app">
@@ -281,65 +281,19 @@
             <p>货流中心</p>
             <h2>订货管理</h2>
           </div>
-          <div class="center-grid ordering-grid">
-            <article class="module module-ordering">
-              <div class="module-head">
-                <div>
-                  <p>订货</p>
-                  <h2>订货建议确认队列</h2>
-                </div>
-                <span class="tag planning" id="orderingStatus">待确认</span>
+          <div class="embedded-board-shell ordering-admin-shell">
+            <div class="embedded-board-bar">
+              <div>
+                <span>日常订货处理看板</span>
+                <strong>门店订单 · 渠道处理 · 已处理/未处理</strong>
               </div>
-              <div class="module-body">
-                <div class="big-number" id="orderingSuggestionCount">-</div>
-                <p id="orderingSummary">等待订货建议数据。</p>
-                <div class="ordering-confirm-panel">
-                  <div>
-                    <span>确认要求</span>
-                    <strong id="orderingConfirmStatus">-</strong>
-                    <em id="orderingConfirmMessage">确认前不会自动下单或付款。</em>
-                  </div>
-                  <button class="confirm-button" id="orderingChecklistButton" type="button">生成确认清单</button>
-                </div>
-                <div class="mini-table ordering-channel-list" id="orderingRows"></div>
-                <div class="ordering-confirm-panel ordering-list-panel">
-                  <div>
-                    <span>渠道下单清单</span>
-                    <strong id="orderingListStatus">-</strong>
-                    <em id="orderingListMessage">人工确认后生成。</em>
-                  </div>
-                  <strong class="ordering-list-count" id="orderingListCount">-</strong>
-                </div>
-                <div class="mini-table ordering-channel-list" id="orderingListRows"></div>
-                <div class="ordering-confirm-panel ordering-execution-panel">
-                  <div>
-                    <span>执行预览与付款确认</span>
-                    <strong id="orderingExecutionStatus">-</strong>
-                    <em id="orderingExecutionMessage">远控安卓下单前生成。</em>
-                  </div>
-                  <strong class="ordering-list-count" id="orderingExecutionCount">-</strong>
-                </div>
-                <div class="mini-table ordering-channel-list" id="orderingExecutionRows"></div>
-                <div class="ordering-confirm-panel ordering-android-panel">
-                  <div>
-                    <span>远控安卓执行适配</span>
-                    <strong id="orderingAndroidStatus">-</strong>
-                    <em id="orderingAndroidMessage">只读计划，人工接管。</em>
-                  </div>
-                  <strong class="ordering-list-count" id="orderingAndroidCount">-</strong>
-                </div>
-                <div class="mini-table ordering-channel-list" id="orderingAndroidRows"></div>
-                <div class="ordering-confirm-panel ordering-device-panel">
-                  <div>
-                    <span>真实设备连接配置</span>
-                    <strong id="orderingDeviceStatus">-</strong>
-                    <em id="orderingDeviceMessage">Mac mini 生产前补齐。</em>
-                  </div>
-                  <strong class="ordering-list-count" id="orderingDeviceCount">-</strong>
-                </div>
-                <div class="mini-table ordering-channel-list" id="orderingDeviceRows"></div>
-              </div>
-            </article>
+              <a href="/daily-order/admin?token=daily-order-admin" target="_blank" rel="noreferrer">独立打开</a>
+            </div>
+            <iframe
+              class="ordering-admin-frame"
+              data-ordering-admin-src="/daily-order/admin?token=daily-order-admin"
+              title="日常订货处理看板"
+            ></iframe>
           </div>
         </section>
 
@@ -448,7 +402,7 @@
         </section>
       </section>
     </main>
-    <script src="./workbench-data.js?v=20260614-inventory-sidebar"></script>
-    <script src="./workbench.js?v=20260614-inventory-sidebar"></script>
+    <script src="./workbench-data.js?v=20260614-ordering-admin-shell"></script>
+    <script src="./workbench.js?v=20260614-ordering-admin-shell"></script>
   </body>
 </html>

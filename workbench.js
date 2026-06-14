@@ -1579,6 +1579,13 @@ async function loadInventoryBoardFrame() {
   await loadEmbeddedFrame(frame, inventorySrc, "正在加载库存管理...", "库存管理加载失败", "打开库存管理");
 }
 
+async function loadDailyOrderAdminFrame() {
+  const frame = document.querySelector(".ordering-admin-frame");
+  if (!frame) return;
+  const orderingAdminSrc = frame.dataset.orderingAdminSrc || "/daily-order/admin?token=daily-order-admin";
+  frame.src = new URL(orderingAdminSrc, window.location.href).href;
+}
+
 async function loadEmbeddedFrame(frame, source, loadingText, failureTitle, linkText) {
   const reportUrl = new URL(source, window.location.href).href;
   frame.srcdoc = `<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">${escapeHtml(loadingText)}</body></html>`;
@@ -1620,3 +1627,4 @@ window.addEventListener("hashchange", activatePage);
 activatePage();
 loadDailyReportFrame();
 loadInventoryBoardFrame();
+loadDailyOrderAdminFrame();
