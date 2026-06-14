@@ -1,12 +1,14 @@
 const state = {
   catalog: [],
   stores: [],
-  category: "",
+  section: "食材",
+  foodCategory: "蔬菜",
   quantities: new Map(),
   recentOrders: [],
 };
 
-const categoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "包材", "调料", "耗材"];
+const sectionOrder = ["食材", "包材", "调料", "耗材"];
+const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品"];
 
 const sourceLabels = {
   "快驴配送": "快驴配送（次日）",
@@ -15,7 +17,7 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
-const imageVersion = "20260614-categories";
+const imageVersion = "20260614-category-tabs";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -51,7 +53,7 @@ async function loadCatalog() {
   const payload = await response.json();
   state.catalog = payload.items || [];
   state.stores = payload.stores || [];
-  state.category = categoryOrder.find((category) => state.catalog.some((item) => item.category === category)) || state.catalog[0]?.category || "";
+  state.foodCategory = foodCategoryOrder.find((category) => state.catalog.some((item) => item.category === category)) || state.foodCategory;
   renderStoreOptions();
   renderTabs();
   renderCatalog();
@@ -68,16 +70,29 @@ function renderStoreOptions() {
 }
 
 function renderTabs() {
-  const categories = [
-    ...categoryOrder.filter((category) => state.catalog.some((item) => item.category === category)),
-    ...Array.from(new Set(state.catalog.map((item) => item.category).filter(Boolean))).filter((category) => !categoryOrder.includes(category)),
-  ];
-  els.sourceTabs.innerHTML = categories
-    .map((category) => `<button type="button" class="${category === state.category ? "active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`)
-    .join("");
-  els.sourceTabs.querySelectorAll("button").forEach((button) => {
+  const sections = sectionOrder.filter((section) => state.catalog.some((item) => sectionMatchesItem(section, item)));
+  const foodCategories = foodCategoryOrder.filter((category) => state.catalog.some((item) => item.category === category));
+  const secondaryTabs = state.section === "食材"
+    ? `<div class="tab-row secondary-tabs">${foodCategories
+      .map((category) => `<button type="button" class="${category === state.foodCategory ? "active" : ""}" data-food-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`)
+      .join("")}</div>`
+    : "";
+  els.sourceTabs.innerHTML = `
+    <div class="tab-row primary-tabs">
+      ${sections.map((section) => `<button type="button" class="${section === state.section ? "active" : ""}" data-section="${escapeHtml(section)}">${escapeHtml(section)}</button>`).join("")}
+    </div>
+    ${secondaryTabs}
+  `;
+  els.sourceTabs.querySelectorAll("[data-section]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.category = button.dataset.category;
+      state.section = button.dataset.section;
+      renderTabs();
+      renderCatalog();
+    });
+  });
+  els.sourceTabs.querySelectorAll("[data-food-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.foodCategory = button.dataset.foodCategory;
       renderTabs();
       renderCatalog();
     });
@@ -87,7 +102,7 @@ function renderTabs() {
 function renderCatalog() {
   const term = els.search.value.trim().toLowerCase();
   const items = state.catalog.filter((item) => {
-    const categoryMatch = item.category === state.category;
+    const categoryMatch = activeCategoryMatchesItem(item);
     const text = `${item.sku} ${item.name} ${item.category} ${item.spec} ${item.unit} ${item.note}`.toLowerCase();
     return categoryMatch && (!term || text.includes(term));
   });
@@ -106,6 +121,16 @@ function renderCatalog() {
       renderCatalog();
     });
   });
+}
+
+function activeCategoryMatchesItem(item) {
+  if (state.section === "食材") return item.category === state.foodCategory;
+  return item.category === state.section;
+}
+
+function sectionMatchesItem(section, item) {
+  if (section === "食材") return foodCategoryOrder.includes(item.category);
+  return item.category === section;
 }
 
 function renderItem(item) {
