@@ -1287,6 +1287,10 @@ h2 {
   align-items: center;
 }
 
+.health-task-list.morning-task-list div {
+  grid-template-columns: minmax(150px, 0.22fr) minmax(132px, 0.2fr) minmax(84px, auto) minmax(0, 1fr);
+}
+
 .health-task-list div.warn-row {
   background: var(--soft-red-bg);
   border-color: var(--soft-red-line);
@@ -1297,6 +1301,12 @@ h2 {
   background: #f7fcfa;
   border-color: #d5efe6;
   border-left: 4px solid var(--green);
+}
+
+.health-task-list div.neutral-row {
+  background: #f8fafc;
+  border-color: #dbe3ee;
+  border-left: 4px solid #94a3b8;
 }
 
 .health-task-list span,
@@ -1893,6 +1903,8 @@ h2 {
   .review-weekly-list div,
   .review-workflow-list div,
   .budget-edit-row,
+  .morning-task-list div,
+  .health-task-list.morning-task-list div,
   .health-task-list div,
   .week-store-grid,
   .week-store,

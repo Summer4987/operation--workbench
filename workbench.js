@@ -634,6 +634,7 @@ function renderHealth() {
   const summary = taskHealth.summary || {};
   const environment = taskHealth.environment || {};
   const tasks = taskHealth.tasks || [];
+  const morningTasks = taskHealth.morning_tasks || [];
   const smokeStatus = macminiSmoke.status || "waiting_log";
   const operationBlockers = operationCheck.blockers || [];
   const operationWarnings = operationCheck.warnings || [];
@@ -666,6 +667,23 @@ function renderHealth() {
   text(
     "healthSummary",
     `共 ${summary.total || tasks.length || 0} 个自动化任务：正常 ${summary.ok || 0}，注意 ${summary.warn || 0}，需处理 ${summary.danger || 0}，规划中 ${summary.planned || 0}。${taskHealth.generated_at ? `任务健康生成：${taskHealth.generated_at}。` : ""}`
+  );
+  rows(
+    "morningTaskRows",
+    morningTasks,
+    (task) => {
+      const runStatus = task.last_run_status || "missing";
+      const cls = runStatus === "success" ? "good-row" : runStatus === "missing" || runStatus === "skipped" ? "neutral-row" : "warn-row";
+      const statusText = task.last_run_status_text || (runStatus === "success" ? "成功" : runStatus === "failed" ? "失败" : runStatus === "running" ? "运行中" : runStatus === "skipped" ? "跳过" : runStatus === "warning" ? "注意" : "未记录");
+      const meta = [
+        task.last_run_step ? `步骤：${task.last_run_step}` : "",
+        task.last_run_message || task.reason || "",
+        task.failure_type ? `原因：${task.failure_type}` : "",
+        task.human_action ? `处理：${task.human_action}` : "",
+        task.evidence ? `记录：${task.evidence}` : "",
+      ].filter(Boolean).join(" · ");
+      return `<div class="${cls}"><span>${escapeHtml(task.name || task.id || "未知任务")}</span><strong>${escapeHtml(task.last_run_at || "未记录")}</strong><strong>${escapeHtml(statusText)}</strong><em>${escapeHtml(meta || task.schedule || "-")}</em></div>`;
+    }
   );
   const healthRows = operationEnvironment.role === "production" || operationBlockers.length
     ? [operationRow, smokeRow, ...tasks]

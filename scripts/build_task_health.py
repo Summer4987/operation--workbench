@@ -42,6 +42,26 @@ STATUS_LABELS = {
     "unknown": "待接入",
 }
 
+RUN_STATUS_LABELS = {
+    "success": "成功",
+    "failed": "失败",
+    "running": "运行中",
+    "skipped": "跳过",
+    "warning": "注意",
+    "missing": "未记录",
+}
+
+MORNING_SCHEDULE_MARKERS = (
+    "上午",
+    "每天 08",
+    "08:",
+    "10:",
+    "10点",
+    "10 点",
+    "午餐",
+    "一键采集触发",
+)
+
 FAILURE_TYPE_LABELS = {
     "auth_block": "登录/验证码/权限阻塞",
     "outside_allowed_window": "不在允许执行窗口",
@@ -733,6 +753,92 @@ def attach_human_action(row: dict[str, Any], task: dict[str, Any]) -> dict[str, 
     return row
 
 
+def is_morning_task(task: dict[str, Any]) -> bool:
+    schedule = str(task.get("schedule") or "")
+    return any(marker in schedule for marker in MORNING_SCHEDULE_MARKERS)
+
+
+def newest_task_event(task_id: str, run_state: dict[str, Any]) -> dict[str, Any]:
+    events = run_state.get("events") or []
+    newest: tuple[datetime, dict[str, Any]] | None = None
+    for event in events:
+        if not isinstance(event, dict) or event.get("task_id") != task_id:
+            continue
+        created_at = parse_time(event.get("created_at"))
+        if not created_at:
+            continue
+        if newest is None or created_at > newest[0]:
+            newest = (created_at, event)
+    return newest[1] if newest else {}
+
+
+def build_morning_tasks(registry_tasks: list[dict[str, Any]], rows: list[dict[str, Any]], run_state: dict[str, Any]) -> list[dict[str, Any]]:
+    rows_by_id = {row.get("id"): row for row in rows}
+    run_tasks = run_state.get("tasks") or {}
+    morning_rows: list[dict[str, Any]] = []
+    for task in registry_tasks:
+        if not is_morning_task(task):
+            continue
+        task_id = task.get("id", "")
+        row = rows_by_id.get(task_id) or {}
+        run_task = run_tasks.get(task_id) if isinstance(run_tasks.get(task_id), dict) else {}
+        event = newest_task_event(task_id, run_state)
+        run_source = run_task or event
+        if run_source:
+            run_status = run_source.get("status") or row.get("last_run_status") or "missing"
+            run_status_text = RUN_STATUS_LABELS.get(run_status, run_status or "未记录")
+        elif row.get("last_seen_at") and row.get("status") == "ok":
+            run_status = "success"
+            run_status_text = "成功（产物）"
+        elif row.get("last_seen_at") and row.get("status") == "danger":
+            run_status = "failed"
+            run_status_text = "失败（健康检查）"
+        elif row.get("last_seen_at") and row.get("status") == "warn":
+            run_status = "warning"
+            run_status_text = "注意（健康检查）"
+        else:
+            run_status = row.get("last_run_status") or "missing"
+            run_status_text = RUN_STATUS_LABELS.get(run_status, run_status or "未记录")
+        run_time = (
+            run_source.get("updated_at")
+            or run_source.get("finished_at")
+            or run_source.get("created_at")
+            or row.get("last_run_at")
+            or row.get("last_seen_at")
+            or ""
+        )
+        run_success = True if run_status == "success" else False if run_status == "failed" else None
+        morning_rows.append(
+            {
+                "id": task_id,
+                "name": row.get("name") or task.get("name", ""),
+                "center": row.get("center") or task.get("center", ""),
+                "schedule": task.get("schedule", ""),
+                "status": row.get("status", "unknown"),
+                "status_text": row.get("status_text") or STATUS_LABELS.get(row.get("status"), row.get("status", "待接入")),
+                "reason": row.get("reason", ""),
+                "last_run_at": run_time,
+                "last_run_status": run_status,
+                "last_run_status_text": run_status_text,
+                "last_run_success": run_success,
+                "last_run_step": run_source.get("step") or row.get("last_run_step", ""),
+                "last_run_message": run_source.get("message") or row.get("reason", ""),
+                "failure_type": run_source.get("failure_type") or row.get("failure_type", ""),
+                "human_action": row.get("human_action", ""),
+                "evidence": run_source.get("log_path") or row.get("evidence", ""),
+                "environment": run_source.get("environment") or {},
+            }
+        )
+    return sorted(
+        morning_rows,
+        key=lambda item: (
+            0 if item.get("last_run_status") == "failed" else 1 if item.get("last_run_status") in {"running", "missing"} else 2,
+            item.get("schedule", ""),
+            item.get("name", ""),
+        ),
+    )
+
+
 def build_task_health(now: datetime | None = None, runtime: dict[str, Any] | None = None) -> dict[str, Any]:
     now = now or datetime.now()
     runtime = runtime or {}
@@ -741,12 +847,14 @@ def build_task_health(now: datetime | None = None, runtime: dict[str, Any] | Non
     registry = read_json(TASKS_PATH, {"tasks": []})
     run_state = read_json(TASK_RUNS_PATH, {"tasks": {}})
     rows = []
-    for task in registry.get("tasks", []):
+    registry_tasks = registry.get("tasks", [])
+    for task in registry_tasks:
         row = base_task_state(task, now)
         row = enrich_known_task(row, now, runtime)
         row = apply_run_state(row, run_state, now)
         row["status_text"] = STATUS_LABELS.get(row["status"], row["status"])
         rows.append(attach_human_action(row, task))
+    morning_tasks = build_morning_tasks(registry_tasks, rows, run_state)
 
     summary = {
         "total": len(rows),
@@ -761,6 +869,7 @@ def build_task_health(now: datetime | None = None, runtime: dict[str, Any] | Non
         "registry_updated_at": registry.get("updated_at", ""),
         "environment": runtime_environment(),
         "summary": summary,
+        "morning_tasks": morning_tasks,
         "tasks": rows,
     }
 
