@@ -94,6 +94,9 @@ a {
   color: #0f766e;
   font-size: 26px;
   font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  transform: translateY(1px);
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
 }
 
