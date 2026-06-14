@@ -369,6 +369,12 @@ def _matching_order_channels(channels: list[str], display_channel: str) -> set[s
     return {channel for channel in channels if channel == display_channel or _display_channel(channel) == display_channel}
 
 
+def _channel_sort_key(channel: dict) -> tuple[int, str]:
+    order = {"快驴": 0, "微信群": 1, "淘宝": 2, "拼多多": 3, "京东": 4}
+    name = str(channel.get("channel") or "")
+    return (order.get(name, 99), name)
+
+
 def _channel_is_processed(order: dict, channel: str) -> bool:
     return channel in set(order.get("processed_channels") or [])
 
@@ -427,7 +433,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
             order_line["quantity"] += float(item.get("quantity") or 0)
             total = channel["totals"].setdefault(sku, {**line, "quantity": 0})
             total["quantity"] += float(item.get("quantity") or 0)
-    return [
+    return sorted([
         {
             "channel": channel["channel"],
             "orders": [
@@ -441,7 +447,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
             "totals": list(channel["totals"].values()),
         }
         for channel in channels.values()
-    ]
+    ], key=_channel_sort_key)
 
 
 def _require_admin(request: Request) -> None:
