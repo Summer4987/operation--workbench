@@ -10,12 +10,21 @@ const state = {
 
 lockPageZoom();
 
+const channelShortcuts = [
+  { channel: "快驴", label: "快驴订货" },
+  { channel: "微信群", label: "微信群" },
+  { channel: "淘宝", label: "淘宝" },
+  { channel: "拼多多", label: "拼多多" },
+  { channel: "京东", label: "京东" },
+];
+
 const els = {
   tabs: document.querySelectorAll(".admin-tabs button"),
   pendingCount: document.querySelector("#pendingCount"),
   orderCount: document.querySelector("#orderCount"),
   lineCount: document.querySelector("#lineCount"),
   message: document.querySelector("#adminMessage"),
+  channelNav: document.querySelector("#channelNav"),
   channelBoard: document.querySelector("#channelBoard"),
   notifyButton: document.querySelector("#notifyButton"),
 };
@@ -56,7 +65,23 @@ function renderAll() {
   els.pendingCount.textContent = stats.pending_count || 0;
   els.orderCount.textContent = stats.order_count || 0;
   els.lineCount.textContent = stats.line_count || 0;
+  renderChannelNav();
   renderChannels();
+}
+
+function renderChannelNav() {
+  if (!els.channelNav) return;
+  const available = new Set((state.payload.channels || []).map((channel) => channel.channel));
+  els.channelNav.innerHTML = channelShortcuts.map((item) => `
+    <button
+      class="${available.has(item.channel) ? "" : "is-empty"}"
+      type="button"
+      data-channel-jump="${escapeHtml(item.channel)}"
+    >${escapeHtml(item.label)}</button>
+  `).join("");
+  els.channelNav.querySelectorAll("[data-channel-jump]").forEach((button) => {
+    button.addEventListener("click", () => jumpToChannel(button.dataset.channelJump));
+  });
 }
 
 function renderChannels() {
@@ -81,7 +106,7 @@ function renderChannel(channel) {
   const buttonText = nextStatus === "processed" ? "标记本渠道已处理" : "改回本渠道未处理";
   const orders = channel.orders || [];
   return `
-    <article class="channel-card ${channelTone(channel.channel)}">
+    <article class="channel-card ${channelTone(channel.channel)}" id="${escapeHtml(channelAnchor(channel.channel))}" data-channel-card="${escapeHtml(channel.channel)}">
       <header>
         <div>
           <h2>${escapeHtml(channel.channel)}</h2>
@@ -97,6 +122,26 @@ function renderChannel(channel) {
       </div>
     </article>
   `;
+}
+
+function jumpToChannel(channel) {
+  const card = document.querySelector(`[data-channel-card="${cssEscape(channel)}"]`);
+  if (!card) {
+    showMessage(`${channel} 当前没有订单。`, false);
+    return;
+  }
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function channelAnchor(channel) {
+  const index = channelShortcuts.findIndex((item) => item.channel === channel);
+  if (index >= 0) return `channel-${index}`;
+  return `channel-${channel.replace(/[^0-9A-Za-z\u4e00-\u9fff_-]+/g, "-")}`;
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) return CSS.escape(value);
+  return String(value).replace(/["\\]/g, "\\$&");
 }
 
 function renderChannelOrderList(channel) {

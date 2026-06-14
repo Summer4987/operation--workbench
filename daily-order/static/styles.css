@@ -717,6 +717,45 @@ dialog::backdrop {
   color: white;
 }
 
+.channel-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 0;
+  overflow-x: auto;
+  background: #eef2f5;
+  scrollbar-width: none;
+}
+
+.channel-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.channel-nav button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #22313f;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.channel-nav button:not(.is-empty) {
+  border-color: var(--brand);
+  color: var(--brand);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.08);
+}
+
+.channel-nav button.is-empty {
+  opacity: 0.46;
+}
+
 .admin-message {
   min-height: 28px;
   padding: 8px 2px 0;
@@ -736,6 +775,7 @@ dialog::backdrop {
 }
 
 .channel-card {
+  scroll-margin-top: 74px;
   overflow: hidden;
   border-color: #cbd5e1;
   border-top: 7px solid var(--channel-color, var(--brand));
@@ -1059,6 +1099,10 @@ dialog::backdrop {
   .admin-stats,
   .admin-tabs {
     grid-template-columns: 1fr;
+  }
+
+  .channel-nav {
+    top: 0;
   }
 
   .admin-topbar,
