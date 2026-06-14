@@ -743,9 +743,9 @@ dialog::backdrop {
 }
 
 .channel-card.tone-kuailv {
-  --channel-color: #0f766e;
-  --channel-soft: #f0fdfa;
-  --channel-chip: #e8f4f1;
+  --channel-color: #dc2626;
+  --channel-soft: #fef2f2;
+  --channel-chip: #fee2e2;
 }
 
 .channel-card.tone-taobao {
@@ -761,9 +761,9 @@ dialog::backdrop {
 }
 
 .channel-card.tone-pdd {
-  --channel-color: #16a34a;
-  --channel-soft: #f0fdf4;
-  --channel-chip: #dcfce7;
+  --channel-color: #2563eb;
+  --channel-soft: #eff6ff;
+  --channel-chip: #dbeafe;
 }
 
 .channel-card.tone-wechat {
