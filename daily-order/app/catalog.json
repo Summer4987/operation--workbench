@@ -582,14 +582,14 @@
     },
     {
       "sku": "HC-059",
-      "source": "快递到店",
+      "source": "快驴配送",
       "category": "耗材",
       "name": "海绵百洁布",
       "spec": "个",
       "unit": "个",
       "note": "",
       "image": "/daily-order/static/images/HC-059.svg",
-      "purchase_channel": "拼多多"
+      "purchase_channel": "快驴"
     },
     {
       "sku": "HC-060",
@@ -604,25 +604,25 @@
     },
     {
       "sku": "HC-061",
-      "source": "快递到店",
+      "source": "快驴配送",
       "category": "耗材",
       "name": "火碱",
       "spec": "个",
       "unit": "个",
       "note": "",
       "image": "/daily-order/static/images/HC-061.svg",
-      "purchase_channel": "拼多多"
+      "purchase_channel": "快驴"
     },
     {
       "sku": "HC-062",
-      "source": "快递到店",
+      "source": "快驴配送",
       "category": "耗材",
       "name": "84消毒液",
       "spec": "个",
       "unit": "个",
       "note": "",
       "image": "/daily-order/static/images/HC-062.svg",
-      "purchase_channel": "拼多多"
+      "purchase_channel": "快驴"
     },
     {
       "sku": "HC-063",
