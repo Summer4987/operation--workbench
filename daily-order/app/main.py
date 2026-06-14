@@ -609,7 +609,7 @@ def _format_number(value) -> str:
 def _order_message(order: dict) -> str:
     message = os.environ.get("DAILY_ORDER_NOTIFY_MESSAGE", "").strip()
     if message:
-        return message
+        return f"{message}\n门店：{order.get('store_name') or '未命名门店'}"
     channels = sorted({item.get("purchase_channel", "") for item in order.get("items") or [] if item.get("purchase_channel")})
     lines = [
         f"新订货订单：{order['store_name']}",
