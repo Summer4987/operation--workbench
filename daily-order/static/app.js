@@ -9,6 +9,12 @@ const state = {
 
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
 const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品"];
+const sectionLabels = {
+  "食材": "🥬 食材",
+  "包材": "📦 包材",
+  "调料": "🧂 调料",
+  "耗材": "🧽 耗材",
+};
 
 const sourceLabels = {
   "快驴配送": "快驴配送（次日）",
@@ -17,7 +23,7 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
-const imageVersion = "20260614-category-tabs2";
+const imageVersion = "20260614-category-tabs3";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -79,7 +85,7 @@ function renderTabs() {
     : "";
   els.sourceTabs.innerHTML = `
     <div class="tab-row primary-tabs">
-      ${sections.map((section) => `<button type="button" class="${section === state.section ? "active" : ""}" data-section="${escapeHtml(section)}">${escapeHtml(section)}</button>`).join("")}
+      ${sections.map((section) => `<button type="button" class="${section === state.section ? "active" : ""}" data-section="${escapeHtml(section)}">${escapeHtml(sectionLabels[section] || section)}</button>`).join("")}
     </div>
     ${secondaryTabs}
   `;

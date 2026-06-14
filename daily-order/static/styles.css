@@ -225,12 +225,12 @@ textarea {
 }
 
 .primary-tabs {
-  grid-template-columns: repeat(4, minmax(86px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .secondary-tabs {
   grid-template-columns: repeat(4, minmax(66px, 1fr));
-  margin-top: 2px;
+  margin-top: 10px;
 }
 
 .tabs button,
@@ -253,6 +253,26 @@ textarea {
   color: #1d2b3a;
   font-size: 18px;
   font-weight: 900;
+}
+
+.primary-tabs button[data-section="食材"] {
+  background: #f1faf5;
+  border-color: #c6ead6;
+}
+
+.primary-tabs button[data-section="包材"] {
+  background: #f5f8ff;
+  border-color: #cbdcf7;
+}
+
+.primary-tabs button[data-section="调料"] {
+  background: #fff8ec;
+  border-color: #efd4a8;
+}
+
+.primary-tabs button[data-section="耗材"] {
+  background: #f7f5fb;
+  border-color: #d8cdea;
 }
 
 .primary-tabs button.active {
@@ -766,9 +786,23 @@ dialog::backdrop {
     font-size: 24px;
   }
 
-  .primary-tabs,
+  .primary-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .primary-tabs button {
+    min-height: 44px;
+    padding: 0 4px;
+    font-size: 14px;
+  }
+
   .secondary-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .secondary-tabs button {
+    min-height: 36px;
+    font-size: 14px;
   }
 
   .admin-stats,
