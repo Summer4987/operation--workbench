@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
-LOG_DIR="$ROOT/outputs/launchd_logs"
+LAUNCHD_LOG_DIR="$HOME/Library/Logs/xiong-operation/launchd"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
-mkdir -p "$LAUNCH_DIR" "$LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
+mkdir -p "$LAUNCH_DIR" "$LAUNCHD_LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
 
 chmod +x "$ROOT/morning-ops/上午运营一键采集.command" \
   "$ROOT/morning-ops/我已处理验证码继续.command" \
@@ -241,7 +241,7 @@ write_plist() {
   local hour="$2"
   local minute="$3"
   local runner="$4"
-  local workdir="$5"
+  local _workdir="$5"
   local plist="$LAUNCH_DIR/${label}.plist"
 
   cat > "$plist" <<EOF
@@ -256,10 +256,10 @@ write_plist() {
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd '${workdir}' &amp;&amp; /bin/zsh '${runner}'</string>
+    <string>/bin/zsh '${runner}'</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>${workdir}</string>
+  <string>${SCRIPT_DIR}</string>
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
@@ -268,9 +268,9 @@ write_plist() {
     <integer>${minute}</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>${LOG_DIR}/${label}.out.log</string>
+  <string>${LAUNCHD_LOG_DIR}/${label}.out.log</string>
   <key>StandardErrorPath</key>
-  <string>${LOG_DIR}/${label}.err.log</string>
+  <string>${LAUNCHD_LOG_DIR}/${label}.err.log</string>
 </dict>
 </plist>
 EOF
@@ -301,7 +301,7 @@ write_realtime_plist() {
     <string>/bin/zsh '${runner}'</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>${ROOT}</string>
+  <string>${SCRIPT_DIR}</string>
   <key>StartCalendarInterval</key>
   <array>
     <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>30</integer></dict>
@@ -322,9 +322,9 @@ write_realtime_plist() {
     <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
   </array>
   <key>StandardOutPath</key>
-  <string>${LOG_DIR}/${label}.out.log</string>
+  <string>${LAUNCHD_LOG_DIR}/${label}.out.log</string>
   <key>StandardErrorPath</key>
-  <string>${LOG_DIR}/${label}.err.log</string>
+  <string>${LAUNCHD_LOG_DIR}/${label}.err.log</string>
 </dict>
 </plist>
 EOF
@@ -366,4 +366,4 @@ echo "上午：每天 8:00 一键运营，采集完成后立即提交午餐推�
 echo "实时：每天 10:30-13:00 每半小时、13:00-17:00 每小时、17:00-20:00 每半小时"
 echo "库存：已改为云端主流程，不再安装 10:10 本地同步"
 echo "晚间：每天 16:30 推广预算真实提交"
-echo "日志目录：$LOG_DIR"
+echo "launchd 日志目录：$LAUNCHD_LOG_DIR"

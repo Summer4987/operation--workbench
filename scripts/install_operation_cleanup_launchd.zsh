@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLIST="$HOME/Library/LaunchAgents/com.summer.operation.cleanup-data.plist"
-LOG_DIR="$ROOT/outputs/launchd_logs"
+LOG_DIR="$HOME/Library/Logs/xiong-operation/launchd"
 mkdir -p "$LOG_DIR" "$(dirname "$PLIST")"
 
 cat > "$PLIST" <<PLIST
@@ -16,7 +16,8 @@ cat > "$PLIST" <<PLIST
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
-    <string>$ROOT/scripts/cleanup_operation_data.zsh</string>
+    <string>-lc</string>
+    <string>/bin/zsh '$ROOT/scripts/cleanup_operation_data.zsh'</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -30,7 +31,7 @@ cat > "$PLIST" <<PLIST
   <key>StandardErrorPath</key>
   <string>$LOG_DIR/com.summer.operation.cleanup-data.err.log</string>
   <key>WorkingDirectory</key>
-  <string>$ROOT</string>
+  <string>$HOME/Library/Scripts/xiong-operation</string>
 </dict>
 </plist>
 PLIST
