@@ -1572,6 +1572,20 @@ async function loadDailyOrderAdminFrame() {
   frame.src = new URL(orderingAdminSrc, window.location.href).href;
 }
 
+async function loadDailyReportFrame() {
+  const frame = document.querySelector(".daily-report-frame");
+  if (!frame) return;
+  const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
+  await loadEmbeddedFrame(frame, reportSrc, "正在加载经营日报...", "经营日报加载失败", "打开经营日报");
+}
+
+async function loadInventoryBoardFrame() {
+  const frame = document.querySelector(".inventory-board-frame");
+  if (!frame) return;
+  const inventorySrc = frame.dataset.inventorySrc || "/";
+  await loadEmbeddedFrame(frame, inventorySrc, "正在加载库存管理...", "库存管理加载失败", "打开库存管理");
+}
+
 async function loadEmbeddedFrame(frame, source, loadingText, failureTitle, linkText) {
   const reportUrl = new URL(source, window.location.href).href;
   frame.srcdoc = `<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">${escapeHtml(loadingText)}</body></html>`;
@@ -1612,3 +1626,5 @@ renderFinance();
 window.addEventListener("hashchange", activatePage);
 activatePage();
 loadDailyOrderAdminFrame();
+loadDailyReportFrame();
+loadInventoryBoardFrame();
