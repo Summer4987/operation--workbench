@@ -17,7 +17,7 @@ const sourceLabels = {
   "厂家配送（2日内）": "厂家配送（2日内）",
 };
 
-const imageVersion = "20260614-category-tabs";
+const imageVersion = "20260614-category-tabs2";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),

@@ -230,6 +230,7 @@ textarea {
 
 .secondary-tabs {
   grid-template-columns: repeat(4, minmax(66px, 1fr));
+  margin-top: 2px;
 }
 
 .tabs button,
@@ -245,10 +246,35 @@ textarea {
   cursor: pointer;
 }
 
-.tabs button.active {
+.primary-tabs button {
+  min-height: 50px;
+  border-color: #cdd9e5;
+  background: #ffffff;
+  color: #1d2b3a;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.primary-tabs button.active {
   border-color: var(--brand);
   background: var(--brand);
   color: white;
+}
+
+.secondary-tabs button {
+  min-height: 38px;
+  border-color: #d8e7e3;
+  background: #f4faf8;
+  color: #426156;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.secondary-tabs button.active {
+  border-color: #8fc7ba;
+  background: #dff2ed;
+  color: #0f5f54;
+  box-shadow: inset 0 0 0 1px rgba(23, 107, 95, .16);
 }
 
 .catalog-grid {
