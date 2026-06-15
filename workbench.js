@@ -530,15 +530,31 @@ function priorityDetailList(items, formatter, emptyText, limit = 6) {
   return `${shown.join("；")}${remaining > 0 ? `；另 ${remaining} 个` : ""}`;
 }
 
+function timestampValue(value) {
+  if (!value) return 0;
+  const normalized = String(value).trim().replace(" ", "T");
+  const time = Date.parse(normalized);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function freshPromoBalanceStatus(balances, promoBalanceStatus) {
+  const balanceTime = timestampValue(balances.generated_at);
+  const statusTime = timestampValue(promoBalanceStatus.source_generated_at || promoBalanceStatus.generated_at);
+  if (!statusTime) return {};
+  if (balanceTime && statusTime < balanceTime) return {};
+  return promoBalanceStatus;
+}
+
 function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshold) {
   const summary = promoBalanceStatus.summary || {};
   const lowBalanceItems = promoBalanceStatus.low_balance_items || [];
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const unconfirmedItems = (balances.items || []).filter((item) => balanceValue(item) === null);
+  const hasPromoStatus = Boolean(promoBalanceStatus.generated_at || promoBalanceStatus.source_generated_at || lowBalanceItems.length || platformFailures.length);
   const lowBalanceCount = Number(summary.low_balance_count ?? balances.summary?.warning_count ?? 0);
   const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length);
   const unconfirmedCount = unconfirmedItems.length;
-  if (lowBalanceCount || platformFailureCount || unconfirmedCount) {
+  if (hasPromoStatus && (lowBalanceCount || platformFailureCount || unconfirmedCount)) {
     const lowBalanceDetail = priorityDetailList(
       lowBalanceItems,
       (item) => `${item.platform || "-"} ${shortStore(item.store_name)} ${yuan(balanceValue(item))}`,
@@ -606,7 +622,7 @@ function countPendingDailyOrders() {
 
 function priorityItems() {
   const balances = data.balances || {};
-  const promoBalanceStatus = data.promo_balance_status || {};
+  const promoBalanceStatus = freshPromoBalanceStatus(balances, data.promo_balance_status || {});
   const inventory = data.inventory || {};
   const balanceThreshold = Number((promoBalanceStatus.summary || balances.summary || {}).warning_threshold || balances.threshold || 200);
   const balanceAbnormal = countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshold);
@@ -971,7 +987,7 @@ function balanceDisplay(item) {
 
 function renderBalances() {
   const balances = data.balances || {};
-  const promoBalanceStatus = data.promo_balance_status || {};
+  const promoBalanceStatus = freshPromoBalanceStatus(balances, data.promo_balance_status || {});
   const summary = promoBalanceStatus.summary || balances.summary || {};
   const evidenceSync = promoBalanceStatus.evidence_sync || {};
   const threshold = Number(summary.warning_threshold || balances.threshold || 200);
