@@ -135,7 +135,6 @@ async def submit_order(request: Request, payload: dict):
     _write_order_csv(csv_path, order)
     _append_order_lines(order)
     _notify_order(order)
-    _notify_wechat_groups(order)
 
     return {
         "status": "success",
@@ -196,6 +195,31 @@ def admin_order_lines_csv(request: Request, month: str = ""):
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.get("/daily-order/api/admin/wechat-digest")
+def admin_wechat_digest(request: Request, date: str = ""):
+    _require_admin(request)
+    day = _target_day(date)
+    text = _wechat_digest_message(day)
+    return {"date": day, "message": text, "has_orders": bool(text.strip())}
+
+
+@app.post("/daily-order/api/admin/wechat-digest/send")
+def send_admin_wechat_digest(request: Request, date: str = "", test: bool = False):
+    _require_admin(request)
+    day = _target_day(date)
+    text = _wechat_digest_message(day)
+    if not text.strip():
+        return {"status": "empty", "date": day, "message": ""}
+    if test:
+        text = f"【测试】微信群订货汇总格式预览\n{day}\n\n{text}"
+    webhook = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "").strip() or os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
+    if not webhook:
+        raise HTTPException(status_code=400, detail="未配置企业微信 webhook")
+    notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
+    _send_notify_text(webhook, notify_type, text, {"message_type": "wechat_daily_digest", "date": day})
+    return {"status": "sent", "date": day, "message": text}
 
 
 @app.patch("/daily-order/api/admin/orders/{order_id}/status")
@@ -350,6 +374,16 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
+def _target_day(value: str = "") -> str:
+    value = (value or "").strip()
+    return value if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) else datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+
+
+def _order_day(order: dict) -> str:
+    submitted_at = str(order.get("submitted_at") or "")
+    return submitted_at[:10] if len(submitted_at) >= 10 else ""
+
+
 def _read_orders() -> list[dict]:
     SUBMISSION_DIR.mkdir(parents=True, exist_ok=True)
     orders = []
@@ -457,6 +491,7 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
             item_channel = item.get("purchase_channel") or _default_purchase_channel(item)
             channel_name = _display_channel(item_channel)
             channel = channels.setdefault(channel_name, {"channel": channel_name, "stores": {}, "orders": {}, "totals": {}})
+            order_day = _order_day(order)
             store = channel["stores"].setdefault(
                 order["store_name"],
                 {
@@ -467,18 +502,32 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                 },
             )
             store["orders"].append(order["order_id"])
+            aggregate_key = f"{order_day}||{order['store_name']}"
             channel_order = channel["orders"].setdefault(
-                order["order_id"],
+                aggregate_key,
                 {
-                    "order_id": order["order_id"],
+                    "order_id": f"{order_day or '未记录日期'} {order['store_name']}",
+                    "order_ids": [],
+                    "order_day": order_day,
                     "store_name": order["store_name"],
                     "store_address": order.get("store_address", ""),
                     "submitted_at": order.get("submitted_at", ""),
+                    "last_submitted_at": order.get("submitted_at", ""),
                     "remark": order.get("remark", ""),
                     "status": "processed",
                     "items": {},
                 },
             )
+            if order["order_id"] not in channel_order["order_ids"]:
+                channel_order["order_ids"].append(order["order_id"])
+            if str(order.get("submitted_at", "")) > str(channel_order.get("last_submitted_at", "")):
+                channel_order["last_submitted_at"] = order.get("submitted_at", "")
+                channel_order["submitted_at"] = order.get("submitted_at", "")
+            if order.get("remark"):
+                remarks = [remark for remark in str(channel_order.get("remark", "")).split("；") if remark]
+                if order["remark"] not in remarks:
+                    remarks.append(order["remark"])
+                channel_order["remark"] = "；".join(remarks)
             if not _channel_is_processed(order, item_channel):
                 channel_order["status"] = "pending"
             sku = item["sku"]
@@ -496,16 +545,22 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                 },
             )
             line["quantity"] += float(item.get("quantity") or 0)
+            if not _channel_is_processed(order, item_channel):
+                line["status"] = "pending"
             order_line = channel_order["items"].setdefault(sku, {**line, "quantity": 0})
             order_line["quantity"] += float(item.get("quantity") or 0)
+            if not _channel_is_processed(order, item_channel):
+                order_line["status"] = "pending"
             total = channel["totals"].setdefault(sku, {**line, "quantity": 0})
             total["quantity"] += float(item.get("quantity") or 0)
+            if not _channel_is_processed(order, item_channel):
+                total["status"] = "pending"
     return sorted([
         {
             "channel": channel["channel"],
             "orders": [
                 {**order, "items": list(order["items"].values())}
-                for order in sorted(channel["orders"].values(), key=lambda item: (item.get("submitted_at", ""), item.get("order_id", "")), reverse=True)
+                for order in sorted(channel["orders"].values(), key=lambda item: (item.get("last_submitted_at", ""), item.get("order_id", "")), reverse=True)
             ],
             "stores": [
                 {**store, "orders": sorted(set(store["orders"])), "items": list(store["items"].values())}
@@ -540,6 +595,42 @@ def _notify_wechat_groups(order: dict) -> None:
     notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
     for text in _wechat_group_messages(order):
         _send_notify_text(webhook, notify_type, text, {"order": order, "message_type": "wechat_group_order"})
+
+
+def _wechat_digest_message(day: str) -> str:
+    groups: dict[str, dict[str, dict[str, dict]]] = {}
+    for order in _read_orders():
+        if _order_day(order) != day:
+            continue
+        store_name = order.get("store_name") or "未命名门店"
+        for item in order.get("items") or []:
+            item_channel = _item_channel(item)
+            if _display_channel(item_channel) != "微信群":
+                continue
+            stores = groups.setdefault(item_channel, {})
+            items = stores.setdefault(store_name, {})
+            item_key = f"{item.get('sku', '')}||{item.get('name', '')}||{item.get('unit', '')}"
+            line = items.setdefault(
+                item_key,
+                {
+                    "name": item.get("name", ""),
+                    "unit": item.get("unit", ""),
+                    "quantity": 0,
+                },
+            )
+            line["quantity"] += _to_number(item.get("quantity"))
+    sections = []
+    for group_name in sorted(groups):
+        lines = [f"【{group_name}】"]
+        for store_name in sorted(groups[group_name]):
+            item_text = "、".join(_plain_digest_line(item) for item in groups[group_name][store_name].values())
+            lines.append(f"{store_name}：{item_text}")
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
+def _plain_digest_line(item: dict) -> str:
+    return f"{item.get('name', '')} {_format_number(item.get('quantity'))}{item.get('unit') or ''}"
 
 
 def _send_notify_text(webhook: str, notify_type: str, text: str, extra_payload: dict | None = None) -> None:

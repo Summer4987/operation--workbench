@@ -268,16 +268,17 @@ function channelTone(channel) {
 function renderChannelOrder(order, channelName) {
   const nextStatus = order.status === "processed" ? "pending" : "processed";
   const buttonText = nextStatus === "processed" ? "标记已处理" : "改回未处理";
+  const orderIds = order.order_ids?.length ? order.order_ids : [order.order_id];
   return `
     <section class="channel-order-card ${order.status === "processed" ? "is-processed" : ""}">
       <header>
         <div>
           <strong>${escapeHtml(order.store_name)}</strong>
-          <span>${escapeHtml(order.order_id)} · ${escapeHtml(formatDate(order.submitted_at))}</span>
+          <span>${escapeHtml(order.order_day || "")} · ${orderIds.length} 笔订单 · 最近 ${escapeHtml(formatDate(order.last_submitted_at || order.submitted_at))}</span>
         </div>
         <button
           type="button"
-          data-order-id="${escapeHtml(order.order_id)}"
+          data-order-id="${escapeHtml(orderIds.join("|"))}"
           data-channel="${escapeHtml(channelName)}"
           data-order-channel-status="${nextStatus}"
         >${buttonText}</button>
@@ -311,13 +312,16 @@ async function updateChannelStatus(channel, status) {
 async function updateOrderChannelStatus(orderId, channel, status) {
   showMessage("正在更新订单状态...", false);
   try {
-    const response = await fetch(`/daily-order/api/admin/orders/${encodeURIComponent(orderId)}/channels/${encodeURIComponent(channel)}/status?token=${encodeURIComponent(token)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.detail || "订单状态更新失败");
+    const orderIds = String(orderId || "").split("|").filter(Boolean);
+    for (const id of orderIds) {
+      const response = await fetch(`/daily-order/api/admin/orders/${encodeURIComponent(id)}/channels/${encodeURIComponent(channel)}/status?token=${encodeURIComponent(token)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || "订单状态更新失败");
+    }
     await loadSummary();
   } catch (error) {
     showMessage(error.message, true);

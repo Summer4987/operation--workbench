@@ -3,6 +3,8 @@ set -euo pipefail
 
 APP_DIR="/opt/daily-order"
 SERVICE_FILE="/etc/systemd/system/daily-order.service"
+DIGEST_SERVICE_FILE="/etc/systemd/system/daily-order-wechat-digest.service"
+DIGEST_TIMER_FILE="/etc/systemd/system/daily-order-wechat-digest.timer"
 NGINX_SITE="/etc/nginx/conf.d/inventory-board.conf"
 LOCATION_MARKER="location /daily-order/"
 
@@ -13,6 +15,8 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 sudo cp deploy/daily-order.service "$SERVICE_FILE"
+sudo cp deploy/daily-order-wechat-digest.service "$DIGEST_SERVICE_FILE"
+sudo cp deploy/daily-order-wechat-digest.timer "$DIGEST_TIMER_FILE"
 
 if ! sudo grep -q "$LOCATION_MARKER" "$NGINX_SITE"; then
   sudo cp "$NGINX_SITE" "$NGINX_SITE.bak.$(date +%Y%m%d%H%M%S)"
@@ -41,6 +45,7 @@ fi
 
 sudo systemctl daemon-reload
 sudo systemctl enable daily-order
+sudo systemctl enable --now daily-order-wechat-digest.timer
 sudo systemctl restart daily-order
 sudo nginx -t
 sudo systemctl reload nginx

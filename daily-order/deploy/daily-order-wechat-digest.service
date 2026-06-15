@@ -1,0 +1,10 @@
+[Unit]
+Description=Send daily order WeChat digest
+After=daily-order.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/daily-order
+Environment=DAILY_ORDER_BASE_URL=http://127.0.0.1:8010
+ExecStart=/opt/daily-order/.venv/bin/python /opt/daily-order/scripts/send_wechat_digest.py
+User=ubuntu
