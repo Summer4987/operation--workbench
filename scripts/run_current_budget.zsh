@@ -163,18 +163,37 @@ run_budget_step() {
   return "$rc"
 }
 
-if "$PYTHON" scripts/sync_promo_budget_overrides.py; then
+run_required_step() {
+  local step="$1"
+  local seconds="$2"
+  shift 2
+  record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
+  if run_with_timeout "$seconds" "$@"; then
+    record_task_run "$TASK_ID" success --message "${step}完成。" --step "$step" --log-path "$RUN_LOG" --returncode 0
+    return 0
+  fi
+  local rc=$?
+  record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
+  return "$rc"
+}
+
+run_node_from_safe_cwd() {
+  local script_path="$1"
+  shift
+  cd "$HOME/Library/Scripts/xiong-operation"
+  "$NODE" "$script_path" "$@"
+}
+
+if run_required_step "${PERIOD}预算配置同步" "${BUDGET_CONFIG_SYNC_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"; then
   :
 else
   rc=$?
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算覆盖配置同步失败。" --step "${PERIOD}预算配置同步" --log-path "$RUN_LOG" --returncode "$rc"
   exit "$rc"
 fi
-if "$NODE" scripts/build_promo_budget_preview.mjs; then
+if run_required_step "${PERIOD}预算预览生成" "${BUDGET_PREVIEW_BUILD_TIMEOUT_SECONDS:-120}" run_node_from_safe_cwd "$ROOT/scripts/build_promo_budget_preview.mjs"; then
   :
 else
   rc=$?
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算预览生成失败。" --step "${PERIOD}预算预览生成" --log-path "$RUN_LOG" --returncode "$rc"
   exit "$rc"
 fi
 

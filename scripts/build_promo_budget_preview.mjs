@@ -1,4 +1,6 @@
 import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import {
   applyWeekendPresetIfNeeded,
@@ -8,12 +10,14 @@ import {
   resolveBudget,
 } from "./promo_budget_resolver.mjs";
 
-const rulesPath = "dianjin-prototype/rules.js";
-const logicPath = "dianjin-prototype/logic.js";
-const outputDir = "outputs/promo_budget_preview";
-const jsonPath = `${outputDir}/latest.json`;
-const jsPath = `${outputDir}/latest-data.js`;
-const overridesPath = "config/promo_budget_overrides.json";
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
+const rulesPath = path.join(repoRoot, "dianjin-prototype/rules.js");
+const logicPath = path.join(repoRoot, "dianjin-prototype/logic.js");
+const outputDir = path.join(repoRoot, "outputs/promo_budget_preview");
+const jsonPath = path.join(outputDir, "latest.json");
+const jsPath = path.join(outputDir, "latest-data.js");
+const overridesPath = path.join(repoRoot, "config/promo_budget_overrides.json");
 
 function loadRuntime() {
   const context = { window: {} };
