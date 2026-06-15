@@ -16,11 +16,34 @@ TASK_ID="ops.realtime_order_income"
 TASK_STEP="初始化"
 TASK_STATE_FINALIZED="false"
 
-record_task_run() {
-  "$PYTHON" "$ROOT/scripts/record_task_run.py" "$@" || true
+LOG_FILE="$LOG_DIR/$(date +%F).log"
+
+run_with_timeout() {
+  local seconds="$1"
+  shift
+  "$@" &
+  local child_pid=$!
+  (
+    sleep "$seconds"
+    if kill -0 "$child_pid" 2>/dev/null; then
+      echo "步骤超时：${seconds}s，已终止：$*"
+      kill -TERM "$child_pid" 2>/dev/null || true
+      sleep 2
+      kill -KILL "$child_pid" 2>/dev/null || true
+    fi
+  ) &
+  local watchdog_pid=$!
+  local exit_status=0
+  wait "$child_pid" || exit_status=$?
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+  return "$exit_status"
 }
 
-LOG_FILE="$LOG_DIR/$(date +%F).log"
+record_task_run() {
+  run_with_timeout "${TASK_STATE_WRITE_TIMEOUT_SECONDS:-10}" "$PYTHON" "$ROOT/scripts/record_task_run.py" "$@" || true
+}
+
 finish_task_state() {
   local rc="$?"
   if [[ "$rc" -eq 0 && "$TASK_STATE_FINALIZED" != "true" ]]; then
@@ -37,20 +60,20 @@ trap finish_task_state EXIT
   record_task_run "$TASK_ID" running --message "实时单量收入采集开始。" --step "$TASK_STEP" --log-path "$LOG_FILE"
   TASK_STEP="采集平台实时单量"
   record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
-  "$PYTHON" "$ROOT/scripts/realtime_order_income.py"
+  run_with_timeout "${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "$PYTHON" "$ROOT/scripts/realtime_order_income.py"
   TASK_STEP="生成实时采集状态"
   record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
-  "$PYTHON" "$ROOT/scripts/build_realtime_collection_status.py"
+  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_realtime_collection_status.py"
   TASK_STEP="发布工作台云端数据"
   record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
-  /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh"
+  run_with_timeout "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh"
   record_task_run "$TASK_ID" success --message "实时单量收入采集完成。" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode 0
   TASK_STEP="生成最终任务健康状态"
-  "$PYTHON" "$ROOT/scripts/build_task_health.py"
+  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_task_health.py"
   TASK_STEP="生成最终工作台数据"
-  "$PYTHON" "$ROOT/scripts/build_workbench_data.py"
+  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_workbench_data.py"
   TASK_STEP="发布最终工作台云端数据"
-  /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh"
+  run_with_timeout "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh"
   TASK_STATE_FINALIZED="true"
   echo "[$(date '+%F %T')] 实时单量收入采集完成"
 } >> "$LOG_FILE" 2>&1

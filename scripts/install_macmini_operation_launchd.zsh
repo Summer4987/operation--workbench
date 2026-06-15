@@ -37,20 +37,6 @@ TASK_ID="ops.realtime_order_income"
 TASK_STEP="初始化"
 TASK_STATE_FINALIZED="false"
 
-record_task_run() {
-  "\$PYTHON" "\$ROOT/scripts/record_task_run.py" "\$@" || true
-}
-
-finish_task_state() {
-  local rc="\$?"
-  if [[ "\$rc" -eq 0 && "\$TASK_STATE_FINALIZED" != "true" ]]; then
-    record_task_run "\$TASK_ID" success --message "实时单量收入采集完成。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc"
-  elif [[ "\$rc" -ne 0 ]]; then
-    record_task_run "\$TASK_ID" failed --message "实时单量收入采集失败：\${TASK_STEP}。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc"
-  fi
-}
-trap finish_task_state EXIT
-
 run_with_timeout() {
   local seconds="\$1"
   shift
@@ -72,6 +58,20 @@ run_with_timeout() {
   wait "\$watchdog_pid" 2>/dev/null || true
   return "\$exit_status"
 }
+
+record_task_run() {
+  run_with_timeout "\${TASK_STATE_WRITE_TIMEOUT_SECONDS:-10}" "\$PYTHON" "\$ROOT/scripts/record_task_run.py" "\$@" || true
+}
+
+finish_task_state() {
+  local rc="\$?"
+  if [[ "\$rc" -eq 0 && "\$TASK_STATE_FINALIZED" != "true" ]]; then
+    record_task_run "\$TASK_ID" success --message "实时单量收入采集完成。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc"
+  elif [[ "\$rc" -ne 0 ]]; then
+    record_task_run "\$TASK_ID" failed --message "实时单量收入采集失败：\${TASK_STEP}。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc"
+  fi
+}
+trap finish_task_state EXIT
 
 platform_route_interface() {
   /sbin/route get "\$1" 2>/dev/null | /usr/bin/awk '/interface:/{print \$2; exit}'
