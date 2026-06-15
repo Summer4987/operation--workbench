@@ -433,7 +433,7 @@ def _validate_promo_budget_overrides(payload: dict) -> dict:
             if not isinstance(value, dict):
                 continue
             clean_budget = {}
-            for budget_key in ["lunchBudget", "dinnerBudget"]:
+            for budget_key in ["lunchBudget", "dinnerBudget", "weekendLunchBudget", "weekendDinnerBudget"]:
                 raw = value.get(budget_key)
                 if raw in {None, ""}:
                     continue

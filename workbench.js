@@ -1081,7 +1081,7 @@ function collectBudgetEditorPayload() {
   const stores = {};
   document.querySelectorAll(".budget-edit-row").forEach((row) => {
     const store = canonicalStoreName(row.dataset.store);
-    stores[store] = {};
+    stores[store] = stores[store] || {};
     row.querySelectorAll("input").forEach((input) => {
       const value = Number(input.value || 0);
       if (value <= 0) return;
