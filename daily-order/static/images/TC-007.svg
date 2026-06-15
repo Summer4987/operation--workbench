@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="燕麦米">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f6f8fb" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#6e7f91" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M76 78h88l16 111H60L76 78Z" fill="#dce5ee" stroke="#34465c" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M87 78c7-22 59-22 66 0" fill="none" stroke="#34465c" stroke-width="7" stroke-linecap="round"/>
+  <path d="M84 140h74M80 167h82" stroke="#6e7f91" stroke-width="9" opacity=".62" stroke-linecap="round"/>
+  <ellipse cx="111" cy="169" rx="7" ry="5" fill="#34465c" opacity=".28"/><ellipse cx="132" cy="169" rx="7" ry="5" fill="#34465c" opacity=".28"/>
+</svg>

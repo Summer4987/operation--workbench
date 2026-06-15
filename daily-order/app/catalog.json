@@ -134,7 +134,7 @@
       "source": "快驴配送",
       "category": "禽蛋",
       "name": "鸡蛋",
-      "spec": "",
+      "spec": "360个/箱",
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/KL-025.svg",
@@ -166,11 +166,22 @@
       "sku": "TC-006",
       "source": "同城物流配送",
       "category": "粮油",
-      "name": "黑米/燕麦米",
+      "name": "黑米",
       "spec": "",
       "unit": "袋",
       "note": "尽量和大米一起下单",
       "image": "/daily-order/static/images/TC-006.svg",
+      "purchase_channel": "大米群"
+    },
+    {
+      "sku": "TC-007",
+      "source": "同城物流配送",
+      "category": "粮油",
+      "name": "燕麦米",
+      "spec": "",
+      "unit": "袋",
+      "note": "尽量和大米一起下单",
+      "image": "/daily-order/static/images/TC-007.svg",
       "purchase_channel": "大米群"
     },
     {
@@ -564,7 +575,7 @@
       "category": "耗材",
       "name": "纸抽",
       "spec": "",
-      "unit": "包",
+      "unit": "小包",
       "note": "",
       "image": "/daily-order/static/images/KL-056.svg",
       "purchase_channel": "快驴"

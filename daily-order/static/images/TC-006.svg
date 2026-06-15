@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="黑米/燕麦米">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="黑米">
   <rect width="240" height="240" rx="30" fill="#fff"/>
   <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff7df" stroke="#e3ebf3" stroke-width="2"/>
   <circle cx="196" cy="42" r="18" fill="#c7a233" opacity=".12"/>

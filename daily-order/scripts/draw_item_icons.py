@@ -77,7 +77,7 @@ def shape_for(item: dict, index: int, main: str, dark: str, pale: str) -> str:
         return eggs(main, dark, pale)
     if name == "芝麻":
         return sesame(main, dark, pale)
-    if name in {"大米", "黑米/燕麦米", "白糖", "袋装盐（大袋）"}:
+    if name in {"大米", "黑米", "燕麦米", "黑米/燕麦米", "白糖", "袋装盐（大袋）"}:
         return bag(main, dark, pale, seed=index)
     if name in {"味增酱", "焙煎芝麻酱", "鸡粉", "木鱼精", "翠宏辣椒粉", "黑胡椒粒", "大粒海盐", "汤料"}:
         return jar(main, dark, pale, seed=index)
