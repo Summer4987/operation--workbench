@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import os
 import secrets
@@ -302,6 +303,20 @@ def order_file(filename: str):
     return FileResponse(path, filename=path.name)
 
 
+@app.get("/order-file/{filename}")
+def public_order_file_page(request: Request, filename: str):
+    _require_public_order_token(request)
+    path = OUTPUT_DIR / Path(filename).name
+    if not path.exists() or path.suffix.lower() not in {".xlsx", ".xlsm"}:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    download_url = _public_file_download_url(request, path.name)
+    page_url = _public_order_file_page_url(request, path.name)
+    return Response(
+        content=_order_file_page_html(path.name, download_url, page_url),
+        media_type="text/html; charset=utf-8",
+    )
+
+
 @app.get("/api/public-order/catalog")
 def public_order_catalog_api(request: Request):
     _require_public_order_token(request)
@@ -459,7 +474,7 @@ def _is_public_order_request(request: Request) -> bool:
     path = request.url.path
     if path == "/api/promo-budget-overrides":
         return secrets.compare_digest(_request_token(request), _public_order_token())
-    if path == "/order-submit" or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
+    if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())
     return False
 
@@ -470,12 +485,98 @@ def _require_public_order_token(request: Request) -> None:
 
 
 def _public_download_url(request: Request, filename: str) -> str:
+    return _public_order_file_page_url(request, filename)
+
+
+def _public_order_file_page_url(request: Request, filename: str) -> str:
+    base_url = str(request.base_url).rstrip("/")
+    return f"{base_url}/order-file/{quote(filename)}?token={_public_order_token()}"
+
+
+def _public_file_download_url(request: Request, filename: str) -> str:
     base_url = str(request.base_url).rstrip("/")
     return f"{base_url}{_order_download_path(filename)}?token={_public_order_token()}"
 
 
 def _order_download_path(filename: str) -> str:
     return f"/api/order/files/{quote(filename)}"
+
+
+def _order_file_page_html(filename: str, download_url: str, page_url: str) -> str:
+    safe_filename = html.escape(filename)
+    safe_download_url = html.escape(download_url, quote=True)
+    page_url_json = json.dumps(page_url, ensure_ascii=False)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>订单文件下载</title>
+    <style>
+      * {{ box-sizing: border-box; }}
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #f6f8fb;
+        color: #172033;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+      }}
+      main {{
+        width: min(520px, 100%);
+        padding: 22px;
+        background: #fff;
+        border: 1px solid #e1e7ef;
+        border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      }}
+      h1 {{ margin: 0 0 10px; font-size: 22px; }}
+      p {{ margin: 0 0 16px; color: #5b6678; line-height: 1.6; word-break: break-all; }}
+      a, button {{
+        width: 100%;
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 10px;
+        border-radius: 8px;
+        border: 1px solid #0f766e;
+        background: #0f766e;
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+        text-decoration: none;
+      }}
+      button {{
+        background: #fff;
+        color: #0f766e;
+      }}
+      small {{ display: block; margin-top: 14px; color: #7a8494; line-height: 1.5; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>订单文件下载</h1>
+      <p>{safe_filename}</p>
+      <a href="{safe_download_url}" download>下载 Excel 文件</a>
+      <button type="button" id="copyButton">复制下载页链接</button>
+      <small>如果企微下载文件后再次进入没有文件转发按钮，请返回这页后用右上角转发，或复制链接发给同事。</small>
+    </main>
+    <script>
+      const pageUrl = {page_url_json};
+      document.querySelector("#copyButton").addEventListener("click", async () => {{
+        try {{
+          await navigator.clipboard.writeText(pageUrl);
+          document.querySelector("#copyButton").textContent = "已复制";
+        }} catch (error) {{
+          window.prompt("复制这个链接", pageUrl);
+        }}
+      }});
+    </script>
+  </body>
+</html>"""
 
 
 def _record_generated_outbound(result: dict, filename: str) -> None:
