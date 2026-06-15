@@ -672,6 +672,18 @@ dialog::backdrop {
   padding: 18px;
 }
 
+.confirm-store {
+  margin-top: 10px;
+  border: 1px solid #b5cbc7;
+  border-radius: 8px;
+  background: #f0faf7;
+  color: #123d38;
+  padding: 12px;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
 .confirm-list {
   display: grid;
   gap: 7px;

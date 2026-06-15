@@ -51,6 +51,7 @@ const els = {
   summaryDetail: document.querySelector("#summaryDetail"),
   submitButton: document.querySelector("#submitButton"),
   confirmDialog: document.querySelector("#confirmDialog"),
+  confirmStore: document.querySelector("#confirmStore"),
   confirmList: document.querySelector("#confirmList"),
   remark: document.querySelector("#remark"),
   message: document.querySelector("#message"),
@@ -250,6 +251,8 @@ function updateSummary() {
 function openConfirm() {
   const items = selectedItems();
   if (!items.length) return;
+  const storeName = els.storeName.value.trim();
+  els.confirmStore.textContent = storeName ? `门店：${storeName}` : "门店：未选择";
   els.confirmList.innerHTML = items
     .map((item) => `
       <div class="confirm-row">
@@ -265,6 +268,7 @@ function openConfirm() {
   els.message.textContent = "";
   els.message.className = "message";
   els.confirmDialog.showModal();
+  requestAnimationFrame(() => els.confirmDialog.focus({ preventScroll: true }));
 }
 
 async function submitOrder() {
