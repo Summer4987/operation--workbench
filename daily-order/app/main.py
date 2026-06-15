@@ -201,25 +201,26 @@ def admin_order_lines_csv(request: Request, month: str = ""):
 def admin_wechat_digest(request: Request, date: str = ""):
     _require_admin(request)
     day = _target_day(date)
-    text = _wechat_digest_message(day)
-    return {"date": day, "message": text, "has_orders": bool(text.strip())}
+    messages = _wechat_digest_messages(day)
+    return {"date": day, "message": "\n\n".join(messages), "messages": messages, "has_orders": bool(messages)}
 
 
 @app.post("/daily-order/api/admin/wechat-digest/send")
 def send_admin_wechat_digest(request: Request, date: str = "", test: bool = False):
     _require_admin(request)
     day = _target_day(date)
-    text = _wechat_digest_message(day)
-    if not text.strip():
-        return {"status": "empty", "date": day, "message": ""}
+    messages = _wechat_digest_messages(day)
+    if not messages:
+        return {"status": "empty", "date": day, "message": "", "messages": []}
     if test:
-        text = f"【测试】微信群订货汇总格式预览\n{day}\n\n{text}"
+        messages = [f"【测试】微信群订货汇总格式预览\n{day}\n\n{message}" for message in messages]
     webhook = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "").strip() or os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
     if not webhook:
         raise HTTPException(status_code=400, detail="未配置企业微信 webhook")
     notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
-    _send_notify_text(webhook, notify_type, text, {"message_type": "wechat_daily_digest", "date": day})
-    return {"status": "sent", "date": day, "message": text}
+    for message in messages:
+        _send_notify_text(webhook, notify_type, message, {"message_type": "wechat_daily_digest", "date": day})
+    return {"status": "sent", "date": day, "message": "\n\n".join(messages), "messages": messages, "message_count": len(messages)}
 
 
 @app.patch("/daily-order/api/admin/orders/{order_id}/status")
@@ -598,6 +599,10 @@ def _notify_wechat_groups(order: dict) -> None:
 
 
 def _wechat_digest_message(day: str) -> str:
+    return "\n\n".join(_wechat_digest_messages(day))
+
+
+def _wechat_digest_messages(day: str) -> list[str]:
     groups: dict[str, dict[str, dict[str, dict]]] = {}
     for order in _read_orders():
         if _order_day(order) != day:
@@ -619,14 +624,14 @@ def _wechat_digest_message(day: str) -> str:
                 },
             )
             line["quantity"] += _to_number(item.get("quantity"))
-    sections = []
+    messages = []
     for group_name in sorted(groups):
         lines = [f"【{group_name}】"]
         for store_name in sorted(groups[group_name]):
             item_text = "、".join(_plain_digest_line(item) for item in groups[group_name][store_name].values())
             lines.append(f"{store_name}：{item_text}")
-        sections.append("\n".join(lines))
-    return "\n\n".join(sections)
+        messages.append("\n".join(lines))
+    return messages
 
 
 def _plain_digest_line(item: dict) -> str:
