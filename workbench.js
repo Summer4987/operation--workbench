@@ -1526,23 +1526,41 @@ function renderFinance() {
   const missing = finance.missing || [];
   const setup = finance.setup || {};
   const reportGeneration = finance.report_generation || {};
+  const ledgerDesign = finance.ledger_design || {};
+  const orderFeed = finance.order_automation_feed || {};
+  const ledgerTables = ledgerDesign.tables || [];
+  const orderSources = finance.order_sources || [];
   const waiting = finance.status === "waiting_samples";
-  text("financeBillStatus", "建设中");
-  text("financeBillCount", `${Number(summary.sample_file_count || 0)} 个样例`);
-  text("financeBillSummary", `建设中：${finance.message || "财务中心等待账单样例和字段字典。"}`);
+  text("financeBillStatus", ledgerDesign.status === "ready_for_matching" ? "可匹配" : "建设中");
+  text("financeBillCount", `${Number(summary.ledger_table_count || ledgerTables.length || 0)} 张主表`);
+  text("financeBillSummary", finance.message || "财务中心正在建设订单主账、银行核销和待确认匹配闭环。");
   document.querySelector("#finance-bills")?.classList.toggle("alert", waiting);
   rows(
     "financeBillRows",
     [
+      ...ledgerTables.map((table) => ({
+        label: table.ready ? "已具备" : "待补齐",
+        value: table.name,
+        detail: `${table.owner || ""} · ${table.purpose || ""}`,
+        warn: !table.ready,
+      })),
+      {
+        label: "订货自动化",
+        value: orderFeed.available ? "已接入" : "待订单",
+        detail: `${orderFeed.message || "等待订货自动化或订单导入。"}${orderFeed.estimated_cost ? ` · 预估 ${yuan(orderFeed.estimated_cost)}` : ""}`,
+        warn: !orderFeed.available,
+      },
       ...sources.map((source) => ({
-        label: source.name,
-        value: `${source.file_count || 0} 个文件`,
-        detail: [
-          source.path || "",
-          source.template_path ? `模板：${source.template_path}` : "",
-          (source.required_fields || []).length ? `字段：${(source.required_fields || []).slice(0, 4).join("、")}${(source.required_fields || []).length > 4 ? "等" : ""}` : "",
-        ].filter(Boolean).join(" · "),
-        warn: !source.file_count,
+        label: source.required ? "必需样例" : "可选样例",
+        value: source.name,
+        detail: `${source.file_count || 0} 个文件 · ${source.path || ""}${source.template_path ? ` · 模板：${source.template_path}` : ""}`,
+        warn: source.required && !source.file_count,
+      })),
+      ...orderSources.slice(0, 4).map((source) => ({
+        label: "订货来源",
+        value: source.name,
+        detail: (source.bank_keywords || []).slice(0, 4).join("、"),
+        warn: false,
       })),
       ...intakeChecklist.slice(0, 2).map((item) => ({
         label: "接收要求",
@@ -1555,23 +1573,31 @@ function renderFinance() {
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 
-  text("financeReportStatus", "建设中");
+  const workflowRows = (ledgerDesign.workflow || []).slice(0, 5).map((item, index) => ({
+    label: `步骤 ${index + 1}`,
+    value: item,
+    detail: "财务自动化闭环",
+  }));
+  const policyRows = (ledgerDesign.policy?.auto_match_priority || []).slice(0, 4).map((item, index) => ({
+    label: `匹配 ${index + 1}`,
+    value: item,
+    detail: ledgerDesign.policy?.primary_cost_owner || "订单先归属门店，银行流水后核销。",
+  }));
+
+  text("financeReportStatus", reportGeneration.status_text || "建设中");
   text("financeReportCount", `${Number(reportGeneration.account_count || summary.account_count || accounts.length)} 个科目`);
-  text("financeReportSummary", `建设中：${reportGeneration.message || "首版科目字典覆盖营业收入、佣金、配送费、推广费、退款和补贴；样例到位后进入字段映射。"}`);
+  text("financeReportSummary", reportGeneration.message || "先完成付款匹配，再生成门店月度利润表。");
   rows(
     "financeReportRows",
     [
       { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
       { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
+      ...workflowRows,
+      ...policyRows,
       ...(reportGeneration.report_outputs || []).slice(0, 4).map((item) => ({
         label: "报表",
         value: item,
         detail: "字段映射后生成",
-      })),
-      ...(reportGeneration.required_before || []).slice(0, 3).map((item) => ({
-        label: "前置条件",
-        value: item,
-        detail: "未满足前不自动出报表",
       })),
       ...accounts.slice(0, 6).map((account) => ({
         label: account.direction === "income" ? "收入" : "支出",
@@ -1621,7 +1647,7 @@ async function loadDailyOrderAdminFrame() {
   const frame = document.querySelector(".ordering-admin-frame");
   if (!frame) return;
   const orderingAdminSrc = frame.dataset.orderingAdminSrc || "/daily-order/admin?token=daily-order-admin";
-  frame.src = new URL(orderingAdminSrc, window.location.href).href;
+  frame.src = resolveEmbeddedUrl(orderingAdminSrc);
 }
 
 async function loadDailyReportFrame() {
@@ -1639,7 +1665,7 @@ async function loadInventoryBoardFrame() {
 }
 
 async function loadEmbeddedFrame(frame, source, loadingText, failureTitle, linkText) {
-  const reportUrl = new URL(source, window.location.href).href;
+  const reportUrl = resolveEmbeddedUrl(source);
   frame.srcdoc = `<!doctype html><html lang="zh-CN"><body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,sans-serif;color:#667085;">${escapeHtml(loadingText)}</body></html>`;
   try {
     const response = await fetch(reportUrl, { cache: "no-store" });
@@ -1658,7 +1684,15 @@ async function loadEmbeddedFrame(frame, source, loadingText, failureTitle, linkT
       <span>请刷新页面，或临时打开独立页面。</span>
       <a style="display:inline-block;margin-left:8px;color:#2563eb;" href="${escapeHtml(reportUrl)}" target="_blank" rel="noreferrer">${escapeHtml(linkText)}</a>
     </body></html>`;
-    console.error("Failed to load embedded frame", error);
+    console.warn("Failed to load embedded frame", error);
+  }
+}
+
+function resolveEmbeddedUrl(source) {
+  try {
+    return new URL(source, document.baseURI || window.location.href).href;
+  } catch (error) {
+    return source;
   }
 }
 

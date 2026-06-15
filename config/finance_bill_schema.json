@@ -1,9 +1,13 @@
 {
-  "version": 1,
-  "updated_at": "2026-06-13",
+  "version": 2,
+  "updated_at": "2026-06-15",
   "sample_inbox": {
     "bank": "data/finance-inbox/bank",
-    "platform": "data/finance-inbox/platform"
+    "platform_income": "data/finance-inbox/platform-income",
+    "procurement_orders": "data/finance-inbox/procurement-orders",
+    "wechat_orders": "data/finance-inbox/wechat-orders",
+    "stores": "data/finance-inbox/stores",
+    "manual_matches": "data/finance-inbox/manual-matches"
   },
   "accepted_extensions": [
     ".csv",
@@ -26,8 +30,8 @@
       ]
     },
     {
-      "id": "platform",
-      "name": "平台账单",
+      "id": "platform_income",
+      "name": "外卖平台收入账单",
       "required_fields": [
         "平台",
         "门店",
@@ -40,9 +44,159 @@
         "退款",
         "补贴"
       ]
+    },
+    {
+      "id": "procurement_orders",
+      "name": "订货订单主账",
+      "required_fields": [
+        "订单来源",
+        "门店",
+        "下单日期",
+        "订单号",
+        "供应商",
+        "商品名称",
+        "商品规格",
+        "数量",
+        "订单金额",
+        "支付方式",
+        "收货地址"
+      ]
+    },
+    {
+      "id": "stores",
+      "name": "门店基础表",
+      "required_fields": [
+        "门店",
+        "门店简称",
+        "收货地址关键词",
+        "外卖平台店铺名",
+        "常用订货手机号",
+        "成本归属规则"
+      ]
     }
   ],
+  "optional_sources": [
+    {
+      "id": "wechat_orders",
+      "name": "微信群订货记录",
+      "required_fields": [
+        "群名称",
+        "门店",
+        "下单日期",
+        "供应商",
+        "商品明细",
+        "订单金额",
+        "付款备注",
+        "凭证链接"
+      ]
+    },
+    {
+      "id": "manual_matches",
+      "name": "人工确认匹配记录",
+      "required_fields": [
+        "银行流水号",
+        "订单来源",
+        "订单号",
+        "门店",
+        "匹配金额",
+        "确认人",
+        "确认时间",
+        "备注"
+      ]
+    }
+  ],
+  "order_sources": [
+    {
+      "id": "kuailv",
+      "name": "快驴",
+      "type": "procurement",
+      "bank_keywords": [
+        "快驴",
+        "美团买菜",
+        "美团快驴"
+      ]
+    },
+    {
+      "id": "taobao",
+      "name": "淘宝",
+      "type": "procurement",
+      "bank_keywords": [
+        "淘宝",
+        "天猫",
+        "支付宝"
+      ]
+    },
+    {
+      "id": "pinduoduo",
+      "name": "拼多多",
+      "type": "procurement",
+      "bank_keywords": [
+        "拼多多",
+        "多多支付"
+      ]
+    },
+    {
+      "id": "wechat_group",
+      "name": "微信群",
+      "type": "procurement",
+      "bank_keywords": [
+        "微信",
+        "财付通",
+        "转账"
+      ]
+    }
+  ],
+  "matching_policy": {
+    "primary_cost_owner": "订货订单先归属门店，银行流水只做付款核销。",
+    "auto_match_priority": [
+      "订单号或付款备注精确匹配",
+      "金额一致且交易日期在下单日期前后 7 天内",
+      "银行摘要命中订单来源或供应商关键词",
+      "收货地址、店铺名或手机号命中门店基础表",
+      "无法判定时进入待确认池，人工确认后沉淀规则"
+    ],
+    "amount_tolerance": 1,
+    "date_window_days": 7,
+    "manual_review_required_when": [
+      "一笔付款对应多个门店订单",
+      "多个订单合并付款",
+      "微信群备注不规范",
+      "银行收款方和平台店铺名不一致",
+      "金额差异超过容差"
+    ]
+  },
   "accounts": [
+    {
+      "id": "food_cost",
+      "name": "食材采购",
+      "direction": "expense",
+      "keywords": [
+        "快驴",
+        "食材",
+        "采购"
+      ]
+    },
+    {
+      "id": "package_cost",
+      "name": "包材采购",
+      "direction": "expense",
+      "keywords": [
+        "包材",
+        "餐盒",
+        "袋子"
+      ]
+    },
+    {
+      "id": "other_procurement",
+      "name": "其他订货支出",
+      "direction": "expense",
+      "keywords": [
+        "淘宝",
+        "拼多多",
+        "微信群",
+        "供应商"
+      ]
+    },
     {
       "id": "income",
       "name": "营业收入",

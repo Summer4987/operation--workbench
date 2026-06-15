@@ -371,13 +371,17 @@
         "outputs/finance_center_status/latest.json",
         "data/finance-inbox/templates/",
         "data/finance-inbox/bank/",
-        "data/finance-inbox/platform/"
+        "data/finance-inbox/platform-income/",
+        "data/finance-inbox/procurement-orders/",
+        "data/finance-inbox/wechat-orders/",
+        "data/finance-inbox/stores/",
+        "data/finance-inbox/manual-matches/"
       ],
       "health_checks": [
-        "账单样例目录和字段字典可检查",
+        "订单主账、银行流水和门店基础表样例目录可检查",
         "样例接收清单列出目录、格式和必需字段",
-        "银行账单和平台账单字段模板可读取",
-        "银行账单和平台账单字段映射成功",
+        "快驴、淘宝、拼多多和微信群订货来源字段模板可读取",
+        "银行流水可按订单主账做付款核销",
         "收入、佣金、配送费、推广费、退款、补贴可拆分",
         "异常费用可追溯到原始行"
       ],
@@ -386,7 +390,7 @@
         "确认科目口径",
         "解释无法自动分类的流水"
       ],
-      "next_integration_step": "财务样例接收清单、接收目录和字段模板已接入，下一步在样例到位后做字段映射。"
+      "next_integration_step": "订单主账、银行核销、门店基础表和人工确认匹配闭环已接入，下一步在样例到位后做自动匹配。"
     },
     {
       "id": "finance.report_generation",
@@ -405,8 +409,8 @@
         "财务报表待生成"
       ],
       "health_checks": [
-        "银行账单和平台账单样例已接收",
-        "字段映射和科目字典已确认",
+        "订单主账、银行流水、门店基础表和平台收入样例已接收",
+        "付款匹配规则和科目字典已确认",
         "营业收入、佣金、配送费、推广费、退款、补贴可汇总",
         "门店利润表可生成",
         "费用异常可追溯到原始账单行",

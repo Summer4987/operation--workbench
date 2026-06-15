@@ -40,7 +40,8 @@ def main() -> int:
     inbox = schema.get("sample_inbox") or {}
     created_dirs = []
     template_results = []
-    for source in schema.get("required_sources") or []:
+    sources = list(schema.get("required_sources") or []) + list(schema.get("optional_sources") or [])
+    for source in sources:
         source_id = source.get("id") or ""
         path_text = inbox.get(source_id) or f"data/finance-inbox/{source_id}"
         inbox_dir = ROOT / path_text
