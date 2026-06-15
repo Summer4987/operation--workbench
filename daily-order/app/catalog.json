@@ -126,6 +126,7 @@
       "spec": "10kg/箱",
       "unit": "箱",
       "note": "2箱起送",
+      "min_quantity": 2,
       "image": "/daily-order/static/images/CJ-015.svg",
       "purchase_channel": "辣白菜群"
     },

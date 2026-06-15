@@ -139,7 +139,10 @@ function renderCatalog() {
     : `<div class="sku-card"><div class="sku-meta"><strong>没有匹配的 SKU</strong><span>换个关键词试试</span></div></div>`;
 
   els.catalogGrid.querySelectorAll("[data-qty]").forEach((input) => {
-    input.addEventListener("input", () => setQuantity(input.dataset.sku, input.value));
+    input.addEventListener("input", () => {
+      setQuantity(input.dataset.sku, input.value);
+      input.value = state.quantities.get(input.dataset.sku) || "";
+    });
   });
   els.catalogGrid.querySelectorAll("[data-custom-note]").forEach((input) => {
     input.addEventListener("input", () => setCustomNote(input.dataset.sku, input.value));
@@ -147,7 +150,11 @@ function renderCatalog() {
   els.catalogGrid.querySelectorAll("[data-step]").forEach((button) => {
     button.addEventListener("click", () => {
       const current = Number(state.quantities.get(button.dataset.sku) || 0);
-      setQuantity(button.dataset.sku, Math.max(0, current + Number(button.dataset.step)));
+      const item = state.catalog.find((candidate) => candidate.sku === button.dataset.sku);
+      const minQuantity = minOrderQuantity(item);
+      const step = Number(button.dataset.step);
+      const next = step < 0 && current <= minQuantity ? 0 : Math.max(0, current + step);
+      setQuantity(button.dataset.sku, next);
       renderCatalog();
     });
   });
@@ -166,6 +173,7 @@ function sectionMatchesItem(section, item) {
 function renderItem(item) {
   if (isCustomMealItem(item)) return renderCustomMealItem(item);
   const quantity = state.quantities.get(item.sku) || "";
+  const minQuantity = minOrderQuantity(item);
   const detail = [sourceLabel(item.source), item.category, item.note].filter(Boolean).join(" · ");
   const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
   const vendorGroup = vendorGroups[item.name] || "";
@@ -182,7 +190,7 @@ function renderItem(item) {
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
-        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
+        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="${minQuantity}" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
         <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}">+</button>
       </div>
       <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
@@ -213,12 +221,18 @@ function renderCustomMealItem(item) {
 
 function setQuantity(sku, rawValue) {
   const quantity = Number(rawValue || 0);
+  const item = state.catalog.find((candidate) => candidate.sku === sku);
+  const minQuantity = minOrderQuantity(item);
   if (quantity > 0) {
-    state.quantities.set(sku, quantity);
+    state.quantities.set(sku, Math.max(minQuantity, quantity));
   } else {
     state.quantities.delete(sku);
   }
   updateSummary();
+}
+
+function minOrderQuantity(item) {
+  return Math.max(0, Number(item?.min_quantity || 0));
 }
 
 function setCustomNote(sku, rawValue) {

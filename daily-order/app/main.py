@@ -85,6 +85,9 @@ async def submit_order(request: Request, payload: dict):
             quantity = 1
         if quantity <= 0:
             continue
+        min_quantity = _to_number(product.get("min_quantity"))
+        if min_quantity > 0 and quantity < min_quantity:
+            raise HTTPException(status_code=400, detail=f"{product['name']} 最少下单 {_format_number(min_quantity)}{product.get('unit', '')}")
         lines.append(
             {
                 "sku": sku,
