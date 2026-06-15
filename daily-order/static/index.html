@@ -4,37 +4,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>日常订货</title>
-    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260614-orders-collapse" />
+    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260615-store-first" />
   </head>
   <body>
     <main class="shell">
-      <header class="topbar">
-        <div>
-          <span>熊小小门店</span>
-          <h1>日常订货</h1>
-        </div>
-        <strong id="cartCount">0 项</strong>
-      </header>
-
       <section class="store-panel">
-        <label>
-          门店名称
+        <div class="store-field">
+          <label for="storeName">门店名称</label>
           <select id="storeName" required>
             <option value="">请选择门店</option>
           </select>
-        </label>
-      </section>
-
-      <section id="storeOrdersPanel" class="store-orders-panel">
-        <div class="section-heading">
-          <h2>已下单订单</h2>
-          <div class="section-actions">
-            <button id="toggleOrdersButton" type="button" aria-expanded="false">展开</button>
+        </div>
+        <div class="store-actions">
+          <button id="toggleOrdersButton" type="button" aria-expanded="false">查看已下单订单</button>
+        </div>
+        <div id="storeOrdersPanel" class="store-orders-panel">
+          <div class="store-orders-toolbar">
+            <strong>已下单订单</strong>
             <button id="refreshOrdersButton" type="button">刷新</button>
           </div>
-        </div>
-        <div id="storeOrdersList" class="store-orders-list">
-          <p>选择门店后可查看最近提交的订单。</p>
+          <div id="storeOrdersList" class="store-orders-list">
+            <p>选择门店后可查看最近提交的订单。</p>
+          </div>
         </div>
       </section>
 
@@ -81,6 +72,6 @@
       </div>
     </section>
 
-    <script src="/daily-order/static/app.js?v=20260614-orders-collapse"></script>
+    <script src="/daily-order/static/app.js?v=20260615-store-first"></script>
   </body>
 </html>

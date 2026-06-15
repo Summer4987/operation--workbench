@@ -241,7 +241,7 @@ function selectedItems() {
 function updateSummary() {
   const items = selectedItems();
   const total = items.reduce((sum, item) => sum + item.quantity, 0);
-  els.cartCount.textContent = `${items.length} 项`;
+  if (els.cartCount) els.cartCount.textContent = `${items.length} 项`;
   els.summaryText.textContent = items.length ? `已选 ${items.length} 个 SKU` : "还没有选择 SKU";
   els.summaryDetail.textContent = items.length ? `合计数量 ${formatNumber(total)}` : "填写数量后提交";
   els.submitButton.disabled = !items.length;
@@ -340,8 +340,9 @@ function refreshStoreOrders() {
 
 function renderOrdersPanelState() {
   els.storeOrdersPanel.classList.toggle("is-collapsed", !state.ordersExpanded);
+  els.storeOrdersPanel.hidden = !state.ordersExpanded;
   els.storeOrdersList.hidden = !state.ordersExpanded;
-  els.toggleOrders.textContent = state.ordersExpanded ? "收起" : "展开";
+  els.toggleOrders.textContent = state.ordersExpanded ? "收起已下单订单" : "查看已下单订单";
   els.toggleOrders.setAttribute("aria-expanded", String(state.ordersExpanded));
   els.refreshOrders.hidden = !state.ordersExpanded;
 }

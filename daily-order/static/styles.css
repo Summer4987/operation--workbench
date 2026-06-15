@@ -29,7 +29,7 @@ body {
 .shell {
   width: min(1180px, calc(100% - 24px));
   margin: 0 auto;
-  padding: 14px 0 96px;
+  padding: 10px 0 96px;
 }
 
 .topbar,
@@ -84,18 +84,78 @@ h1 {
 
 .store-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 420px);
-  gap: 12px;
-  margin-top: 10px;
-  padding: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 0;
+  padding: 14px;
+  border-color: #bfd4d0;
+  box-shadow: 0 10px 24px rgba(23, 107, 95, 0.08);
+}
+
+.store-field {
+  display: grid;
+  gap: 8px;
+}
+
+.store-field label {
+  color: #123d38;
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.store-field select {
+  min-height: 56px;
+  border-color: #b5cbc7;
+  color: #12262f;
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.store-actions {
+  display: flex;
+  align-items: end;
+}
+
+.store-actions button {
+  min-height: 56px;
+  white-space: nowrap;
+  border: 1px solid #b5cbc7;
+  border-radius: 8px;
+  background: #f0faf7;
+  color: var(--brand);
+  padding: 0 14px;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .store-orders-panel {
-  margin-top: 10px;
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding: 0;
+}
+
+.store-orders-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.store-orders-toolbar strong {
+  color: #243447;
+  font-size: 16px;
+}
+
+.store-orders-toolbar button {
+  min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
-  padding: 12px;
+  background: white;
+  color: #243447;
+  padding: 0 11px;
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .section-heading {
@@ -136,7 +196,7 @@ h1 {
 }
 
 .store-orders-panel.is-collapsed {
-  padding-bottom: 12px;
+  padding-bottom: 0;
 }
 
 .store-orders-panel.is-collapsed .section-heading {
@@ -1092,6 +1152,10 @@ dialog::backdrop {
   .filters,
   .store-panel {
     grid-template-columns: 1fr;
+  }
+
+  .store-actions button {
+    width: 100%;
   }
 
 }
