@@ -15,6 +15,7 @@ lockPageZoom();
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
 const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "工作餐"];
 const customMealSku = "MEAL-001";
+const minOrderTotalQuantity = 5;
 const sectionLabels = {
   "食材": "🥬 食材",
   "包材": "📦 包材",
@@ -255,16 +256,18 @@ function selectedItems() {
 
 function updateSummary() {
   const items = selectedItems();
-  const total = items.reduce((sum, item) => sum + item.quantity, 0);
+  const total = orderTotalQuantity(items);
   if (els.cartCount) els.cartCount.textContent = `${items.length} 项`;
   els.summaryText.textContent = items.length ? `已选 ${items.length} 个 SKU` : "还没有选择 SKU";
-  els.summaryDetail.textContent = items.length ? `合计数量 ${formatNumber(total)}` : "填写数量后提交";
-  els.submitButton.disabled = !items.length;
+  els.summaryDetail.textContent = items.length ? summaryDetailText(total) : `满 ${minOrderTotalQuantity} 件才可提交`;
+  els.submitButton.disabled = total < minOrderTotalQuantity;
 }
 
 function openConfirm() {
   const items = selectedItems();
   if (!items.length) return;
+  const total = orderTotalQuantity(items);
+  if (total < minOrderTotalQuantity) return;
   const storeName = els.storeName.value.trim();
   els.confirmStore.textContent = storeName ? `门店：${storeName}` : "门店：未选择";
   els.confirmList.innerHTML = items
@@ -293,6 +296,12 @@ async function submitOrder() {
     return;
   }
   const items = selectedItems().map((item) => ({ sku: item.sku, quantity: item.quantity, note: item.custom_note || "" }));
+  const total = orderTotalQuantity(items);
+  if (total < minOrderTotalQuantity) {
+    els.message.textContent = `单次订货满 ${minOrderTotalQuantity} 件才可以提交，当前合计 ${formatNumber(total)} 件`;
+    els.message.className = "message error";
+    return;
+  }
   els.confirmSubmit.disabled = true;
   els.message.textContent = "正在提交...";
   try {
@@ -427,6 +436,17 @@ function renderStoreOrders() {
 function formatNumber(value) {
   const number = Number(value || 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(2);
+}
+
+function orderTotalQuantity(items) {
+  return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+}
+
+function summaryDetailText(total) {
+  if (total < minOrderTotalQuantity) {
+    return `合计 ${formatNumber(total)} 件，还差 ${formatNumber(minOrderTotalQuantity - total)} 件可提交`;
+  }
+  return `合计数量 ${formatNumber(total)}`;
 }
 
 function formatDate(value) {
