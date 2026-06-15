@@ -209,6 +209,20 @@ async def import_file(movement_type: str = Form(...), file: UploadFile = File(..
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     with connect() as conn:
+        unknown_skus = _unknown_import_skus(conn, lines)
+        if unknown_skus:
+            message = f"导入文件包含未知 SKU，请先维护商品资料后再导入：{', '.join(unknown_skus)}"
+            import_id = create_import(
+                conn,
+                file_hash=file_hash,
+                filename=file.filename,
+                movement_type=movement_type,
+                source="manual_upload",
+            )
+            if import_id:
+                finish_import(conn, import_id, status="failed", line_count=0, message=message)
+            raise HTTPException(status_code=400, detail=message)
+
         import_id = create_import(
             conn,
             file_hash=file_hash,
@@ -365,6 +379,16 @@ def _reject_unavailable_order_items(items: list) -> None:
             blocked.append(sku)
     if blocked:
         raise HTTPException(status_code=400, detail=f"以下商品库存为 0，暂不可下单：{', '.join(blocked)}")
+
+
+def _unknown_import_skus(conn, lines: list) -> list[str]:
+    skus = sorted({str(line.sku).strip() for line in lines if str(line.sku).strip()})
+    if not skus:
+        return []
+    placeholders = ",".join("?" for _ in skus)
+    rows = conn.execute(f"SELECT sku FROM products WHERE sku IN ({placeholders})", skus).fetchall()
+    known = {row["sku"] for row in rows}
+    return [sku for sku in skus if sku not in known]
 
 
 def _to_float(value) -> float:
