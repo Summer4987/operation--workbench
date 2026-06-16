@@ -496,7 +496,7 @@ def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> lis
     # Kuailv add/quantity buttons observed as orange circles on the right side.
     x_start = max(0, int(width * 0.72))
     y_start = max(0, int(height * 0.28))
-    y_end = min(height, int(height * 0.92))
+    y_end = min(height, int(height * 0.965))
     for y in range(y_start, y_end, 3):
         for x in range(x_start, width - 10, 3):
             if (x, y) in visited or not is_orange(x, y):
@@ -545,7 +545,7 @@ def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]
         if bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
             continue
         cx, cy = bounds_center(bounds)
-        if not (280 <= cy <= 2150 and cx >= 700):
+        if not (280 <= cy <= 2325 and cx >= 700):
             continue
         if any(word in text for word in ["去结算", "提交订单", "付款", "合计", "全选", "购物车"]):
             continue
