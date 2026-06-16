@@ -715,6 +715,94 @@ def detect_target_card_add_controls(nodes: list[dict[str, Any]], plan: dict[str,
     return candidates[:40]
 
 
+def target_card_add_diagnostics(nodes: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    add_examples = []
+    title_examples = []
+    spec_examples = []
+    add_nodes = []
+    text_nodes = []
+    for node in nodes:
+        text = node_text(node)
+        bounds = tuple(node["bounds"])
+        if not text or bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        cx, _cy = bounds_center(bounds)
+        if any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]) and cx >= 700:
+            add_nodes.append(node)
+            add_examples.append({"text": text, "bounds": node["bounds"]})
+        else:
+            text_nodes.append(node)
+
+    for line in plan.get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        required = [word for word in line.get("required_keywords") or [] if word]
+        identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
+        spec_keywords = [
+            str(word)
+            for word in list(line.get("preferred_spec_keywords") or []) + required + line_pack_labels(line)
+            if looks_like_spec_keyword(str(word))
+        ]
+        title_nodes = [
+            node
+            for node in text_nodes
+            if any(word in node_text(node) for word in identity_keywords)
+        ]
+        spec_nodes = [
+            node
+            for node in text_nodes
+            if any(valid_pack_label_hit(node_text(node), word) for word in spec_keywords)
+        ]
+        title_examples = [{"text": node_text(node), "bounds": node["bounds"]} for node in title_nodes[:8]]
+        spec_examples = [{"text": node_text(node), "bounds": node["bounds"]} for node in spec_nodes[:8]]
+        pair_examples = []
+        for title in title_nodes[:8]:
+            title_cx, title_cy = bounds_center(tuple(title["bounds"]))
+            for spec in spec_nodes[:8]:
+                spec_cx, spec_cy = bounds_center(tuple(spec["bounds"]))
+                for add_node in add_nodes[:8]:
+                    add_cx, add_cy = bounds_center(tuple(add_node["bounds"]))
+                    reasons = []
+                    if spec_cy < title_cy - 80 or spec_cy > title_cy + 260:
+                        reasons.append("spec_y_outside_title_band")
+                    if abs(spec_cx - title_cx) > 520:
+                        reasons.append("spec_x_far_from_title")
+                    if add_cy < title_cy - 180 or add_cy > title_cy + 120:
+                        reasons.append("add_y_outside_title_band")
+                    if add_cx <= title_cx or add_cx < 760:
+                        reasons.append("add_not_right_of_title")
+                    pair_examples.append(
+                        {
+                            "title": {"text": node_text(title), "bounds": title["bounds"]},
+                            "spec": {"text": node_text(spec), "bounds": spec["bounds"]},
+                            "add": {"text": node_text(add_node), "bounds": add_node["bounds"]},
+                            "reasons": reasons,
+                        }
+                    )
+                    if len(pair_examples) >= 12:
+                        break
+                if len(pair_examples) >= 12:
+                    break
+            if len(pair_examples) >= 12:
+                break
+        rows.append(
+            {
+                "line_name": line.get("name", ""),
+                "identity_keywords": identity_keywords,
+                "spec_keywords": spec_keywords,
+                "title_count": len(title_nodes),
+                "spec_count": len(spec_nodes),
+                "add_count": len(add_nodes),
+                "title_examples": title_examples,
+                "spec_examples": spec_examples,
+                "add_examples": add_examples[:8],
+                "pair_examples": pair_examples,
+            }
+        )
+    return rows
+
+
 def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     deduped = []
     by_key: dict[tuple[int, int], dict[str, Any]] = {}
@@ -1113,6 +1201,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "cart_entry_candidates": cart_entry_candidates,
         "search_entry_candidates": search_entry_candidates,
         "visible_text_nodes": visible_text_nodes(nodes),
+        "target_card_add_diagnostics": target_card_add_diagnostics(nodes, plan),
         "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
     }
     analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
