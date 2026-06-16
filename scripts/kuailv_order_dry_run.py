@@ -5,6 +5,7 @@ import json
 import os
 import random
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -311,6 +312,17 @@ def run_command(args: list[str], timeout: int) -> CommandResult:
         stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", errors="ignore")
         stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode("utf-8", errors="ignore")
         return CommandResult(args=args, returncode=124, stdout=stdout, stderr=f"timeout after {timeout}s\n{stderr}".strip())
+
+
+def install_process_watchdog(max_runtime: int) -> None:
+    if max_runtime <= 0 or not hasattr(signal, "SIGALRM"):
+        return
+
+    def timeout_handler(_signum: int, _frame: Any) -> None:
+        raise TimeoutError(f"process watchdog timeout after {max_runtime}s")
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(max_runtime)
 
 
 def adb_base(serial: str) -> list[str]:
@@ -1996,10 +2008,12 @@ def main() -> int:
     parser.add_argument("--search-pre-back-count", type=int, default=0, help="adb-search 前先按 Back 的次数，用于关闭购物车浮层；仍会保存中间截图")
     parser.add_argument("--search-no-enter", action="store_true", help="adb-search 输入后不按 Enter，仅保存输入后的页面")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
+    parser.add_argument("--max-runtime", type=int, default=240, help="脚本整体最长运行秒数；0 表示不启用进程级 watchdog")
     args = parser.parse_args()
 
     started_at = now_text()
     try:
+        install_process_watchdog(args.max_runtime)
         _, order = load_order(args.server, args.token, args.date, args.order_id.strip(), args.seed, args.timeout)
         plan = build_plan(order)
         if args.mode == "adb-dry-run":
@@ -2057,6 +2071,9 @@ def main() -> int:
         print(payload["message"], file=sys.stderr)
         print(f"结果文件：{LATEST_PATH}", file=sys.stderr)
         return 1
+    finally:
+        if hasattr(signal, "alarm"):
+            signal.alarm(0)
 
 
 if __name__ == "__main__":
