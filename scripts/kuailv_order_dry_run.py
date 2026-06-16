@@ -650,11 +650,18 @@ def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any
         key = (int(round(float(center[0]) / 18)), int(round(float(center[1]) / 18)))
         if key in seen:
             existing = by_key[key]
-            existing["nearby_texts"] = merge_text_rows(existing.get("nearby_texts") or [], candidate.get("nearby_texts") or [])
-            existing["context_texts"] = merge_text_rows(existing.get("context_texts") or [], candidate.get("context_texts") or [])
-            if not existing.get("source") and candidate.get("source"):
+            incoming_source = str(candidate.get("source") or "")
+            if incoming_source == "xml_add_control":
+                existing["alternate_nearby_texts"] = merge_text_rows(existing.get("nearby_texts") or [], candidate.get("nearby_texts") or [])
+                existing["alternate_context_texts"] = merge_text_rows(existing.get("context_texts") or [], candidate.get("context_texts") or [])
+                existing["nearby_texts"] = candidate.get("nearby_texts") or []
+                existing["context_texts"] = candidate.get("context_texts") or []
+            else:
+                existing["nearby_texts"] = merge_text_rows(existing.get("nearby_texts") or [], candidate.get("nearby_texts") or [])
+                existing["context_texts"] = merge_text_rows(existing.get("context_texts") or [], candidate.get("context_texts") or [])
+            if incoming_source and (not existing.get("source") or incoming_source == "xml_add_control"):
                 existing["source"] = candidate.get("source")
-            if not existing.get("control_text") and candidate.get("control_text"):
+            if candidate.get("control_text") and (not existing.get("control_text") or incoming_source == "xml_add_control"):
                 existing["control_text"] = candidate.get("control_text")
             reasons = list(existing.get("detection_reasons") or [])
             for reason in candidate.get("detection_reasons") or []:
