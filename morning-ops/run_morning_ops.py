@@ -138,8 +138,8 @@ def record_task_run(status: str, message: str, step: str, log_path: Path, *, ret
         args.extend(["--extra", f"{key}={value}"])
     try:
         subprocess.run(args, cwd=WORKSPACE, timeout=10)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"记录上午运营任务状态失败：{exc}", file=sys.stderr, flush=True)
 
 
 def looks_like_auth_block(text: str) -> bool:
