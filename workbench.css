@@ -1233,6 +1233,111 @@ h2 {
   min-height: 0;
 }
 
+.finance-entry-form,
+.finance-recent-panel {
+  padding: 14px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  gap: 12px;
+}
+
+.finance-form-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.finance-form-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.finance-form-head span {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-form-head strong {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.finance-form-head button,
+.finance-upload-button {
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.finance-form-head button:disabled,
+.finance-upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.finance-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finance-form-grid label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-form-grid label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-form-grid input,
+.finance-form-grid select,
+.finance-form-grid textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #fbfcfe;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+}
+
+.finance-form-grid textarea {
+  resize: vertical;
+}
+
+.finance-form-note {
+  grid-column: span 2;
+}
+
+.finance-form-message {
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid #d5efe6;
+  border-radius: 7px;
+  background: #f7fcfa;
+  color: #166534;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .finance-intake-hero {
   padding: 14px;
   border: 1px solid #d5efe6;
@@ -1356,6 +1461,46 @@ h2 {
   color: #243244;
   font-size: 12px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.finance-upload-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.finance-upload-controls label {
+  min-width: 0;
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  background: #fff;
+  color: #243244;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.finance-upload-controls input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.finance-upload-controls em {
+  grid-column: 1 / -1;
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
   overflow-wrap: anywhere;
 }
 
@@ -2146,6 +2291,9 @@ h2 {
   .ordering-confirm-panel,
   .finance-intake-hero,
   .finance-entry-grid,
+  .finance-form-head,
+  .finance-form-grid,
+  .finance-upload-controls,
   .ordering-channel-list div,
   .mini-table div,
   .anomaly-list div,
@@ -2161,6 +2309,10 @@ h2 {
 
   .confirm-button {
     width: 100%;
+  }
+
+  .finance-form-note {
+    grid-column: auto;
   }
 
   .embedded-board-bar {

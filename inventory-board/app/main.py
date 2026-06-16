@@ -48,6 +48,19 @@ UPLOAD_DIR = BASE_DIR / "data" / "uploads"
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATE_DIR = BASE_DIR / "data" / "templates"
 PROMO_BUDGET_PATH = BASE_DIR / "data" / "promo_budget_overrides.json"
+FINANCE_UPLOAD_DIR = BASE_DIR / "data" / "finance-uploads"
+FINANCE_UPLOAD_MANIFEST = FINANCE_UPLOAD_DIR / "manifest.jsonl"
+FINANCE_SOURCE_IDS = {
+    "bank",
+    "wechat_pay",
+    "alipay",
+    "platform_income",
+    "procurement_orders",
+    "wechat_orders",
+    "stores",
+    "manual_matches",
+}
+FINANCE_UPLOAD_EXTENSIONS = {".csv", ".xlsx", ".xls", ".pdf"}
 
 app = FastAPI(title="Inventory Board")
 app.add_middleware(
@@ -277,6 +290,65 @@ async def import_file(movement_type: str = Form(...), file: UploadFile = File(..
     return {"status": "success", "line_count": inserted}
 
 
+@app.post("/api/finance/upload")
+async def finance_upload(
+    request: Request,
+    source_id: str = Form(...),
+    source_name: str = Form(""),
+    files: list[UploadFile] = File(...),
+):
+    _require_public_order_token(request)
+    clean_source_id = source_id.strip()
+    if clean_source_id not in FINANCE_SOURCE_IDS:
+        raise HTTPException(status_code=400, detail="未知的财务录入来源")
+    if not files:
+        raise HTTPException(status_code=400, detail="请选择要上传的文件")
+
+    now_text = now_iso().replace(":", "-")
+    source_dir = FINANCE_UPLOAD_DIR / clean_source_id
+    source_dir.mkdir(parents=True, exist_ok=True)
+    saved_files = []
+    for upload in files:
+        original_name = Path(upload.filename or "").name
+        if not original_name:
+            raise HTTPException(status_code=400, detail="文件名不能为空")
+        suffix = Path(original_name).suffix.lower()
+        if suffix not in FINANCE_UPLOAD_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"{original_name} 的格式暂不支持")
+        saved_path = source_dir / f"{now_text}_{_safe_upload_filename(original_name)}"
+        with saved_path.open("wb") as target:
+            shutil.copyfileobj(upload.file, target)
+        item = {
+            "source_id": clean_source_id,
+            "source_name": source_name or clean_source_id,
+            "filename": original_name,
+            "stored_path": str(saved_path.relative_to(BASE_DIR)),
+            "size": saved_path.stat().st_size,
+            "sha256": _sha256(saved_path),
+            "uploaded_at": now_iso(),
+        }
+        saved_files.append(item)
+
+    FINANCE_UPLOAD_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    with FINANCE_UPLOAD_MANIFEST.open("a", encoding="utf-8") as manifest:
+        for item in saved_files:
+            manifest.write(json.dumps(item, ensure_ascii=False) + "\n")
+    return {"status": "success", "source_id": clean_source_id, "files": saved_files}
+
+
+@app.get("/api/finance/uploads")
+def finance_uploads(request: Request):
+    _require_public_order_token(request)
+    items = []
+    if FINANCE_UPLOAD_MANIFEST.exists():
+        for line in FINANCE_UPLOAD_MANIFEST.read_text(encoding="utf-8").splitlines()[-120:]:
+            try:
+                items.append(json.loads(line))
+            except Exception:
+                continue
+    return {"items": list(reversed(items))}
+
+
 @app.patch("/api/products/{sku}/warning")
 async def update_warning(sku: str, payload: dict):
     try:
@@ -439,6 +511,10 @@ def _public_order_token() -> str:
     return os.environ.get("ORDER_FORM_TOKEN", "xiongxiaoxiao-order")
 
 
+def _safe_upload_filename(filename: str) -> str:
+    return "".join(char if char.isalnum() or char in ".-_" else "_" for char in Path(filename).name)
+
+
 def _inbound_template_path() -> Path | None:
     candidates = [
         TEMPLATE_DIR / "入库模板.xlsx",
@@ -497,6 +573,8 @@ def _request_token(request: Request) -> str:
 def _is_public_order_request(request: Request) -> bool:
     path = request.url.path
     if path == "/api/promo-budget-overrides":
+        return secrets.compare_digest(_request_token(request), _public_order_token())
+    if path.startswith("/api/finance/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())

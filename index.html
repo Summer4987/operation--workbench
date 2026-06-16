@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-intake" />
+    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-entry" />
   </head>
   <body>
     <main class="app">
@@ -330,6 +330,98 @@
               <span class="tag planning" id="financeInputStatus">待录入</span>
             </div>
             <div class="module-body">
+              <form class="finance-entry-form" id="financeManualEntryForm">
+                <div class="finance-form-head">
+                  <div>
+                    <span>手工记一笔</span>
+                    <strong>收入、支出、应收、应付都先从这里录</strong>
+                  </div>
+                  <button type="submit">保存这笔</button>
+                </div>
+                <div class="finance-form-grid">
+                  <label>
+                    <span>日期</span>
+                    <input id="financeEntryDate" name="date" type="date" required />
+                  </label>
+                  <label>
+                    <span>账本</span>
+                    <select name="ledger" required>
+                      <option value="朝阳门店">朝阳门店</option>
+                      <option value="银泰城店">银泰城店</option>
+                      <option value="金融城店">金融城店</option>
+                      <option value="万象城店">万象城店</option>
+                      <option value="保利中心店">保利中心店</option>
+                      <option value="供应链销售">供应链销售</option>
+                      <option value="待拆分">待拆分</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>收支</span>
+                    <select name="direction" required>
+                      <option value="收入">收入</option>
+                      <option value="支出">支出</option>
+                      <option value="应收">应收</option>
+                      <option value="应付">应付</option>
+                      <option value="转账">转账</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>金额</span>
+                    <input name="amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+                  </label>
+                  <label>
+                    <span>渠道/科目</span>
+                    <select name="channel" required>
+                      <option value="美团营业收入">美团营业收入</option>
+                      <option value="饿了么营业收入">饿了么营业收入</option>
+                      <option value="京东营业收入">京东营业收入</option>
+                      <option value="小程序点餐收入">小程序点餐收入</option>
+                      <option value="供应链销售收入">供应链销售收入</option>
+                      <option value="快驴订货">快驴订货</option>
+                      <option value="淘宝采购">淘宝采购</option>
+                      <option value="拼多多采购">拼多多采购</option>
+                      <option value="京东采购">京东采购</option>
+                      <option value="线下扫码/转账">线下扫码/转账</option>
+                      <option value="人工调整">人工调整</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>往来方</span>
+                    <input name="counterparty" type="text" placeholder="客户、供应商或付款人" />
+                  </label>
+                  <label>
+                    <span>账户</span>
+                    <select name="account">
+                      <option value="银行卡">银行卡</option>
+                      <option value="微信">微信</option>
+                      <option value="支付宝">支付宝</option>
+                      <option value="他人代付">他人代付</option>
+                      <option value="未付款">未付款</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>凭证</span>
+                    <input name="attachments" type="file" multiple />
+                  </label>
+                  <label class="finance-form-note">
+                    <span>备注</span>
+                    <textarea name="note" rows="2" placeholder="例如：小程序收入按月末拆分，或某笔采购由谁代付"></textarea>
+                  </label>
+                </div>
+                <div class="finance-form-message" id="financeManualEntryMessage">填写后点击保存，会先进入本页最近录入记录。</div>
+              </form>
+
+              <div class="finance-recent-panel">
+                <div class="module-head">
+                  <div>
+                    <p>最近录入</p>
+                    <h2>待同步记账记录</h2>
+                  </div>
+                  <button class="ghost-action" type="button" id="financeClearLocalEntries">清空本页记录</button>
+                </div>
+                <div class="mini-table" id="financeRecentEntries"></div>
+              </div>
+
               <div class="finance-intake-hero">
                 <div>
                   <span>当前录入进度</span>
@@ -431,6 +523,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260616-finance-intake"></script>
+    <script src="./workbench.js?v=20260616-finance-entry"></script>
   </body>
 </html>

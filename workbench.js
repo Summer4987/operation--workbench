@@ -1,5 +1,6 @@
 const data = window.WORKBENCH_DATA || {};
 const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
+const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
@@ -176,6 +177,140 @@ function rows(id, items, render) {
   const el = document.querySelector(`#${id}`);
   if (!el) return;
   el.innerHTML = items.length ? items.map(render).join("") : '<div class="empty-line">暂无数据</div>';
+}
+
+const FINANCE_LOCAL_ENTRIES_KEY = "xiong_finance_manual_entries_v1";
+const FINANCE_PENDING_UPLOADS_KEY = "xiong_finance_pending_uploads_v1";
+
+function readLocalList(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalList(key, value) {
+  localStorage.setItem(key, JSON.stringify(value.slice(0, 80)));
+}
+
+function financeFileSummary(files) {
+  return [...(files || [])].map((file) => `${file.name} ${(file.size / 1024 / 1024).toFixed(1)}MB`).join("、");
+}
+
+function renderFinanceRecentEntries() {
+  const entries = readLocalList(FINANCE_LOCAL_ENTRIES_KEY);
+  rows(
+    "financeRecentEntries",
+    entries.slice(0, 8),
+    (entry) => `
+      <div class="good-row">
+        <span>${escapeHtml(entry.date || "-")} · ${escapeHtml(entry.ledger || "-")}</span>
+        <strong>${escapeHtml(entry.direction || "")} ${yuan(entry.amount)}</strong>
+        <em>${escapeHtml(entry.channel || "")}${entry.counterparty ? ` · ${escapeHtml(entry.counterparty)}` : ""}${entry.files ? ` · 凭证 ${escapeHtml(entry.files)}` : ""}</em>
+      </div>
+    `
+  );
+}
+
+function initializeFinanceIntakeControls() {
+  const form = document.querySelector("#financeManualEntryForm");
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = "true";
+    const dateInput = form.querySelector("#financeEntryDate");
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const entry = {
+        id: `${Date.now()}`,
+        created_at: new Date().toISOString(),
+        date: formData.get("date") || "",
+        ledger: formData.get("ledger") || "",
+        direction: formData.get("direction") || "",
+        amount: Number(formData.get("amount") || 0),
+        channel: formData.get("channel") || "",
+        counterparty: formData.get("counterparty") || "",
+        account: formData.get("account") || "",
+        note: formData.get("note") || "",
+        files: financeFileSummary(form.querySelector('[name="attachments"]')?.files || []),
+        sync_status: "local_pending",
+      };
+      const entries = readLocalList(FINANCE_LOCAL_ENTRIES_KEY);
+      writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [entry, ...entries]);
+      text("financeManualEntryMessage", "已保存到本页最近录入。云端保存接口接入后，这里会自动同步到财务账本。");
+      form.reset();
+      if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+      renderFinanceRecentEntries();
+    });
+  }
+
+  const clearButton = document.querySelector("#financeClearLocalEntries");
+  if (clearButton && !clearButton.dataset.bound) {
+    clearButton.dataset.bound = "true";
+    clearButton.addEventListener("click", () => {
+      localStorage.removeItem(FINANCE_LOCAL_ENTRIES_KEY);
+      text("financeManualEntryMessage", "本页最近录入已清空。");
+      renderFinanceRecentEntries();
+    });
+  }
+
+  document.querySelectorAll(".finance-source-file").forEach((input) => {
+    if (input.dataset.bound) return;
+    input.dataset.bound = "true";
+    input.addEventListener("change", () => {
+      const card = input.closest(".finance-entry-card");
+      const status = card?.querySelector(".finance-upload-status");
+      if (status) status.textContent = input.files?.length ? `已选择 ${input.files.length} 个文件` : "未选择文件";
+    });
+  });
+
+  document.querySelectorAll(".finance-upload-button").forEach((button) => {
+    if (button.dataset.bound) return;
+    button.dataset.bound = "true";
+    button.addEventListener("click", async () => {
+      const card = button.closest(".finance-entry-card");
+      const input = card?.querySelector(".finance-source-file");
+      const status = card?.querySelector(".finance-upload-status");
+      const files = [...(input?.files || [])];
+      if (!files.length) {
+        if (status) status.textContent = "请先选择文件。";
+        return;
+      }
+      button.disabled = true;
+      if (status) status.textContent = "正在尝试上传...";
+      const sourceId = button.dataset.sourceId || "unknown";
+      const sourceName = button.dataset.sourceName || sourceId;
+      const payload = new FormData();
+      payload.append("source_id", sourceId);
+      payload.append("source_name", sourceName);
+      files.forEach((file) => payload.append("files", file, file.name));
+      try {
+        const response = await fetch(FINANCE_UPLOAD_URL, { method: "POST", body: payload });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (status) status.textContent = "上传成功，稍后刷新财务状态。";
+      } catch {
+        const pending = readLocalList(FINANCE_PENDING_UPLOADS_KEY);
+        writeLocalList(FINANCE_PENDING_UPLOADS_KEY, [
+          {
+            id: `${Date.now()}`,
+            source_id: sourceId,
+            source_name: sourceName,
+            files: files.map((file) => ({ name: file.name, size: file.size })),
+            created_at: new Date().toISOString(),
+            sync_status: "api_pending",
+          },
+          ...pending,
+        ]);
+        if (status) status.textContent = "云端上传接口暂未接通，已先登记文件名。";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  renderFinanceRecentEntries();
 }
 
 function realtimeStores(daily) {
@@ -1596,6 +1731,7 @@ function renderFinance() {
       templatePath: source.template_path || "",
       fields,
       fileCount,
+      sourceId: source.id || "",
       required: Boolean(source.required),
       warn: source.required && fileCount === 0,
     };
@@ -1650,6 +1786,14 @@ function renderFinance() {
                 <dd>${escapeHtml(item.fields || "按模板填写")}</dd>
               </div>
             </dl>
+            <div class="finance-upload-controls">
+              <label>
+                <input class="finance-source-file" type="file" multiple data-source-id="${escapeHtml(item.sourceId)}" />
+                <span>选择文件</span>
+              </label>
+              <button class="finance-upload-button" type="button" data-source-id="${escapeHtml(item.sourceId)}" data-source-name="${escapeHtml(item.value)}">上传文件</button>
+              <em class="finance-upload-status">未选择文件</em>
+            </div>
           </article>
         `
       )
@@ -1660,6 +1804,7 @@ function renderFinance() {
     manualInputRows,
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
+  initializeFinanceIntakeControls();
 
   const workflowRows = (ledgerDesign.workflow || []).slice(0, 5).map((item, index) => ({
     label: `步骤 ${index + 1}`,
