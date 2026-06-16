@@ -1569,6 +1569,8 @@ function renderFinance() {
   const ledgerPreviewSummary = monthlyLedgerPreview.summary || {};
   const formalLedgerRows = monthlyLedgerPreview.formal_ledgers || [];
   const workPoolRows = monthlyLedgerPreview.work_pools || [];
+  const ledgerReviewRows = reconciliationPreview.ledger_review_samples || [];
+  const reconciliationOutputs = reconciliationPreview.outputs || {};
   const monthlyLedgers = finance.monthly_ledgers || [];
   const assignmentPolicy = finance.ledger_assignment_policy || {};
   const financeChannels = finance.finance_channels || {};
@@ -1645,6 +1647,12 @@ function renderFinance() {
         detail: `${row.period || ""} · ${Number(row.count || 0)} 笔 · 收入 ${yuan(row.income)} · 支出 ${yuan(row.expense)} · 净额 ${yuan(row.net)}`,
         warn: true,
       })),
+      {
+        label: "待处理清单",
+        value: `${ledgerReviewRows.length || 0} 条样例`,
+        detail: reconciliationOutputs.review_pools_dir ? `已导出：${reconciliationOutputs.review_pools_dir}` : "重跑流水预览后导出待处理池 CSV。",
+        warn: ledgerReviewRows.length > 0,
+      },
       ...((assignmentPolicy.manual_split_required || []).map((item) => ({
         label: "需手动拆分",
         value: item.channel_id || "规则",

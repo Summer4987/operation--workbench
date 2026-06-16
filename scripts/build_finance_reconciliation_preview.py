@@ -764,6 +764,17 @@ def channel_review_samples(transactions: list[NormalizedTransaction]) -> list[di
     return [public_tx(item) for item in samples[:80]]
 
 
+def ledger_review_samples(transactions: list[NormalizedTransaction]) -> list[dict[str, Any]]:
+    samples = [
+        item
+        for item in transactions
+        if item.ledger_status in {"pending_store_assignment", "manual_split_required", "settlement_required", "manual_review_required"}
+        and item.amount != 0
+    ]
+    samples.sort(key=lambda item: (item.ledger_status, -abs(item.amount)))
+    return [public_tx(item) for item in samples[:160]]
+
+
 def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str, Any]:
     by_source = summarize(transactions)["by_source"]
     by_channel = summarize(transactions)["by_channel"]
@@ -835,6 +846,69 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
             writer.writerow({key: writable.get(key, "") for key in fieldnames})
     ledger_csv_path.chmod(0o600)
 
+    review_dir = OUTPUT_DIR / "review_pools"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    pool_files = {
+        "store_unassigned": "门店待分配.csv",
+        "manual_split_store": "小程序手动拆分.csv",
+        "mixed_store_and_sales": "供应链采购拆分.csv",
+        "settlement_clearing": "代付及往来结算.csv",
+        "manual_review": "待确认账本.csv",
+    }
+    review_fieldnames = [
+        "建议处理",
+        "期间",
+        "账本池",
+        "渠道",
+        "来源",
+        "时间",
+        "金额",
+        "交易对方",
+        "摘要",
+        "支付方式",
+        "状态",
+        "交易号",
+        "商户单号",
+        "归属账本",
+        "拆分比例或金额",
+        "确认备注",
+    ]
+    for ledger_id, filename in pool_files.items():
+        rows_for_pool = [item for item in transactions if item.ledger_id == ledger_id and item.amount != 0]
+        rows_for_pool.sort(key=lambda item: abs(item.amount), reverse=True)
+        with (review_dir / filename).open("w", encoding="utf-8-sig", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=review_fieldnames)
+            writer.writeheader()
+            for item in rows_for_pool[:300]:
+                action = {
+                    "store_unassigned": "填具体门店：朝阳门店/银泰城店/金融城店/万象城店/保利中心店",
+                    "manual_split_store": "填 5 家门店拆分比例或金额",
+                    "mixed_store_and_sales": "填门店使用与供应链销售使用的拆分比例或金额",
+                    "settlement_clearing": "填代付人、对应订单或统一结算备注",
+                    "manual_review": "确认渠道和账本",
+                }.get(ledger_id, "确认")
+                writer.writerow(
+                    {
+                        "建议处理": action,
+                        "期间": month_key(item.transaction_date),
+                        "账本池": item.ledger_name,
+                        "渠道": item.channel_name,
+                        "来源": item.source_name,
+                        "时间": item.transaction_time,
+                        "金额": item.amount,
+                        "交易对方": item.counterparty,
+                        "摘要": item.description,
+                        "支付方式": item.payment_method,
+                        "状态": item.status,
+                        "交易号": item.transaction_id,
+                        "商户单号": item.merchant_order_id,
+                        "归属账本": "",
+                        "拆分比例或金额": "",
+                        "确认备注": "",
+                    }
+                )
+        (review_dir / filename).chmod(0o600)
+
 
 def build_payload() -> dict[str, Any]:
     ledger_rules = load_ledger_rules()
@@ -863,6 +937,7 @@ def build_payload() -> dict[str, Any]:
         "daily_summary": summary["daily"],
         "bank_reconciliation": reconciliation,
         "channel_review_samples": channel_review_samples(transactions),
+        "ledger_review_samples": ledger_review_samples(transactions),
         "monthly_ledger_preview": monthly_ledger_preview,
         "ledger_rules": {
             "path": str(LEDGER_RULES_PATH.relative_to(ROOT)),
@@ -875,6 +950,7 @@ def build_payload() -> dict[str, Any]:
             "latest_json": str(LATEST_PATH.relative_to(ROOT)),
             "normalized_transactions_csv": str((OUTPUT_DIR / "normalized_transactions.csv").relative_to(ROOT)),
             "monthly_ledger_preview_csv": str((OUTPUT_DIR / "monthly_ledger_preview.csv").relative_to(ROOT)),
+            "review_pools_dir": str((OUTPUT_DIR / "review_pools").relative_to(ROOT)),
         },
         "blocked_actions": [
             "自动转账",
