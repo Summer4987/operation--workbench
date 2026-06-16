@@ -1169,14 +1169,18 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
             score += 55
             reasons.append("search_resource_or_desc")
         if "edittext" in blob:
-            score += 35
+            score += 120
             reasons.append("edit_text")
         if node.get("clickable"):
             score += 10
             reasons.append("clickable")
-        if bounds[2] - bounds[0] >= image_width * 0.35:
-            score += 8
+        width = bounds[2] - bounds[0]
+        if width >= image_width * 0.35:
+            score += 45
             reasons.append("wide_input_like")
+        if text.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
+            score -= 95
+            reasons.append("small_search_submit_button")
         if cy <= image_height * 0.22:
             score += 8
             reasons.append("top_header_area")
