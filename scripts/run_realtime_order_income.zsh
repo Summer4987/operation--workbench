@@ -5,9 +5,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT/outputs/realtime_order_income/logs"
 mkdir -p "$LOG_DIR"
 
-PYTHON="$ROOT/business-report-dashboard/.venv/bin/python"
+PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
 if [ ! -x "$PYTHON" ]; then
-  PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+  PYTHON="$ROOT/business-report-dashboard/.venv/bin/python"
 fi
 if [ ! -x "$PYTHON" ]; then
   PYTHON="python3"
@@ -59,6 +59,7 @@ trap finish_task_state EXIT
 {
   echo
   echo "[$(date '+%F %T')] 实时单量收入采集开始"
+  run_with_timeout "${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "$PYTHON" "$ROOT/scripts/cleanup_chrome_tabs.py"
   record_task_run "$TASK_ID" running --message "实时单量收入采集开始。" --step "$TASK_STEP" --log-path "$LOG_FILE"
   TASK_STEP="采集平台实时单量"
   record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
