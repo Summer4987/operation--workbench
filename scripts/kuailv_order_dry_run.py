@@ -691,6 +691,45 @@ def line_pack_labels(line: dict[str, Any]) -> list[str]:
     return labels or [""]
 
 
+def search_target_words(plan: dict[str, Any], query: str) -> list[str]:
+    normalized_query = query.replace(" ", "")
+    words = []
+    for line in plan.get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        names = [str(line.get("name") or "")]
+        names.extend(str(term) for term in line.get("search_terms") or [])
+        names.extend(str(word) for word in line.get("required_keywords") or [])
+        compact_names = [name.replace(" ", "") for name in names if name]
+        if not normalized_query or not any(name and (name in normalized_query or normalized_query in name) for name in compact_names):
+            continue
+        words.extend(str(word) for word in line.get("required_keywords") or [] if word)
+        words.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if word)
+    if not words and query:
+        words.append(query)
+    return list(dict.fromkeys(word for word in words if word))
+
+
+def search_result_hits(analysis: dict[str, Any], target_words: list[str]) -> dict[str, Any]:
+    candidates = analysis.get("orange_add_candidates") or []
+    rows = []
+    for candidate in candidates:
+        text = f"{candidate_text(candidate, 'nearby_texts')} {candidate_text(candidate, 'context_texts')}"
+        hits = [word for word in target_words if word and word in text]
+        if hits:
+            rows.append(
+                {
+                    "center": candidate.get("center"),
+                    "bounds": candidate.get("bounds"),
+                    "source": candidate.get("source"),
+                    "control_text": candidate.get("control_text"),
+                    "hits": hits,
+                    "text": text,
+                }
+            )
+    return {"target_words": target_words, "hit_count": len(rows), "hits": rows[:8]}
+
+
 def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
     matches = []
     for candidate in analysis.get("orange_add_candidates") or []:
@@ -1641,16 +1680,41 @@ def run_adb_search(
     if press_enter:
         enter = run_command(adb_base(serial) + ["shell", "input", "keyevent", "ENTER"], timeout)
         enter_result = {"returncode": enter.returncode, "stderr": enter.stderr.strip(), "stdout": enter.stdout.strip()}
-        time.sleep(1.2)
+        time.sleep(2.0)
     else:
         time.sleep(1.2)
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
     after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
     query_visible_after = query in after_text_blob
-    status = "search_ready_for_manual_review" if tap_result.returncode == 0 and input_result.get("entered") and after.get("captured") and query_visible_after else "blocked"
+    result_check = search_result_hits(after.get("ui_analysis") or {}, search_target_words(plan, query))
+    search_key_retry = None
+    after_search_key = None
+    if press_enter and after.get("captured") and query_visible_after and not result_check.get("hit_count"):
+        search_key = run_command(adb_base(serial) + ["shell", "input", "keyevent", "KEYCODE_SEARCH"], timeout)
+        search_key_retry = {"returncode": search_key.returncode, "stderr": search_key.stderr.strip(), "stdout": search_key.stdout.strip()}
+        time.sleep(2.0)
+        after_search_key = save_adb_snapshot(serial, session_dir / "after-search-key", timeout, plan)
+        retry_check = search_result_hits(after_search_key.get("ui_analysis") or {}, search_target_words(plan, query))
+        if retry_check.get("hit_count"):
+            after = after_search_key
+            result_check = retry_check
+            after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
+            query_visible_after = query in after_text_blob
+    status = (
+        "search_ready_for_manual_review"
+        if tap_result.returncode == 0
+        and input_result.get("entered")
+        and after.get("captured")
+        and query_visible_after
+        and result_check.get("hit_count")
+        else "blocked"
+    )
+    message = "已执行一次受保护搜索输入并保存前后截图；未加购、未删除、未提交订单、未付款。"
+    if query_visible_after and not result_check.get("hit_count"):
+        message = "搜索词可见，但结果候选卡片未命中目标关键词；按未刷新/未命中阻断。未加购、未删除、未提交订单、未付款。"
     return {
         "status": status,
-        "message": "已执行一次受保护搜索输入并保存前后截图；未加购、未删除、未提交订单、未付款。",
+        "message": message,
         "device_serial": serial,
         "session_dir": str(session_dir),
         "query": query,
@@ -1663,7 +1727,10 @@ def run_adb_search(
         "after_back": after_back,
         "back_results": back_results,
         "after": after,
+        "after_search_key": after_search_key,
         "query_visible_after": query_visible_after,
+        "search_result_check": result_check,
+        "search_key_retry": search_key_retry,
         "safety": {
             "delivery_store_match_required": True,
             "pre_back_count": pre_back_count,

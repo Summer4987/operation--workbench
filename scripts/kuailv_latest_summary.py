@@ -77,6 +77,8 @@ def main() -> int:
         "tap": adb.get("tap"),
         "query": adb.get("query"),
         "query_visible_after": adb.get("query_visible_after"),
+        "search_result_check": adb.get("search_result_check"),
+        "search_key_retry": adb.get("search_key_retry"),
         "input_result": adb.get("input_result"),
         "enter_result": adb.get("enter_result"),
         "cart_review": adb.get("cart_review"),
