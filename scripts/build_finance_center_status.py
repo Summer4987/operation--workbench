@@ -334,6 +334,7 @@ def build_payload() -> dict[str, Any]:
             "channel_summary": reconciliation_preview.get("channel_summary") or [],
             "channel_review_samples": reconciliation_preview.get("channel_review_samples") or [],
             "ledger_review_samples": reconciliation_preview.get("ledger_review_samples") or [],
+            "review_rule_groups": reconciliation_preview.get("review_rule_groups") or [],
             "monthly_ledger_preview": reconciliation_preview.get("monthly_ledger_preview") or {},
             "ledger_rules": reconciliation_preview.get("ledger_rules") or {},
             "profit_preview": reconciliation_preview.get("profit_preview") or {},

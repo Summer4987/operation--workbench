@@ -1571,6 +1571,7 @@ function renderFinance() {
   const formalLedgerRows = monthlyLedgerPreview.formal_ledgers || [];
   const workPoolRows = monthlyLedgerPreview.work_pools || [];
   const ledgerReviewRows = reconciliationPreview.ledger_review_samples || [];
+  const reviewRuleGroups = reconciliationPreview.review_rule_groups || [];
   const reconciliationOutputs = reconciliationPreview.outputs || {};
   const monthlyLedgers = finance.monthly_ledgers || [];
   const assignmentPolicy = finance.ledger_assignment_policy || {};
@@ -1659,6 +1660,12 @@ function renderFinance() {
         value: `${ledgerReviewRows.length || 0} 条样例`,
         detail: reconciliationOutputs.review_pools_dir ? `已导出：${reconciliationOutputs.review_pools_dir}` : "重跑流水预览后导出待处理池 CSV。",
         warn: ledgerReviewRows.length > 0,
+      },
+      {
+        label: "聚合审核表",
+        value: `${reviewRuleGroups.length || 0} 组规则`,
+        detail: reconciliationOutputs.review_rule_groups_csv ? `优先填写：${reconciliationOutputs.review_rule_groups_csv}` : "按交易对方和摘要聚合同类流水，减少逐笔确认。",
+        warn: reviewRuleGroups.length > 0,
       },
       ...((assignmentPolicy.manual_split_required || []).map((item) => ({
         label: "需手动拆分",

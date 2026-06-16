@@ -834,6 +834,57 @@ def ledger_review_samples(transactions: list[NormalizedTransaction]) -> list[dic
     return [public_tx(item) for item in samples[:160]]
 
 
+def review_group_key(item: NormalizedTransaction) -> tuple[str, str, str, str]:
+    counterparty = clean_text(item.counterparty) or "无交易对方"
+    description = clean_text(item.description) or "无摘要"
+    return (item.ledger_id or "manual_review", item.channel_name or "未知渠道", counterparty, description)
+
+
+def build_review_rule_groups(transactions: list[NormalizedTransaction]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    review_statuses = {"pending_store_assignment", "manual_split_required", "settlement_required", "manual_review_required"}
+    for item in transactions:
+        if item.ledger_status not in review_statuses or item.amount == 0:
+            continue
+        key = review_group_key(item)
+        row = grouped.setdefault(
+            key,
+            {
+                "ledger_id": item.ledger_id,
+                "ledger_name": item.ledger_name,
+                "ledger_status": item.ledger_status,
+                "channel_name": item.channel_name,
+                "counterparty": item.counterparty or "无交易对方",
+                "description": item.description or "无摘要",
+                "count": 0,
+                "income": 0.0,
+                "expense": 0.0,
+                "net": 0.0,
+                "max_abs_amount": 0.0,
+                "sample_dates": [],
+                "sample_payment_methods": [],
+            },
+        )
+        row["count"] += 1
+        if item.amount > 0:
+            row["income"] += item.amount
+        else:
+            row["expense"] += abs(item.amount)
+        row["net"] += item.amount
+        row["max_abs_amount"] = max(float(row["max_abs_amount"]), abs(item.amount))
+        if item.transaction_date and item.transaction_date not in row["sample_dates"] and len(row["sample_dates"]) < 3:
+            row["sample_dates"].append(item.transaction_date)
+        if item.payment_method and item.payment_method not in row["sample_payment_methods"] and len(row["sample_payment_methods"]) < 3:
+            row["sample_payment_methods"].append(item.payment_method)
+
+    rows = list(grouped.values())
+    for row in rows:
+        for key in ("income", "expense", "net", "max_abs_amount"):
+            row[key] = round(float(row.get(key) or 0), 2)
+    rows.sort(key=lambda item: (-float(item["max_abs_amount"]), -int(item["count"]), item["ledger_name"], item["counterparty"]))
+    return rows
+
+
 def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str, Any]:
     by_source = summarize(transactions)["by_source"]
     by_channel = summarize(transactions)["by_channel"]
@@ -968,6 +1019,59 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
                 )
         (review_dir / filename).chmod(0o600)
 
+    grouped_path = review_dir / "按对方聚合审核表.csv"
+    grouped_rows = build_review_rule_groups(transactions)
+    grouped_fieldnames = [
+        "建议填写",
+        "账本池",
+        "渠道",
+        "交易对方",
+        "摘要",
+        "笔数",
+        "收入合计",
+        "支出合计",
+        "净额",
+        "最大单笔",
+        "样例日期",
+        "样例支付方式",
+        "以后归属账本",
+        "以后归属渠道",
+        "拆分规则",
+        "备注",
+    ]
+    with grouped_path.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=grouped_fieldnames)
+        writer.writeheader()
+        for row in grouped_rows[:300]:
+            action = {
+                "store_unassigned": "填以后归属门店；同一交易对方/摘要以后自动按此规则归属",
+                "manual_split_store": "填 5 家门店拆分比例或金额",
+                "mixed_store_and_sales": "填门店和供应链销售的拆分规则",
+                "settlement_clearing": "填代付结算口径",
+                "manual_review": "填以后归属账本和渠道",
+            }.get(row.get("ledger_id"), "确认规则")
+            writer.writerow(
+                {
+                    "建议填写": action,
+                    "账本池": row.get("ledger_name", ""),
+                    "渠道": row.get("channel_name", ""),
+                    "交易对方": row.get("counterparty", ""),
+                    "摘要": row.get("description", ""),
+                    "笔数": row.get("count", 0),
+                    "收入合计": row.get("income", 0),
+                    "支出合计": row.get("expense", 0),
+                    "净额": row.get("net", 0),
+                    "最大单笔": row.get("max_abs_amount", 0),
+                    "样例日期": "、".join(row.get("sample_dates") or []),
+                    "样例支付方式": "、".join(row.get("sample_payment_methods") or []),
+                    "以后归属账本": "",
+                    "以后归属渠道": "",
+                    "拆分规则": "",
+                    "备注": "",
+                }
+            )
+    grouped_path.chmod(0o600)
+
 
 def build_payload() -> dict[str, Any]:
     ledger_rules = load_ledger_rules()
@@ -1002,6 +1106,7 @@ def build_payload() -> dict[str, Any]:
         "bank_reconciliation": reconciliation,
         "channel_review_samples": channel_review_samples(transactions),
         "ledger_review_samples": ledger_review_samples(transactions),
+        "review_rule_groups": build_review_rule_groups(transactions)[:120],
         "monthly_ledger_preview": monthly_ledger_preview,
         "ledger_rules": {
             "path": str(LEDGER_RULES_PATH.relative_to(ROOT)),
@@ -1015,6 +1120,7 @@ def build_payload() -> dict[str, Any]:
             "normalized_transactions_csv": str((OUTPUT_DIR / "normalized_transactions.csv").relative_to(ROOT)),
             "monthly_ledger_preview_csv": str((OUTPUT_DIR / "monthly_ledger_preview.csv").relative_to(ROOT)),
             "review_pools_dir": str((OUTPUT_DIR / "review_pools").relative_to(ROOT)),
+            "review_rule_groups_csv": str((OUTPUT_DIR / "review_pools" / "按对方聚合审核表.csv").relative_to(ROOT)),
         },
         "blocked_actions": [
             "自动转账",
