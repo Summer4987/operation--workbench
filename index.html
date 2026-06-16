@@ -47,7 +47,7 @@
           <section class="nav-section" aria-labelledby="nav-finance">
             <h2 id="nav-finance">财务中心</h2>
             <div class="nav-subgroup">
-              <a href="#finance">自动分析账单</a>
+              <a href="#finance">财务录入</a>
               <a href="#finance-report">财务报表</a>
             </div>
           </section>
@@ -319,21 +319,22 @@
         <section class="center-section" id="finance">
           <div class="section-head">
             <p>财务中心</p>
-            <h2>自动分析账单</h2>
+            <h2>财务录入</h2>
           </div>
           <div class="center-grid two">
-            <article class="module" id="finance-bills">
+            <article class="module" id="finance-intake">
               <div class="module-head">
                 <div>
-                  <p>核销</p>
-                  <h2>微信 / 支付宝 / 银行流水</h2>
+                  <p>录入台</p>
+                  <h2>每日账单与订单入口</h2>
                 </div>
-                <span class="tag planning" id="financeBillStatus">建设中</span>
+                <span class="tag planning" id="financeInputStatus">待录入</span>
               </div>
               <div class="module-body">
-                <div class="big-number" id="financeBillCount">-</div>
-                <p id="financeBillSummary">等待财务中心状态。</p>
-                <div class="mini-table" id="financeBillRows"></div>
+                <div class="big-number" id="financeInputCount">-</div>
+                <p id="financeInputSummary">等待财务中心状态。</p>
+                <div class="mini-table finance-intake-list" id="financeInputRows"></div>
+                <div class="mini-table finance-intake-list" id="financeManualRows"></div>
               </div>
             </article>
             <article class="module" id="finance-report">

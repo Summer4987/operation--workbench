@@ -1582,129 +1582,51 @@ function renderFinance() {
   const orderSources = finance.order_sources || [];
   const paymentRows = dailyCollection.sources || [];
   const waiting = finance.status === "waiting_samples";
-  text("financeBillStatus", ledgerDesign.status === "ready_for_matching" ? "可匹配" : "建设中");
-  text("financeBillCount", `${Number(summary.payment_source_count || paymentRows.length || 0)} 个流水源`);
-  text("financeBillSummary", dailyCollection.message || finance.message || "财务中心正在建设每日支付流水核对、订单主账和待确认匹配闭环。");
-  document.querySelector("#finance-bills")?.classList.toggle("alert", waiting);
+  const readySourceCount = sources.filter((source) => Number(source.file_count || 0) > 0).length;
+  const requiredSourceCount = sources.filter((source) => source.required).length;
+  const intakeRows = sources.map((source) => {
+    const fileCount = Number(source.file_count || 0);
+    const requiredText = source.required ? "必填" : "选填";
+    const fields = (source.required_fields || []).slice(0, 4).join("、");
+    return {
+      label: fileCount > 0 ? "已接收" : requiredText,
+      value: source.name,
+      detail: `${fileCount} 个文件 · ${source.path || ""}${fields ? ` · 字段：${fields}` : ""}`,
+      warn: source.required && fileCount === 0,
+    };
+  });
+  const manualInputRows = [
+    {
+      label: "人工拆分",
+      value: "小程序点餐收入",
+      detail: "目前无法自动区分门店，每日或月末录入 5 家门店分摊。",
+      warn: true,
+    },
+    {
+      label: "人工调整",
+      value: "应收 / 应付 / 库存",
+      detail: "第一版先作为月末调整入口，后续接库存系统和供应商对账。",
+      warn: true,
+    },
+    {
+      label: "代付结算",
+      value: "他人代付",
+      detail: "统一进入往来清算，确认后再分配到门店或供应链销售。",
+      warn: true,
+    },
+  ];
+  text("financeInputStatus", missing.length ? "待补齐" : "可核对");
+  text("financeInputCount", `${readySourceCount}/${sources.length || requiredSourceCount} 类已到`);
+  text("financeInputSummary", "每天先补银行流水、微信支付、支付宝、平台收入和采购订单；系统后台再做核对、归类和报表预览。");
+  document.querySelector("#finance-intake")?.classList.toggle("alert", waiting);
   rows(
-    "financeBillRows",
-    [
-      ...paymentRows.map((source) => ({
-        label: source.ready ? "流水已到" : "待流水",
-        value: source.name,
-        detail: `${source.file_count || 0} 个文件 · ${source.daily_inbox || ""} · ${(source.match_keys || []).slice(0, 4).join("、")}`,
-        warn: !source.ready,
-      })),
-      ...ledgerTables.map((table) => ({
-        label: table.ready ? "已具备" : "待补齐",
-        value: table.name,
-        detail: `${table.owner || ""} · ${table.purpose || ""}`,
-        warn: !table.ready,
-      })),
-      {
-        label: "月度账本",
-        value: `${monthlyLedgers.length || 0} 本`,
-        detail: monthlyLedgers.length ? monthlyLedgers.map((item) => item.name).join("、") : "待配置门店和供应链账本",
-        warn: monthlyLedgers.length < 6,
-      },
-      {
-        label: "账本雏形",
-        value: `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 0)} 本 / ${Number(ledgerPreviewSummary.work_pool_count || workPoolRows.length || 0)} 个池`,
-        detail: `已入账收入 ${yuan(ledgerPreviewSummary.assigned_income)} · 待分配收入 ${yuan(ledgerPreviewSummary.pending_income)} · 待分配支出 ${yuan(ledgerPreviewSummary.pending_expense)}`,
-        warn: Number(ledgerPreviewSummary.work_pool_count || workPoolRows.length || 0) > 0,
-      },
-      {
-        label: "业务渠道",
-        value: `${(financeChannels.income_channels || []).length || 0} 收入 / ${(financeChannels.expense_channels || []).length || 0} 支出`,
-        detail: "先识别渠道，再归属到 5 家门店和供应链销售账本。",
-        warn: false,
-      },
-      {
-        label: "核对预览",
-        value: reconciliationPreview.status === "ready_for_manual_review" ? "已生成" : "待生成",
-        detail: `${Number(reconciliationSummary.transaction_count || 0)} 笔本期流水 · ${Number(reconciliationSummary.matched_bank_payment_count || 0)} 笔自动匹配 · ${Number(reconciliationSummary.unmatched_payment_count || 0)} 笔待确认`,
-        warn: reconciliationPreview.status !== "ready_for_manual_review",
-      },
-      {
-        label: "出账期间",
-        value: reportingPeriod.month || `${reportingPeriod.start_date || "-"} 至 ${reportingPeriod.end_date || "-"}`,
-        detail: `源流水 ${Number(reconciliationSummary.all_transaction_count || reconciliationSummary.transaction_count || 0)} 笔 · 本期 ${Number(reconciliationSummary.transaction_count || 0)} 笔 · 排除 ${Number(reconciliationSummary.excluded_by_period_count || 0)} 笔`,
-        warn: false,
-      },
-      ...((reconciliationPreview.source_summary || []).map((source) => ({
-        label: "流水汇总",
-        value: source.source_name || source.source,
-        detail: `收入 ${yuan(source.income)} · 支出 ${yuan(source.expense)} · 净额 ${yuan(source.net)}`,
-        warn: false,
-      }))),
-      ...channelRows.slice(0, 8).map((channel) => ({
-        label: "渠道汇总",
-        value: channel.channel_name || channel.channel_id,
-        detail: `${channel.channel_group || "渠道"} · ${channel.ledger_scope || "manual_review"} · ${Number(channel.count || 0)} 笔 · 收入 ${yuan(channel.income)} · 支出 ${yuan(channel.expense)} · 净额 ${yuan(channel.net)}`,
-        warn: channel.channel_group === "待确认渠道",
-      })),
-      ...formalLedgerRows.filter((row) => Number(row.count || 0) > 0).slice(0, 4).map((row) => ({
-        label: "正式账本",
-        value: row.ledger_name || row.ledger_id,
-        detail: `${row.period || ""} · ${Number(row.count || 0)} 笔 · 收入 ${yuan(row.income)} · 支出 ${yuan(row.expense)} · 净额 ${yuan(row.net)}`,
-        warn: row.status !== "assigned",
-      })),
-      ...workPoolRows.slice(0, 5).map((row) => ({
-        label: "待处理池",
-        value: row.ledger_name || row.ledger_id,
-        detail: `${row.period || ""} · ${Number(row.count || 0)} 笔 · 收入 ${yuan(row.income)} · 支出 ${yuan(row.expense)} · 净额 ${yuan(row.net)}`,
-        warn: true,
-      })),
-      {
-        label: "待处理清单",
-        value: `${ledgerReviewRows.length || 0} 条样例`,
-        detail: reconciliationOutputs.review_pools_dir ? `已导出：${reconciliationOutputs.review_pools_dir}` : "重跑流水预览后导出待处理池 CSV。",
-        warn: ledgerReviewRows.length > 0,
-      },
-      {
-        label: "聚合审核表",
-        value: `${reviewRuleGroups.length || 0} 组规则`,
-        detail: reconciliationOutputs.review_rule_groups_csv ? `优先填写：${reconciliationOutputs.review_rule_groups_csv}` : "按交易对方和摘要聚合同类流水，减少逐笔确认。",
-        warn: reviewRuleGroups.length > 0,
-      },
-      ...((assignmentPolicy.manual_split_required || []).map((item) => ({
-        label: "需手动拆分",
-        value: item.channel_id || "规则",
-        detail: item.reason || "",
-        warn: true,
-      }))),
-      {
-        label: "待确认渠道",
-        value: `${channelReviewRows.length} 个样例`,
-        detail: "第一版先确认每笔流水渠道，再进入门店归属。",
-        warn: channelReviewRows.length > 0,
-      },
-      {
-        label: "订货自动化",
-        value: orderFeed.available ? "已接入" : "待订单",
-        detail: `${orderFeed.message || "等待订货自动化或订单导入。"}${orderFeed.estimated_cost ? ` · 预估 ${yuan(orderFeed.estimated_cost)}` : ""}`,
-        warn: !orderFeed.available,
-      },
-      ...sources.map((source) => ({
-        label: source.required ? "必需样例" : "可选样例",
-        value: source.name,
-        detail: `${source.file_count || 0} 个文件 · ${source.path || ""}${source.template_path ? ` · 模板：${source.template_path}` : ""}`,
-        warn: source.required && !source.file_count,
-      })),
-      ...orderSources.slice(0, 4).map((source) => ({
-        label: "订货来源",
-        value: source.name,
-        detail: (source.bank_keywords || []).slice(0, 4).join("、"),
-        warn: false,
-      })),
-      ...intakeChecklist.slice(0, 2).map((item) => ({
-        label: "接收要求",
-        value: item.source || "账单样例",
-        detail: item.message || "",
-        warn: waiting,
-      })),
-      ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、"), warn: true }] : []),
-    ],
+    "financeInputRows",
+    intakeRows,
+    (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+  rows(
+    "financeManualRows",
+    manualInputRows,
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 
