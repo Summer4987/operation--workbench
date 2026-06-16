@@ -303,8 +303,13 @@ def build_plan(order: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_command(args: list[str], timeout: int) -> CommandResult:
-    completed = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
-    return CommandResult(args=args, returncode=completed.returncode, stdout=completed.stdout, stderr=completed.stderr)
+    try:
+        completed = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+        return CommandResult(args=args, returncode=completed.returncode, stdout=completed.stdout, stderr=completed.stderr)
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", errors="ignore")
+        stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode("utf-8", errors="ignore")
+        return CommandResult(args=args, returncode=124, stdout=stdout, stderr=f"timeout after {timeout}s\n{stderr}".strip())
 
 
 def adb_base(serial: str) -> list[str]:
@@ -1374,7 +1379,21 @@ def adb_input_query_text(serial: str, query: str, timeout: int) -> dict[str, Any
     if not query:
         return {"entered": False, "attempts": attempts, "message": "未指定搜索词。"}
 
-    clipboard_result = run_command(adb_base(serial) + ["shell", "cmd", "clipboard", "set", query], timeout)
+    input_timeout = max(3, min(timeout, 6))
+    broadcast_result = run_command(adb_base(serial) + ["shell", "am", "broadcast", "-a", "ADB_INPUT_TEXT", "--es", "msg", query], input_timeout)
+    attempts.append(
+        {
+            "method": "adb_keyboard_broadcast",
+            "returncode": broadcast_result.returncode,
+            "stderr": broadcast_result.stderr.strip(),
+            "stdout": broadcast_result.stdout.strip(),
+        }
+    )
+    if broadcast_result.returncode == 0 and "Broadcast completed" in broadcast_result.stdout:
+        time.sleep(0.8)
+        return {"entered": True, "attempts": attempts, "requires_after_query_check": True}
+
+    clipboard_result = run_command(adb_base(serial) + ["shell", "cmd", "clipboard", "set", query], input_timeout)
     attempts.append(
         {
             "method": "cmd_clipboard_set",
@@ -1384,7 +1403,7 @@ def adb_input_query_text(serial: str, query: str, timeout: int) -> dict[str, Any
         }
     )
     if clipboard_result.returncode == 0:
-        paste_result = run_command(adb_base(serial) + ["shell", "input", "keyevent", "279"], timeout)
+        paste_result = run_command(adb_base(serial) + ["shell", "input", "keyevent", "279"], input_timeout)
         attempts.append(
             {
                 "method": "paste_keyevent_279",
@@ -1398,7 +1417,7 @@ def adb_input_query_text(serial: str, query: str, timeout: int) -> dict[str, Any
 
     if query.isascii():
         escaped = query.replace("%", "%25").replace(" ", "%s")
-        text_result = run_command(adb_base(serial) + ["shell", "input", "text", escaped], timeout)
+        text_result = run_command(adb_base(serial) + ["shell", "input", "text", escaped], input_timeout)
         attempts.append(
             {
                 "method": "input_text_ascii",
@@ -1519,7 +1538,8 @@ def run_adb_search(
         time.sleep(1.2)
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
     after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
-    status = "search_ready_for_manual_review" if tap_result.returncode == 0 and input_result.get("entered") and after.get("captured") else "blocked"
+    query_visible_after = query in after_text_blob
+    status = "search_ready_for_manual_review" if tap_result.returncode == 0 and input_result.get("entered") and after.get("captured") and query_visible_after else "blocked"
     return {
         "status": status,
         "message": "已执行一次受保护搜索输入并保存前后截图；未加购、未删除、未提交订单、未付款。",
@@ -1535,7 +1555,7 @@ def run_adb_search(
         "after_back": after_back,
         "back_results": back_results,
         "after": after,
-        "query_visible_after": query in after_text_blob,
+        "query_visible_after": query_visible_after,
         "safety": {
             "delivery_store_match_required": True,
             "pre_back_count": pre_back_count,
