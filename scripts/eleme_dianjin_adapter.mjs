@@ -294,9 +294,25 @@ class CDP {
   async send(method, params = {}) {
     await this.ready();
     const id = this.nextId++;
+    const timeoutMs = Number(params.__timeoutMs || (method === "Runtime.evaluate" ? 60000 : 30000));
+    delete params.__timeoutMs;
     this.ws.send(JSON.stringify({ id, method, params }));
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!this.pending.has(id)) return;
+        this.pending.delete(id);
+        reject(new Error(`CDP ${method} 超时 ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
     });
   }
 
@@ -312,8 +328,9 @@ async function findOrOpenPromotionTab(config) {
     tab.url.includes("doujin-isv-manage") &&
     tab.url.includes("__path__=eleCpcChain/oldBranch")
   );
-  if (existing) return existing;
-  return cdpJson(`${config.chrome.debugUrl}/json/new?${encodeURIComponent(config.eleme.promotionUrl)}`, { method: "PUT" });
+  const tab = existing || await cdpJson(`${config.chrome.debugUrl}/json/new?${encodeURIComponent(config.eleme.promotionUrl)}`, { method: "PUT" });
+  await fetch(`${config.chrome.debugUrl}/json/activate/${tab.id}`).catch(() => {});
+  return tab;
 }
 
 async function probePromotionPage(config) {
@@ -598,6 +615,7 @@ async function probeExecutionControls(config, storeName, shopId = "", pageNumber
     await cdp.send("Runtime.enable");
     await cdp.send("Page.enable");
     await cdp.send("Network.enable");
+    await cdp.send("Page.bringToFront").catch(() => {});
     await cdp.send("Page.navigate", { url: config.eleme.promotionUrl });
     await new Promise((resolve) => setTimeout(resolve, 5000));
     const result = await cdp.send("Runtime.evaluate", {
@@ -781,6 +799,7 @@ async function runExecutionPreview(config, args) {
     await cdp.send("Runtime.enable");
     await cdp.send("Page.enable");
     await cdp.send("Network.enable");
+    await cdp.send("Page.bringToFront").catch(() => {});
     await cdp.send("Page.navigate", { url: config.eleme.promotionUrl });
     await new Promise((resolve) => setTimeout(resolve, 5000));
     for (const row of rows) {
