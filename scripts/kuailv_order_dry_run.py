@@ -710,14 +710,15 @@ def search_target_words(plan: dict[str, Any], query: str) -> list[str]:
     return list(dict.fromkeys(word for word in words if word))
 
 
-def search_result_hits(analysis: dict[str, Any], target_words: list[str]) -> dict[str, Any]:
+def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dict[str, Any]:
+    analysis = snapshot.get("ui_analysis") or {}
     candidates = analysis.get("orange_add_candidates") or []
-    rows = []
+    candidate_rows = []
     for candidate in candidates:
         text = f"{candidate_text(candidate, 'nearby_texts')} {candidate_text(candidate, 'context_texts')}"
         hits = [word for word in target_words if word and word in text]
         if hits:
-            rows.append(
+            candidate_rows.append(
                 {
                     "center": candidate.get("center"),
                     "bounds": candidate.get("bounds"),
@@ -727,7 +728,20 @@ def search_result_hits(analysis: dict[str, Any], target_words: list[str]) -> dic
                     "text": text,
                 }
             )
-    return {"target_words": target_words, "hit_count": len(rows), "hits": rows[:8]}
+    page_rows = []
+    for text in snapshot.get("detected_text") or []:
+        hits = [word for word in target_words if word and word in str(text)]
+        if hits:
+            page_rows.append({"text": text, "hits": hits})
+    return {
+        "target_words": target_words,
+        "hit_count": len(candidate_rows),
+        "hits": candidate_rows[:8],
+        "candidate_hit_count": len(candidate_rows),
+        "candidate_hits": candidate_rows[:8],
+        "page_text_hit_count": len(page_rows),
+        "page_text_hits": page_rows[:12],
+    }
 
 
 def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
@@ -1690,18 +1704,34 @@ def run_adb_search(
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
     after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
     query_visible_after = query in after_text_blob
-    result_check = search_result_hits(after.get("ui_analysis") or {}, search_target_words(plan, query))
+    target_words = search_target_words(plan, query)
+    result_check = search_result_hits(after, target_words)
     search_key_retry = None
     after_search_key = None
-    if press_enter and after.get("captured") and query_visible_after and not result_check.get("hit_count"):
+    scroll_retry = None
+    after_target_scroll = None
+
+    if press_enter and after.get("captured") and query_visible_after and not result_check.get("candidate_hit_count"):
         search_key = run_command(adb_base(serial) + ["shell", "input", "keyevent", "KEYCODE_SEARCH"], timeout)
         search_key_retry = {"returncode": search_key.returncode, "stderr": search_key.stderr.strip(), "stdout": search_key.stdout.strip()}
         time.sleep(2.0)
         after_search_key = save_adb_snapshot(serial, session_dir / "after-search-key", timeout, plan)
-        retry_check = search_result_hits(after_search_key.get("ui_analysis") or {}, search_target_words(plan, query))
-        if retry_check.get("hit_count"):
+        retry_check = search_result_hits(after_search_key, target_words)
+        if retry_check.get("candidate_hit_count") or retry_check.get("page_text_hit_count"):
             after = after_search_key
             result_check = retry_check
+            after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
+            query_visible_after = query in after_text_blob
+
+    if after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count"):
+        swipe = run_command(adb_base(serial) + ["shell", "input", "swipe", "540", "1980", "540", "900", "450"], timeout)
+        scroll_retry = {"returncode": swipe.returncode, "stderr": swipe.stderr.strip(), "stdout": swipe.stdout.strip()}
+        time.sleep(1.5)
+        after_target_scroll = save_adb_snapshot(serial, session_dir / "after-target-scroll", timeout, plan)
+        scroll_check = search_result_hits(after_target_scroll, target_words)
+        if scroll_check.get("candidate_hit_count") or scroll_check.get("page_text_hit_count"):
+            after = after_target_scroll
+            result_check = scroll_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
             query_visible_after = query in after_text_blob
     status = (
@@ -1710,11 +1740,13 @@ def run_adb_search(
         and input_result.get("entered")
         and after.get("captured")
         and query_visible_after
-        and result_check.get("hit_count")
+        and result_check.get("candidate_hit_count")
         else "blocked"
     )
     message = "已执行一次受保护搜索输入并保存前后截图；未加购、未删除、未提交订单、未付款。"
-    if query_visible_after and not result_check.get("hit_count"):
+    if query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count"):
+        message = "搜索结果文本已命中目标，但未找到目标卡片的加购候选；已阻断。未加购、未删除、未提交订单、未付款。"
+    elif query_visible_after and not result_check.get("candidate_hit_count"):
         message = "搜索词可见，但结果候选卡片未命中目标关键词；按未刷新/未命中阻断。未加购、未删除、未提交订单、未付款。"
     return {
         "status": status,
@@ -1732,13 +1764,16 @@ def run_adb_search(
         "back_results": back_results,
         "after": after,
         "after_search_key": after_search_key,
+        "after_target_scroll": after_target_scroll,
         "query_visible_after": query_visible_after,
         "search_result_check": result_check,
         "search_key_retry": search_key_retry,
+        "scroll_retry": scroll_retry,
         "safety": {
             "delivery_store_match_required": True,
             "pre_back_count": pre_back_count,
             "single_search_tap_only": True,
+            "controlled_scroll_retry": bool(scroll_retry),
             "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
         },
     }
