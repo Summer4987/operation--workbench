@@ -43,7 +43,8 @@ SAFE_TIME="${TIME_POINT/:/}"
 LOG_DIR="$ROOT/outputs/dianjin_automation/logs"
 mkdir -p "$LOG_DIR"
 RUN_LOG="$LOG_DIR/eleme_${SAFE_TIME}_$(date +%Y%m%d_%H%M%S).log"
-exec > >(tee -a "$RUN_LOG") 2>&1
+
+main() {
 
 echo "== 饿了么点金自动化 =="
 echo "时间点：$TIME_POINT"
@@ -141,3 +142,7 @@ echo "执行结果：$LATEST_EXEC_RESULT"
 echo
 echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "日志：$RUN_LOG"
+}
+
+main "$@" 2>&1 | tee -a "$RUN_LOG"
+exit "${pipestatus[1]}"
