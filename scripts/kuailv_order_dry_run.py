@@ -597,7 +597,9 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     row_preferred_hits = [word for word in preferred if word in row_text]
     context_preferred_hits = [word for word in preferred if word in all_text]
     excluded_hits = [word for word in excluded if word in all_text]
-    pack_hits = [pack_label] if pack_label and (pack_label in row_text or pack_label in context_text) else []
+    row_pack_hit = bool(pack_label and valid_pack_label_hit(row_text, pack_label))
+    context_pack_hit = bool(pack_label and valid_pack_label_hit(context_text, pack_label))
+    pack_hits = [pack_label] if pack_label and (row_pack_hit or context_pack_hit) else []
     identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
     identity_hits = [word for word in identity_keywords if word in all_text]
     reasons = []
@@ -633,7 +635,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         "identity_hits": identity_hits,
         "excluded_hits": excluded_hits,
         "pack_hits": pack_hits,
-        "pack_label_scope": "nearby_row" if pack_label and pack_label in row_text else ("card_context" if pack_hits else ""),
+        "pack_label_scope": "nearby_row" if row_pack_hit else ("card_context" if context_pack_hit else ""),
         "center": candidate.get("center"),
         "bounds": candidate.get("bounds"),
     }
@@ -641,6 +643,23 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
 
 def looks_like_spec_keyword(word: str) -> bool:
     return bool(re.search(r"\d", word)) or word in {"斤", "盒", "箱", "桶", "瓶", "袋", "g", "kg"}
+
+
+def valid_pack_label_hit(text: str, pack_label: str) -> bool:
+    if not text or not pack_label:
+        return False
+    for match in re.finditer(re.escape(pack_label), text):
+        start, end = match.span()
+        prefix = text[max(0, start - 6) : start]
+        suffix = text[end : min(len(text), end + 6)]
+        if "同品" in prefix or "低价" in suffix:
+            continue
+        if end < len(text) and text[end].isdigit():
+            continue
+        if start > 0 and text[start - 1].isdigit():
+            continue
+        return True
+    return False
 
 
 def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
