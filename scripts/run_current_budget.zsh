@@ -67,6 +67,7 @@ RUN_LOG="$LOG_DIR/current_budget_${PERIOD}_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 
 NODE="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+NODE_RUNTIME_ROOT="${BUDGET_NODE_RUNTIME_ROOT:-$HOME/Library/Application Support/xiong-operation/node-runtime}"
 PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
 if [ ! -x "$PYTHON" ]; then
   PYTHON="python3"
@@ -179,10 +180,25 @@ run_required_step() {
   return "$rc"
 }
 
-run_node_from_safe_cwd() {
-  local script_path="$1"
+prepare_budget_node_runtime() {
+  mkdir -p \
+    "$NODE_RUNTIME_ROOT/scripts" \
+    "$NODE_RUNTIME_ROOT/dianjin-prototype" \
+    "$NODE_RUNTIME_ROOT/config" \
+    "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview"
+  /bin/cp "$ROOT/scripts/build_promo_budget_preview.mjs" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"
+  /bin/cp "$ROOT/scripts/promo_budget_resolver.mjs" "$NODE_RUNTIME_ROOT/scripts/promo_budget_resolver.mjs"
+  /bin/cp "$ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
+  /bin/cp "$ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
+  /bin/cp "$ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
+}
+
+run_node_runtime_script() {
+  local runtime_root="$1"
+  local script_path="$2"
   shift
-  cd "$HOME/Library/Scripts/xiong-operation"
+  shift
+  cd "$runtime_root"
   exec "$NODE" "$script_path" "$@"
 }
 
@@ -192,8 +208,11 @@ else
   rc=$?
   exit "$rc"
 fi
-if run_required_step "${PERIOD}预算预览生成" "${BUDGET_PREVIEW_BUILD_TIMEOUT_SECONDS:-120}" run_node_from_safe_cwd "$ROOT/scripts/build_promo_budget_preview.mjs"; then
-  :
+prepare_budget_node_runtime
+if run_required_step "${PERIOD}预算预览生成" "${BUDGET_PREVIEW_BUILD_TIMEOUT_SECONDS:-120}" run_node_runtime_script "$NODE_RUNTIME_ROOT" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"; then
+  mkdir -p "$ROOT/outputs/promo_budget_preview"
+  /bin/cp "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview/latest.json" "$ROOT/outputs/promo_budget_preview/latest.json"
+  /bin/cp "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview/latest-data.js" "$ROOT/outputs/promo_budget_preview/latest-data.js"
 else
   rc=$?
   exit "$rc"
