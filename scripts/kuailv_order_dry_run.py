@@ -1292,6 +1292,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     orange_candidates = annotate_add_candidates(dedup_add_candidates(filter_visible_xml_add_candidates(raw_add_candidates, image_path)), plan)
     cart_entry_candidates = find_cart_entry_candidates(nodes, image_path)
     search_entry_candidates = find_search_entry_candidates(nodes, image_path)
+    search_submit_candidates = find_search_submit_candidates(nodes)
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
     expected_store = str(plan.get("store_name") or "")
@@ -1305,6 +1306,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "orange_add_candidates": orange_candidates,
         "cart_entry_candidates": cart_entry_candidates,
         "search_entry_candidates": search_entry_candidates,
+        "search_submit_candidates": search_submit_candidates,
         "visible_text_nodes": visible_text_nodes(nodes),
         "target_card_add_diagnostics": target_card_add_diagnostics(nodes, plan),
         "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
@@ -1707,6 +1709,45 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         seen.add(key)
         deduped.append(row)
     return deduped[:12]
+
+
+def find_search_submit_candidates(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for node in nodes:
+        text = node_text(node).strip()
+        bounds = tuple(node["bounds"])
+        if text != "搜索" or bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        cx, cy = bounds_center(bounds)
+        if not (cx >= 760 and 70 <= cy <= 360):
+            continue
+        width = bounds[2] - bounds[0]
+        height = bounds[3] - bounds[1]
+        if width > 240 or height > 110:
+            continue
+        score = 100
+        if cy <= 220:
+            score += 35
+        if cx >= 900:
+            score += 20
+        rows.append(
+            {
+                "kind": "search_submit",
+                "center": [round(cx, 1), round(cy, 1)],
+                "bounds": list(bounds),
+                "score": score,
+                "text": text,
+                "class": node.get("class", ""),
+                "resource_id": node.get("resource_id", ""),
+            }
+        )
+    rows.sort(key=lambda item: (-item.get("score", 0), item["bounds"][1], -item["bounds"][0]))
+    return rows[:5]
+
+
+def is_search_overlay_snapshot(snapshot: dict[str, Any]) -> bool:
+    text_blob = " ".join(str(text) for text in snapshot.get("detected_text") or [])
+    return any(word in text_blob for word in ["历史搜索", "猜你想搜", "常买清单"])
 
 
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
@@ -2222,6 +2263,8 @@ def run_adb_search(
     result_check = search_result_hits(after, target_words)
     search_key_retry = None
     after_search_key = None
+    submit_tap_retry = None
+    after_submit_tap = None
     scroll_retry = None
     scroll_retries = []
     after_target_scroll = None
@@ -2237,6 +2280,25 @@ def run_adb_search(
             result_check = retry_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
             query_visible_after = query in after_text_blob
+
+    if press_enter and after.get("captured") and query_visible_after and is_search_overlay_snapshot(after):
+        submit_candidates = (after.get("ui_analysis") or {}).get("search_submit_candidates") or []
+        if submit_candidates:
+            submit = submit_candidates[0]
+            sx, sy = [int(round(float(value))) for value in submit.get("center", [0, 0])]
+            tap_submit = run_command(adb_base(serial) + ["shell", "input", "tap", str(sx), str(sy)], timeout)
+            submit_tap_retry = {
+                "candidate": submit,
+                "tap": {"x": sx, "y": sy, "returncode": tap_submit.returncode, "stderr": tap_submit.stderr.strip(), "stdout": tap_submit.stdout.strip()},
+            }
+            time.sleep(2.0)
+            after_submit_tap = save_adb_snapshot(serial, session_dir / "after-submit-tap", timeout, plan)
+            submit_check = search_result_hits(after_submit_tap, target_words)
+            if submit_check.get("candidate_hit_count") or submit_check.get("page_text_hit_count"):
+                after = after_submit_tap
+                result_check = submit_check
+                after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
+                query_visible_after = query in after_text_blob
 
     for scroll_index in range(1, 4):
         if not (after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count")):
@@ -2295,16 +2357,19 @@ def run_adb_search(
         "back_results": back_results,
         "after": after,
         "after_search_key": after_search_key,
+        "after_submit_tap": after_submit_tap,
         "after_target_scroll": after_target_scroll,
         "query_visible_after": query_visible_after,
         "search_result_check": result_check,
         "search_key_retry": search_key_retry,
+        "submit_tap_retry": submit_tap_retry,
         "scroll_retry": scroll_retry,
         "scroll_retries": scroll_retries,
         "safety": {
             "delivery_store_match_required": True,
             "pre_back_count": pre_back_count,
             "single_search_tap_only": True,
+            "single_search_submit_retry": bool(submit_tap_retry),
             "controlled_scroll_retry": bool(scroll_retries),
             "max_controlled_scroll_retries": 3,
             "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
