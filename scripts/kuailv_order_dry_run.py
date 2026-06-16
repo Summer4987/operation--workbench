@@ -774,7 +774,8 @@ def find_cart_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) ->
 
     rows: list[dict[str, Any]] = []
     bottom_clickables = [node for node in nodes if node.get("clickable") and node["bounds"][1] >= int(image_height * 0.90)]
-    for node in bottom_clickables:
+    bottom_clickables.sort(key=lambda item: item["bounds"][0])
+    for tab_position, node in enumerate(bottom_clickables, start=1):
         bounds = tuple(node["bounds"])
         cx, cy = bounds_center(bounds)
         index_guess = round(cx / (image_width / max(len(bottom_clickables), 1))) if bottom_clickables else 0
@@ -783,6 +784,9 @@ def find_cart_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) ->
         if int(image_width * 0.35) <= cx <= int(image_width * 0.85):
             score += 8
             reasons.append("middle_or_right_bottom_tab")
+        if len(bottom_clickables) == 5 and tab_position == 4:
+            score += 35
+            reasons.append("common_kuailv_cart_tab_position")
         rows.append(
             {
                 "kind": "bottom_tab",
@@ -791,6 +795,7 @@ def find_cart_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) ->
                 "score": score,
                 "reasons": reasons,
                 "index_guess": index_guess,
+                "tab_position": tab_position,
                 "text": node_text(node),
             }
         )
