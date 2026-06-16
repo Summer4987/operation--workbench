@@ -1045,7 +1045,16 @@ def search_target_words(plan: dict[str, Any], query: str) -> list[str]:
         if not normalized_query or not any(name and (name in normalized_query or normalized_query in name) for name in compact_names):
             continue
         words.extend(str(word) for word in line.get("required_keywords") or [] if word)
-        words.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if word)
+        spec_words = [
+            str(word)
+            for word in list(line.get("preferred_spec_keywords") or []) + line_pack_labels(line)
+            if looks_like_spec_keyword(str(word))
+        ]
+        query_spec_words = [word for word in spec_words if word and word.replace(" ", "") in normalized_query]
+        if query_spec_words:
+            words.extend(query_spec_words)
+        else:
+            words.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if word)
     if not words and query:
         words.append(query)
     return list(dict.fromkeys(word for word in words if word))
