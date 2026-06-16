@@ -1562,16 +1562,24 @@ function renderFinance() {
   const reportGeneration = finance.report_generation || {};
   const ledgerDesign = finance.ledger_design || {};
   const orderFeed = finance.order_automation_feed || {};
+  const dailyCollection = finance.daily_collection || {};
   const ledgerTables = ledgerDesign.tables || [];
   const orderSources = finance.order_sources || [];
+  const paymentRows = dailyCollection.sources || [];
   const waiting = finance.status === "waiting_samples";
   text("financeBillStatus", ledgerDesign.status === "ready_for_matching" ? "可匹配" : "建设中");
-  text("financeBillCount", `${Number(summary.ledger_table_count || ledgerTables.length || 0)} 张主表`);
-  text("financeBillSummary", finance.message || "财务中心正在建设订单主账、银行核销和待确认匹配闭环。");
+  text("financeBillCount", `${Number(summary.payment_source_count || paymentRows.length || 0)} 个流水源`);
+  text("financeBillSummary", dailyCollection.message || finance.message || "财务中心正在建设每日支付流水核对、订单主账和待确认匹配闭环。");
   document.querySelector("#finance-bills")?.classList.toggle("alert", waiting);
   rows(
     "financeBillRows",
     [
+      ...paymentRows.map((source) => ({
+        label: source.ready ? "流水已到" : "待流水",
+        value: source.name,
+        detail: `${source.file_count || 0} 个文件 · ${source.daily_inbox || ""} · ${(source.match_keys || []).slice(0, 4).join("、")}`,
+        warn: !source.ready,
+      })),
       ...ledgerTables.map((table) => ({
         label: table.ready ? "已具备" : "待补齐",
         value: table.name,
@@ -1612,10 +1620,15 @@ function renderFinance() {
     value: item,
     detail: "财务自动化闭环",
   }));
+  const collectionRows = (dailyCollection.policy?.reconciliation_priority || []).slice(0, 4).map((item, index) => ({
+    label: `日核对 ${index + 1}`,
+    value: item,
+    detail: dailyCollection.policy?.default_mode === "preview_only" ? "只读预览" : "每日采集",
+  }));
   const policyRows = (ledgerDesign.policy?.auto_match_priority || []).slice(0, 4).map((item, index) => ({
     label: `匹配 ${index + 1}`,
     value: item,
-    detail: ledgerDesign.policy?.primary_cost_owner || "订单先归属门店，银行流水后核销。",
+    detail: ledgerDesign.policy?.primary_cost_owner || "订单先归属门店，支付流水确认，银行流水后核销。",
   }));
 
   text("financeReportStatus", reportGeneration.status_text || "建设中");
@@ -1626,6 +1639,7 @@ function renderFinance() {
     [
       { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
       { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
+      ...collectionRows,
       ...workflowRows,
       ...policyRows,
       ...(reportGeneration.report_outputs || []).slice(0, 4).map((item) => ({

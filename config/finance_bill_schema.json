@@ -1,8 +1,10 @@
 {
-  "version": 2,
-  "updated_at": "2026-06-15",
+  "version": 3,
+  "updated_at": "2026-06-16",
   "sample_inbox": {
     "bank": "data/finance-inbox/bank",
+    "wechat_pay": "data/finance-inbox/wechat-pay",
+    "alipay": "data/finance-inbox/alipay",
     "platform_income": "data/finance-inbox/platform-income",
     "procurement_orders": "data/finance-inbox/procurement-orders",
     "wechat_orders": "data/finance-inbox/wechat-orders",
@@ -18,7 +20,7 @@
   "required_sources": [
     {
       "id": "bank",
-      "name": "银行账单",
+      "name": "银行流水",
       "required_fields": [
         "交易日期",
         "交易时间",
@@ -27,6 +29,38 @@
         "对方户名",
         "摘要",
         "交易流水号"
+      ]
+    },
+    {
+      "id": "wechat_pay",
+      "name": "微信支付账单",
+      "required_fields": [
+        "交易时间",
+        "交易类型",
+        "交易对方",
+        "商品",
+        "收支方向",
+        "金额",
+        "支付方式",
+        "商户单号",
+        "交易单号",
+        "备注"
+      ]
+    },
+    {
+      "id": "alipay",
+      "name": "支付宝账单",
+      "required_fields": [
+        "交易时间",
+        "交易分类",
+        "交易对方",
+        "商品说明",
+        "收支方向",
+        "金额",
+        "支付方式",
+        "商家订单号",
+        "支付宝交易号",
+        "备注"
       ]
     },
     {
@@ -146,12 +180,87 @@
       ]
     }
   ],
+  "payment_sources": [
+    {
+      "id": "wechat_pay",
+      "name": "微信支付",
+      "type": "payment_statement",
+      "daily_inbox": "data/finance-inbox/wechat-pay",
+      "macmini_collection": "后续在 Mac mini 使用已登录微信/浏览器导出账单；当前只做导入和核对，不自动付款。",
+      "match_keys": [
+        "交易单号",
+        "商户单号",
+        "金额",
+        "交易时间",
+        "交易对方",
+        "备注"
+      ]
+    },
+    {
+      "id": "alipay",
+      "name": "支付宝",
+      "type": "payment_statement",
+      "daily_inbox": "data/finance-inbox/alipay",
+      "macmini_collection": "后续在 Mac mini 使用已登录支付宝/浏览器导出账单；当前只做导入和核对，不自动付款。",
+      "match_keys": [
+        "支付宝交易号",
+        "商家订单号",
+        "金额",
+        "交易时间",
+        "交易对方",
+        "备注"
+      ]
+    },
+    {
+      "id": "bank",
+      "name": "银行流水",
+      "type": "settlement_statement",
+      "daily_inbox": "data/finance-inbox/bank",
+      "macmini_collection": "后续在 Mac mini 从网银或银行下载目录接收流水；当前只做导入和核对，不发起转账。",
+      "match_keys": [
+        "交易流水号",
+        "交易金额",
+        "交易日期",
+        "对方户名",
+        "摘要"
+      ]
+    }
+  ],
+  "daily_collection_policy": {
+    "schedule": "每日采集昨日和今日新增流水，先生成只读核对结果。",
+    "default_mode": "preview_only",
+    "sources": [
+      "微信支付账单",
+      "支付宝账单",
+      "银行流水"
+    ],
+    "reconciliation_priority": [
+      "微信/支付宝交易单号和平台订单号、订货订单号精确匹配",
+      "微信/支付宝付款记录先匹配订货订单，再和银行出账核对",
+      "外卖平台结算先匹配平台收入账单，再和银行入账核对",
+      "金额一致、日期相近、对方户名或备注相近时自动建议匹配",
+      "多笔合并、手续费差异、退款冲正和跨日到账进入待确认池"
+    ],
+    "outputs": [
+      "每日支付流水核对表",
+      "未匹配微信/支付宝付款",
+      "未匹配银行入账/出账",
+      "门店月度损益表预览",
+      "需要人工确认的匹配规则"
+    ],
+    "blocked_actions": [
+      "自动转账",
+      "自动付款",
+      "自动提交正式财务结果",
+      "绕过平台登录或验证码"
+    ]
+  },
   "matching_policy": {
-    "primary_cost_owner": "订货订单先归属门店，银行流水只做付款核销。",
+    "primary_cost_owner": "订货订单先归属门店，微信/支付宝确认支付，银行流水做最终资金核销。",
     "auto_match_priority": [
       "订单号或付款备注精确匹配",
       "金额一致且交易日期在下单日期前后 7 天内",
-      "银行摘要命中订单来源或供应商关键词",
+      "微信/支付宝交易对方或银行摘要命中订单来源、供应商关键词",
       "收货地址、店铺名或手机号命中门店基础表",
       "无法判定时进入待确认池，人工确认后沉淀规则"
     ],

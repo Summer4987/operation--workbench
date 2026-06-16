@@ -371,6 +371,8 @@
         "outputs/finance_center_status/latest.json",
         "data/finance-inbox/templates/",
         "data/finance-inbox/bank/",
+        "data/finance-inbox/wechat-pay/",
+        "data/finance-inbox/alipay/",
         "data/finance-inbox/platform-income/",
         "data/finance-inbox/procurement-orders/",
         "data/finance-inbox/wechat-orders/",
@@ -378,10 +380,10 @@
         "data/finance-inbox/manual-matches/"
       ],
       "health_checks": [
-        "订单主账、银行流水和门店基础表样例目录可检查",
+        "微信支付、支付宝、银行流水、订单主账和门店基础表样例目录可检查",
         "样例接收清单列出目录、格式和必需字段",
         "快驴、淘宝、拼多多和微信群订货来源字段模板可读取",
-        "银行流水可按订单主账做付款核销",
+        "微信支付、支付宝和银行流水可按订单主账做付款核销",
         "收入、佣金、配送费、推广费、退款、补贴可拆分",
         "异常费用可追溯到原始行"
       ],
@@ -390,7 +392,7 @@
         "确认科目口径",
         "解释无法自动分类的流水"
       ],
-      "next_integration_step": "订单主账、银行核销、门店基础表和人工确认匹配闭环已接入，下一步在样例到位后做自动匹配。"
+      "next_integration_step": "微信支付、支付宝、银行流水、订单主账、门店基础表和人工确认匹配闭环已接入，下一步在样例到位后做每日自动核对。"
     },
     {
       "id": "finance.report_generation",
@@ -409,7 +411,7 @@
         "财务报表待生成"
       ],
       "health_checks": [
-        "订单主账、银行流水、门店基础表和平台收入样例已接收",
+        "订单主账、微信支付、支付宝、银行流水、门店基础表和平台收入样例已接收",
         "付款匹配规则和科目字典已确认",
         "营业收入、佣金、配送费、推广费、退款、补贴可汇总",
         "门店利润表可生成",

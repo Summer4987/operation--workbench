@@ -119,14 +119,56 @@ def load_order_automation_feed() -> dict[str, Any]:
     }
 
 
+def build_daily_collection_design(schema: dict[str, Any], sources: list[dict[str, Any]]) -> dict[str, Any]:
+    source_files = {item["id"]: item.get("file_count", 0) for item in sources}
+    payment_sources = schema.get("payment_sources") or []
+    rows = []
+    ready_count = 0
+    for source in payment_sources:
+        source_id = source.get("id") or ""
+        file_count = int(source_files.get(source_id) or 0)
+        ready = file_count > 0
+        if ready:
+            ready_count += 1
+        rows.append(
+            {
+                "id": source_id,
+                "name": source.get("name") or source_id,
+                "type": source.get("type") or "",
+                "daily_inbox": source.get("daily_inbox") or "",
+                "file_count": file_count,
+                "ready": ready,
+                "match_keys": source.get("match_keys") or [],
+                "macmini_collection": source.get("macmini_collection") or "",
+            }
+        )
+
+    policy = schema.get("daily_collection_policy") or {}
+    required_count = len(payment_sources)
+    status = "ready_for_reconciliation" if required_count and ready_count == required_count else "waiting_daily_statements"
+    return {
+        "status": status,
+        "status_text": "可核对" if status == "ready_for_reconciliation" else "待流水",
+        "ready_count": ready_count,
+        "required_count": required_count,
+        "sources": rows,
+        "policy": policy,
+        "message": (
+            "微信支付、支付宝和银行流水都到位后，可生成每日支付流水核对和损益表预览。"
+            if status != "ready_for_reconciliation"
+            else "微信支付、支付宝和银行流水已具备，可进入每日核对预览。"
+        ),
+    }
+
+
 def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sources: list[dict[str, Any]]) -> dict[str, Any]:
     source_files = {item["id"]: item.get("file_count", 0) for item in sources}
     procurement_files = source_files.get("procurement_orders", 0) + source_files.get("wechat_orders", 0)
     order_book_ready = bool(procurement_files or order_feed.get("available"))
-    bank_ready = bool(source_files.get("bank", 0))
+    payment_ready = all(source_files.get(source.get("id") or "", 0) for source in schema.get("payment_sources") or [{"id": "bank"}])
     stores_ready = bool(source_files.get("stores", 0))
     income_ready = bool(source_files.get("platform_income", 0))
-    can_start_matching = order_book_ready and bank_ready and stores_ready
+    can_start_matching = order_book_ready and payment_ready and stores_ready
     matching_policy = schema.get("matching_policy") or {}
     return {
         "status": "ready_for_matching" if can_start_matching else "waiting_foundation",
@@ -140,10 +182,10 @@ def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sour
             },
             {
                 "id": "bank_transactions",
-                "name": "银行流水",
-                "owner": "银行账单导入",
-                "purpose": "确认付款、到账和退款真实发生。",
-                "ready": bank_ready,
+                "name": "支付流水池",
+                "owner": "微信支付 + 支付宝 + 银行流水",
+                "purpose": "确认付款、到账、退款和最终资金核销。",
+                "ready": payment_ready,
             },
             {
                 "id": "payment_matches",
@@ -162,7 +204,7 @@ def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sour
         ],
         "inputs": {
             "order_book_ready": order_book_ready,
-            "bank_ready": bank_ready,
+            "payment_ready": payment_ready,
             "stores_ready": stores_ready,
             "income_ready": income_ready,
             "procurement_file_count": procurement_files,
@@ -170,16 +212,16 @@ def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sour
         },
         "workflow": [
             "订货自动化或订单导入先生成订单主账，并写入门店、来源、供应商和金额。",
-            "银行流水导入后按订单号、金额、日期、供应商关键词和门店规则自动核销。",
-            "一对多、合并付款、微信群备注不清等场景进入待确认池。",
+            "微信支付、支付宝和银行流水每日导入后，按交易号、金额、日期、供应商关键词和门店规则自动核对。",
+            "一对多、合并付款、跨日到账、手续费差异和微信群备注不清等场景进入待确认池。",
             "人工确认结果写入 manual_matches，下次按相同规则自动识别。",
-            "外卖收入账单合并后生成每月门店收入、成本、费用和利润。",
+            "外卖收入账单合并后生成每日核对表和每月门店收入、成本、费用、利润。",
         ],
         "policy": matching_policy,
         "message": (
-            "订单主账、银行流水和门店基础表到位后，可开始自动付款匹配。"
+            "订单主账、支付流水和门店基础表到位后，可开始自动付款匹配。"
             if not can_start_matching
-            else "订单主账、银行流水和门店基础表已具备，可进入自动付款匹配。"
+            else "订单主账、支付流水和门店基础表已具备，可进入自动付款匹配。"
         ),
     }
 
@@ -215,6 +257,7 @@ def build_payload() -> dict[str, Any]:
 
     accounts = schema.get("accounts") or []
     order_feed = load_order_automation_feed()
+    daily_collection = build_daily_collection_design(schema, sources)
     ledger_design = build_ledger_design(schema, order_feed, sources)
     ready_for_mapping = ledger_design["status"] == "ready_for_matching" and bool(accounts)
     income_ready = ledger_design["inputs"]["income_ready"]
@@ -228,7 +271,7 @@ def build_payload() -> dict[str, Any]:
         "status_text": "待报表预览" if report_status == "ready_for_report_preview" else ("待映射" if ready_for_mapping else "待样例"),
         "account_count": len(accounts),
         "required_before": [
-            "订单主账、银行流水和门店基础表已接收",
+            "订单主账、微信支付、支付宝、银行流水和门店基础表已接收",
             "付款匹配可稳定识别门店和费用科目",
             "外卖收入账单已接收并确认报表期间",
         ],
@@ -257,11 +300,14 @@ def build_payload() -> dict[str, Any]:
             "missing_count": len(missing),
             "account_count": len(accounts),
             "order_source_count": len(schema.get("order_sources") or []),
+            "payment_source_count": len(schema.get("payment_sources") or []),
             "ledger_table_count": len(ledger_design["tables"]),
         },
         "sources": sources,
         "accounts": accounts,
         "order_sources": schema.get("order_sources") or [],
+        "payment_sources": schema.get("payment_sources") or [],
+        "daily_collection": daily_collection,
         "order_automation_feed": order_feed,
         "ledger_design": ledger_design,
         "report_generation": report_generation,
@@ -274,7 +320,9 @@ def build_payload() -> dict[str, Any]:
             "templates_ready": all(item.get("template_ready") for item in sources),
         },
         "next_input_needed": [
-            "银行账单样例放入 data/finance-inbox/bank",
+            "微信支付账单样例放入 data/finance-inbox/wechat-pay",
+            "支付宝账单样例放入 data/finance-inbox/alipay",
+            "银行流水样例放入 data/finance-inbox/bank",
             "门店基础表放入 data/finance-inbox/stores",
             "快驴/淘宝/拼多多订单导出放入 data/finance-inbox/procurement-orders，微信群订货记录放入 data/finance-inbox/wechat-orders",
             "美团/饿了么/抖音等平台收入账单放入 data/finance-inbox/platform-income",
