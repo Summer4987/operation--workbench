@@ -35,7 +35,8 @@ def main() -> int:
     adb = data.get("adb") or {}
     snapshot = adb.get("snapshot") or {}
     before = adb.get("before") or {}
-    analysis = snapshot.get("ui_analysis") or before.get("ui_analysis") or {}
+    after = adb.get("after") or {}
+    analysis = snapshot.get("ui_analysis") or after.get("ui_analysis") or before.get("ui_analysis") or {}
     candidates = analysis.get("orange_add_candidates") or []
     tofu_recs = [
         {
