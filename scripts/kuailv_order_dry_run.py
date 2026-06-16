@@ -391,7 +391,7 @@ def save_adb_snapshot(serial: str, session_dir: Path, timeout: int, plan: dict[s
     snapshot["detected_text"] = detect_page_text(xml_text)
     snapshot["plan_match"] = analyze_page_against_plan(xml_text, plan)
     snapshot["ui_analysis"] = analyze_snapshot_ui(xml_text, Path(snapshot["files"].get("screen", "")), plan)
-    snapshot["cart_review_details"] = analyze_cart_review_xml(xml_text)
+    snapshot["cart_review_details"] = analyze_cart_review_xml(xml_text, plan)
     snapshot["cart_review_page"] = bool(snapshot["cart_review_details"].get("reached_cart"))
     snapshot["kuailv_hint_found"] = any(text in xml_text for text in ["快驴", "美团", "购物车", "搜索"])
     return snapshot
@@ -1334,6 +1334,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
     expected_store = str(plan.get("store_name") or "")
+    cart_review_page = is_cart_review_page(xml_text)
     analysis = {
         "node_count": len(nodes),
         "clickable_nodes": clickable,
@@ -1347,8 +1348,8 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "search_submit_candidates": search_submit_candidates,
         "visible_text_nodes": visible_text_nodes(nodes),
         "target_card_add_diagnostics": target_card_add_diagnostics(nodes, plan),
-        "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
-        "product_detail_page": is_product_detail_page(nodes, detect_page_text(xml_text)),
+        "cart_review_page": cart_review_page,
+        "product_detail_page": False if cart_review_page else is_product_detail_page(nodes, detect_page_text(xml_text)),
     }
     analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
     analysis["blocked_orange_candidates"] = [
@@ -1406,7 +1407,137 @@ def is_product_detail_page(nodes: list[dict[str, Any]], detected_text: list[str]
     return bool(has_favorite and has_bottom_cart and has_detail_bottom_layout)
 
 
-def analyze_cart_review_xml(xml_text: str) -> dict[str, Any]:
+def plan_expected_cart_terms(plan: dict[str, Any] | None) -> list[str]:
+    terms = []
+    for line in (plan or {}).get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        terms.append(str(line.get("name") or ""))
+        terms.extend(str(term) for term in line.get("search_terms") or [])
+        terms.extend(str(word) for word in line.get("required_keywords") or [] if not looks_like_spec_keyword(str(word)))
+        terms.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if not looks_like_spec_keyword(str(word)))
+    return list(dict.fromkeys(term for term in terms if term))
+
+
+def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    expected_terms = plan_expected_cart_terms(plan)
+    excluded_prefixes = ("月售", "买过", "比上次", "同品", "推荐", "自营", "特价", "快驴自营", "全部", "查看更多")
+
+    def is_title_node(text: str, bounds: list[int]) -> bool:
+        x1, y1, x2, y2 = bounds
+        if not (408 <= x1 <= 418 and 500 <= y1 <= 1650 and x2 >= 500):
+            return False
+        if not re.search(r"[\u4e00-\u9fff]", text):
+            return False
+        if text.startswith(excluded_prefixes) or any(word in text for word in ["同行都在买", "送达", "¥", "￥", "/斤", "/袋", "/盒", "去结算", "合计", "全选"]):
+            return False
+        if valid_pack_label_hit(text, "10斤") or valid_pack_label_hit(text, "400g") or "kg×" in text:
+            return False
+        return True
+
+    visible_nodes = [
+        node
+        for node in nodes
+        if node_text(node)
+        and len(node.get("bounds") or []) == 4
+        and node["bounds"][2] > node["bounds"][0]
+        and node["bounds"][3] > node["bounds"][1]
+    ]
+    titles = [node for node in visible_nodes if is_title_node(node_text(node), node["bounds"])]
+    titles.sort(key=lambda node: (node["bounds"][1], node["bounds"][0]))
+    items = []
+    for index, title in enumerate(titles):
+        title_text = node_text(title)
+        x1, y1, x2, y2 = title["bounds"]
+        next_y = titles[index + 1]["bounds"][1] if index + 1 < len(titles) else min(y1 + 330, 1760)
+        row_nodes = [
+            node
+            for node in visible_nodes
+            if y1 <= node["bounds"][1] < next_y and 350 <= node["bounds"][0] <= 1045
+        ]
+        texts = [node_text(node) for node in sorted(row_nodes, key=lambda node: (node["bounds"][1], node["bounds"][0]))]
+        spec = next(
+            (
+                node_text(node)
+                for node in sorted(row_nodes, key=lambda node: (node["bounds"][1], node["bounds"][0]))
+                for text in [node_text(node)]
+                if text != title_text
+                and 395 <= node["bounds"][0] <= 430
+                and not any(token in text for token in ["¥", "￥", "月售", "买过", "自营", "特价"])
+                and (re.search(r"\d", text) or "斤" in text or "袋" in text or "盒" in text)
+            ),
+            "",
+        )
+        price = next(
+            (
+                node_text(node)
+                for node in sorted(row_nodes, key=lambda node: (node["bounds"][1], node["bounds"][0]))
+                if node["bounds"][0] <= 620 and ("¥" in node_text(node) or "￥" in node_text(node))
+            ),
+            "",
+        )
+        quantities = [
+            node_text(node)
+            for node in row_nodes
+            if 730 <= node["bounds"][0] <= 980 and re.fullmatch(r"\d+", node_text(node))
+        ]
+        quantity = quantities[-1] if quantities else ""
+        expected_hits = [term for term in expected_terms if term and term in title_text]
+        items.append(
+            {
+                "title": title_text,
+                "spec": spec,
+                "price": price,
+                "quantity": quantity,
+                "bounds": title["bounds"],
+                "row_texts": texts[:24],
+                "expected_hits": expected_hits,
+                "unexpected": not bool(expected_hits),
+            }
+        )
+    return merge_visible_cart_item_fragments(items)[:20]
+
+
+def same_cart_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    left_text = str(left.get("title") or "")
+    right_text = str(right.get("title") or "")
+    if not left_text or not right_text:
+        return False
+    if left_text in right_text or right_text in left_text:
+        return True
+    shared = [word for word in ["洋葱", "豆腐", "玉米", "土豆", "胡萝卜", "圣女果", "白玉菇", "樟树椒"] if word in left_text and word in right_text]
+    return bool(shared)
+
+
+def merge_visible_cart_item_fragments(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    used: set[int] = set()
+    for index, item in enumerate(items):
+        if index in used:
+            continue
+        current = dict(item)
+        for other_index in range(index + 1, min(len(items), index + 3)):
+            if other_index in used:
+                continue
+            other = items[other_index]
+            if not same_cart_identity(current, other):
+                continue
+            if not current.get("quantity") and other.get("quantity"):
+                current["quantity"] = other.get("quantity")
+            if not current.get("spec") and other.get("spec"):
+                current["spec"] = other.get("spec")
+            if not current.get("price") and other.get("price"):
+                current["price"] = other.get("price")
+            current["row_texts"] = list(dict.fromkeys((current.get("row_texts") or []) + (other.get("row_texts") or [])))[:32]
+            current["expected_hits"] = list(dict.fromkeys((current.get("expected_hits") or []) + (other.get("expected_hits") or [])))
+            current["unexpected"] = not bool(current.get("expected_hits"))
+            if current.get("spec") and current.get("quantity"):
+                used.add(other_index)
+        merged.append(current)
+    return merged
+
+
+def analyze_cart_review_xml(xml_text: str, plan: dict[str, Any] | None = None) -> dict[str, Any]:
     texts = all_page_text(xml_text)
     text_blob = " ".join(texts)
     keyword_hits = [word for word in CART_REVIEW_KEYWORDS if word in text_blob]
@@ -1419,12 +1550,15 @@ def analyze_cart_review_xml(xml_text: str) -> dict[str, Any]:
     ]
     nodes = parse_ui_nodes(xml_text)
     cart_nodes = extract_cart_review_nodes(nodes)
+    visible_cart_items = extract_visible_cart_items(nodes, plan)
     return {
         "reached_cart": bool(marker_hits or len(keyword_hits) >= 2),
         "keyword_hits": keyword_hits,
         "marker_hits": marker_hits,
         "risk_hits": risk_hits,
         "visible_relevant_text": relevant_texts[:80],
+        "visible_cart_items": visible_cart_items,
+        "unexpected_visible_cart_items": [item for item in visible_cart_items if item.get("unexpected")],
         "cart_item_candidates": cart_nodes["cart_item_candidates"],
         "checkout_nodes": cart_nodes["checkout_nodes"],
         "background_risk_nodes": cart_nodes["background_risk_nodes"],

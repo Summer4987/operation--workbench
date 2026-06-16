@@ -63,6 +63,7 @@ def main() -> int:
                 "top_scores": [compact_score(score) for score in (candidate.get("line_scores") or [])[:3]],
             }
         )
+    after_cart_details = (adb.get("after") or {}).get("cart_review_details") or (adb.get("snapshot") or {}).get("cart_review_details") or {}
     summary = {
         "generated_at": data.get("generated_at"),
         "status": data.get("status"),
@@ -84,10 +85,12 @@ def main() -> int:
         "input_result": adb.get("input_result"),
         "enter_result": adb.get("enter_result"),
         "cart_review": adb.get("cart_review"),
-        "after_cart_review_details": (adb.get("after") or {}).get("cart_review_details"),
-        "after_cart_item_candidates": ((adb.get("after") or {}).get("cart_review_details") or {}).get("cart_item_candidates"),
-        "after_checkout_nodes": ((adb.get("after") or {}).get("cart_review_details") or {}).get("checkout_nodes"),
-        "after_background_risk_nodes": ((adb.get("after") or {}).get("cart_review_details") or {}).get("background_risk_nodes"),
+        "after_cart_review_details": after_cart_details,
+        "visible_cart_items": after_cart_details.get("visible_cart_items"),
+        "unexpected_visible_cart_items": after_cart_details.get("unexpected_visible_cart_items"),
+        "after_cart_item_candidates": after_cart_details.get("cart_item_candidates"),
+        "after_checkout_nodes": after_cart_details.get("checkout_nodes"),
+        "after_background_risk_nodes": after_cart_details.get("background_risk_nodes"),
         "post_tap_validation": adb.get("post_tap_validation"),
         "visual_proof": adb.get("visual_proof"),
         "before_files": (adb.get("before") or {}).get("files"),
