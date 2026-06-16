@@ -530,6 +530,55 @@ def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> lis
     return candidates[:40]
 
 
+def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    candidates = []
+    for node in nodes:
+        text = node_text(node)
+        bounds = tuple(node["bounds"])
+        if bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        cx, cy = bounds_center(bounds)
+        if not (280 <= cy <= 2150 and cx >= 700):
+            continue
+        if any(word in text for word in ["去结算", "提交订单", "付款", "合计", "全选", "购物车"]):
+            continue
+        rid = str(node.get("resource_id") or "").lower()
+        reasons = []
+        if any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]):
+            reasons.append("xml_add_text")
+        if "activity-button" in rid and "fly-end" not in rid:
+            reasons.append("xml_activity_button")
+        if not reasons:
+            continue
+        candidates.append(
+            {
+                "center": [round(cx, 1), round(cy, 1)],
+                "bounds": list(bounds),
+                "source": "xml_add_control",
+                "control_text": text,
+                "nearby_texts": nearby_texts(nodes, (cx, cy)),
+                "context_texts": candidate_context(nodes, (cx, cy)),
+                "detection_reasons": reasons,
+            }
+        )
+    candidates.sort(key=lambda item: (item["center"][1], item["center"][0]))
+    return candidates[:40]
+
+
+def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped = []
+    seen: set[tuple[int, int]] = set()
+    for candidate in candidates:
+        center = candidate.get("center") or [0, 0]
+        key = (int(round(float(center[0]) / 18)), int(round(float(center[1]) / 18)))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+    deduped.sort(key=lambda item: (float((item.get("center") or [0, 0])[1]), float((item.get("center") or [0, 0])[0])))
+    return deduped[:60]
+
+
 def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pack_label: str = "") -> dict[str, Any]:
     row_text = candidate_text(candidate, "nearby_texts")
     context_text = candidate_text(candidate, "context_texts")
@@ -673,7 +722,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         for node in nodes
         if node["bounds"][1] >= 2150 or node["bounds"][3] >= 2210
     ][:80]
-    orange_candidates = annotate_add_candidates(detect_orange_controls(image_path, nodes), plan)
+    orange_candidates = annotate_add_candidates(dedup_add_candidates(detect_orange_controls(image_path, nodes) + detect_xml_add_controls(nodes)), plan)
     cart_entry_candidates = find_cart_entry_candidates(nodes, image_path)
     search_entry_candidates = find_search_entry_candidates(nodes, image_path)
     delivery_rows = extract_delivery_text(nodes)
