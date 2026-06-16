@@ -45,6 +45,10 @@ class NormalizedTransaction:
     channel_group: str = ""
     channel_rule: str = ""
     ledger_scope: str = ""
+    ledger_id: str = ""
+    ledger_name: str = ""
+    ledger_status: str = ""
+    ledger_rule: str = ""
     match_status: str = "unmatched"
     match_id: str = ""
     notes: str = ""
@@ -152,6 +156,80 @@ def classify_channel(item: NormalizedTransaction, rules: list[dict[str, Any]]) -
         item.channel_group = "待确认渠道"
         item.channel_rule = "fallback:unknown"
         item.ledger_scope = "manual_review"
+
+
+def month_key(value: str) -> str:
+    date_text = safe_date(value)
+    return date_text[:7] if date_text else "unknown"
+
+
+def ledger_name_map(ledger_rules: dict[str, Any]) -> dict[str, str]:
+    ledgers = ledger_rules.get("monthly_ledgers") or []
+    return {str(item.get("id") or ""): str(item.get("name") or item.get("id") or "") for item in ledgers}
+
+
+def assign_ledger(item: NormalizedTransaction, ledger_rules: dict[str, Any]) -> None:
+    ledgers = ledger_rules.get("monthly_ledgers") or []
+    names = ledger_name_map(ledger_rules)
+    haystack = " ".join(
+        [
+            item.counterparty,
+            item.description,
+            item.payment_method,
+            item.status,
+            item.category,
+            item.channel_name,
+        ]
+    ).lower()
+    for ledger in ledgers:
+        if ledger.get("type") != "store":
+            continue
+        keywords = [ledger.get("name", ""), ledger.get("id", "")]
+        keywords.extend(ledger.get("aliases") or [])
+        for keyword in keywords:
+            if keyword and str(keyword).lower() in haystack:
+                item.ledger_id = str(ledger.get("id") or "")
+                item.ledger_name = str(ledger.get("name") or item.ledger_id)
+                item.ledger_status = "assigned"
+                item.ledger_rule = f"store_keyword:{keyword}"
+                return
+
+    scope = item.ledger_scope or "manual_review"
+    if scope == "supply_chain_sales":
+        item.ledger_id = "supply_chain_sales"
+        item.ledger_name = names.get("supply_chain_sales", "供应链销售")
+        item.ledger_status = "assigned"
+        item.ledger_rule = "scope:supply_chain_sales"
+    elif scope == "store":
+        item.ledger_id = "store_unassigned"
+        item.ledger_name = "门店待分配"
+        item.ledger_status = "pending_store_assignment"
+        item.ledger_rule = "scope:store_without_store_signal"
+    elif scope == "manual_split_store":
+        item.ledger_id = "manual_split_store"
+        item.ledger_name = "小程序手动拆分"
+        item.ledger_status = "manual_split_required"
+        item.ledger_rule = "scope:manual_split_store"
+    elif scope == "mixed_store_and_sales":
+        item.ledger_id = "mixed_store_and_sales"
+        item.ledger_name = "供应链采购拆分"
+        item.ledger_status = "manual_split_required"
+        item.ledger_rule = "scope:mixed_store_and_sales"
+    elif scope == "settlement_clearing":
+        item.ledger_id = "settlement_clearing"
+        item.ledger_name = "代付及往来结算"
+        item.ledger_status = "settlement_required"
+        item.ledger_rule = "scope:settlement_clearing"
+    elif scope in {"neutral", "original_ledger_or_neutral"}:
+        item.ledger_id = "neutral"
+        item.ledger_name = "退款及中性"
+        item.ledger_status = "neutral"
+        item.ledger_rule = f"scope:{scope}"
+    else:
+        item.ledger_id = "manual_review"
+        item.ledger_name = "待确认账本"
+        item.ledger_status = "manual_review_required"
+        item.ledger_rule = f"scope:{scope}"
 
 
 def safe_date(value: str) -> str:
@@ -385,6 +463,7 @@ def parse_all_sources() -> tuple[list[NormalizedTransaction], list[dict[str, Any
         )
     for item in transactions:
         classify_channel(item, channel_rules)
+        assign_ledger(item, ledger_rules)
     return transactions, source_status
 
 
@@ -471,6 +550,109 @@ def summarize(transactions: list[NormalizedTransaction]) -> dict[str, Any]:
         "by_source": sorted(by_source.values(), key=lambda item: item["source"]),
         "by_channel": sorted(by_channel.values(), key=lambda item: (item["channel_group"], -abs(float(item["net"])), item["channel_name"])),
         "daily": sorted(daily.values(), key=lambda item: (item["date"], item["source"])),
+    }
+
+
+def add_amount(bucket: dict[str, Any], item: NormalizedTransaction) -> None:
+    bucket["count"] += 1
+    if item.amount > 0:
+        bucket["income"] += item.amount
+    elif item.amount < 0:
+        bucket["expense"] += abs(item.amount)
+    else:
+        bucket["neutral"] += abs(item.original_amount)
+    bucket["net"] += item.amount
+
+
+def round_money_fields(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for row in rows:
+        for key in ("income", "expense", "neutral", "net"):
+            row[key] = round(float(row.get(key, 0.0)), 2)
+    return rows
+
+
+def build_monthly_ledger_preview(transactions: list[NormalizedTransaction], ledger_rules: dict[str, Any]) -> dict[str, Any]:
+    ledgers = ledger_rules.get("monthly_ledgers") or []
+    ledger_names = ledger_name_map(ledger_rules)
+    formal_ledger_ids = [str(item.get("id") or "") for item in ledgers if item.get("id")]
+    period_rows: dict[tuple[str, str], dict[str, Any]] = {}
+    pool_rows: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def base_row(period: str, ledger_id: str, ledger_name: str, ledger_type: str, status: str) -> dict[str, Any]:
+        return {
+            "period": period,
+            "ledger_id": ledger_id,
+            "ledger_name": ledger_name,
+            "ledger_type": ledger_type,
+            "status": status,
+            "count": 0,
+            "income": 0.0,
+            "expense": 0.0,
+            "neutral": 0.0,
+            "net": 0.0,
+            "sample_channels": [],
+            "sample_counterparties": [],
+        }
+
+    periods = sorted({month_key(item.transaction_date) for item in transactions}) or [datetime.now().strftime("%Y-%m")]
+    for period in periods:
+        for ledger in ledgers:
+            ledger_id = str(ledger.get("id") or "")
+            if not ledger_id:
+                continue
+            period_rows[(period, ledger_id)] = base_row(
+                period,
+                ledger_id,
+                str(ledger.get("name") or ledger_id),
+                str(ledger.get("type") or "ledger"),
+                "assigned" if ledger_id == "supply_chain_sales" else "waiting_store_mapping",
+            )
+
+    for item in transactions:
+        period = month_key(item.transaction_date)
+        target = item.ledger_id or "manual_review"
+        if target in formal_ledger_ids:
+            row = period_rows.setdefault(
+                (period, target),
+                base_row(period, target, ledger_names.get(target, target), "ledger", "assigned"),
+            )
+            if item.ledger_status == "assigned":
+                row["status"] = "assigned"
+        else:
+            row = pool_rows.setdefault(
+                (period, target),
+                base_row(period, target, item.ledger_name or target, "work_pool", item.ledger_status or "manual_review_required"),
+            )
+        add_amount(row, item)
+        if item.channel_name and item.channel_name not in row["sample_channels"] and len(row["sample_channels"]) < 5:
+            row["sample_channels"].append(item.channel_name)
+        if item.counterparty and item.counterparty not in row["sample_counterparties"] and len(row["sample_counterparties"]) < 5:
+            row["sample_counterparties"].append(item.counterparty)
+
+    formal_rows = sorted(period_rows.values(), key=lambda item: (item["period"], item["ledger_id"]))
+    pool_values = sorted(pool_rows.values(), key=lambda item: (item["period"], item["status"], -abs(float(item["net"])), item["ledger_name"]))
+    round_money_fields(formal_rows)
+    round_money_fields(pool_values)
+    assigned = [row for row in formal_rows if row["count"] and row["status"] == "assigned"]
+    formal_with_activity = [row for row in formal_rows if row["count"]]
+    pending = [row for row in pool_values if row["count"]]
+    return {
+        "status": "preview_only_waiting_store_mapping" if pending else "preview_ready",
+        "message": "已生成 6 本月度账雏形；门店类流水暂入门店待分配池，等待平台店铺、订单或手动规则归属到具体门店。",
+        "formal_ledgers": formal_rows,
+        "work_pools": pool_values,
+        "summary": {
+            "period_count": len(periods),
+            "formal_ledger_count": len(formal_ledger_ids),
+            "assigned_formal_ledger_count": len(assigned),
+            "active_formal_ledger_count": len(formal_with_activity),
+            "work_pool_count": len(pending),
+            "pending_transaction_count": sum(int(row.get("count") or 0) for row in pending),
+            "assigned_income": round(sum(float(row.get("income") or 0) for row in assigned), 2),
+            "assigned_expense": round(sum(float(row.get("expense") or 0) for row in assigned), 2),
+            "pending_income": round(sum(float(row.get("income") or 0) for row in pending), 2),
+            "pending_expense": round(sum(float(row.get("expense") or 0) for row in pending), 2),
+        },
     }
 
 
@@ -564,6 +746,10 @@ def public_tx(item: NormalizedTransaction) -> dict[str, Any]:
         "channel_group": item.channel_group,
         "channel_rule": item.channel_rule,
         "ledger_scope": item.ledger_scope,
+        "ledger_id": item.ledger_id,
+        "ledger_name": item.ledger_name,
+        "ledger_status": item.ledger_status,
+        "ledger_rule": item.ledger_rule,
         "match_status": item.match_status,
     }
 
@@ -599,6 +785,7 @@ def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str,
         "channel_totals": by_channel,
         "monthly_ledgers": ledger_rules.get("monthly_ledgers") or [],
         "ledger_assignment_policy": ledger_rules.get("ledger_assignment_policy") or {},
+        "monthly_ledger_preview": build_monthly_ledger_preview(transactions, ledger_rules),
         "needed_for_store_pnl": [
             "门店基础表：用于把收货地址、店铺名、供应商规则归到门店。",
             "外卖平台收入账单：用于确认每家门店收入、佣金、配送费、退款、补贴。",
@@ -621,12 +808,40 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
             writer.writerow(asdict(item))
     csv_path.chmod(0o600)
 
+    ledger_csv_path = OUTPUT_DIR / "monthly_ledger_preview.csv"
+    ledger_preview = payload.get("monthly_ledger_preview") or {}
+    ledger_rows = (ledger_preview.get("formal_ledgers") or []) + (ledger_preview.get("work_pools") or [])
+    with ledger_csv_path.open("w", encoding="utf-8-sig", newline="") as file:
+        fieldnames = [
+            "period",
+            "ledger_id",
+            "ledger_name",
+            "ledger_type",
+            "status",
+            "count",
+            "income",
+            "expense",
+            "neutral",
+            "net",
+            "sample_channels",
+            "sample_counterparties",
+        ]
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in ledger_rows:
+            writable = dict(row)
+            writable["sample_channels"] = "、".join(writable.get("sample_channels") or [])
+            writable["sample_counterparties"] = "、".join(writable.get("sample_counterparties") or [])
+            writer.writerow({key: writable.get(key, "") for key in fieldnames})
+    ledger_csv_path.chmod(0o600)
+
 
 def build_payload() -> dict[str, Any]:
     ledger_rules = load_ledger_rules()
     transactions, source_status = parse_all_sources()
     summary = summarize(transactions)
     reconciliation = reconcile_bank(transactions)
+    monthly_ledger_preview = build_monthly_ledger_preview(transactions, ledger_rules)
     profit_preview = build_profit_preview(transactions)
     ready_sources = sum(1 for item in source_status if item["status"] == "ready")
     status = "ready_for_manual_review" if ready_sources >= 3 else "waiting_statements"
@@ -648,6 +863,7 @@ def build_payload() -> dict[str, Any]:
         "daily_summary": summary["daily"],
         "bank_reconciliation": reconciliation,
         "channel_review_samples": channel_review_samples(transactions),
+        "monthly_ledger_preview": monthly_ledger_preview,
         "ledger_rules": {
             "path": str(LEDGER_RULES_PATH.relative_to(ROOT)),
             "version": ledger_rules.get("version"),
@@ -658,6 +874,7 @@ def build_payload() -> dict[str, Any]:
         "outputs": {
             "latest_json": str(LATEST_PATH.relative_to(ROOT)),
             "normalized_transactions_csv": str((OUTPUT_DIR / "normalized_transactions.csv").relative_to(ROOT)),
+            "monthly_ledger_preview_csv": str((OUTPUT_DIR / "monthly_ledger_preview.csv").relative_to(ROOT)),
         },
         "blocked_actions": [
             "自动转账",

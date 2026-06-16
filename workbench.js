@@ -1565,6 +1565,10 @@ function renderFinance() {
   const dailyCollection = finance.daily_collection || {};
   const reconciliationPreview = finance.reconciliation_preview || {};
   const reconciliationSummary = reconciliationPreview.summary || {};
+  const monthlyLedgerPreview = reconciliationPreview.monthly_ledger_preview || {};
+  const ledgerPreviewSummary = monthlyLedgerPreview.summary || {};
+  const formalLedgerRows = monthlyLedgerPreview.formal_ledgers || [];
+  const workPoolRows = monthlyLedgerPreview.work_pools || [];
   const monthlyLedgers = finance.monthly_ledgers || [];
   const assignmentPolicy = finance.ledger_assignment_policy || {};
   const financeChannels = finance.finance_channels || {};
@@ -1600,6 +1604,12 @@ function renderFinance() {
         warn: monthlyLedgers.length < 6,
       },
       {
+        label: "账本雏形",
+        value: `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 0)} 本 / ${Number(ledgerPreviewSummary.work_pool_count || workPoolRows.length || 0)} 个池`,
+        detail: `已入账收入 ${yuan(ledgerPreviewSummary.assigned_income)} · 待分配收入 ${yuan(ledgerPreviewSummary.pending_income)} · 待分配支出 ${yuan(ledgerPreviewSummary.pending_expense)}`,
+        warn: Number(ledgerPreviewSummary.work_pool_count || workPoolRows.length || 0) > 0,
+      },
+      {
         label: "业务渠道",
         value: `${(financeChannels.income_channels || []).length || 0} 收入 / ${(financeChannels.expense_channels || []).length || 0} 支出`,
         detail: "先识别渠道，再归属到 5 家门店和供应链销售账本。",
@@ -1622,6 +1632,18 @@ function renderFinance() {
         value: channel.channel_name || channel.channel_id,
         detail: `${channel.channel_group || "渠道"} · ${channel.ledger_scope || "manual_review"} · ${Number(channel.count || 0)} 笔 · 收入 ${yuan(channel.income)} · 支出 ${yuan(channel.expense)} · 净额 ${yuan(channel.net)}`,
         warn: channel.channel_group === "待确认渠道",
+      })),
+      ...formalLedgerRows.filter((row) => Number(row.count || 0) > 0).slice(0, 4).map((row) => ({
+        label: "正式账本",
+        value: row.ledger_name || row.ledger_id,
+        detail: `${row.period || ""} · ${Number(row.count || 0)} 笔 · 收入 ${yuan(row.income)} · 支出 ${yuan(row.expense)} · 净额 ${yuan(row.net)}`,
+        warn: row.status !== "assigned",
+      })),
+      ...workPoolRows.slice(0, 5).map((row) => ({
+        label: "待处理池",
+        value: row.ledger_name || row.ledger_id,
+        detail: `${row.period || ""} · ${Number(row.count || 0)} 笔 · 收入 ${yuan(row.income)} · 支出 ${yuan(row.expense)} · 净额 ${yuan(row.net)}`,
+        warn: true,
       })),
       ...((assignmentPolicy.manual_split_required || []).map((item) => ({
         label: "需手动拆分",
