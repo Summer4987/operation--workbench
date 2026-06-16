@@ -181,16 +181,24 @@ run_required_step() {
 }
 
 prepare_budget_node_runtime() {
-  mkdir -p \
-    "$NODE_RUNTIME_ROOT/scripts" \
-    "$NODE_RUNTIME_ROOT/dianjin-prototype" \
-    "$NODE_RUNTIME_ROOT/config" \
-    "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview"
-  /bin/cp "$ROOT/scripts/build_promo_budget_preview.mjs" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"
-  /bin/cp "$ROOT/scripts/promo_budget_resolver.mjs" "$NODE_RUNTIME_ROOT/scripts/promo_budget_resolver.mjs"
-  /bin/cp "$ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
-  /bin/cp "$ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
-  /bin/cp "$ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
+  BUDGET_ROOT="$ROOT" BUDGET_NODE_RUNTIME_ROOT="$NODE_RUNTIME_ROOT" "$PYTHON" - <<'PY'
+import os
+import shutil
+from pathlib import Path
+
+root = Path(os.environ["BUDGET_ROOT"])
+runtime = Path(os.environ["BUDGET_NODE_RUNTIME_ROOT"])
+for relative in ("scripts", "dianjin-prototype", "config", "outputs/promo_budget_preview"):
+    (runtime / relative).mkdir(parents=True, exist_ok=True)
+for relative in (
+    "scripts/build_promo_budget_preview.mjs",
+    "scripts/promo_budget_resolver.mjs",
+    "dianjin-prototype/rules.js",
+    "dianjin-prototype/logic.js",
+    "config/promo_budget_overrides.json",
+):
+    shutil.copy2(root / relative, runtime / relative)
+PY
 }
 
 run_node_runtime_script() {
@@ -210,9 +218,17 @@ else
 fi
 prepare_budget_node_runtime
 if run_required_step "${PERIOD}预算预览生成" "${BUDGET_PREVIEW_BUILD_TIMEOUT_SECONDS:-120}" run_node_runtime_script "$NODE_RUNTIME_ROOT" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"; then
-  mkdir -p "$ROOT/outputs/promo_budget_preview"
-  /bin/cp "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview/latest.json" "$ROOT/outputs/promo_budget_preview/latest.json"
-  /bin/cp "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview/latest-data.js" "$ROOT/outputs/promo_budget_preview/latest-data.js"
+  BUDGET_ROOT="$ROOT" BUDGET_NODE_RUNTIME_ROOT="$NODE_RUNTIME_ROOT" "$PYTHON" - <<'PY'
+import os
+import shutil
+from pathlib import Path
+
+root = Path(os.environ["BUDGET_ROOT"])
+runtime = Path(os.environ["BUDGET_NODE_RUNTIME_ROOT"])
+(root / "outputs/promo_budget_preview").mkdir(parents=True, exist_ok=True)
+for name in ("latest.json", "latest-data.js"):
+    shutil.copy2(runtime / "outputs/promo_budget_preview" / name, root / "outputs/promo_budget_preview" / name)
+PY
 else
   rc=$?
   exit "$rc"
