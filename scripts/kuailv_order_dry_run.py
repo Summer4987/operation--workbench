@@ -828,7 +828,11 @@ def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any
         if key in seen:
             existing = by_key[key]
             incoming_source = str(candidate.get("source") or "")
-            if incoming_source in {"xml_add_control", "xml_target_card_control"}:
+            existing_source = str(existing.get("source") or "")
+            incoming_is_target = incoming_source == "xml_target_card_control"
+            incoming_is_xml = incoming_source in {"xml_add_control", "xml_target_card_control"}
+            source_should_replace = incoming_is_target or (incoming_source == "xml_add_control" and existing_source != "xml_target_card_control")
+            if incoming_is_xml:
                 existing["alternate_nearby_texts"] = merge_text_rows(existing.get("nearby_texts") or [], candidate.get("nearby_texts") or [])
                 existing["alternate_context_texts"] = merge_text_rows(existing.get("context_texts") or [], candidate.get("context_texts") or [])
                 existing["nearby_texts"] = candidate.get("nearby_texts") or []
@@ -836,10 +840,12 @@ def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any
             else:
                 existing["nearby_texts"] = merge_text_rows(existing.get("nearby_texts") or [], candidate.get("nearby_texts") or [])
                 existing["context_texts"] = merge_text_rows(existing.get("context_texts") or [], candidate.get("context_texts") or [])
-            if incoming_source and (not existing.get("source") or incoming_source in {"xml_add_control", "xml_target_card_control"}):
+            if incoming_source and (not existing.get("source") or source_should_replace):
                 existing["source"] = candidate.get("source")
-            if candidate.get("control_text") and (not existing.get("control_text") or incoming_source in {"xml_add_control", "xml_target_card_control"}):
+            if candidate.get("control_text") and (not existing.get("control_text") or source_should_replace):
                 existing["control_text"] = candidate.get("control_text")
+            if candidate.get("target_line_name") and (not existing.get("target_line_name") or incoming_is_target):
+                existing["target_line_name"] = candidate.get("target_line_name")
             reasons = list(existing.get("detection_reasons") or [])
             for reason in candidate.get("detection_reasons") or []:
                 if reason not in reasons:
