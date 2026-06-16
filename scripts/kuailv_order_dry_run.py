@@ -1191,16 +1191,16 @@ def target_text_position(result_check: dict[str, Any]) -> dict[str, Any]:
 def target_guided_scroll_args(result_check: dict[str, Any]) -> list[str]:
     position = target_text_position(result_check)
     if not position:
-        return ["540", "1980", "540", "900", "450"]
+        return ["540", "1900", "540", "650", "450"]
     bottom = float(position.get("bottom") or 0)
     top = float(position.get("top") or 0)
     if bottom >= 2180:
-        return ["540", "1850", "540", "1180", "360"]
+        return ["540", "1900", "540", "900", "360"]
     if bottom >= 1980:
-        return ["540", "1780", "540", "1320", "320"]
+        return ["540", "1900", "540", "780", "360"]
     if 0 < top <= 620:
-        return ["540", "900", "540", "1380", "320"]
-    return ["540", "1980", "540", "900", "450"]
+        return ["540", "1900", "540", "650", "450"]
+    return ["540", "1900", "540", "650", "450"]
 
 
 def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
