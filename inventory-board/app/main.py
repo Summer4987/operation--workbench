@@ -548,12 +548,15 @@ def _validate_finance_entry(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail="金额必须是数字") from exc
     if amount <= 0:
         raise HTTPException(status_code=400, detail="金额必须大于 0")
+    direction = str(payload.get("direction") or "")[:20]
+    if direction in {"收入", "应收"}:
+        raise HTTPException(status_code=400, detail="收入请通过平台收入账单导入，不支持手工录入")
     entry = {
         "id": str(payload.get("id") or now_iso()),
         "created_at": now_iso(),
         "date": str(payload.get("date") or "")[:20],
         "ledger": str(payload.get("ledger") or "")[:80],
-        "direction": str(payload.get("direction") or "")[:20],
+        "direction": direction,
         "amount": amount,
         "channel": str(payload.get("channel") or "")[:80],
         "counterparty": str(payload.get("counterparty") or "")[:120],

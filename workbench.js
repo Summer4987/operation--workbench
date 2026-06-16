@@ -1756,15 +1756,21 @@ function renderFinance() {
   });
   const manualInputRows = [
     {
+      label: "收入来源",
+      value: "平台收入表格",
+      detail: "美团、饿了么、京东等收入不手工记账，统一上传平台收入账单。",
+      warn: false,
+    },
+    {
       label: "人工拆分",
-      value: "小程序点餐收入",
-      detail: "目前无法自动区分门店，每日或月末录入 5 家门店分摊。",
+      value: "供应链采购 / 共同费用",
+      detail: "用于门店和供应链销售混用的采购，先录支出，再月末拆分。",
       warn: true,
     },
     {
       label: "人工调整",
       value: "应收 / 应付 / 库存",
-      detail: "第一版先作为月末调整入口，后续接库存系统和供应商对账。",
+      detail: "第一版先作为月末调整入口，后续接库存系统和供应商对账；收入不从这里录。",
       warn: true,
     },
     {
@@ -1776,7 +1782,7 @@ function renderFinance() {
   ];
   text("financeInputStatus", missing.length ? "待补齐" : "可核对");
   text("financeInputCount", `${readySourceCount}/${sources.length || requiredSourceCount} 类已到`);
-  text("financeInputSummary", "每天先补银行流水、微信支付、支付宝、平台收入和采购订单；系统后台再做核对、归类和报表预览。");
+  text("financeInputSummary", "手工录入只处理支出、应付、代付和调整；收入统一从美团、饿了么、京东等平台收入表格导入。");
   text("financeInputNext", missing.length ? `下一步先补：${missing.slice(0, 3).join("、")}` : "基础账单已到齐，可以进入核对和报表预览。");
   document.querySelector("#finance-intake")?.classList.toggle("alert", waiting);
   html(

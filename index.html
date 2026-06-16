@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-cloud-entry" />
+    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-expense-entry" />
   </head>
   <body>
     <main class="app">
@@ -334,7 +334,7 @@
                 <div class="finance-form-head">
                   <div>
                     <span>手工记一笔</span>
-                    <strong>收入、支出、应收、应付都先从这里录</strong>
+                    <strong>支出、应付、代付和调整从这里录</strong>
                   </div>
                   <button type="submit">保存这笔</button>
                 </div>
@@ -358,11 +358,10 @@
                   <label>
                     <span>收支</span>
                     <select name="direction" required>
-                      <option value="收入">收入</option>
                       <option value="支出">支出</option>
-                      <option value="应收">应收</option>
                       <option value="应付">应付</option>
                       <option value="转账">转账</option>
+                      <option value="调整">调整</option>
                     </select>
                   </label>
                   <label>
@@ -372,16 +371,16 @@
                   <label>
                     <span>渠道/科目</span>
                     <select name="channel" required>
-                      <option value="美团营业收入">美团营业收入</option>
-                      <option value="饿了么营业收入">饿了么营业收入</option>
-                      <option value="京东营业收入">京东营业收入</option>
-                      <option value="小程序点餐收入">小程序点餐收入</option>
-                      <option value="供应链销售收入">供应链销售收入</option>
                       <option value="快驴订货">快驴订货</option>
                       <option value="淘宝采购">淘宝采购</option>
                       <option value="拼多多采购">拼多多采购</option>
                       <option value="京东采购">京东采购</option>
                       <option value="线下扫码/转账">线下扫码/转账</option>
+                      <option value="他人代付">他人代付</option>
+                      <option value="供应链采购">供应链采购</option>
+                      <option value="物流/货拉拉">物流/货拉拉</option>
+                      <option value="平台推广费">平台推广费</option>
+                      <option value="应付账款">应付账款</option>
                       <option value="人工调整">人工调整</option>
                     </select>
                   </label>
@@ -405,10 +404,10 @@
                   </label>
                   <label class="finance-form-note">
                     <span>备注</span>
-                    <textarea name="note" rows="2" placeholder="例如：小程序收入按月末拆分，或某笔采购由谁代付"></textarea>
+                    <textarea name="note" rows="2" placeholder="例如：某笔采购由谁代付，或供应链采购如何分摊"></textarea>
                   </label>
                 </div>
-                <div class="finance-form-message" id="financeManualEntryMessage">填写后点击保存，会先进入本页最近录入记录。</div>
+                <div class="finance-form-message" id="financeManualEntryMessage">收入不用手工录入，请上传美团、饿了么、京东等平台收入表格。</div>
               </form>
 
               <div class="finance-recent-panel">
@@ -523,6 +522,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260616-finance-cloud-entry"></script>
+    <script src="./workbench.js?v=20260616-finance-expense-entry"></script>
   </body>
 </html>
