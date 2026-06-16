@@ -64,6 +64,7 @@ def main() -> int:
         "adb_message": adb.get("message"),
         "session_dir": adb.get("session_dir"),
         "selected": compact_score(adb.get("selected")),
+        "pre_navigation_tap": adb.get("pre_navigation_tap"),
         "tap": adb.get("tap"),
         "cart_review": adb.get("cart_review"),
         "post_tap_validation": adb.get("post_tap_validation"),
@@ -73,6 +74,12 @@ def main() -> int:
             text
             for text in ((adb.get("after_back") or {}).get("detected_text") or [])
             if any(keyword in text for keyword in ["购物车", "进货车", "去结算", "提交订单", "搜索", "首页"])
+        ],
+        "after_pre_nav_files": (adb.get("after_pre_nav") or {}).get("files"),
+        "after_pre_nav_detected_relevant": [
+            text
+            for text in ((adb.get("after_pre_nav") or {}).get("detected_text") or [])
+            if any(keyword in text for keyword in ["购物车", "进货车", "去结算", "提交订单", "搜索", "首页", "分类", "我的"])
         ],
         "after_files": (adb.get("after") or {}).get("files"),
         "after_detected_relevant": [

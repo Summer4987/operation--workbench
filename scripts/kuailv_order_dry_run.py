@@ -1031,6 +1031,8 @@ def run_adb_cart_open(
     cart_tap_x: int,
     cart_tap_y: int,
     pre_back_count: int,
+    pre_nav_tap_x: int,
+    pre_nav_tap_y: int,
 ) -> dict[str, Any]:
     serial, blocked = resolve_adb_serial(serial, timeout)
     if blocked:
@@ -1061,6 +1063,38 @@ def run_adb_cart_open(
             time.sleep(0.8)
         mid = save_adb_snapshot(serial, session_dir / "after-back", timeout, plan)
         analysis = (mid.get("ui_analysis") or {}) if mid.get("captured") else analysis
+
+    pre_nav = None
+    if pre_nav_tap_x > 0 and pre_nav_tap_y > 0:
+        pre_allowed, pre_reasons = pre_cart_navigation_allowed(before, pre_nav_tap_x, pre_nav_tap_y)
+        if not pre_allowed:
+            return {
+                "status": "blocked",
+                "message": "预导航坐标不满足顶部退出搜索守卫，未点击。",
+                "device_serial": serial,
+                "session_dir": str(session_dir),
+                "before": before,
+                "pre_navigation_guard": {"allowed": False, "reasons": pre_reasons, "x": pre_nav_tap_x, "y": pre_nav_tap_y},
+            }
+        pre_tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(pre_nav_tap_x), str(pre_nav_tap_y)], timeout)
+        if pre_tap_result.returncode != 0:
+            return {
+                "status": "blocked",
+                "message": "预导航 tap 执行失败，未继续点击购物车入口。",
+                "device_serial": serial,
+                "session_dir": str(session_dir),
+                "before": before,
+                "pre_navigation_tap": {
+                    "x": pre_nav_tap_x,
+                    "y": pre_nav_tap_y,
+                    "returncode": pre_tap_result.returncode,
+                    "stderr": pre_tap_result.stderr.strip(),
+                    "stdout": pre_tap_result.stdout.strip(),
+                },
+            }
+        time.sleep(1.2)
+        pre_nav = save_adb_snapshot(serial, session_dir / "after-pre-nav", timeout, plan)
+        analysis = (pre_nav.get("ui_analysis") or {}) if pre_nav.get("captured") else analysis
 
     candidates = analysis.get("cart_entry_candidates") or []
     if cart_tap_x > 0 and cart_tap_y > 0:
@@ -1110,6 +1144,16 @@ def run_adb_cart_open(
         "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
         "before": before,
         "after_back": mid,
+        "pre_navigation_tap": {
+            "x": pre_nav_tap_x,
+            "y": pre_nav_tap_y,
+            "returncode": pre_tap_result.returncode,
+            "stderr": pre_tap_result.stderr.strip(),
+            "stdout": pre_tap_result.stdout.strip(),
+        }
+        if pre_nav
+        else None,
+        "after_pre_nav": pre_nav,
         "after": after,
         "cart_review": {
             "reached_cart": reached_cart,
@@ -1119,10 +1163,26 @@ def run_adb_cart_open(
         "safety": {
             "delivery_store_match_required": True,
             "pre_back_count": pre_back_count,
-            "single_navigation_tap_only": True,
+            "pre_navigation_tap": {"x": pre_nav_tap_x, "y": pre_nav_tap_y} if pre_nav else None,
+            "controlled_navigation_taps_only": True,
             "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
         },
     }
+
+
+def pre_cart_navigation_allowed(before: dict[str, Any], x: int, y: int) -> tuple[bool, list[str]]:
+    detected = before.get("detected_text") or []
+    text_blob = " ".join(str(text) for text in detected)
+    reasons = []
+    if y > 420:
+        reasons.append("pre_navigation_y_not_top_area")
+    if x > 260:
+        reasons.append("pre_navigation_x_not_left_header_area")
+    if not any(word in text_blob for word in ["首页", "搜索", "猜你想找"]):
+        reasons.append("search_header_not_detected")
+    if any(word in text_blob for word in ["去结算", "提交订单", "付款"]):
+        reasons.append("checkout_or_payment_text_visible")
+    return not reasons, reasons
 
 
 def validate_post_tap(selected: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
@@ -1194,6 +1254,8 @@ def main() -> int:
     parser.add_argument("--cart-tap-x", type=int, default=0, help="adb-cart-open 坐标覆盖：指定 x 时仍会执行前后截图和购物车判定")
     parser.add_argument("--cart-tap-y", type=int, default=0, help="adb-cart-open 坐标覆盖：指定 y 时仍会执行前后截图和购物车判定")
     parser.add_argument("--cart-pre-back-count", type=int, default=0, help="adb-cart-open 前先按 Back 的次数，用于退出搜索浮层；仍会保存中间截图")
+    parser.add_argument("--cart-pre-nav-tap-x", type=int, default=0, help="adb-cart-open 前先点一次顶部退出搜索候选 x；只允许左上搜索页导航区域")
+    parser.add_argument("--cart-pre-nav-tap-y", type=int, default=0, help="adb-cart-open 前先点一次顶部退出搜索候选 y；只允许左上搜索页导航区域")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     args = parser.parse_args()
 
@@ -1214,6 +1276,8 @@ def main() -> int:
                 args.cart_tap_x,
                 args.cart_tap_y,
                 max(0, args.cart_pre_back_count),
+                args.cart_pre_nav_tap_x,
+                args.cart_pre_nav_tap_y,
             )
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
