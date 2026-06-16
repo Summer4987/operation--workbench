@@ -104,6 +104,8 @@ fi
   TASK_STEP="采集平台实时单量"
   record_task_run "\$TASK_ID" running --message "\$TASK_STEP" --step "\$TASK_STEP" --log-path "\$LOG_FILE"
   run_with_timeout "\${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "\$PYTHON" "\$ROOT/scripts/realtime_order_income.py"
+  TASK_STEP="清理浏览器标签页"
+  run_with_timeout "\${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "\$PYTHON" "\$ROOT/scripts/cleanup_chrome_tabs.py"
   TASK_STEP="生成实时采集状态"
   record_task_run "\$TASK_ID" running --message "\$TASK_STEP" --step "\$TASK_STEP" --log-path "\$LOG_FILE"
   run_with_timeout "\${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "\$PYTHON" "\$ROOT/scripts/build_realtime_collection_status.py"

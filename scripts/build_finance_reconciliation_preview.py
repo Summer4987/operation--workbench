@@ -842,19 +842,10 @@ def review_group_key(item: NormalizedTransaction) -> tuple[str, str, str, str]:
 
 def build_review_rule_groups(transactions: list[NormalizedTransaction]) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
-    counterparty_profiles: dict[str, set[tuple[str, str, str]]] = defaultdict(set)
     review_statuses = {"pending_store_assignment", "manual_split_required", "settlement_required", "manual_review_required"}
     for item in transactions:
         if item.ledger_status not in review_statuses or item.amount == 0:
             continue
-        counterparty = clean_text(item.counterparty) or "无交易对方"
-        counterparty_profiles[counterparty].add(
-            (
-                item.ledger_id or "manual_review",
-                item.channel_name or "未知渠道",
-                clean_text(item.description) or "无摘要",
-            )
-        )
         key = review_group_key(item)
         row = grouped.setdefault(
             key,
@@ -890,11 +881,6 @@ def build_review_rule_groups(transactions: list[NormalizedTransaction]) -> list[
     for row in rows:
         for key in ("income", "expense", "net", "max_abs_amount"):
             row[key] = round(float(row.get(key) or 0), 2)
-        profile_count = len(counterparty_profiles.get(str(row.get("counterparty") or ""), set()))
-        row["counterparty_rule_count"] = profile_count
-        row["multi_use_counterparty"] = "是" if profile_count > 1 else "否"
-        row["suggested_rule_type"] = "账户+摘要规则" if profile_count > 1 else "账户默认规则"
-        row["rule_priority"] = 10 if profile_count > 1 else 50
     rows.sort(key=lambda item: (-float(item["max_abs_amount"]), -int(item["count"]), item["ledger_name"], item["counterparty"]))
     return rows
 
@@ -1037,9 +1023,6 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
     grouped_rows = build_review_rule_groups(transactions)
     grouped_fieldnames = [
         "建议填写",
-        "推荐规则类型",
-        "规则优先级",
-        "是否多用途账户",
         "账本池",
         "渠道",
         "交易对方",
@@ -1051,8 +1034,6 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
         "最大单笔",
         "样例日期",
         "样例支付方式",
-        "规则类型",
-        "规则关键词",
         "以后归属账本",
         "以后归属渠道",
         "拆分规则",
@@ -1072,9 +1053,6 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
             writer.writerow(
                 {
                     "建议填写": action,
-                    "推荐规则类型": row.get("suggested_rule_type", ""),
-                    "规则优先级": row.get("rule_priority", ""),
-                    "是否多用途账户": row.get("multi_use_counterparty", ""),
                     "账本池": row.get("ledger_name", ""),
                     "渠道": row.get("channel_name", ""),
                     "交易对方": row.get("counterparty", ""),
@@ -1086,8 +1064,6 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
                     "最大单笔": row.get("max_abs_amount", 0),
                     "样例日期": "、".join(row.get("sample_dates") or []),
                     "样例支付方式": "、".join(row.get("sample_payment_methods") or []),
-                    "规则类型": "",
-                    "规则关键词": "",
                     "以后归属账本": "",
                     "以后归属渠道": "",
                     "拆分规则": "",
