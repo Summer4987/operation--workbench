@@ -80,6 +80,7 @@ def main() -> int:
         "search_result_check": adb.get("search_result_check"),
         "search_key_retry": adb.get("search_key_retry"),
         "scroll_retry": adb.get("scroll_retry"),
+        "scroll_retries": adb.get("scroll_retries"),
         "input_result": adb.get("input_result"),
         "enter_result": adb.get("enter_result"),
         "cart_review": adb.get("cart_review"),

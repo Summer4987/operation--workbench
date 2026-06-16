@@ -1709,6 +1709,7 @@ def run_adb_search(
     search_key_retry = None
     after_search_key = None
     scroll_retry = None
+    scroll_retries = []
     after_target_scroll = None
 
     if press_enter and after.get("captured") and query_visible_after and not result_check.get("candidate_hit_count"):
@@ -1723,17 +1724,23 @@ def run_adb_search(
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
             query_visible_after = query in after_text_blob
 
-    if after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count"):
+    for scroll_index in range(1, 4):
+        if not (after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count")):
+            break
         swipe = run_command(adb_base(serial) + ["shell", "input", "swipe", "540", "1980", "540", "900", "450"], timeout)
-        scroll_retry = {"returncode": swipe.returncode, "stderr": swipe.stderr.strip(), "stdout": swipe.stdout.strip()}
+        scroll_retry = {"index": scroll_index, "returncode": swipe.returncode, "stderr": swipe.stderr.strip(), "stdout": swipe.stdout.strip()}
+        scroll_retries.append(scroll_retry)
         time.sleep(1.5)
-        after_target_scroll = save_adb_snapshot(serial, session_dir / "after-target-scroll", timeout, plan)
+        scroll_dir = session_dir / ("after-target-scroll" if scroll_index == 1 else f"after-target-scroll-{scroll_index}")
+        after_target_scroll = save_adb_snapshot(serial, scroll_dir, timeout, plan)
         scroll_check = search_result_hits(after_target_scroll, target_words)
         if scroll_check.get("candidate_hit_count") or scroll_check.get("page_text_hit_count"):
             after = after_target_scroll
             result_check = scroll_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
             query_visible_after = query in after_text_blob
+        if scroll_check.get("candidate_hit_count"):
+            break
     status = (
         "search_ready_for_manual_review"
         if tap_result.returncode == 0
@@ -1769,11 +1776,13 @@ def run_adb_search(
         "search_result_check": result_check,
         "search_key_retry": search_key_retry,
         "scroll_retry": scroll_retry,
+        "scroll_retries": scroll_retries,
         "safety": {
             "delivery_store_match_required": True,
             "pre_back_count": pre_back_count,
             "single_search_tap_only": True,
-            "controlled_scroll_retry": bool(scroll_retry),
+            "controlled_scroll_retry": bool(scroll_retries),
+            "max_controlled_scroll_retries": 3,
             "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
         },
     }
