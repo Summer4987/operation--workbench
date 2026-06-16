@@ -805,8 +805,30 @@ async function runExecutionPreview(config, args) {
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
             if (setter) setter.call(input, String(nextValue));
             else input.value = String(nextValue);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const text = String(nextValue);
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Meta', bubbles: true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Meta', bubbles: true }));
+            input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+            input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
+          };
+          const commitInputValue = async (input, nextValue) => {
+            setInputValue(input, nextValue);
+            await wait(120);
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+            input.blur();
+            input.dispatchEvent(new FocusEvent('blur', { bubbles: false }));
+            input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+            await wait(350);
+            if (String(input.value) !== String(nextValue)) {
+              input.focus();
+              setInputValue(input, nextValue);
+              await wait(150);
+              input.blur();
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              await wait(300);
+            }
           };
           const clickButtonByText = async (buttonText) => {
             const button = Array.from(document.querySelectorAll('button,[role="button"],a'))
@@ -873,6 +895,20 @@ async function runExecutionPreview(config, args) {
               }))
             };
           };
+          const findTargetRow = () => Array.from(document.querySelectorAll('tbody tr,.ant-table-row'))
+            .find((tr) => textOf(tr).includes(String(row.shopId)));
+          const parseMoney = (text) => {
+            const normalized = String(text || '').replace(/,/g, '');
+            if (normalized.includes('-')) return 0;
+            const match = normalized.match(/-?\\d+(?:\\.\\d+)?/);
+            return match ? Number(match[0]) : null;
+          };
+          const readRowBudget = (rowElement) => {
+            if (!rowElement) return null;
+            const cells = Array.from(rowElement.querySelectorAll('td'));
+            const budgetCell = cells[3] || null;
+            return parseMoney(textOf(budgetCell));
+          };
           const chooseRadioByText = async (modal, labelText) => {
             const normalizedLabel = labelText.replace(/\\s/g, '');
             const wrappers = Array.from(modal.querySelectorAll('.ant-radio-wrapper,label,[class*="radio"]'))
@@ -928,16 +964,14 @@ async function runExecutionPreview(config, args) {
           else input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
           await wait(2600);
 
-          let targetRow = Array.from(document.querySelectorAll('tbody tr,.ant-table-row'))
-            .find((tr) => textOf(tr).includes(String(row.shopId)));
+          let targetRow = findTargetRow();
           if (!targetRow) {
             const pageTwo = document.querySelector('.ant-pagination-item-2') ||
               Array.from(document.querySelectorAll('.ant-pagination-item')).find((el) => textOf(el) === '2');
             if (pageTwo) {
               (pageTwo.querySelector('a') || pageTwo).click();
               await wait(2200);
-              targetRow = Array.from(document.querySelectorAll('tbody tr,.ant-table-row'))
-                .find((tr) => textOf(tr).includes(String(row.shopId)));
+              targetRow = findTargetRow();
             }
           }
           if (!targetRow) return { ok: false, store: row.store, shopId: row.shopId, error: '没有找到目标门店行' };
@@ -960,14 +994,14 @@ async function runExecutionPreview(config, args) {
             .find((input) => String(input.className || '').includes('ant-input-number-input')) ||
             Array.from(modal.querySelectorAll('input')).filter(visible)[0];
           if (!valueInput) return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '弹窗里没有找到数值输入框' };
-          setInputValue(valueInput, value);
+          await commitInputValue(valueInput, value);
           if (row.type === 'budget' && textOf(modal).includes('快速获量')) {
             const quickChosen = await chooseRadioByText(modal, '快速获量');
             if (!quickChosen) {
               return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '预算弹窗要求获量速度，但没有找到快速获量选项', saved: false };
             }
             await wait(300);
-            setInputValue(valueInput, value);
+            await commitInputValue(valueInput, value);
           }
           if (row.type === 'bid-check') {
             if (/出价助手|出价模式/.test(textOf(modal))) {
@@ -1012,6 +1046,27 @@ async function runExecutionPreview(config, args) {
               await wait(500);
             }
             if (stillOpen) {
+              await wait(1200);
+              const currentRow = findTargetRow();
+              const verifiedBudget = row.type === 'budget' ? readRowBudget(currentRow) : null;
+              if (row.type === 'budget' && verifiedBudget === Number(value)) {
+                return {
+                  ok: true,
+                  store: row.store,
+                  shopId: row.shopId,
+                  type: row.type,
+                  actionButton,
+                  value,
+                  currentBid: row.currentBid,
+                  targetBid: row.targetBid,
+                  currentBudget: row.currentBudget,
+                  targetBudget: row.targetBudget,
+                  rowText,
+                  modalAfterFill,
+                  postSaveVerification: { budget: verifiedBudget },
+                  saved
+                };
+              }
               return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '点确定后弹窗仍未关闭，可能页面校验未通过', saved: false };
             }
           } else {
