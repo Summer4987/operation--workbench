@@ -111,6 +111,24 @@ git status --short --branch
 
 生产目录存在未提交或未跟踪改动时，停止并回报，不要在生产目录执行 `git pull` 或覆盖文件。
 
+如果 `adb devices` 提示 `command not found: adb`，先安装官方 Android platform-tools 到当前用户目录，不改系统目录：
+
+```zsh
+mkdir -p "$HOME/Library/Android/sdk"
+cd "$HOME/Library/Android/sdk"
+curl -fL -o platform-tools-latest-darwin.zip "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"
+rm -rf platform-tools
+/usr/bin/unzip -q platform-tools-latest-darwin.zip
+"$HOME/Library/Android/sdk/platform-tools/adb" version
+"$HOME/Library/Android/sdk/platform-tools/adb" devices
+```
+
+之后重新运行：
+
+```zsh
+ANDROID_ADB_BIN="$HOME/Library/Android/sdk/platform-tools/adb" /bin/zsh scripts/run_kuailv_order_dry_run.zsh
+```
+
 ## 回报内容
 
 请输出：

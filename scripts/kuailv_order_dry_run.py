@@ -23,6 +23,11 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 DEFAULT_SERVER = "http://139.155.148.169"
 DEFAULT_TOKEN = "daily-order-admin"
 CHANNEL = "快驴"
+ADB_COMMON_PATHS = [
+    Path.home() / "Library" / "Android" / "sdk" / "platform-tools" / "adb",
+    Path("/opt/homebrew/bin/adb"),
+    Path("/usr/local/bin/adb"),
+]
 
 
 PACK_RULES: dict[str, dict[str, Any]] = {
@@ -53,6 +58,7 @@ PACK_RULES: dict[str, dict[str, Any]] = {
     "圣女果": {
         "pack_sizes": [6, 5, 3],
         "allowed_overage": 1,
+        "prefer_single_pack": 6,
         "keywords": ["圣女果", "小番茄"],
         "accept": ["圣女果", "小番茄"],
         "prefer": ["6斤", "整件", "销量", "回购"],
@@ -215,7 +221,13 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
     quantity = float(item.get("quantity") or 0)
     unit = str(item.get("unit") or "")
     rule = PACK_RULES.get(name, {"pack_sizes": [1], "allowed_overage": 0, "keywords": [name]})
-    pack_lines, planned_quantity = split_packs(quantity, [float(v) for v in rule["pack_sizes"]], float(rule.get("allowed_overage") or 0))
+    pack_sizes = [float(v) for v in rule["pack_sizes"]]
+    allowed_overage = float(rule.get("allowed_overage") or 0)
+    prefer_single_pack = float(rule.get("prefer_single_pack") or 0)
+    if prefer_single_pack and quantity <= prefer_single_pack <= quantity + allowed_overage:
+        pack_lines, planned_quantity = [{"pack_size": prefer_single_pack, "count": 1.0}], prefer_single_pack
+    else:
+        pack_lines, planned_quantity = split_packs(quantity, pack_sizes, allowed_overage)
     search_terms = list(rule.get("keywords") or [name])
     accept_keywords = list(rule.get("accept") or [name.replace("（自主填写）", "")])
     reject_keywords = list(dict.fromkeys(list(rule.get("reject") or []) + (EXCLUDED_KEYWORDS if "豆腐" in name else [])))
@@ -291,18 +303,31 @@ def run_command(args: list[str], timeout: int) -> CommandResult:
 
 
 def adb_base(serial: str) -> list[str]:
-    base = ["adb"]
+    base = [adb_executable()]
     if serial:
         base.extend(["-s", serial])
     return base
 
 
+def adb_executable() -> str:
+    env_path = os.environ.get("ANDROID_ADB_BIN", "").strip()
+    candidates = [Path(env_path)] if env_path else []
+    found = shutil.which("adb")
+    if found:
+        candidates.append(Path(found))
+    candidates.extend(ADB_COMMON_PATHS)
+    for candidate in candidates:
+        if candidate and candidate.exists() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return "adb"
+
+
 def adb_available() -> bool:
-    return bool(shutil.which("adb"))
+    return adb_executable() != "adb" or bool(shutil.which("adb"))
 
 
 def adb_devices(timeout: int) -> list[str]:
-    result = run_command(["adb", "devices"], timeout)
+    result = run_command([adb_executable(), "devices"], timeout)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "adb devices 失败").strip())
     devices = []
