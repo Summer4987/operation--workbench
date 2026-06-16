@@ -1055,6 +1055,7 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
     analysis = snapshot.get("ui_analysis") or {}
     candidates = analysis.get("orange_add_candidates") or []
     candidate_rows = []
+    safe_candidate_rows = []
     for candidate in candidates:
         text = f"{candidate_text(candidate, 'nearby_texts')} {candidate_text(candidate, 'context_texts')}"
         hits = [word for word in target_words if word and word in text]
@@ -1069,6 +1070,26 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
                     "text": text,
                 }
             )
+        best = candidate.get("best_allowed_match") or {}
+        if best.get("allowed"):
+            best_text = " ".join(
+                str(best.get(key) or "")
+                for key in ("line_name", "pack_label", "row_text", "context_text", "target_title_text", "target_spec_text")
+            )
+            best_hits = [word for word in target_words if word and word in best_text]
+            if best_hits:
+                safe_candidate_rows.append(
+                    {
+                        "center": candidate.get("center"),
+                        "bounds": candidate.get("bounds"),
+                        "source": candidate.get("source"),
+                        "control_text": candidate.get("control_text"),
+                        "hits": best_hits,
+                        "line_name": best.get("line_name"),
+                        "pack_label": best.get("pack_label"),
+                        "text": best_text,
+                    }
+                )
     page_rows = []
     for text in snapshot.get("detected_text") or []:
         hits = [word for word in target_words if word and word in str(text)]
@@ -1095,6 +1116,8 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
         "hits": candidate_rows[:8],
         "candidate_hit_count": len(candidate_rows),
         "candidate_hits": candidate_rows[:8],
+        "safe_candidate_hit_count": len(safe_candidate_rows),
+        "safe_candidate_hits": safe_candidate_rows[:8],
         "page_text_hit_count": len(page_rows),
         "page_text_hits": page_rows[:12],
         "page_node_hit_count": len(page_node_rows),
@@ -2269,13 +2292,13 @@ def run_adb_search(
     scroll_retries = []
     after_target_scroll = None
 
-    if press_enter and after.get("captured") and query_visible_after and not result_check.get("candidate_hit_count"):
+    if press_enter and after.get("captured") and query_visible_after and not result_check.get("safe_candidate_hit_count"):
         search_key = run_command(adb_base(serial) + ["shell", "input", "keyevent", "KEYCODE_SEARCH"], timeout)
         search_key_retry = {"returncode": search_key.returncode, "stderr": search_key.stderr.strip(), "stdout": search_key.stdout.strip()}
         time.sleep(2.0)
         after_search_key = save_adb_snapshot(serial, session_dir / "after-search-key", timeout, plan)
         retry_check = search_result_hits(after_search_key, target_words)
-        if retry_check.get("candidate_hit_count") or retry_check.get("page_text_hit_count"):
+        if retry_check.get("safe_candidate_hit_count") or retry_check.get("page_text_hit_count"):
             after = after_search_key
             result_check = retry_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
@@ -2294,14 +2317,14 @@ def run_adb_search(
             time.sleep(2.0)
             after_submit_tap = save_adb_snapshot(serial, session_dir / "after-submit-tap", timeout, plan)
             submit_check = search_result_hits(after_submit_tap, target_words)
-            if submit_check.get("candidate_hit_count") or submit_check.get("page_text_hit_count"):
+            if submit_check.get("safe_candidate_hit_count") or submit_check.get("page_text_hit_count"):
                 after = after_submit_tap
                 result_check = submit_check
                 after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
                 query_visible_after = query in after_text_blob
 
     for scroll_index in range(1, 4):
-        if not (after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count")):
+        if not (after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("safe_candidate_hit_count")):
             break
         scroll_args = target_guided_scroll_args(result_check)
         before_target_position = target_text_position(result_check)
@@ -2320,12 +2343,12 @@ def run_adb_search(
         after_target_scroll = save_adb_snapshot(serial, scroll_dir, timeout, plan)
         scroll_check = search_result_hits(after_target_scroll, target_words)
         scroll_retry["after_target_position"] = target_text_position(scroll_check)
-        if scroll_check.get("candidate_hit_count") or scroll_check.get("page_text_hit_count"):
+        if scroll_check.get("safe_candidate_hit_count") or scroll_check.get("page_text_hit_count"):
             after = after_target_scroll
             result_check = scroll_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
             query_visible_after = query in after_text_blob
-        if scroll_check.get("candidate_hit_count"):
+        if scroll_check.get("safe_candidate_hit_count"):
             break
     status = (
         "search_ready_for_manual_review"
@@ -2333,13 +2356,13 @@ def run_adb_search(
         and input_result.get("entered")
         and after.get("captured")
         and query_visible_after
-        and result_check.get("candidate_hit_count")
+        and result_check.get("safe_candidate_hit_count")
         else "blocked"
     )
     message = "已执行一次受保护搜索输入并保存前后截图；未加购、未删除、未提交订单、未付款。"
-    if query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count"):
+    if query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("safe_candidate_hit_count"):
         message = "搜索结果文本已命中目标，但未找到目标卡片的加购候选；已阻断。未加购、未删除、未提交订单、未付款。"
-    elif query_visible_after and not result_check.get("candidate_hit_count"):
+    elif query_visible_after and not result_check.get("safe_candidate_hit_count"):
         message = "搜索词可见，但结果候选卡片未命中目标关键词；按未刷新/未命中阻断。未加购、未删除、未提交订单、未付款。"
     return {
         "status": status,
