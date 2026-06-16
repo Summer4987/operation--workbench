@@ -34,7 +34,8 @@ def main() -> int:
     plan = data.get("plan") or {}
     adb = data.get("adb") or {}
     snapshot = adb.get("snapshot") or {}
-    analysis = snapshot.get("ui_analysis") or {}
+    before = adb.get("before") or {}
+    analysis = snapshot.get("ui_analysis") or before.get("ui_analysis") or {}
     candidates = analysis.get("orange_add_candidates") or []
     tofu_recs = [
         {
@@ -66,8 +67,15 @@ def main() -> int:
         "selected": compact_score(adb.get("selected")),
         "pre_navigation_tap": adb.get("pre_navigation_tap"),
         "tap": adb.get("tap"),
+        "query": adb.get("query"),
+        "query_visible_after": adb.get("query_visible_after"),
+        "input_result": adb.get("input_result"),
+        "enter_result": adb.get("enter_result"),
         "cart_review": adb.get("cart_review"),
         "after_cart_review_details": (adb.get("after") or {}).get("cart_review_details"),
+        "after_cart_item_candidates": ((adb.get("after") or {}).get("cart_review_details") or {}).get("cart_item_candidates"),
+        "after_checkout_nodes": ((adb.get("after") or {}).get("cart_review_details") or {}).get("checkout_nodes"),
+        "after_background_risk_nodes": ((adb.get("after") or {}).get("cart_review_details") or {}).get("background_risk_nodes"),
         "post_tap_validation": adb.get("post_tap_validation"),
         "before_files": (adb.get("before") or {}).get("files"),
         "after_back_files": (adb.get("after_back") or {}).get("files"),
@@ -91,6 +99,7 @@ def main() -> int:
         "after_plan_match": (adb.get("after") or {}).get("plan_match"),
         "delivery_store_match": analysis.get("delivery_store_match"),
         "delivery_candidates": analysis.get("delivery_candidates"),
+        "search_entry_candidates": (analysis.get("search_entry_candidates") or [])[:8],
         "cart_entry_candidates": (analysis.get("cart_entry_candidates") or [])[:8],
         "cart_review_page": analysis.get("cart_review_page"),
         "orange_add_candidates_count": len(candidates),

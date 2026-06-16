@@ -669,6 +669,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     ][:80]
     orange_candidates = annotate_add_candidates(detect_orange_controls(image_path, nodes), plan)
     cart_entry_candidates = find_cart_entry_candidates(nodes, image_path)
+    search_entry_candidates = find_search_entry_candidates(nodes, image_path)
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
     expected_store = str(plan.get("store_name") or "")
@@ -681,6 +682,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "expected_store": expected_store,
         "orange_add_candidates": orange_candidates,
         "cart_entry_candidates": cart_entry_candidates,
+        "search_entry_candidates": search_entry_candidates,
         "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
     }
     analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
@@ -728,13 +730,94 @@ def analyze_cart_review_xml(xml_text: str) -> dict[str, Any]:
         for text in texts
         if any(word in text for word in CART_RISK_WORDS + ["¥", "￥", "去结算", "合计", "全选", "购物车"])
     ]
+    nodes = parse_ui_nodes(xml_text)
+    cart_nodes = extract_cart_review_nodes(nodes)
     return {
         "reached_cart": bool(marker_hits or len(keyword_hits) >= 2),
         "keyword_hits": keyword_hits,
         "marker_hits": marker_hits,
         "risk_hits": risk_hits,
         "visible_relevant_text": relevant_texts[:80],
+        "cart_item_candidates": cart_nodes["cart_item_candidates"],
+        "checkout_nodes": cart_nodes["checkout_nodes"],
+        "background_risk_nodes": cart_nodes["background_risk_nodes"],
     }
+
+
+def extract_cart_review_nodes(nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    if not nodes:
+        return {"cart_item_candidates": [], "checkout_nodes": [], "background_risk_nodes": []}
+
+    max_y = max((int(node["bounds"][3]) for node in nodes), default=2400)
+    control_words = ["购物车", "去结算", "结算", "合计", "全选", "删除", "清空", "编辑", "提交订单", "付款"]
+    item_words = ["胆水老豆腐", "老豆腐", "400g", "嫩豆腐", "纸巾", "5斤", "2盒", "¥", "￥"]
+    checkout_nodes = []
+    item_candidates = []
+    background_risk_nodes = []
+
+    for node in nodes:
+        text = node_text(node)
+        if not text:
+            continue
+        bounds = node["bounds"]
+        x1, y1, x2, y2 = [int(value) for value in bounds]
+        if [x1, y1, x2, y2] == [0, 0, 0, 0]:
+            zone = "hidden"
+        elif y1 >= int(max_y * 0.88) or y2 >= int(max_y * 0.92):
+            zone = "bottom_cart_review"
+        elif y1 >= int(max_y * 0.72):
+            zone = "lower_page"
+        else:
+            zone = "background_or_product_list"
+
+        row = {
+            "text": text,
+            "class": node.get("class", ""),
+            "clickable": node.get("clickable"),
+            "resource_id": node.get("resource_id", ""),
+            "bounds": bounds,
+            "center": [round(value, 1) for value in bounds_center(tuple(bounds))],
+            "zone": zone,
+        }
+
+        if any(word in text for word in control_words):
+            checkout_nodes.append(row)
+            continue
+
+        if any(word in text for word in item_words):
+            expected_hits = [word for word in ["胆水老豆腐", "老豆腐", "400g"] if word in text]
+            risk_hits = [word for word in ["纸巾", "嫩豆腐", "5斤", "2盒"] if word in text]
+            row["expected_hits"] = expected_hits
+            row["risk_hits"] = risk_hits
+            row["cart_likelihood"] = cart_node_likelihood(zone, expected_hits, risk_hits, text)
+            if zone in {"bottom_cart_review", "lower_page"} and expected_hits:
+                item_candidates.append(row)
+            elif risk_hits:
+                background_risk_nodes.append(row)
+
+    item_candidates.sort(key=lambda item: (-int(item.get("cart_likelihood", 0)), item["bounds"][1], item["bounds"][0]))
+    background_risk_nodes.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    checkout_nodes.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return {
+        "cart_item_candidates": item_candidates[:20],
+        "checkout_nodes": checkout_nodes[:30],
+        "background_risk_nodes": background_risk_nodes[:20],
+    }
+
+
+def cart_node_likelihood(zone: str, expected_hits: list[str], risk_hits: list[str], text: str) -> int:
+    score = 0
+    if zone == "bottom_cart_review":
+        score += 45
+    elif zone == "lower_page":
+        score += 25
+    elif zone == "hidden":
+        score -= 60
+    score += 20 * len(expected_hits)
+    score -= 30 * len(risk_hits)
+    if "¥" in text or "￥" in text:
+        score += 5
+    return score
 
 
 def attention_color_components(image_path: Path, *, y_start_ratio: float = 0.82) -> list[dict[str, Any]]:
@@ -900,6 +983,77 @@ def find_cart_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) ->
         seen.add(key)
         deduped.append(row)
     return deduped[:20]
+
+
+def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) -> list[dict[str, Any]]:
+    image_width = 1080
+    image_height = 2400
+    try:
+        from PIL import Image
+
+        if image_path and image_path.exists():
+            with Image.open(image_path) as image:
+                image_width, image_height = image.size
+    except Exception:
+        pass
+
+    rows = []
+    forbidden_words = ["去结算", "提交订单", "付款", "合计", "全选"]
+    for node in nodes:
+        text = node_text(node)
+        blob = f"{text} {node.get('class') or ''} {node.get('resource_id') or ''}".lower()
+        bounds = tuple(node["bounds"])
+        cx, cy = bounds_center(bounds)
+        if cy > image_height * 0.45:
+            continue
+        if any(word in text for word in forbidden_words):
+            continue
+        reasons = []
+        score = 0
+        if any(word in text for word in ["搜索", "请输入", "商品"]):
+            score += 70
+            reasons.append("search_text")
+        if "search" in blob:
+            score += 55
+            reasons.append("search_resource_or_desc")
+        if "edittext" in blob:
+            score += 35
+            reasons.append("edit_text")
+        if node.get("clickable"):
+            score += 10
+            reasons.append("clickable")
+        if bounds[2] - bounds[0] >= image_width * 0.35:
+            score += 8
+            reasons.append("wide_input_like")
+        if cy <= image_height * 0.22:
+            score += 8
+            reasons.append("top_header_area")
+        if not reasons or score < 50:
+            continue
+        rows.append(
+            {
+                "kind": "search_entry",
+                "center": [round(cx, 1), round(cy, 1)],
+                "bounds": list(bounds),
+                "score": score,
+                "reasons": reasons,
+                "text": text,
+                "clickable": node.get("clickable"),
+                "class": node.get("class", ""),
+                "resource_id": node.get("resource_id", ""),
+            }
+        )
+    rows.sort(key=lambda item: (-item.get("score", 0), item["bounds"][1], item["bounds"][0]))
+    deduped = []
+    seen: set[tuple[int, int]] = set()
+    for row in rows:
+        cx, cy = row.get("center") or [0, 0]
+        key = (int(round(float(cx) / 16)), int(round(float(cy) / 16)))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped[:12]
 
 
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
@@ -1202,6 +1356,195 @@ def run_adb_cart_open(
     }
 
 
+def adb_clear_focused_text(serial: str, timeout: int, max_delete: int = 28) -> list[dict[str, Any]]:
+    results = []
+    commands = [
+        ["shell", "input", "keyevent", "123"],
+        ["shell", "input", "keyevent", *["67" for _ in range(max_delete)]],
+    ]
+    for command in commands:
+        result = run_command(adb_base(serial) + command, timeout)
+        results.append({"args": command, "returncode": result.returncode, "stderr": result.stderr.strip(), "stdout": result.stdout.strip()})
+        time.sleep(0.15)
+    return results
+
+
+def adb_input_query_text(serial: str, query: str, timeout: int) -> dict[str, Any]:
+    attempts = []
+    if not query:
+        return {"entered": False, "attempts": attempts, "message": "未指定搜索词。"}
+
+    clipboard_result = run_command(adb_base(serial) + ["shell", "cmd", "clipboard", "set", query], timeout)
+    attempts.append(
+        {
+            "method": "cmd_clipboard_set",
+            "returncode": clipboard_result.returncode,
+            "stderr": clipboard_result.stderr.strip(),
+            "stdout": clipboard_result.stdout.strip(),
+        }
+    )
+    if clipboard_result.returncode == 0:
+        paste_result = run_command(adb_base(serial) + ["shell", "input", "keyevent", "279"], timeout)
+        attempts.append(
+            {
+                "method": "paste_keyevent_279",
+                "returncode": paste_result.returncode,
+                "stderr": paste_result.stderr.strip(),
+                "stdout": paste_result.stdout.strip(),
+            }
+        )
+        time.sleep(0.8)
+        return {"entered": paste_result.returncode == 0, "attempts": attempts}
+
+    if query.isascii():
+        escaped = query.replace("%", "%25").replace(" ", "%s")
+        text_result = run_command(adb_base(serial) + ["shell", "input", "text", escaped], timeout)
+        attempts.append(
+            {
+                "method": "input_text_ascii",
+                "returncode": text_result.returncode,
+                "stderr": text_result.stderr.strip(),
+                "stdout": text_result.stdout.strip(),
+            }
+        )
+        time.sleep(0.8)
+        return {"entered": text_result.returncode == 0, "attempts": attempts}
+
+    return {"entered": False, "attempts": attempts, "message": "中文搜索词无法通过 clipboard/paste 输入。"}
+
+
+def run_adb_search(
+    plan: dict[str, Any],
+    serial: str,
+    timeout: int,
+    query: str,
+    candidate_index: int,
+    search_tap_x: int,
+    search_tap_y: int,
+    pre_back_count: int,
+    press_enter: bool,
+) -> dict[str, Any]:
+    serial, blocked = resolve_adb_serial(serial, timeout)
+    if blocked:
+        return blocked
+    if not query:
+        return {"status": "blocked", "message": "adb-search 需要指定 --search-query。", "device_serial": serial}
+
+    session = datetime.now().strftime("%Y%m%d-%H%M%S-search")
+    session_dir = OUTPUT_DIR / session
+    before_dir = session_dir / "before"
+    after_dir = session_dir / "after"
+    before = save_adb_snapshot(serial, before_dir, timeout, plan)
+    analysis = before.get("ui_analysis") or {}
+    if not before.get("captured"):
+        return {"status": "blocked", "message": "adb-search 前截图/控件树采集失败，未点击。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+
+    after_back = None
+    back_results = []
+    if pre_back_count > 0:
+        for _ in range(pre_back_count):
+            result = run_command(adb_base(serial) + ["shell", "input", "keyevent", "BACK"], timeout)
+            back_results.append({"returncode": result.returncode, "stderr": result.stderr.strip(), "stdout": result.stdout.strip()})
+            time.sleep(0.8)
+        after_back = save_adb_snapshot(serial, session_dir / "after-back", timeout, plan)
+        analysis = (after_back.get("ui_analysis") or {}) if after_back.get("captured") else analysis
+
+    if analysis.get("cart_review_page"):
+        return {
+            "status": "blocked",
+            "message": "当前仍像购物车/结算页，未点击搜索框；如需关闭购物车浮层，请明确增加 --search-pre-back-count。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "after_back": after_back,
+            "back_results": back_results,
+        }
+
+    if not analysis.get("delivery_store_match"):
+        return {
+            "status": "blocked",
+            "message": "收货门店未匹配订单门店，未点击搜索框。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "after_back": after_back,
+        }
+
+    candidates = analysis.get("search_entry_candidates") or []
+    if search_tap_x > 0 and search_tap_y > 0:
+        selected = {
+            "kind": "manual_search_coordinate",
+            "center": [search_tap_x, search_tap_y],
+            "bounds": [search_tap_x, search_tap_y, search_tap_x, search_tap_y],
+            "score": 0,
+            "reasons": ["operator_selected_search_coordinate"],
+        }
+    elif not candidates:
+        return {
+            "status": "blocked",
+            "message": "未找到搜索入口候选，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "after_back": after_back,
+        }
+    elif candidate_index < 0 or candidate_index >= len(candidates):
+        return {
+            "status": "blocked",
+            "message": f"搜索候选下标 {candidate_index} 超出范围，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "after_back": after_back,
+            "search_entry_candidates": candidates,
+        }
+    else:
+        selected = candidates[candidate_index]
+
+    center = selected.get("center") or []
+    if len(center) != 2:
+        return {"status": "blocked", "message": "搜索候选缺少 center，未点击。", "device_serial": serial, "session_dir": str(session_dir), "selected": selected}
+
+    x, y = int(round(float(center[0]))), int(round(float(center[1])))
+    tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
+    time.sleep(0.8)
+    clear_results = adb_clear_focused_text(serial, timeout)
+    input_result = adb_input_query_text(serial, query, timeout)
+    enter_result = None
+    if press_enter:
+        enter = run_command(adb_base(serial) + ["shell", "input", "keyevent", "ENTER"], timeout)
+        enter_result = {"returncode": enter.returncode, "stderr": enter.stderr.strip(), "stdout": enter.stdout.strip()}
+        time.sleep(1.2)
+    else:
+        time.sleep(1.2)
+    after = save_adb_snapshot(serial, after_dir, timeout, plan)
+    after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
+    status = "search_ready_for_manual_review" if tap_result.returncode == 0 and input_result.get("entered") and after.get("captured") else "blocked"
+    return {
+        "status": status,
+        "message": "已执行一次受保护搜索输入并保存前后截图；未加购、未删除、未提交订单、未付款。",
+        "device_serial": serial,
+        "session_dir": str(session_dir),
+        "query": query,
+        "selected": selected,
+        "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+        "clear_results": clear_results,
+        "input_result": input_result,
+        "enter_result": enter_result,
+        "before": before,
+        "after_back": after_back,
+        "back_results": back_results,
+        "after": after,
+        "query_visible_after": query in after_text_blob,
+        "safety": {
+            "delivery_store_match_required": True,
+            "pre_back_count": pre_back_count,
+            "single_search_tap_only": True,
+            "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
+        },
+    }
+
+
 def pre_cart_navigation_allowed(before: dict[str, Any], x: int, y: int) -> tuple[bool, list[str]]:
     detected = before.get("detected_text") or []
     text_blob = " ".join(str(text) for text in detected)
@@ -1275,9 +1618,9 @@ def main() -> int:
     parser.add_argument("--seed", default="", help="随机种子；为空时按日期稳定随机")
     parser.add_argument(
         "--mode",
-        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open"],
+        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open", "adb-search"],
         default="plan-only",
-        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap",
+        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap；adb-search 只允许一次受保护搜索输入",
     )
     parser.add_argument("--adb-serial", default=os.environ.get("ANDROID_ADB_SERIAL", ""), help="ADB 设备号")
     parser.add_argument("--tap-item", default="", help="adb-safe-tap 的目标品项名，例如：豆腐")
@@ -1288,6 +1631,12 @@ def main() -> int:
     parser.add_argument("--cart-pre-back-count", type=int, default=0, help="adb-cart-open 前先按 Back 的次数，用于退出搜索浮层；仍会保存中间截图")
     parser.add_argument("--cart-pre-nav-tap-x", type=int, default=0, help="adb-cart-open 前先点一次顶部退出搜索候选 x；只允许左上搜索页导航区域")
     parser.add_argument("--cart-pre-nav-tap-y", type=int, default=0, help="adb-cart-open 前先点一次顶部退出搜索候选 y；只允许左上搜索页导航区域")
+    parser.add_argument("--search-query", default="", help="adb-search 的搜索词，例如：洋葱")
+    parser.add_argument("--search-candidate-index", type=int, default=0, help="adb-search 使用的搜索入口候选下标，默认最高分候选 0")
+    parser.add_argument("--search-tap-x", type=int, default=0, help="adb-search 坐标覆盖：指定 x 时仍会执行前后截图和守卫")
+    parser.add_argument("--search-tap-y", type=int, default=0, help="adb-search 坐标覆盖：指定 y 时仍会执行前后截图和守卫")
+    parser.add_argument("--search-pre-back-count", type=int, default=0, help="adb-search 前先按 Back 的次数，用于关闭购物车浮层；仍会保存中间截图")
+    parser.add_argument("--search-no-enter", action="store_true", help="adb-search 输入后不按 Enter，仅保存输入后的页面")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     args = parser.parse_args()
 
@@ -1311,11 +1660,23 @@ def main() -> int:
                 args.cart_pre_nav_tap_x,
                 args.cart_pre_nav_tap_y,
             )
+        elif args.mode == "adb-search":
+            adb_result = run_adb_search(
+                plan,
+                args.adb_serial.strip(),
+                args.timeout,
+                args.search_query.strip(),
+                args.search_candidate_index,
+                args.search_tap_x,
+                args.search_tap_y,
+                max(0, args.search_pre_back_count),
+                not args.search_no_enter,
+            )
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
             "generated_at": started_at,
-            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready"} else "blocked",
+            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review"} else "blocked",
             "mode": args.mode,
             "source": admin_summary_url(args.server, "***"),
             "message": "快驴订货计划已生成；未提交订单，未付款。",
