@@ -89,6 +89,7 @@ def main() -> int:
         "after_checkout_nodes": ((adb.get("after") or {}).get("cart_review_details") or {}).get("checkout_nodes"),
         "after_background_risk_nodes": ((adb.get("after") or {}).get("cart_review_details") or {}).get("background_risk_nodes"),
         "post_tap_validation": adb.get("post_tap_validation"),
+        "visual_proof": adb.get("visual_proof"),
         "before_files": (adb.get("before") or {}).get("files"),
         "after_back_files": (adb.get("after_back") or {}).get("files"),
         "after_back_detected_relevant": [
@@ -114,6 +115,7 @@ def main() -> int:
         "search_entry_candidates": (analysis.get("search_entry_candidates") or [])[:8],
         "cart_entry_candidates": (analysis.get("cart_entry_candidates") or [])[:8],
         "cart_review_page": analysis.get("cart_review_page"),
+        "product_detail_page": analysis.get("product_detail_page"),
         "orange_add_candidates_count": len(candidates),
         "safe_add_recommendations": safe_add_recommendations,
         "tofu_safe_add_recommendations": [row for row in safe_add_recommendations if row.get("line_name") == "豆腐"],

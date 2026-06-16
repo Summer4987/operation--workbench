@@ -1177,6 +1177,39 @@ def safe_add_recommendations(analysis: dict[str, Any], plan: dict[str, Any]) -> 
     return rows
 
 
+def safe_tap_visual_proof(before: dict[str, Any], selected: dict[str, Any]) -> dict[str, Any]:
+    detected_texts = [str(text) for text in before.get("detected_text") or [] if str(text)]
+    text_blob = " ".join(detected_texts)
+    identity_keywords = [str(word) for word in selected.get("identity_keywords") or [] if str(word)]
+    pack_hits = [str(word) for word in selected.get("pack_hits") or [] if str(word)]
+    target_title = str(selected.get("target_title_text") or "")
+    target_spec = str(selected.get("target_spec_text") or "")
+    title_parts = [word for word in identity_keywords + [target_title] if word]
+    spec_parts = [word for word in pack_hits + [target_spec, str(selected.get("pack_label") or "")] if word]
+    identity_seen = [word for word in title_parts if word and word in text_blob]
+    spec_seen = [word for word in spec_parts if word and valid_pack_label_hit(text_blob, word)]
+    reasons = []
+    if title_parts and not identity_seen:
+        reasons.append("target_identity_not_visible_in_screenshot")
+    if spec_parts and not spec_seen:
+        reasons.append("target_spec_not_visible_in_screenshot")
+    if any(word in text_blob for word in ["提交订单", "付款"]):
+        reasons.append("submit_or_payment_text_visible")
+    return {
+        "allowed": not reasons,
+        "reasons": reasons,
+        "identity_seen": identity_seen,
+        "spec_seen": spec_seen,
+        "required_identity": title_parts,
+        "required_spec": spec_parts,
+        "detected_relevant_text": [
+            text
+            for text in detected_texts
+            if any(word and word in text for word in title_parts + spec_parts + ["提交订单", "付款", "购物车"])
+        ][:20],
+    }
+
+
 def extract_delivery_text(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for node in nodes:
@@ -1226,6 +1259,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "visible_text_nodes": visible_text_nodes(nodes),
         "target_card_add_diagnostics": target_card_add_diagnostics(nodes, plan),
         "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
+        "product_detail_page": is_product_detail_page(nodes, detect_page_text(xml_text)),
     }
     analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
     analysis["blocked_orange_candidates"] = [
@@ -1259,6 +1293,28 @@ def is_cart_review_page(detected_text: list[str] | str) -> bool:
     if any(word in text for word in CART_XML_MARKERS):
         return True
     return len(strong_hits) >= 2
+
+
+def is_product_detail_page(nodes: list[dict[str, Any]], detected_text: list[str] | str) -> bool:
+    _text_blob = detected_text if isinstance(detected_text, str) else " ".join(str(item) for item in detected_text)
+    has_favorite = False
+    has_bottom_cart = False
+    has_detail_bottom_layout = False
+    for node in nodes:
+        text = node_text(node)
+        bounds = tuple(node.get("bounds") or (0, 0, 0, 0))
+        if len(bounds) != 4 or bounds == (0, 0, 0, 0):
+            continue
+        _cx, cy = bounds_center(bounds)
+        if cy < 1900:
+            continue
+        if "加入收藏" in text:
+            has_favorite = True
+        if "购物车" in text:
+            has_bottom_cart = True
+        if "bottom_layout" in text:
+            has_detail_bottom_layout = True
+    return bool(has_favorite and has_bottom_cart and has_detail_bottom_layout)
 
 
 def analyze_cart_review_xml(xml_text: str) -> dict[str, Any]:
@@ -1715,6 +1771,14 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
             "session_dir": str(session_dir),
             "before": before,
         }
+    if analysis.get("product_detail_page"):
+        return {
+            "status": "blocked",
+            "message": "当前像商品详情页，列表候选可能来自隐藏控件树；未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+        }
     selected = select_safe_candidate(analysis, item_name, pack_label)
     if not selected:
         return {
@@ -1723,6 +1787,17 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
             "device_serial": serial,
             "session_dir": str(session_dir),
             "before": before,
+        }
+    visual_proof = safe_tap_visual_proof(before, selected)
+    if not visual_proof.get("allowed"):
+        return {
+            "status": "blocked",
+            "message": f"安全候选未通过截图可见性校验：{item_name} / {pack_label}，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "selected": selected,
+            "visual_proof": visual_proof,
         }
 
     center = selected.get("center") or []
@@ -1744,8 +1819,10 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
         "before": before,
         "after": after,
         "post_tap_validation": post_tap_validation,
+        "visual_proof": visual_proof,
         "safety": {
             "delivery_store_match_required": True,
+            "target_visible_in_screenshot_required": True,
             "single_tap_only": True,
             "cart_review_required": True,
             "forbidden_actions": ["提交订单", "付款", "自动切换收货地址"],
@@ -2015,6 +2092,16 @@ def run_adb_search(
         return {
             "status": "blocked",
             "message": "当前仍像购物车/结算页，未点击搜索框；如需关闭购物车浮层，请明确增加 --search-pre-back-count。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "after_back": after_back,
+            "back_results": back_results,
+        }
+    if analysis.get("product_detail_page"):
+        return {
+            "status": "blocked",
+            "message": "当前像商品详情页，未点击搜索框；如需返回列表/搜索页，请明确增加 --search-pre-back-count。",
             "device_serial": serial,
             "session_dir": str(session_dir),
             "before": before,
