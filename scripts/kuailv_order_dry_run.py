@@ -109,6 +109,8 @@ LEARNED_OPERATOR_SKILLS = [
     "所有真实流程停在提交订单前；付款和提交订单永远需要人工确认。",
 ]
 
+CART_REVIEW_KEYWORDS = ["购物车", "进货车", "采购车", "去结算", "结算", "合计", "删除", "清空", "全选", "编辑", "提交订单"]
+
 
 @dataclass
 class CommandResult:
@@ -658,6 +660,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         if node["bounds"][1] >= 2150 or node["bounds"][3] >= 2210
     ][:80]
     orange_candidates = annotate_add_candidates(detect_orange_controls(image_path, nodes), plan)
+    cart_entry_candidates = find_cart_entry_candidates(nodes, image_path)
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
     expected_store = str(plan.get("store_name") or "")
@@ -669,6 +672,8 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "delivery_store_match": bool(expected_store and expected_store in delivery_text),
         "expected_store": expected_store,
         "orange_add_candidates": orange_candidates,
+        "cart_entry_candidates": cart_entry_candidates,
+        "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
     }
     analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
     analysis["blocked_orange_candidates"] = [
@@ -694,6 +699,174 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     return {
         **analysis,
     }
+
+
+def is_cart_review_page(detected_text: list[str]) -> bool:
+    text = " ".join(str(item) for item in detected_text)
+    strong_hits = [word for word in CART_REVIEW_KEYWORDS if word in text]
+    if any(word in text for word in ["提交订单", "去结算", "合计"]):
+        return True
+    return len(strong_hits) >= 2
+
+
+def attention_color_components(image_path: Path, *, y_start_ratio: float = 0.82) -> list[dict[str, Any]]:
+    if not image_path or not image_path.exists():
+        return []
+    try:
+        from PIL import Image
+    except Exception:
+        return []
+
+    image = Image.open(image_path).convert("RGB")
+    width, height = image.size
+    pixels = image.load()
+    visited: set[tuple[int, int]] = set()
+    candidates = []
+
+    def is_attention(x: int, y: int) -> bool:
+        r, g, b = pixels[x, y]
+        orange = r >= 200 and 70 <= g <= 190 and b <= 115 and r - g >= 35
+        red = r >= 190 and g <= 105 and b <= 105
+        green = g >= 135 and r <= 135 and b <= 135
+        return orange or red or green
+
+    y_start = max(0, int(height * y_start_ratio))
+    for y in range(y_start, height, 4):
+        for x in range(0, width, 4):
+            if (x, y) in visited or not is_attention(x, y):
+                continue
+            stack = [(x, y)]
+            component = []
+            visited.add((x, y))
+            while stack:
+                px, py = stack.pop()
+                component.append((px, py))
+                for nx, ny in ((px + 4, py), (px - 4, py), (px, py + 4), (px, py - 4)):
+                    if nx < 0 or nx >= width or ny < y_start or ny >= height or (nx, ny) in visited:
+                        continue
+                    if is_attention(nx, ny):
+                        visited.add((nx, ny))
+                        stack.append((nx, ny))
+            if len(component) < 25:
+                continue
+            xs = [point[0] for point in component]
+            ys = [point[1] for point in component]
+            x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
+            if x2 - x1 < 8 or y2 - y1 < 8:
+                continue
+            center = ((x1 + x2) / 2, (y1 + y2) / 2)
+            candidates.append({"center": [round(center[0], 1), round(center[1], 1)], "bounds": [x1, y1, x2, y2], "color": list(pixels[int(center[0]), int(center[1])])})
+    candidates.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return candidates[:40]
+
+
+def find_cart_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) -> list[dict[str, Any]]:
+    image_width = 1080
+    image_height = 2400
+    try:
+        from PIL import Image
+
+        if image_path and image_path.exists():
+            with Image.open(image_path) as image:
+                image_width, image_height = image.size
+    except Exception:
+        pass
+
+    rows: list[dict[str, Any]] = []
+    bottom_clickables = [node for node in nodes if node.get("clickable") and node["bounds"][1] >= int(image_height * 0.90)]
+    for node in bottom_clickables:
+        bounds = tuple(node["bounds"])
+        cx, cy = bounds_center(bounds)
+        index_guess = round(cx / (image_width / max(len(bottom_clickables), 1))) if bottom_clickables else 0
+        score = 15
+        reasons = ["bottom_clickable_tab"]
+        if int(image_width * 0.35) <= cx <= int(image_width * 0.85):
+            score += 8
+            reasons.append("middle_or_right_bottom_tab")
+        rows.append(
+            {
+                "kind": "bottom_tab",
+                "center": [round(cx, 1), round(cy, 1)],
+                "bounds": list(bounds),
+                "score": score,
+                "reasons": reasons,
+                "index_guess": index_guess,
+                "text": node_text(node),
+            }
+        )
+
+    for node in nodes:
+        text = node_text(node)
+        bounds = tuple(node["bounds"])
+        cx, cy = bounds_center(bounds)
+        if cy < int(image_height * 0.78):
+            continue
+        rid = str(node.get("resource_id") or "")
+        reasons = []
+        score = 0
+        if "cart" in rid.lower() or "shopping" in rid.lower():
+            score += 80
+            reasons.append("cart_like_resource_id")
+        if any(word in text for word in ["购物车", "进货车", "采购车"]):
+            score += 90
+            reasons.append("cart_text")
+        if "activity-button" in rid or "fly-end" in rid:
+            score += 20
+            reasons.append("floating_activity_or_fly_end")
+        if re.fullmatch(r"\d{1,3}", text):
+            score += 10
+            reasons.append("numeric_badge")
+        if not reasons:
+            continue
+        rows.append(
+            {
+                "kind": "xml_bottom_hint",
+                "center": [round(cx, 1), round(cy, 1)],
+                "bounds": list(bounds),
+                "score": score,
+                "reasons": reasons,
+                "text": text,
+                "clickable": node.get("clickable"),
+                "resource_id": rid,
+            }
+        )
+
+    for component in attention_color_components(image_path):
+        cx, cy = component["center"]
+        if cy < int(image_height * 0.78):
+            continue
+        nearby = nearby_texts(nodes, (float(cx), float(cy)), radius_y=170, radius_x=260)
+        score = 8
+        reasons = ["bottom_attention_color"]
+        nearby_blob = " ".join(row.get("text", "") for row in nearby)
+        if re.search(r"\b\d{1,3}\b", nearby_blob):
+            score += 8
+            reasons.append("near_numeric_badge")
+        if any(word in nearby_blob for word in ["购物车", "进货车", "采购车"]):
+            score += 80
+            reasons.append("near_cart_text")
+        rows.append(
+            {
+                "kind": "bottom_color",
+                "center": component["center"],
+                "bounds": component["bounds"],
+                "score": score,
+                "reasons": reasons,
+                "color": component.get("color"),
+                "nearby_texts": nearby,
+            }
+        )
+
+    deduped = []
+    seen: set[tuple[int, int]] = set()
+    for row in sorted(rows, key=lambda item: item.get("score", 0), reverse=True):
+        cx, cy = row.get("center") or [0, 0]
+        key = (int(round(float(cx) / 12)), int(round(float(cy) / 12)))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped[:20]
 
 
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
@@ -845,6 +1018,82 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     }
 
 
+def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate_index: int) -> dict[str, Any]:
+    serial, blocked = resolve_adb_serial(serial, timeout)
+    if blocked:
+        return blocked
+
+    session = datetime.now().strftime("%Y%m%d-%H%M%S-cart-open")
+    session_dir = OUTPUT_DIR / session
+    before_dir = session_dir / "before"
+    after_dir = session_dir / "after"
+    before = save_adb_snapshot(serial, before_dir, timeout, plan)
+    analysis = before.get("ui_analysis") or {}
+    if not before.get("captured"):
+        return {"status": "blocked", "message": "cart-open 前截图/控件树采集失败，未点击。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+
+    if not analysis.get("delivery_store_match"):
+        return {
+            "status": "blocked",
+            "message": "收货门店未匹配订单门店，未点击购物车入口。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+        }
+
+    candidates = analysis.get("cart_entry_candidates") or []
+    if not candidates:
+        return {
+            "status": "blocked",
+            "message": "未找到购物车入口候选，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+        }
+    if candidate_index < 0 or candidate_index >= len(candidates):
+        return {
+            "status": "blocked",
+            "message": f"候选下标 {candidate_index} 超出范围，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "cart_entry_candidates": candidates,
+        }
+
+    selected = candidates[candidate_index]
+    center = selected.get("center") or []
+    if len(center) != 2:
+        return {"status": "blocked", "message": "购物车候选缺少 center，未点击。", "device_serial": serial, "session_dir": str(session_dir), "selected": selected}
+
+    x, y = int(round(float(center[0]))), int(round(float(center[1])))
+    tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
+    time.sleep(1.8)
+    after = save_adb_snapshot(serial, after_dir, timeout, plan)
+    after_detected = after.get("detected_text") or []
+    reached_cart = is_cart_review_page(after_detected)
+    status = "cart_review_ready" if tap_result.returncode == 0 and after.get("captured") and reached_cart else "cart_open_unproven"
+    return {
+        "status": status,
+        "message": "已执行一次受保护购物车入口 tap；已保存前后截图和控件树。未加购、未删除、未提交订单、未付款。",
+        "device_serial": serial,
+        "session_dir": str(session_dir),
+        "selected": selected,
+        "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+        "before": before,
+        "after": after,
+        "cart_review": {
+            "reached_cart": reached_cart,
+            "cart_keywords_seen": [word for word in CART_REVIEW_KEYWORDS if word in " ".join(str(text) for text in after_detected)],
+            "detected_text": after_detected,
+        },
+        "safety": {
+            "delivery_store_match_required": True,
+            "single_navigation_tap_only": True,
+            "forbidden_actions": ["加购", "删除", "清空", "提交订单", "付款", "自动切换收货地址"],
+        },
+    }
+
+
 def validate_post_tap(selected: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     detected_text = after.get("detected_text") or []
     text_blob = " ".join(str(text) for text in detected_text)
@@ -903,13 +1152,14 @@ def main() -> int:
     parser.add_argument("--seed", default="", help="随机种子；为空时按日期稳定随机")
     parser.add_argument(
         "--mode",
-        choices=["plan-only", "adb-dry-run", "adb-safe-tap"],
+        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open"],
         default="plan-only",
-        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap",
+        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap",
     )
     parser.add_argument("--adb-serial", default=os.environ.get("ANDROID_ADB_SERIAL", ""), help="ADB 设备号")
     parser.add_argument("--tap-item", default="", help="adb-safe-tap 的目标品项名，例如：豆腐")
     parser.add_argument("--tap-pack", default="", help="adb-safe-tap 的目标规格标签，例如：400g")
+    parser.add_argument("--cart-candidate-index", type=int, default=0, help="adb-cart-open 使用的购物车入口候选下标，默认最高分候选 0")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     args = parser.parse_args()
 
@@ -921,11 +1171,13 @@ def main() -> int:
             adb_result = run_adb_dry_run(plan, args.adb_serial.strip(), args.timeout)
         elif args.mode == "adb-safe-tap":
             adb_result = run_adb_safe_tap(plan, args.adb_serial.strip(), args.timeout, args.tap_item.strip(), args.tap_pack.strip())
+        elif args.mode == "adb-cart-open":
+            adb_result = run_adb_cart_open(plan, args.adb_serial.strip(), args.timeout, args.cart_candidate_index)
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
             "generated_at": started_at,
-            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review"} else "blocked",
+            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready"} else "blocked",
             "mode": args.mode,
             "source": admin_summary_url(args.server, "***"),
             "message": "快驴订货计划已生成；未提交订单，未付款。",
