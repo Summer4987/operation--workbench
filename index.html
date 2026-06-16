@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260614-bear-logo" />
+    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-intake" />
   </head>
   <body>
     <main class="app">
@@ -321,23 +321,44 @@
             <p>财务中心</p>
             <h2>财务录入</h2>
           </div>
-          <div class="center-grid two">
-            <article class="module" id="finance-intake">
-              <div class="module-head">
-                <div>
-                  <p>录入台</p>
-                  <h2>每日账单与订单入口</h2>
-                </div>
-                <span class="tag planning" id="financeInputStatus">待录入</span>
+          <article class="module finance-intake-module" id="finance-intake">
+            <div class="module-head">
+              <div>
+                <p>录入台</p>
+                <h2>每日账单与订单入口</h2>
               </div>
-              <div class="module-body">
-                <div class="big-number" id="financeInputCount">-</div>
-                <p id="financeInputSummary">等待财务中心状态。</p>
-                <div class="mini-table finance-intake-list" id="financeInputRows"></div>
+              <span class="tag planning" id="financeInputStatus">待录入</span>
+            </div>
+            <div class="module-body">
+              <div class="finance-intake-hero">
+                <div>
+                  <span>当前录入进度</span>
+                  <strong id="financeInputCount">-</strong>
+                  <p id="financeInputSummary">等待财务中心状态。</p>
+                </div>
+                <div class="finance-intake-next" id="financeInputNext">等待缺口检查。</div>
+              </div>
+              <div class="finance-entry-grid" id="financeInputRows"></div>
+              <div class="finance-manual-panel">
+                <div class="module-head">
+                  <div>
+                    <p>人工补录</p>
+                    <h2>暂时不能自动判断的项目</h2>
+                  </div>
+                </div>
                 <div class="mini-table finance-intake-list" id="financeManualRows"></div>
               </div>
-            </article>
-            <article class="module" id="finance-report">
+            </div>
+          </article>
+        </section>
+
+        <section class="center-section" id="finance-report">
+          <div class="section-head">
+            <p>财务中心</p>
+            <h2>财务报表</h2>
+          </div>
+          <div class="center-grid">
+            <article class="module">
               <div class="module-head">
                 <div>
                   <p>报表</p>
@@ -410,6 +431,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260616-budget-refresh"></script>
+    <script src="./workbench.js?v=20260616-finance-intake"></script>
   </body>
 </html>

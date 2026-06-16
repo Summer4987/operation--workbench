@@ -1592,6 +1592,11 @@ function renderFinance() {
       label: fileCount > 0 ? "已接收" : requiredText,
       value: source.name,
       detail: `${fileCount} 个文件 · ${source.path || ""}${fields ? ` · 字段：${fields}` : ""}`,
+      path: source.path || "",
+      templatePath: source.template_path || "",
+      fields,
+      fileCount,
+      required: Boolean(source.required),
       warn: source.required && fileCount === 0,
     };
   });
@@ -1618,11 +1623,37 @@ function renderFinance() {
   text("financeInputStatus", missing.length ? "待补齐" : "可核对");
   text("financeInputCount", `${readySourceCount}/${sources.length || requiredSourceCount} 类已到`);
   text("financeInputSummary", "每天先补银行流水、微信支付、支付宝、平台收入和采购订单；系统后台再做核对、归类和报表预览。");
+  text("financeInputNext", missing.length ? `下一步先补：${missing.slice(0, 3).join("、")}` : "基础账单已到齐，可以进入核对和报表预览。");
   document.querySelector("#finance-intake")?.classList.toggle("alert", waiting);
-  rows(
+  html(
     "financeInputRows",
-    intakeRows,
-    (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+    intakeRows
+      .map(
+        (item) => `
+          <article class="finance-entry-card ${item.warn ? "needs-input" : "ready-input"}">
+            <div class="finance-entry-top">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value)}</strong>
+            </div>
+            <div class="finance-entry-status">${item.fileCount} 个文件</div>
+            <dl>
+              <div>
+                <dt>录入位置</dt>
+                <dd>${escapeHtml(item.path)}</dd>
+              </div>
+              <div>
+                <dt>模板</dt>
+                <dd>${escapeHtml(item.templatePath || "无模板")}</dd>
+              </div>
+              <div>
+                <dt>关键字段</dt>
+                <dd>${escapeHtml(item.fields || "按模板填写")}</dd>
+              </div>
+            </dl>
+          </article>
+        `
+      )
+      .join("")
   );
   rows(
     "financeManualRows",
