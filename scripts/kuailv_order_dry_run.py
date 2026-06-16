@@ -568,12 +568,7 @@ def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, An
     for candidate in candidates:
         line_scores = []
         for line in actionable_lines:
-            pack_labels = [str(pack.get("label") or "").split(" x ", 1)[0] for pack in line.get("pack_strategy") or []]
-            pack_labels.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if re.search(r"\d", str(word)))
-            pack_labels = list(dict.fromkeys(label for label in pack_labels if label))
-            if not pack_labels:
-                pack_labels = [""]
-            for pack_label in pack_labels:
+            for pack_label in line_pack_labels(line):
                 line_scores.append(score_candidate_for_line(candidate, line, pack_label))
         line_scores.sort(key=lambda item: item["score"], reverse=True)
         enriched = dict(candidate)
@@ -581,6 +576,13 @@ def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, An
         enriched["best_allowed_match"] = next((item for item in line_scores if item.get("allowed")), None)
         annotated.append(enriched)
     return annotated
+
+
+def line_pack_labels(line: dict[str, Any]) -> list[str]:
+    labels = [str(pack.get("label") or "").split(" x ", 1)[0] for pack in line.get("pack_strategy") or []]
+    labels.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if re.search(r"\d", str(word)))
+    labels = list(dict.fromkeys(label for label in labels if label))
+    return labels or [""]
 
 
 def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
@@ -598,6 +600,24 @@ def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: 
             matches.append(item)
     matches.sort(key=lambda item: item.get("score", 0), reverse=True)
     return matches[0] if matches else None
+
+
+def safe_add_recommendations(analysis: dict[str, Any], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for line in plan.get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        for pack_label in line_pack_labels(line):
+            selected = select_safe_candidate(analysis, str(line.get("name") or ""), pack_label)
+            rows.append(
+                {
+                    "line_name": line.get("name", ""),
+                    "pack_label": pack_label,
+                    "allowed": bool(selected),
+                    "selected": selected,
+                }
+            )
+    return rows
 
 
 def extract_delivery_text(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -631,7 +651,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
     expected_store = str(plan.get("store_name") or "")
-    return {
+    analysis = {
         "node_count": len(nodes),
         "clickable_nodes": clickable,
         "bottom_nodes": bottom_nodes,
@@ -639,6 +659,30 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "delivery_store_match": bool(expected_store and expected_store in delivery_text),
         "expected_store": expected_store,
         "orange_add_candidates": orange_candidates,
+    }
+    analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
+    analysis["blocked_orange_candidates"] = [
+        {
+            "center": candidate.get("center"),
+            "bounds": candidate.get("bounds"),
+            "nearby_texts": candidate.get("nearby_texts"),
+            "top_reasons": [
+                {
+                    "line_name": score.get("line_name"),
+                    "pack_label": score.get("pack_label"),
+                    "reasons": score.get("reasons"),
+                    "excluded_hits": score.get("excluded_hits"),
+                    "row_text": score.get("row_text"),
+                }
+                for score in (candidate.get("line_scores") or [])[:3]
+                if not score.get("allowed")
+            ],
+        }
+        for candidate in orange_candidates
+        if not candidate.get("best_allowed_match")
+    ][:20]
+    return {
+        **analysis,
     }
 
 
