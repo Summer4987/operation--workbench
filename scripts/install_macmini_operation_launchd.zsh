@@ -31,6 +31,7 @@ fi
 if [ ! -x "\$PYTHON" ]; then
   PYTHON="python3"
 fi
+export PYTHONPATH="\$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
 
 LOG_FILE="\$LOG_DIR/\$(date +%F).log"
 TASK_ID="ops.realtime_order_income"
