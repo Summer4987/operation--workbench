@@ -49,8 +49,10 @@ outputs/kuailv_order_dry_run/
 
 ## 建议执行步骤
 
+优先使用干净交接仓库，避免覆盖生产目录本地改动：
+
 ```zsh
-cd "/Users/summer/Documents/New project"
+cd "/Users/summer/Documents/operation-workbench-clean"
 git status --short --branch
 git pull --ff-only origin main
 git log --oneline -5
@@ -99,6 +101,15 @@ git status --short --ignored -- \
   docs/MACMINI_NEXT_TASK.md \
   outputs/kuailv_order_dry_run
 ```
+
+如果 `/Users/summer/Documents/operation-workbench-clean` 不存在，再只读检查生产目录：
+
+```zsh
+cd "/Users/summer/Documents/New project"
+git status --short --branch
+```
+
+生产目录存在未提交或未跟踪改动时，停止并回报，不要在生产目录执行 `git pull` 或覆盖文件。
 
 ## 回报内容
 
