@@ -1080,7 +1080,7 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
                 }
             )
         best = candidate.get("best_allowed_match") or {}
-        if best.get("allowed"):
+        if best.get("allowed") and candidate.get("source") == "xml_target_card_control" and candidate.get("control_text") == "orange_add_icon":
             best_text = " ".join(
                 str(best.get(key) or "")
                 for key in ("line_name", "pack_label", "row_text", "context_text", "target_title_text", "target_spec_text")
@@ -1206,6 +1206,8 @@ def target_guided_scroll_args(result_check: dict[str, Any]) -> list[str]:
 def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
     matches = []
     for candidate in analysis.get("orange_add_candidates") or []:
+        if candidate.get("source") != "xml_target_card_control" or candidate.get("control_text") != "orange_add_icon":
+            continue
         for score in candidate.get("line_scores") or []:
             if not score.get("allowed"):
                 continue
