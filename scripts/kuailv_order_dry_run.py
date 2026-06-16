@@ -1023,7 +1023,15 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     }
 
 
-def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate_index: int, cart_tap_x: int, cart_tap_y: int) -> dict[str, Any]:
+def run_adb_cart_open(
+    plan: dict[str, Any],
+    serial: str,
+    timeout: int,
+    candidate_index: int,
+    cart_tap_x: int,
+    cart_tap_y: int,
+    pre_back_count: int,
+) -> dict[str, Any]:
     serial, blocked = resolve_adb_serial(serial, timeout)
     if blocked:
         return blocked
@@ -1045,6 +1053,14 @@ def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate
             "session_dir": str(session_dir),
             "before": before,
         }
+
+    mid = None
+    if pre_back_count > 0:
+        for _ in range(pre_back_count):
+            run_command(adb_base(serial) + ["shell", "input", "keyevent", "BACK"], timeout)
+            time.sleep(0.8)
+        mid = save_adb_snapshot(serial, session_dir / "after-back", timeout, plan)
+        analysis = (mid.get("ui_analysis") or {}) if mid.get("captured") else analysis
 
     candidates = analysis.get("cart_entry_candidates") or []
     if cart_tap_x > 0 and cart_tap_y > 0:
@@ -1093,6 +1109,7 @@ def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate
         "selected": selected,
         "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
         "before": before,
+        "after_back": mid,
         "after": after,
         "cart_review": {
             "reached_cart": reached_cart,
@@ -1101,8 +1118,9 @@ def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate
         },
         "safety": {
             "delivery_store_match_required": True,
+            "pre_back_count": pre_back_count,
             "single_navigation_tap_only": True,
-            "forbidden_actions": ["加购", "删除", "清空", "提交订单", "付款", "自动切换收货地址"],
+            "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
         },
     }
 
@@ -1175,6 +1193,7 @@ def main() -> int:
     parser.add_argument("--cart-candidate-index", type=int, default=0, help="adb-cart-open 使用的购物车入口候选下标，默认最高分候选 0")
     parser.add_argument("--cart-tap-x", type=int, default=0, help="adb-cart-open 坐标覆盖：指定 x 时仍会执行前后截图和购物车判定")
     parser.add_argument("--cart-tap-y", type=int, default=0, help="adb-cart-open 坐标覆盖：指定 y 时仍会执行前后截图和购物车判定")
+    parser.add_argument("--cart-pre-back-count", type=int, default=0, help="adb-cart-open 前先按 Back 的次数，用于退出搜索浮层；仍会保存中间截图")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     args = parser.parse_args()
 
@@ -1187,7 +1206,15 @@ def main() -> int:
         elif args.mode == "adb-safe-tap":
             adb_result = run_adb_safe_tap(plan, args.adb_serial.strip(), args.timeout, args.tap_item.strip(), args.tap_pack.strip())
         elif args.mode == "adb-cart-open":
-            adb_result = run_adb_cart_open(plan, args.adb_serial.strip(), args.timeout, args.cart_candidate_index, args.cart_tap_x, args.cart_tap_y)
+            adb_result = run_adb_cart_open(
+                plan,
+                args.adb_serial.strip(),
+                args.timeout,
+                args.cart_candidate_index,
+                args.cart_tap_x,
+                args.cart_tap_y,
+                max(0, args.cart_pre_back_count),
+            )
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {

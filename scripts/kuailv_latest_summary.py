@@ -68,6 +68,12 @@ def main() -> int:
         "cart_review": adb.get("cart_review"),
         "post_tap_validation": adb.get("post_tap_validation"),
         "before_files": (adb.get("before") or {}).get("files"),
+        "after_back_files": (adb.get("after_back") or {}).get("files"),
+        "after_back_detected_relevant": [
+            text
+            for text in ((adb.get("after_back") or {}).get("detected_text") or [])
+            if any(keyword in text for keyword in ["购物车", "进货车", "去结算", "提交订单", "搜索", "首页"])
+        ],
         "after_files": (adb.get("after") or {}).get("files"),
         "after_detected_relevant": [
             text
