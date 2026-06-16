@@ -9,6 +9,7 @@ from urllib.request import urlopen
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "config" / "promo_budget_overrides.json"
 URL = os.environ.get("PROMO_BUDGET_OVERRIDES_URL", "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order")
+COPY_PATH = os.environ.get("PROMO_BUDGET_OVERRIDES_COPY_PATH", "").strip()
 
 
 def canonical_store_name(name: str) -> str:
@@ -36,7 +37,12 @@ def main() -> int:
         print(f"云端预算配置读取失败，继续使用本地配置：{exc}")
         return 0
     TARGET.parent.mkdir(parents=True, exist_ok=True)
-    TARGET.write_text(json.dumps(normalize_store_names(data), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    text = json.dumps(normalize_store_names(data), ensure_ascii=False, indent=2) + "\n"
+    TARGET.write_text(text, encoding="utf-8")
+    if COPY_PATH:
+        copy_target = Path(COPY_PATH)
+        copy_target.parent.mkdir(parents=True, exist_ok=True)
+        copy_target.write_text(text, encoding="utf-8")
     print(f"已同步云端预算配置：{TARGET}")
     return 0
 

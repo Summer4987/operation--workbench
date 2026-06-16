@@ -181,24 +181,22 @@ run_required_step() {
 }
 
 prepare_budget_node_runtime() {
-  BUDGET_ROOT="$ROOT" BUDGET_NODE_RUNTIME_ROOT="$NODE_RUNTIME_ROOT" "$PYTHON" - <<'PY'
-import os
-import shutil
-from pathlib import Path
-
-root = Path(os.environ["BUDGET_ROOT"])
-runtime = Path(os.environ["BUDGET_NODE_RUNTIME_ROOT"])
-for relative in ("scripts", "dianjin-prototype", "config", "outputs/promo_budget_preview"):
-    (runtime / relative).mkdir(parents=True, exist_ok=True)
-for relative in (
-    "scripts/build_promo_budget_preview.mjs",
-    "scripts/promo_budget_resolver.mjs",
-    "dianjin-prototype/rules.js",
-    "dianjin-prototype/logic.js",
-    "config/promo_budget_overrides.json",
-):
-    shutil.copy2(root / relative, runtime / relative)
-PY
+  local missing=()
+  for relative in \
+    "scripts/build_promo_budget_preview.mjs" \
+    "scripts/promo_budget_resolver.mjs" \
+    "dianjin-prototype/rules.js" \
+    "dianjin-prototype/logic.js" \
+    "config/promo_budget_overrides.json"; do
+    if [ ! -r "$NODE_RUNTIME_ROOT/$relative" ]; then
+      missing+=("$relative")
+    fi
+  done
+  if (( ${#missing[@]} > 0 )); then
+    echo "预算 Node runtime 缺少文件：${(j:、:)missing}"
+    echo "请重新运行 scripts/install_macmini_operation_launchd.zsh 从 GitHub 工作树安装 runtime。"
+    return 78
+  fi
 }
 
 run_node_runtime_script() {
@@ -210,7 +208,11 @@ run_node_runtime_script() {
   exec "$NODE" "$script_path" "$@"
 }
 
-if run_required_step "${PERIOD}预算配置同步" "${BUDGET_CONFIG_SYNC_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"; then
+sync_budget_config() {
+  PROMO_BUDGET_OVERRIDES_COPY_PATH="$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"
+}
+
+if run_required_step "${PERIOD}预算配置同步" "${BUDGET_CONFIG_SYNC_TIMEOUT_SECONDS:-120}" sync_budget_config; then
   :
 else
   rc=$?

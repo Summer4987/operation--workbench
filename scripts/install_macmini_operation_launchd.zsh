@@ -293,6 +293,18 @@ chmod u+rwX,go+rX \
   "$SCRIPT_DIR/run_eleme_automation.zsh" \
   "$SCRIPT_DIR/run_evening_budget_entry.zsh"
 
+NODE_RUNTIME_ROOT="$HOME/Library/Application Support/xiong-operation/node-runtime"
+mkdir -p \
+  "$NODE_RUNTIME_ROOT/scripts" \
+  "$NODE_RUNTIME_ROOT/dianjin-prototype" \
+  "$NODE_RUNTIME_ROOT/config" \
+  "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview"
+/bin/cp "$ROOT/scripts/build_promo_budget_preview.mjs" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"
+/bin/cp "$ROOT/scripts/promo_budget_resolver.mjs" "$NODE_RUNTIME_ROOT/scripts/promo_budget_resolver.mjs"
+/bin/cp "$ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
+/bin/cp "$ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
+/bin/cp "$ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
+
 cat > "$SCRIPT_DIR/run_evening_budget.zsh" <<EOF
 #!/bin/zsh
 set -euo pipefail
