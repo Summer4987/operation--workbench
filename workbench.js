@@ -1563,6 +1563,8 @@ function renderFinance() {
   const ledgerDesign = finance.ledger_design || {};
   const orderFeed = finance.order_automation_feed || {};
   const dailyCollection = finance.daily_collection || {};
+  const reconciliationPreview = finance.reconciliation_preview || {};
+  const reconciliationSummary = reconciliationPreview.summary || {};
   const ledgerTables = ledgerDesign.tables || [];
   const orderSources = finance.order_sources || [];
   const paymentRows = dailyCollection.sources || [];
@@ -1586,6 +1588,18 @@ function renderFinance() {
         detail: `${table.owner || ""} · ${table.purpose || ""}`,
         warn: !table.ready,
       })),
+      {
+        label: "核对预览",
+        value: reconciliationPreview.status === "ready_for_manual_review" ? "已生成" : "待生成",
+        detail: `${Number(reconciliationSummary.transaction_count || 0)} 笔流水 · ${Number(reconciliationSummary.matched_bank_payment_count || 0)} 笔自动匹配 · ${Number(reconciliationSummary.unmatched_payment_count || 0)} 笔待确认`,
+        warn: reconciliationPreview.status !== "ready_for_manual_review",
+      },
+      ...((reconciliationPreview.source_summary || []).map((source) => ({
+        label: "流水汇总",
+        value: source.source_name || source.source,
+        detail: `收入 ${yuan(source.income)} · 支出 ${yuan(source.expense)} · 净额 ${yuan(source.net)}`,
+        warn: false,
+      }))),
       {
         label: "订货自动化",
         value: orderFeed.available ? "已接入" : "待订单",
@@ -1638,6 +1652,7 @@ function renderFinance() {
     "financeReportRows",
     [
       { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
+      { label: "三方核对", value: reconciliationPreview.status === "ready_for_manual_review" ? "预览已生成" : "待生成", detail: reconciliationPreview.message || "运行 scripts/build_finance_reconciliation_preview.py" },
       { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
       ...collectionRows,
       ...workflowRows,

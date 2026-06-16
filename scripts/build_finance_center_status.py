@@ -10,6 +10,7 @@ from task_run_state import classify_failure_text, record_task_event
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "config" / "finance_bill_schema.json"
+RECONCILIATION_PREVIEW_PATH = ROOT / "outputs" / "finance_reconciliation_preview" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "finance_center_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_ID = "finance.bill_analysis"
@@ -110,7 +111,7 @@ def load_order_automation_feed() -> dict[str, Any]:
         "source": "outputs/inventory_order_execution_preview/latest.json",
         "fallback_source": "outputs/inventory_order_lists/latest.json",
         "status": source_status,
-        "available": bool(channel_count or item_count or source_status not in {"missing", ""}),
+        "available": bool(channel_count or item_count),
         "channel_count": channel_count,
         "item_count": item_count,
         "estimated_cost": round(estimated_cost, 2),
@@ -228,6 +229,7 @@ def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sour
 
 def build_payload() -> dict[str, Any]:
     schema = read_json(SCHEMA_PATH, {})
+    reconciliation_preview = read_json(RECONCILIATION_PREVIEW_PATH, {})
     accepted_extensions = {str(item).lower() for item in schema.get("accepted_extensions", [])}
     inbox = schema.get("sample_inbox") or {}
     sources = []
@@ -281,7 +283,7 @@ def build_payload() -> dict[str, Any]:
             "推广费和佣金异常提醒",
             "无法自动分类流水清单",
         ],
-        "message": "先建立订单主账和银行核销，再生成门店利润表和费用异常提醒。"
+        "message": "先建立订单主账和支付流水核销，再生成门店利润表和费用异常提醒。"
         if not ready_for_mapping
         else "可进入付款匹配；外卖收入账单到位后生成门店利润表预览。",
     }
@@ -308,6 +310,16 @@ def build_payload() -> dict[str, Any]:
         "order_sources": schema.get("order_sources") or [],
         "payment_sources": schema.get("payment_sources") or [],
         "daily_collection": daily_collection,
+        "reconciliation_preview": {
+            "status": reconciliation_preview.get("status") or "not_generated",
+            "generated_at": reconciliation_preview.get("generated_at", ""),
+            "mode": reconciliation_preview.get("mode", "preview_only"),
+            "summary": reconciliation_preview.get("summary") or {},
+            "source_summary": reconciliation_preview.get("source_summary") or [],
+            "profit_preview": reconciliation_preview.get("profit_preview") or {},
+            "outputs": reconciliation_preview.get("outputs") or {},
+            "message": reconciliation_preview.get("message") or "三方流水核对预览尚未生成。",
+        },
         "order_automation_feed": order_feed,
         "ledger_design": ledger_design,
         "report_generation": report_generation,

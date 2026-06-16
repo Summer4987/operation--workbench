@@ -364,11 +364,13 @@
       "schedule": "待定，按上传账单触发",
       "entrypoints": [
         "scripts/init_finance_inbox.py",
+        "scripts/build_finance_reconciliation_preview.py",
         "scripts/build_finance_center_status.py",
         "config/finance_bill_schema.json"
       ],
       "outputs": [
         "outputs/finance_center_status/latest.json",
+        "outputs/finance_reconciliation_preview/latest.json",
         "data/finance-inbox/templates/",
         "data/finance-inbox/bank/",
         "data/finance-inbox/wechat-pay/",
@@ -384,6 +386,7 @@
         "样例接收清单列出目录、格式和必需字段",
         "快驴、淘宝、拼多多和微信群订货来源字段模板可读取",
         "微信支付、支付宝和银行流水可按订单主账做付款核销",
+        "三方支付流水核对预览可生成已匹配和待确认清单",
         "收入、佣金、配送费、推广费、退款、补贴可拆分",
         "异常费用可追溯到原始行"
       ],
@@ -403,11 +406,13 @@
       "risk": "medium",
       "schedule": "待定，账单字段映射稳定后触发",
       "entrypoints": [
+        "scripts/build_finance_reconciliation_preview.py",
         "scripts/build_finance_center_status.py",
         "outputs/finance_center_status/latest.json"
       ],
       "outputs": [
         "outputs/finance_center_status/latest.json",
+        "outputs/finance_reconciliation_preview/latest.json",
         "财务报表待生成"
       ],
       "health_checks": [
