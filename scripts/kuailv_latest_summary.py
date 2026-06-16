@@ -117,6 +117,7 @@ def main() -> int:
         "orange_add_candidates_count": len(candidates),
         "safe_add_recommendations": safe_add_recommendations,
         "tofu_safe_add_recommendations": [row for row in safe_add_recommendations if row.get("line_name") == "豆腐"],
+        "target_card_add_diagnostics": analysis.get("target_card_add_diagnostics"),
         "orange_candidates": orange_rows,
         "blocked_orange_candidates": (analysis.get("blocked_orange_candidates") or [])[:6],
         "target_hits": (snapshot.get("plan_match") or {}).get("target_hits"),

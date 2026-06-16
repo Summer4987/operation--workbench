@@ -707,6 +707,8 @@ def detect_target_card_add_controls(nodes: list[dict[str, Any]], plan: dict[str,
                             "control_text": node_text(add_node),
                             "nearby_texts": rows[:24],
                             "context_texts": rows[:24],
+                            "target_title_text": node_text(title),
+                            "target_spec_text": node_text(spec),
                             "detection_reasons": ["xml_target_card_text_spec_add_aligned"],
                             "target_line_name": line.get("name", ""),
                         }
@@ -846,6 +848,10 @@ def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any
                 existing["control_text"] = candidate.get("control_text")
             if candidate.get("target_line_name") and (not existing.get("target_line_name") or incoming_is_target):
                 existing["target_line_name"] = candidate.get("target_line_name")
+            if incoming_is_target:
+                for field in ("target_title_text", "target_spec_text"):
+                    if candidate.get(field):
+                        existing[field] = candidate.get(field)
             reasons = list(existing.get("detection_reasons") or [])
             for reason in candidate.get("detection_reasons") or []:
                 if reason not in reasons:
@@ -861,8 +867,12 @@ def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any
 
 
 def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pack_label: str = "") -> dict[str, Any]:
-    row_text = candidate_text(candidate, "nearby_texts")
-    context_text = candidate_text(candidate, "context_texts")
+    target_title_text = str(candidate.get("target_title_text") or "")
+    target_spec_text = str(candidate.get("target_spec_text") or "")
+    target_text = " ".join(text for text in [target_title_text, target_spec_text] if text)
+    strict_target_source = candidate.get("source") == "xml_target_card_control" and target_text
+    row_text = target_text if strict_target_source else candidate_text(candidate, "nearby_texts")
+    context_text = target_text if strict_target_source else candidate_text(candidate, "context_texts")
     all_text = f"{context_text} {row_text}"
     required = [word for word in line.get("required_keywords") or [] if word]
     excluded = [word for word in line.get("excluded_keywords") or [] if word]
@@ -879,7 +889,10 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     pack_hits = [pack_label] if pack_label and (row_pack_hit or context_pack_hit) else []
     identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
     identity_hits = [word for word in identity_keywords if word in all_text]
+    target_line_name = str(candidate.get("target_line_name") or "")
     reasons = []
+    if target_line_name and target_line_name != str(line.get("name") or ""):
+        reasons.append("target_line_name_mismatch")
     if not context_required_hits:
         reasons.append("missing_required_keyword")
     if identity_keywords and not identity_hits:
@@ -916,6 +929,10 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         "other_product_hits": other_product_hits,
         "pack_hits": pack_hits,
         "pack_label_scope": "nearby_row" if row_pack_hit else ("card_context" if context_pack_hit else ""),
+        "source": candidate.get("source"),
+        "target_line_name": target_line_name,
+        "target_title_text": target_title_text,
+        "target_spec_text": target_spec_text,
         "center": candidate.get("center"),
         "bounds": candidate.get("bounds"),
     }
