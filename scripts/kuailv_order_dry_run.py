@@ -463,6 +463,28 @@ def candidate_text(candidate: dict[str, Any], radius: str = "nearby_texts") -> s
     return " ".join(str(row.get("text") or "") for row in candidate.get(radius) or [])
 
 
+def visible_text_nodes(nodes: list[dict[str, Any]], limit: int = 420) -> list[dict[str, Any]]:
+    rows = []
+    for node in nodes:
+        text = node_text(node)
+        bounds = tuple(node.get("bounds") or [])
+        if not text or len(bounds) != 4:
+            continue
+        if bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        rows.append(
+            {
+                "text": text,
+                "bounds": list(bounds),
+                "resource_id": node.get("resource_id", ""),
+                "content_desc": node.get("content_desc", ""),
+                "class": node.get("class", ""),
+            }
+        )
+    rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return rows[:limit]
+
+
 def candidate_context(nodes: list[dict[str, Any]], center: tuple[float, float]) -> list[dict[str, Any]]:
     # Include the product title above the spec row, but keep the window narrow
     # enough that the previous product's risky spec does not bleed into a target row.
@@ -763,6 +785,21 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
         hits = [word for word in target_words if word and word in str(text)]
         if hits:
             page_rows.append({"text": text, "hits": hits})
+    page_node_rows = []
+    for node in analysis.get("visible_text_nodes") or []:
+        text = str(node.get("text") or "")
+        hits = [word for word in target_words if word and word in text]
+        if hits:
+            page_node_rows.append(
+                {
+                    "text": text,
+                    "hits": hits,
+                    "bounds": node.get("bounds"),
+                    "resource_id": node.get("resource_id"),
+                    "content_desc": node.get("content_desc"),
+                    "class": node.get("class"),
+                }
+            )
     return {
         "target_words": target_words,
         "hit_count": len(candidate_rows),
@@ -771,7 +808,44 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
         "candidate_hits": candidate_rows[:8],
         "page_text_hit_count": len(page_rows),
         "page_text_hits": page_rows[:12],
+        "page_node_hit_count": len(page_node_rows),
+        "page_node_hits": page_node_rows[:20],
     }
+
+
+def target_text_position(result_check: dict[str, Any]) -> dict[str, Any]:
+    hits = [
+        row
+        for row in result_check.get("page_node_hits") or []
+        if len(row.get("bounds") or []) == 4
+    ]
+    if not hits:
+        return {}
+    bounds = [row["bounds"] for row in hits]
+    top = min(item[1] for item in bounds)
+    bottom = max(item[3] for item in bounds)
+    return {
+        "top": top,
+        "bottom": bottom,
+        "center_y": round((top + bottom) / 2, 1),
+        "hit_count": len(hits),
+        "texts": [row.get("text") for row in hits[:8]],
+    }
+
+
+def target_guided_scroll_args(result_check: dict[str, Any]) -> list[str]:
+    position = target_text_position(result_check)
+    if not position:
+        return ["540", "1980", "540", "900", "450"]
+    bottom = float(position.get("bottom") or 0)
+    top = float(position.get("top") or 0)
+    if bottom >= 2180:
+        return ["540", "1850", "540", "1180", "360"]
+    if bottom >= 1980:
+        return ["540", "1780", "540", "1320", "320"]
+    if 0 < top <= 620:
+        return ["540", "900", "540", "1380", "320"]
+    return ["540", "1980", "540", "900", "450"]
 
 
 def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
@@ -877,6 +951,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "orange_add_candidates": orange_candidates,
         "cart_entry_candidates": cart_entry_candidates,
         "search_entry_candidates": search_entry_candidates,
+        "visible_text_nodes": visible_text_nodes(nodes),
         "cart_review_page": is_cart_review_page(detect_page_text(xml_text)),
     }
     analysis["safe_add_recommendations"] = safe_add_recommendations(analysis, plan)
@@ -1757,13 +1832,23 @@ def run_adb_search(
     for scroll_index in range(1, 4):
         if not (after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("candidate_hit_count")):
             break
-        swipe = run_command(adb_base(serial) + ["shell", "input", "swipe", "540", "1980", "540", "900", "450"], timeout)
-        scroll_retry = {"index": scroll_index, "returncode": swipe.returncode, "stderr": swipe.stderr.strip(), "stdout": swipe.stdout.strip()}
+        scroll_args = target_guided_scroll_args(result_check)
+        before_target_position = target_text_position(result_check)
+        swipe = run_command(adb_base(serial) + ["shell", "input", "swipe", *scroll_args], timeout)
+        scroll_retry = {
+            "index": scroll_index,
+            "returncode": swipe.returncode,
+            "stderr": swipe.stderr.strip(),
+            "stdout": swipe.stdout.strip(),
+            "args": scroll_args,
+            "before_target_position": before_target_position,
+        }
         scroll_retries.append(scroll_retry)
         time.sleep(1.5)
         scroll_dir = session_dir / ("after-target-scroll" if scroll_index == 1 else f"after-target-scroll-{scroll_index}")
         after_target_scroll = save_adb_snapshot(serial, scroll_dir, timeout, plan)
         scroll_check = search_result_hits(after_target_scroll, target_words)
+        scroll_retry["after_target_position"] = target_text_position(scroll_check)
         if scroll_check.get("candidate_hit_count") or scroll_check.get("page_text_hit_count"):
             after = after_target_scroll
             result_check = scroll_check
