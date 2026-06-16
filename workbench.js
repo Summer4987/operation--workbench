@@ -1565,6 +1565,8 @@ function renderFinance() {
   const dailyCollection = finance.daily_collection || {};
   const reconciliationPreview = finance.reconciliation_preview || {};
   const reconciliationSummary = reconciliationPreview.summary || {};
+  const channelRows = reconciliationPreview.channel_summary || [];
+  const channelReviewRows = reconciliationPreview.channel_review_samples || [];
   const ledgerTables = ledgerDesign.tables || [];
   const orderSources = finance.order_sources || [];
   const paymentRows = dailyCollection.sources || [];
@@ -1600,6 +1602,18 @@ function renderFinance() {
         detail: `收入 ${yuan(source.income)} · 支出 ${yuan(source.expense)} · 净额 ${yuan(source.net)}`,
         warn: false,
       }))),
+      ...channelRows.slice(0, 8).map((channel) => ({
+        label: "渠道汇总",
+        value: channel.channel_name || channel.channel_id,
+        detail: `${channel.channel_group || "渠道"} · ${Number(channel.count || 0)} 笔 · 收入 ${yuan(channel.income)} · 支出 ${yuan(channel.expense)} · 净额 ${yuan(channel.net)}`,
+        warn: channel.channel_group === "待确认渠道",
+      })),
+      {
+        label: "待确认渠道",
+        value: `${channelReviewRows.length} 个样例`,
+        detail: "第一版先确认每笔流水渠道，再进入门店归属。",
+        warn: channelReviewRows.length > 0,
+      },
       {
         label: "订货自动化",
         value: orderFeed.available ? "已接入" : "待订单",

@@ -316,6 +316,8 @@ def build_payload() -> dict[str, Any]:
             "mode": reconciliation_preview.get("mode", "preview_only"),
             "summary": reconciliation_preview.get("summary") or {},
             "source_summary": reconciliation_preview.get("source_summary") or [],
+            "channel_summary": reconciliation_preview.get("channel_summary") or [],
+            "channel_review_samples": reconciliation_preview.get("channel_review_samples") or [],
             "profit_preview": reconciliation_preview.get("profit_preview") or {},
             "outputs": reconciliation_preview.get("outputs") or {},
             "message": reconciliation_preview.get("message") or "三方流水核对预览尚未生成。",
