@@ -38,14 +38,14 @@ def main() -> int:
     after = adb.get("after") or {}
     analysis = snapshot.get("ui_analysis") or after.get("ui_analysis") or before.get("ui_analysis") or {}
     candidates = analysis.get("orange_add_candidates") or []
-    tofu_recs = [
+    safe_add_recommendations = [
         {
+            "line_name": row.get("line_name"),
             "pack_label": row.get("pack_label"),
             "allowed": row.get("allowed"),
             "selected": compact_score(row.get("selected")),
         }
         for row in analysis.get("safe_add_recommendations") or []
-        if row.get("line_name") == "豆腐"
     ]
     orange_rows = []
     for candidate in candidates[:10]:
@@ -104,7 +104,8 @@ def main() -> int:
         "cart_entry_candidates": (analysis.get("cart_entry_candidates") or [])[:8],
         "cart_review_page": analysis.get("cart_review_page"),
         "orange_add_candidates_count": len(candidates),
-        "tofu_safe_add_recommendations": tofu_recs,
+        "safe_add_recommendations": safe_add_recommendations,
+        "tofu_safe_add_recommendations": [row for row in safe_add_recommendations if row.get("line_name") == "豆腐"],
         "orange_candidates": orange_rows,
         "blocked_orange_candidates": (analysis.get("blocked_orange_candidates") or [])[:6],
         "target_hits": (snapshot.get("plan_match") or {}).get("target_hits"),
