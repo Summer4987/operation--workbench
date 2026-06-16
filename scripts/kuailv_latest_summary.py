@@ -12,6 +12,7 @@ LATEST_PATH = ROOT / "outputs" / "kuailv_order_dry_run" / "latest.json"
 def compact_score(score: dict[str, Any] | None) -> dict[str, Any] | None:
     if not score:
         return None
+    candidate = score.get("candidate") or {}
     return {
         "line_name": score.get("line_name"),
         "pack_label": score.get("pack_label"),
@@ -19,9 +20,14 @@ def compact_score(score: dict[str, Any] | None) -> dict[str, Any] | None:
         "score": score.get("score"),
         "reasons": score.get("reasons"),
         "excluded_hits": score.get("excluded_hits"),
+        "other_product_hits": score.get("other_product_hits"),
+        "pack_label_scope": score.get("pack_label_scope"),
+        "source": candidate.get("source") or score.get("source"),
+        "control_text": candidate.get("control_text") or score.get("control_text"),
         "row_text": score.get("row_text"),
         "context_text": score.get("context_text"),
-        "center": score.get("center"),
+        "center": candidate.get("center") or score.get("center"),
+        "bounds": candidate.get("bounds") or score.get("bounds"),
     }
 
 
@@ -44,6 +50,7 @@ def main() -> int:
             "pack_label": row.get("pack_label"),
             "allowed": row.get("allowed"),
             "selected": compact_score(row.get("selected")),
+            "top_rejected": compact_score(row.get("top_rejected")),
         }
         for row in analysis.get("safe_add_recommendations") or []
     ]

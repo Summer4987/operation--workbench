@@ -702,7 +702,30 @@ def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: 
             if pack_label and score.get("pack_label") != pack_label:
                 continue
             item = dict(score)
-            item["candidate"] = {key: candidate.get(key) for key in ("center", "bounds", "color", "nearby_texts", "context_texts")}
+            item["candidate"] = {
+                key: candidate.get(key)
+                for key in ("center", "bounds", "color", "source", "control_text", "nearby_texts", "context_texts")
+            }
+            matches.append(item)
+    matches.sort(key=lambda item: item.get("score", 0), reverse=True)
+    return matches[0] if matches else None
+
+
+def top_rejected_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
+    matches = []
+    for candidate in analysis.get("orange_add_candidates") or []:
+        for score in candidate.get("line_scores") or []:
+            if score.get("allowed"):
+                continue
+            if item_name and score.get("line_name") != item_name:
+                continue
+            if pack_label and score.get("pack_label") != pack_label:
+                continue
+            item = dict(score)
+            item["candidate"] = {
+                key: candidate.get(key)
+                for key in ("center", "bounds", "color", "source", "control_text", "nearby_texts", "context_texts")
+            }
             matches.append(item)
     matches.sort(key=lambda item: item.get("score", 0), reverse=True)
     return matches[0] if matches else None
@@ -715,12 +738,14 @@ def safe_add_recommendations(analysis: dict[str, Any], plan: dict[str, Any]) -> 
             continue
         for pack_label in line_pack_labels(line):
             selected = select_safe_candidate(analysis, str(line.get("name") or ""), pack_label)
+            rejected = None if selected else top_rejected_candidate(analysis, str(line.get("name") or ""), pack_label)
             rows.append(
                 {
                     "line_name": line.get("name", ""),
                     "pack_label": pack_label,
                     "allowed": bool(selected),
                     "selected": selected,
+                    "top_rejected": rejected,
                 }
             )
     return rows
