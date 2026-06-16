@@ -31,10 +31,12 @@ MEITUAN_BUDGET_RUNNER = WORKSPACE / "store-inspection" / "meituan_budget_automat
 MEITUAN_BUDGET_CDP_RUNNER = WORKSPACE / "store-inspection" / "meituan_budget_cdp.py"
 WORKBENCH_DEPLOY_RUNNER = WORKSPACE / "scripts" / "deploy_workbench_to_cloud.zsh"
 NOTIFY_RUNNER = WORKSPACE / "scripts" / "ops_notify.py"
+TASK_RUN_RECORDER = WORKSPACE / "scripts" / "record_task_run.py"
 RESUME_FLAG = WORKSPACE / "outputs" / "manual_resume" / "continue.flag"
 NODE = Path("/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node")
 REPORT_VENV_PYTHON = REPORT_DIR / ".venv" / "bin" / "python"
 REPORT_PYTHON = REPORT_VENV_PYTHON if REPORT_VENV_PYTHON.exists() else Path("/usr/bin/python3")
+TASK_ID = "ops.morning_collection"
 
 
 BUDGET_PERIODS = {
@@ -113,6 +115,29 @@ def resolve_budget_period(value: str = "auto") -> str:
 def notify(text: str) -> None:
     try:
         subprocess.run([sys.executable, str(NOTIFY_RUNNER), text], cwd=WORKSPACE, timeout=12)
+    except Exception:
+        pass
+
+
+def record_task_run(status: str, message: str, step: str, log_path: Path, *, returncode: int | None = None, **extra: str) -> None:
+    args = [
+        sys.executable,
+        str(TASK_RUN_RECORDER),
+        TASK_ID,
+        status,
+        "--message",
+        message,
+        "--step",
+        step,
+        "--log-path",
+        str(log_path),
+    ]
+    if returncode is not None:
+        args.extend(["--returncode", str(returncode)])
+    for key, value in extra.items():
+        args.extend(["--extra", f"{key}={value}"])
+    try:
+        subprocess.run(args, cwd=WORKSPACE, timeout=10)
     except Exception:
         pass
 
@@ -232,8 +257,18 @@ def main() -> int:
     )
     args = parser.parse_args()
     with morning_ops_lock(args.source):
+        log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
         budget_period = resolve_budget_period(args.budget_period)
         budget_time = BUDGET_PERIODS[budget_period]["time"]
+        record_task_run(
+            "running",
+            "上午运营一键采集开始。",
+            "初始化",
+            log_path,
+            mode=args.mode,
+            source=args.source,
+            budget_period=budget_period,
+        )
         print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}，来源：{args.source}）。", flush=True)
         failures = []
         try:
@@ -285,11 +320,42 @@ def main() -> int:
                 failures.append("总看板云端发布")
             if failures:
                 print(f"\n运营一键采集完成，但有失败项：{'、'.join(failures)}。", file=sys.stderr, flush=True)
+                record_task_run(
+                    "failed",
+                    f"上午运营一键采集完成，但有失败项：{'、'.join(failures)}。",
+                    "汇总",
+                    log_path,
+                    returncode=1,
+                    mode=args.mode,
+                    source=args.source,
+                    budget_period=budget_period,
+                    failures="、".join(failures),
+                )
                 return 1
             print("\n运营一键采集完成。", flush=True)
+            record_task_run(
+                "success",
+                "上午运营一键采集完成。",
+                "汇总",
+                log_path,
+                returncode=0,
+                mode=args.mode,
+                source=args.source,
+                budget_period=budget_period,
+            )
             return 0
         except Exception as exc:
             print(f"\n运营一键采集失败：{exc}", file=sys.stderr, flush=True)
+            record_task_run(
+                "failed",
+                f"上午运营一键采集失败：{exc}",
+                "异常",
+                log_path,
+                returncode=1,
+                mode=args.mode,
+                source=args.source,
+                budget_period=budget_period,
+            )
             return 1
 
 
