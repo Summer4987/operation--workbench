@@ -75,4 +75,26 @@ fi
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
 
+verify_remote_file() {
+  local file="$1"
+  local local_hash remote_hash
+  local_hash="$(shasum -a 256 "$file" | awk '{print $1}')"
+  remote_hash="$(ssh "${SSH_OPTS[@]}" "$SERVER" "sha256sum '$REMOTE_DIR/$file'" | awk '{print $1}')"
+  if [[ "$local_hash" != "$remote_hash" ]]; then
+    echo "发布校验失败：$file 本地与云端不一致" >&2
+    echo "local:  $local_hash" >&2
+    echo "remote: $remote_hash" >&2
+    exit 1
+  fi
+}
+
+if [[ "$DEPLOY_MODE" == "data-only" ]]; then
+  verify_remote_file "workbench-data.js"
+else
+  verify_remote_file "index.html"
+  verify_remote_file "workbench.css"
+  verify_remote_file "workbench.js"
+  verify_remote_file "workbench-data.js"
+fi
+
 echo "运营总看板已发布：$PUBLIC_URL"
