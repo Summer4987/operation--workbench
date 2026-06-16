@@ -1008,14 +1008,16 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         text = node_text(node)
         blob = f"{text} {node.get('class') or ''} {node.get('resource_id') or ''}".lower()
         bounds = tuple(node["bounds"])
+        if bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
         cx, cy = bounds_center(bounds)
         if cy > image_height * 0.45:
             continue
-        if any(word in text for word in forbidden_words):
+        if any(word in text for word in forbidden_words) or "商品介绍" in text or "desc-content" in blob:
             continue
         reasons = []
         score = 0
-        if any(word in text for word in ["搜索", "请输入", "商品"]):
+        if any(word in text for word in ["搜索", "请输入"]):
             score += 70
             reasons.append("search_text")
         if "search" in blob:
