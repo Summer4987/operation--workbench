@@ -692,12 +692,12 @@ def detect_target_card_add_controls(nodes: list[dict[str, Any]], plan: dict[str,
                         if y1 <= ny <= y2 and nx <= cx + 120:
                             rows.append({"text": text, "bounds": node["bounds"], "distance_y": round(abs(ny - cy), 1)})
                     rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
-                    blob = " ".join(row["text"] for row in rows)
-                    if not all(word in blob for word in identity_keywords):
+                    target_text = f"{node_text(title)} {node_text(spec)}"
+                    if not all(word in target_text for word in identity_keywords):
                         continue
-                    if not any(valid_pack_label_hit(blob, str(word)) for word in spec_keywords):
+                    if not any(valid_pack_label_hit(target_text, str(word)) for word in spec_keywords):
                         continue
-                    if any(word in blob for word in excluded):
+                    if any(word in target_text for word in excluded):
                         continue
                     candidates.append(
                         {
