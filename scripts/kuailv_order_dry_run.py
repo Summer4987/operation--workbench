@@ -509,6 +509,26 @@ def candidate_card_context(nodes: list[dict[str, Any]], center: tuple[float, flo
     return nearby_texts(nodes, center, radius_y=760, radius_x=820, limit=28)
 
 
+def add_button_card_context(nodes: list[dict[str, Any]], center: tuple[float, float]) -> list[dict[str, Any]]:
+    # XML "选规格"/"加入购物车" controls often sit at the right edge of the
+    # product card. Bind them to text immediately to the left and slightly below
+    # the button so the next product row does not pollute the safety score.
+    cx, cy = center
+    rows = []
+    for node in nodes:
+        text = node_text(node)
+        if not text:
+            continue
+        bounds = tuple(node["bounds"])
+        nx, ny = bounds_center(bounds)
+        if nx > cx + 80:
+            continue
+        if cy - 180 <= ny <= cy + 180 and abs(nx - cx) <= 900:
+            rows.append({"text": text, "bounds": node["bounds"], "distance_y": round(abs(ny - cy), 1)})
+    rows.sort(key=lambda item: (item["distance_y"], item["bounds"][1], item["bounds"][0]))
+    return rows[:24]
+
+
 def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not image_path or not image_path.exists():
         return []
@@ -597,8 +617,8 @@ def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]
                 "bounds": list(bounds),
                 "source": "xml_add_control",
                 "control_text": text,
-                "nearby_texts": nearby_texts(nodes, (cx, cy)),
-                "context_texts": candidate_card_context(nodes, (cx, cy)),
+                "nearby_texts": nearby_texts(nodes, (cx, cy), radius_y=220, radius_x=900, limit=16),
+                "context_texts": add_button_card_context(nodes, (cx, cy)),
                 "detection_reasons": reasons,
             }
         )
