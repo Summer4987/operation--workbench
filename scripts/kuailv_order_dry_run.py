@@ -591,6 +591,49 @@ def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> lis
     return candidates[:40]
 
 
+def image_has_orange_control(image_path: Path, bounds: list[int] | tuple[int, int, int, int]) -> bool:
+    if not image_path or not image_path.exists() or len(bounds) != 4:
+        return False
+    try:
+        from PIL import Image
+    except Exception:
+        return False
+    x1, y1, x2, y2 = [int(value) for value in bounds]
+    if x2 <= x1 or y2 <= y1:
+        return False
+    try:
+        image = Image.open(image_path).convert("RGB")
+    except Exception:
+        return False
+    width, height = image.size
+    x1 = max(0, min(width - 1, x1 - 8))
+    x2 = max(0, min(width - 1, x2 + 8))
+    y1 = max(0, min(height - 1, y1 - 8))
+    y2 = max(0, min(height - 1, y2 + 8))
+    pixels = image.load()
+    orange_count = 0
+    total = 0
+    for y in range(y1, y2 + 1, 3):
+        for x in range(x1, x2 + 1, 3):
+            total += 1
+            r, g, b = pixels[x, y]
+            if r >= 200 and 70 <= g <= 190 and b <= 125 and r - g >= 35:
+                orange_count += 1
+    return orange_count >= 18 and (orange_count / max(total, 1)) >= 0.02
+
+
+def filter_visible_xml_add_candidates(candidates: list[dict[str, Any]], image_path: Path) -> list[dict[str, Any]]:
+    visible = []
+    for candidate in candidates:
+        source = str(candidate.get("source") or "")
+        if source not in {"xml_add_control", "xml_target_card_control"}:
+            visible.append(candidate)
+            continue
+        if image_has_orange_control(image_path, candidate.get("bounds") or []):
+            visible.append(candidate)
+    return visible
+
+
 def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     candidates = []
     for node in nodes:
@@ -1237,10 +1280,8 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         for node in nodes
         if node["bounds"][1] >= 2150 or node["bounds"][3] >= 2210
     ][:80]
-    orange_candidates = annotate_add_candidates(
-        dedup_add_candidates(detect_orange_controls(image_path, nodes) + detect_xml_add_controls(nodes) + detect_target_card_add_controls(nodes, plan)),
-        plan,
-    )
+    raw_add_candidates = detect_orange_controls(image_path, nodes) + detect_xml_add_controls(nodes) + detect_target_card_add_controls(nodes, plan)
+    orange_candidates = annotate_add_candidates(dedup_add_candidates(filter_visible_xml_add_candidates(raw_add_candidates, image_path)), plan)
     cart_entry_candidates = find_cart_entry_candidates(nodes, image_path)
     search_entry_candidates = find_search_entry_candidates(nodes, image_path)
     delivery_rows = extract_delivery_text(nodes)
