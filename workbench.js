@@ -1758,7 +1758,7 @@ function renderFinance() {
     {
       label: "收入来源",
       value: "平台收入表格",
-      detail: "美团、饿了么、京东等收入不手工记账，统一上传平台收入账单。",
+      detail: "美团、饿了么、京东等收入不手工记账，统一上传平台收入账单后进入门店总账或供应链账。",
       warn: false,
     },
     {
@@ -1782,7 +1782,7 @@ function renderFinance() {
   ];
   text("financeInputStatus", missing.length ? "待补齐" : "可核对");
   text("financeInputCount", `${readySourceCount}/${sources.length || requiredSourceCount} 类已到`);
-  text("financeInputSummary", "手工录入只处理支出、应付、代付和调整；收入统一从美团、饿了么、京东等平台收入表格导入。");
+  text("financeInputSummary", "先上传银行、微信、支付宝和平台收入表；系统识别后，只把不明确的流水交给你确认。");
   text("financeInputNext", missing.length ? `下一步先补：${missing.slice(0, 3).join("、")}` : "基础账单已到齐，可以进入核对和报表预览。");
   document.querySelector("#finance-intake")?.classList.toggle("alert", waiting);
   html(
@@ -1828,6 +1828,26 @@ function renderFinance() {
     manualInputRows,
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
+  const reviewRows = [
+    ...ledgerReviewRows.slice(0, 8).map((item) => ({
+      label: item.direction || "待确认",
+      value: `${item.source || ""} ${yuan(item.amount)}`,
+      detail: `${item.counterparty || ""} · ${item.channel_name || "未知渠道"} · ${item.ledger_name || "待确认账本"}`,
+      warn: true,
+    })),
+    ...(!ledgerReviewRows.length ? channelReviewRows.slice(0, 8).map((item) => ({
+      label: item.direction || "待确认",
+      value: `${item.source || ""} ${yuan(item.amount)}`,
+      detail: `${item.counterparty || ""} · ${item.description || ""}`,
+      warn: true,
+    })) : []),
+  ];
+  text("financeReviewStatus", reviewRows.length ? `${reviewRows.length} 条` : "暂无");
+  rows(
+    "financeReviewRows",
+    reviewRows.length ? reviewRows : [{ label: "待确认", value: "暂无", detail: "上传新账单后，系统无法自动判断的流水会出现在这里。", warn: false }],
+    (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
   initializeFinanceIntakeControls();
 
   const profitPreview = reconciliationPreview.profit_preview || {};
@@ -1839,14 +1859,14 @@ function renderFinance() {
   const pendingExpense = Number(ledgerPreviewSummary.pending_expense || 0);
   const reportRows = [...formalLedgerRows, ...workPoolRows];
   text("financeReportStatus", profitPreview.status === "ready" ? "已出表" : "预览");
-  text("financeReportCount", `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 6)} 本账`);
-  text("financeReportSummary", profitPreview.message || "当前为月度损益预览；收入表、订单主账和门店规则补齐后生成正式利润表。");
+  text("financeReportCount", `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 2)} 本账`);
+  text("financeReportSummary", profitPreview.message || "当前先做门店总账和供应链账；5 家门店拆分后续再启用。");
   html(
     "financeReportRows",
     `
       <div class="finance-report-dashboard">
         <section class="finance-report-kpis" aria-label="财务报表摘要">
-          <article><span>已归属收入</span><strong>${yuan(assignedIncome)}</strong><em>6 本账当前已确认收入</em></article>
+          <article><span>已归属收入</span><strong>${yuan(assignedIncome)}</strong><em>门店总账和供应链账当前已确认收入</em></article>
           <article><span>已归属支出</span><strong>${yuan(assignedExpense)}</strong><em>已进入具体账本的成本费用</em></article>
           <article><span>待分配支出</span><strong>${yuan(pendingExpense)}</strong><em>${Number(ledgerPreviewSummary.pending_transaction_count || 0)} 笔待归属门店</em></article>
           <article><span>当前预览利润</span><strong>${yuan(assignedIncome - assignedExpense)}</strong><em>未含待分配和未上传收入</em></article>
@@ -1855,9 +1875,9 @@ function renderFinance() {
           <div class="finance-report-title">
             <div>
               <span>${escapeHtml(reportingPeriod.month || "本月")}</span>
-              <strong>6 本账月度损益预览</strong>
+              <strong>门店总账 / 供应链账月度损益预览</strong>
             </div>
-            <em>收入来自平台收入表格，支出来自手工录入和支付流水。</em>
+            <em>第一阶段不拆 5 家门店，先把总账跑通。</em>
           </div>
           <table class="finance-profit-table">
             <thead>
@@ -1900,6 +1920,30 @@ function renderFinance() {
         </section>
       </div>
     `
+  );
+  rows(
+    "financeReceivableRows",
+    [
+      { label: "新增应收", value: "供应链销售客户欠款", detail: "业务发生时确认收入并形成应收，收款时只核销应收，不重复计收入。" },
+      { label: "核销收款", value: "冲减应收", detail: "银行或微信到账后，选择对应应收记录核销。" },
+    ],
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+  rows(
+    "financePayableRows",
+    [
+      { label: "新增应付", value: "供应商欠款", detail: "采购或费用发生但未付款时登记应付。" },
+      { label: "核销付款", value: "冲减应付", detail: "付款时只冲应付，不重复计成本费用。" },
+    ],
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+  rows(
+    "financeStockRows",
+    [
+      { label: "计算公式", value: "月初 + 采购 - 月末", detail: "等于本月实际耗用成本，进入利润表成本。" },
+      { label: "第一版", value: "月度盘点", detail: "先只记录月初和月末库存金额，不做每日明细。" },
+    ],
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 }
 

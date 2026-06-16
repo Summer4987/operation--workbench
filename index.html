@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-report-table" />
+    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-flow" />
   </head>
   <body>
     <main class="app">
@@ -49,6 +49,8 @@
             <div class="nav-subgroup">
               <a href="#finance">财务录入</a>
               <a href="#finance-report">财务报表</a>
+              <a href="#finance-arap">应收应付</a>
+              <a href="#finance-stock">库存</a>
             </div>
           </section>
 
@@ -330,11 +332,34 @@
               <span class="tag planning" id="financeInputStatus">待录入</span>
             </div>
             <div class="module-body">
+              <div class="finance-upload-panel">
+                <div class="finance-intake-hero">
+                  <div>
+                    <span>上传账单</span>
+                    <strong id="financeInputCount">-</strong>
+                    <p id="financeInputSummary">等待财务中心状态。</p>
+                  </div>
+                  <div class="finance-intake-next" id="financeInputNext">等待缺口检查。</div>
+                </div>
+                <div class="finance-entry-grid" id="financeInputRows"></div>
+              </div>
+
+              <div class="finance-review-panel">
+                <div class="module-head">
+                  <div>
+                    <p>待确认流水</p>
+                    <h2>系统识别后，只确认不明确的收入和支出</h2>
+                  </div>
+                  <span class="tag planning" id="financeReviewStatus">待确认</span>
+                </div>
+                <div class="mini-table" id="financeReviewRows"></div>
+              </div>
+
               <form class="finance-entry-form" id="financeManualEntryForm">
                 <div class="finance-form-head">
                   <div>
-                    <span>手工记一笔</span>
-                    <strong>支出、应付、代付和调整从这里录</strong>
+                    <span>手工补录</span>
+                    <strong>只补流水里没有的支出、应付、代付和调整</strong>
                   </div>
                   <button type="submit">保存这笔</button>
                 </div>
@@ -346,12 +371,8 @@
                   <label>
                     <span>账本</span>
                     <select name="ledger" required>
-                      <option value="朝阳门店">朝阳门店</option>
-                      <option value="银泰城店">银泰城店</option>
-                      <option value="金融城店">金融城店</option>
-                      <option value="万象城店">万象城店</option>
-                      <option value="保利中心店">保利中心店</option>
-                      <option value="供应链销售">供应链销售</option>
+                      <option value="门店总账">门店总账</option>
+                      <option value="供应链账">供应链账</option>
                       <option value="待拆分">待拆分</option>
                     </select>
                   </label>
@@ -420,21 +441,11 @@
                 </div>
                 <div class="mini-table" id="financeRecentEntries"></div>
               </div>
-
-              <div class="finance-intake-hero">
-                <div>
-                  <span>当前录入进度</span>
-                  <strong id="financeInputCount">-</strong>
-                  <p id="financeInputSummary">等待财务中心状态。</p>
-                </div>
-                <div class="finance-intake-next" id="financeInputNext">等待缺口检查。</div>
-              </div>
-              <div class="finance-entry-grid" id="financeInputRows"></div>
               <div class="finance-manual-panel">
                 <div class="module-head">
                   <div>
-                    <p>人工补录</p>
-                    <h2>暂时不能自动判断的项目</h2>
+                    <p>系统口径</p>
+                    <h2>短期先做门店总账和供应链账</h2>
                   </div>
                 </div>
                 <div class="mini-table finance-intake-list" id="financeManualRows"></div>
@@ -461,6 +472,75 @@
                 <div class="big-number" id="financeReportCount">-</div>
                 <p id="financeReportSummary">等待字段映射。</p>
                 <div class="mini-table" id="financeReportRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="finance-arap">
+          <div class="section-head">
+            <p>财务中心</p>
+            <h2>应收应付</h2>
+          </div>
+          <div class="center-grid two">
+            <article class="module">
+              <div class="module-head">
+                <div>
+                  <p>应收</p>
+                  <h2>客户欠款登记与核销</h2>
+                </div>
+                <span class="tag planning">建设中</span>
+              </div>
+              <div class="module-body">
+                <div class="finance-arap-actions">
+                  <button type="button">新增应收</button>
+                  <button type="button">核销收款</button>
+                </div>
+                <div class="mini-table" id="financeReceivableRows"></div>
+              </div>
+            </article>
+            <article class="module">
+              <div class="module-head">
+                <div>
+                  <p>应付</p>
+                  <h2>供应商欠款登记与核销</h2>
+                </div>
+                <span class="tag planning">建设中</span>
+              </div>
+              <div class="module-body">
+                <div class="finance-arap-actions">
+                  <button type="button">新增应付</button>
+                  <button type="button">核销付款</button>
+                </div>
+                <div class="mini-table" id="financePayableRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="finance-stock">
+          <div class="section-head">
+            <p>财务中心</p>
+            <h2>库存</h2>
+          </div>
+          <div class="center-grid">
+            <article class="module">
+              <div class="module-head">
+                <div>
+                  <p>库存成本</p>
+                  <h2>月初 + 采购 - 月末 = 本月耗用</h2>
+                </div>
+                <span class="tag planning">月度</span>
+              </div>
+              <div class="module-body">
+                <div class="finance-stock-form">
+                  <label><span>月份</span><input type="month" value="2026-06" /></label>
+                  <label><span>月初库存金额</span><input type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                  <label><span>本月采购金额</span><input type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                  <label><span>月末库存金额</span><input type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                  <button type="button">保存库存调整</button>
+                </div>
+                <div class="mini-table" id="financeStockRows"></div>
               </div>
             </article>
           </div>
@@ -522,6 +602,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260616-finance-report-table"></script>
+    <script src="./workbench.js?v=20260616-finance-flow"></script>
   </body>
 </html>

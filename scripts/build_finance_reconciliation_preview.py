@@ -260,15 +260,15 @@ def assign_ledger(item: NormalizedTransaction, ledger_rules: dict[str, Any]) -> 
         item.ledger_status = "assigned"
         item.ledger_rule = "scope:supply_chain_sales"
     elif scope == "store":
-        item.ledger_id = "store_unassigned"
-        item.ledger_name = "门店待分配"
-        item.ledger_status = "pending_store_assignment"
-        item.ledger_rule = "scope:store_without_store_signal"
+        item.ledger_id = "store_total"
+        item.ledger_name = names.get("store_total", "门店总账")
+        item.ledger_status = "assigned"
+        item.ledger_rule = "scope:store_total"
     elif scope == "manual_split_store":
-        item.ledger_id = "manual_split_store"
-        item.ledger_name = "小程序手动拆分"
-        item.ledger_status = "manual_split_required"
-        item.ledger_rule = "scope:manual_split_store"
+        item.ledger_id = "store_total"
+        item.ledger_name = names.get("store_total", "门店总账")
+        item.ledger_status = "assigned"
+        item.ledger_rule = "scope:manual_split_store_to_store_total"
     elif scope == "mixed_store_and_sales":
         item.ledger_id = "mixed_store_and_sales"
         item.ledger_name = "供应链采购拆分"
@@ -664,7 +664,7 @@ def build_monthly_ledger_preview(transactions: list[NormalizedTransaction], ledg
                 ledger_id,
                 str(ledger.get("name") or ledger_id),
                 str(ledger.get("type") or "ledger"),
-                "assigned" if ledger_id == "supply_chain_sales" else "waiting_store_mapping",
+                "assigned" if ledger_id in {"store_total", "supply_chain_sales"} else "waiting_store_mapping",
             )
 
     for item in transactions:
@@ -697,7 +697,7 @@ def build_monthly_ledger_preview(transactions: list[NormalizedTransaction], ledg
     pending = [row for row in pool_values if row["count"]]
     return {
         "status": "preview_only_waiting_store_mapping" if pending else "preview_ready",
-        "message": "已生成 6 本月度账雏形；门店类流水暂入门店待分配池，等待平台店铺、订单或手动规则归属到具体门店。",
+        "message": "已生成门店总账和供应链账；门店拆分暂缓，供应链混用采购和往来进入待确认池。",
         "formal_ledgers": formal_rows,
         "work_pools": pool_values,
         "summary": {

@@ -1234,7 +1234,9 @@ h2 {
 }
 
 .finance-entry-form,
-.finance-recent-panel {
+.finance-recent-panel,
+.finance-upload-panel,
+.finance-review-panel {
   padding: 14px;
   border: 1px solid #e5eaf1;
   border-radius: 8px;
@@ -1268,7 +1270,9 @@ h2 {
 }
 
 .finance-form-head button,
-.finance-upload-button {
+.finance-upload-button,
+.finance-arap-actions button,
+.finance-stock-form button {
   min-height: 38px;
   padding: 9px 12px;
   border: 0;
@@ -1281,7 +1285,9 @@ h2 {
 }
 
 .finance-form-head button:disabled,
-.finance-upload-button:disabled {
+.finance-upload-button:disabled,
+.finance-arap-actions button:disabled,
+.finance-stock-form button:disabled {
   cursor: not-allowed;
   opacity: 0.65;
 }
@@ -1508,6 +1514,46 @@ h2 {
   padding-top: 6px;
   display: grid;
   gap: 10px;
+}
+
+.finance-arap-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finance-stock-form {
+  padding: 14px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fbfcfe;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.finance-stock-form label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-stock-form span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-stock-form input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
 }
 
 .finance-report-dashboard {
@@ -2421,6 +2467,8 @@ h2 {
   .finance-report-kpis,
   .finance-report-notes,
   .finance-report-title,
+  .finance-arap-actions,
+  .finance-stock-form,
   .ordering-channel-list div,
   .mini-table div,
   .anomaly-list div,

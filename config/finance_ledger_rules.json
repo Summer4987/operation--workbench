@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated_at": "2026-06-16",
-  "purpose": "财务中心按月生成 5 家门店账本和 1 个供应链销售账本的业务规则源。",
+  "purpose": "财务中心第一阶段按月生成门店总账和供应链账；5 家门店拆分待云仓和发货路径稳定后再启用。",
   "reporting_period": {
     "month": "2026-06",
     "start_date": "2026-06-16",
@@ -11,38 +11,14 @@
   },
   "monthly_ledgers": [
     {
-      "id": "chaoyangmen",
-      "name": "朝阳门店",
+      "id": "store_total",
+      "name": "门店总账",
       "type": "store",
-      "income_policy": "外卖平台、京东和可识别小程序收入归入本门店；当前小程序无法自动区分时进入手动拆分池。"
-    },
-    {
-      "id": "yintaicheng",
-      "name": "银泰城店",
-      "type": "store",
-      "income_policy": "外卖平台、京东和可识别小程序收入归入本门店；当前小程序无法自动区分时进入手动拆分池。"
-    },
-    {
-      "id": "jinrongcheng",
-      "name": "金融城店",
-      "type": "store",
-      "income_policy": "外卖平台、京东和可识别小程序收入归入本门店；当前小程序无法自动区分时进入手动拆分池。"
-    },
-    {
-      "id": "wanxiangcheng",
-      "name": "万象城店",
-      "type": "store",
-      "income_policy": "外卖平台、京东和可识别小程序收入归入本门店；当前小程序无法自动区分时进入手动拆分池。"
-    },
-    {
-      "id": "baoli_center",
-      "name": "保利中心店",
-      "type": "store",
-      "income_policy": "外卖平台、京东和可识别小程序收入归入本门店；当前小程序无法自动区分时进入手动拆分池。"
+      "income_policy": "第一阶段所有门店收入和门店采购先进入门店总账；5 家门店拆分后续再做。"
     },
     {
       "id": "supply_chain_sales",
-      "name": "供应链销售",
+      "name": "供应链账",
       "type": "supply_chain",
       "income_policy": "供应链销售收入单独成账；已知转账方谢睿钧默认归入供应链销售收入。"
     }
@@ -327,11 +303,11 @@
   ],
   "ledger_assignment_policy": {
     "first_step": "先识别每笔流水的收入/支出渠道。",
-    "second_step": "再根据平台店铺、订单收货地址、采购订单、转账备注和人工确认规则归属到 6 个账本。",
+    "second_step": "第一阶段归属到门店总账或供应链账；5 家门店拆分后续在云仓和发货路径稳定后再启用。",
     "manual_split_required": [
       {
         "channel_id": "mini_program_income",
-        "reason": "小程序点餐目前无法从银行入账自动区分门店，需要月末手动拆分到 5 家门店。"
+        "reason": "小程序点餐第一阶段先进入门店总账，后续再拆到 5 家门店。"
       },
       {
         "channel_id": "supply_chain_procurement",
