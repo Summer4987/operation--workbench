@@ -2,6 +2,12 @@
   "version": 1,
   "updated_at": "2026-06-16",
   "purpose": "财务中心按月生成 5 家门店账本和 1 个供应链销售账本的业务规则源。",
+  "reporting_period": {
+    "month": "2026-06",
+    "start_date": "2026-06-01",
+    "end_date": "2026-06-30",
+    "policy": "源账单可覆盖更长日期，但本次出账只统计 2026 年 6 月；5 月流水不进入本月账本、渠道汇总和待处理池。"
+  },
   "monthly_ledgers": [
     {
       "id": "chaoyangmen",

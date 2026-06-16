@@ -1565,6 +1565,7 @@ function renderFinance() {
   const dailyCollection = finance.daily_collection || {};
   const reconciliationPreview = finance.reconciliation_preview || {};
   const reconciliationSummary = reconciliationPreview.summary || {};
+  const reportingPeriod = reconciliationPreview.reporting_period || {};
   const monthlyLedgerPreview = reconciliationPreview.monthly_ledger_preview || {};
   const ledgerPreviewSummary = monthlyLedgerPreview.summary || {};
   const formalLedgerRows = monthlyLedgerPreview.formal_ledgers || [];
@@ -1620,8 +1621,14 @@ function renderFinance() {
       {
         label: "核对预览",
         value: reconciliationPreview.status === "ready_for_manual_review" ? "已生成" : "待生成",
-        detail: `${Number(reconciliationSummary.transaction_count || 0)} 笔流水 · ${Number(reconciliationSummary.matched_bank_payment_count || 0)} 笔自动匹配 · ${Number(reconciliationSummary.unmatched_payment_count || 0)} 笔待确认`,
+        detail: `${Number(reconciliationSummary.transaction_count || 0)} 笔本期流水 · ${Number(reconciliationSummary.matched_bank_payment_count || 0)} 笔自动匹配 · ${Number(reconciliationSummary.unmatched_payment_count || 0)} 笔待确认`,
         warn: reconciliationPreview.status !== "ready_for_manual_review",
+      },
+      {
+        label: "出账期间",
+        value: reportingPeriod.month || `${reportingPeriod.start_date || "-"} 至 ${reportingPeriod.end_date || "-"}`,
+        detail: `源流水 ${Number(reconciliationSummary.all_transaction_count || reconciliationSummary.transaction_count || 0)} 笔 · 本期 ${Number(reconciliationSummary.transaction_count || 0)} 笔 · 排除 ${Number(reconciliationSummary.excluded_by_period_count || 0)} 笔`,
+        warn: false,
       },
       ...((reconciliationPreview.source_summary || []).map((source) => ({
         label: "流水汇总",

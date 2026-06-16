@@ -163,6 +163,65 @@ def month_key(value: str) -> str:
     return date_text[:7] if date_text else "unknown"
 
 
+def reporting_period(ledger_rules: dict[str, Any]) -> dict[str, str]:
+    period = ledger_rules.get("reporting_period") or {}
+    month = clean_text(period.get("month"))
+    start_date = clean_text(period.get("start_date"))
+    end_date = clean_text(period.get("end_date"))
+    if month and not start_date:
+        start_date = f"{month}-01"
+    if month and not end_date:
+        try:
+            start = datetime.strptime(f"{month}-01", "%Y-%m-%d")
+            if start.month == 12:
+                next_month = start.replace(year=start.year + 1, month=1)
+            else:
+                next_month = start.replace(month=start.month + 1)
+            end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
+        except ValueError:
+            end_date = ""
+    return {
+        "month": month,
+        "start_date": start_date,
+        "end_date": end_date,
+        "policy": clean_text(period.get("policy")),
+    }
+
+
+def filter_transactions_for_period(transactions: list[NormalizedTransaction], period: dict[str, str]) -> tuple[list[NormalizedTransaction], dict[str, Any]]:
+    start_date = period.get("start_date") or ""
+    end_date = period.get("end_date") or ""
+    if not start_date and not end_date:
+        return transactions, {
+            "enabled": False,
+            "month": period.get("month") or "",
+            "start_date": "",
+            "end_date": "",
+            "included_count": len(transactions),
+            "excluded_count": 0,
+        }
+    filtered = []
+    excluded = 0
+    for item in transactions:
+        tx_date = safe_date(item.transaction_date or item.transaction_time)
+        if start_date and tx_date < start_date:
+            excluded += 1
+            continue
+        if end_date and tx_date > end_date:
+            excluded += 1
+            continue
+        filtered.append(item)
+    return filtered, {
+        "enabled": True,
+        "month": period.get("month") or month_key(start_date),
+        "start_date": start_date,
+        "end_date": end_date,
+        "policy": period.get("policy") or "",
+        "included_count": len(filtered),
+        "excluded_count": excluded,
+    }
+
+
 def ledger_name_map(ledger_rules: dict[str, Any]) -> dict[str, str]:
     ledgers = ledger_rules.get("monthly_ledgers") or []
     return {str(item.get("id") or ""): str(item.get("name") or item.get("id") or "") for item in ledgers}
@@ -912,7 +971,9 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
 
 def build_payload() -> dict[str, Any]:
     ledger_rules = load_ledger_rules()
-    transactions, source_status = parse_all_sources()
+    all_transactions, source_status = parse_all_sources()
+    period = reporting_period(ledger_rules)
+    transactions, period_summary = filter_transactions_for_period(all_transactions, period)
     summary = summarize(transactions)
     reconciliation = reconcile_bank(transactions)
     monthly_ledger_preview = build_monthly_ledger_preview(transactions, ledger_rules)
@@ -923,9 +984,12 @@ def build_payload() -> dict[str, Any]:
         "generated_at": now_text(),
         "status": status,
         "mode": "preview_only",
+        "reporting_period": period_summary,
         "source_status": source_status,
         "summary": {
             "transaction_count": len(transactions),
+            "all_transaction_count": len(all_transactions),
+            "excluded_by_period_count": period_summary.get("excluded_count", 0),
             "ready_source_count": ready_sources,
             "source_count": len(source_status),
             "matched_bank_payment_count": reconciliation["matched_count"],
@@ -970,7 +1034,8 @@ def main() -> int:
     record_task_event(TASK_ID, "running", message="财务三方流水核对预览开始。", step="payment-reconciliation-preview")
     try:
         payload = build_payload()
-        transactions, _ = parse_all_sources()
+        all_transactions, _ = parse_all_sources()
+        transactions, _ = filter_transactions_for_period(all_transactions, payload.get("reporting_period") or {})
         # Reconcile mutates match fields, so rebuild once for output consistency.
         reconcile_bank(transactions)
         write_outputs(payload, transactions)

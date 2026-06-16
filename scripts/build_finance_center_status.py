@@ -328,6 +328,7 @@ def build_payload() -> dict[str, Any]:
             "status": reconciliation_preview.get("status") or "not_generated",
             "generated_at": reconciliation_preview.get("generated_at", ""),
             "mode": reconciliation_preview.get("mode", "preview_only"),
+            "reporting_period": reconciliation_preview.get("reporting_period") or {},
             "summary": reconciliation_preview.get("summary") or {},
             "source_summary": reconciliation_preview.get("source_summary") or [],
             "channel_summary": reconciliation_preview.get("channel_summary") or [],
