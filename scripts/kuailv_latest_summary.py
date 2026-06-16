@@ -67,6 +67,7 @@ def main() -> int:
         "pre_navigation_tap": adb.get("pre_navigation_tap"),
         "tap": adb.get("tap"),
         "cart_review": adb.get("cart_review"),
+        "after_cart_review_details": (adb.get("after") or {}).get("cart_review_details"),
         "post_tap_validation": adb.get("post_tap_validation"),
         "before_files": (adb.get("before") or {}).get("files"),
         "after_back_files": (adb.get("after_back") or {}).get("files"),
@@ -85,7 +86,7 @@ def main() -> int:
         "after_detected_relevant": [
             text
             for text in ((adb.get("after") or {}).get("detected_text") or [])
-            if any(keyword in text for keyword in ["数量", "购物车", "去结算", "提交订单", "付款"])
+            if any(keyword in text for keyword in ["数量", "购物车", "去结算", "提交订单", "付款", "合计", "全选", "纸巾", "嫩豆腐", "胆水老豆腐", "老豆腐", "400g", "5斤", "2盒"])
         ],
         "after_plan_match": (adb.get("after") or {}).get("plan_match"),
         "delivery_store_match": analysis.get("delivery_store_match"),

@@ -110,6 +110,8 @@ LEARNED_OPERATOR_SKILLS = [
 ]
 
 CART_REVIEW_KEYWORDS = ["购物车", "进货车", "采购车", "去结算", "结算", "合计", "删除", "清空", "全选", "编辑", "提交订单"]
+CART_XML_MARKERS = ["cart-page-wrap", "cart-page", "去结算", "合计:", "全选"]
+CART_RISK_WORDS = ["纸巾", "嫩豆腐", "5斤", "2盒", "胆水老豆腐", "老豆腐", "400g", "去结算", "合计", "全选"]
 
 
 @dataclass
@@ -371,11 +373,13 @@ def save_adb_snapshot(serial: str, session_dir: Path, timeout: int, plan: dict[s
     snapshot["detected_text"] = detect_page_text(xml_text)
     snapshot["plan_match"] = analyze_page_against_plan(xml_text, plan)
     snapshot["ui_analysis"] = analyze_snapshot_ui(xml_text, Path(snapshot["files"].get("screen", "")), plan)
+    snapshot["cart_review_details"] = analyze_cart_review_xml(xml_text)
+    snapshot["cart_review_page"] = bool(snapshot["cart_review_details"].get("reached_cart"))
     snapshot["kuailv_hint_found"] = any(text in xml_text for text in ["快驴", "美团", "购物车", "搜索"])
     return snapshot
 
 
-def detect_page_text(xml_text: str) -> list[str]:
+def detect_page_text(xml_text: str, limit: int = 160) -> list[str]:
     if not xml_text:
         return []
     values = re.findall(r'text="([^"]+)"', xml_text)
@@ -385,7 +389,11 @@ def detect_page_text(xml_text: str) -> list[str]:
         value = value.strip()
         if value and value not in cleaned:
             cleaned.append(value)
-    return cleaned[:80]
+    return cleaned[:limit]
+
+
+def all_page_text(xml_text: str) -> list[str]:
+    return detect_page_text(xml_text, limit=10000)
 
 
 def parse_bounds(value: str) -> tuple[int, int, int, int] | None:
@@ -701,12 +709,32 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     }
 
 
-def is_cart_review_page(detected_text: list[str]) -> bool:
-    text = " ".join(str(item) for item in detected_text)
+def is_cart_review_page(detected_text: list[str] | str) -> bool:
+    text = detected_text if isinstance(detected_text, str) else " ".join(str(item) for item in detected_text)
     strong_hits = [word for word in CART_REVIEW_KEYWORDS if word in text]
-    if any(word in text for word in ["提交订单", "去结算", "合计"]):
+    if any(word in text for word in CART_XML_MARKERS):
         return True
     return len(strong_hits) >= 2
+
+
+def analyze_cart_review_xml(xml_text: str) -> dict[str, Any]:
+    texts = all_page_text(xml_text)
+    text_blob = " ".join(texts)
+    keyword_hits = [word for word in CART_REVIEW_KEYWORDS if word in text_blob]
+    marker_hits = [word for word in CART_XML_MARKERS if word in xml_text or word in text_blob]
+    risk_hits = [word for word in CART_RISK_WORDS if word in text_blob]
+    relevant_texts = [
+        text
+        for text in texts
+        if any(word in text for word in CART_RISK_WORDS + ["¥", "￥", "去结算", "合计", "全选", "购物车"])
+    ]
+    return {
+        "reached_cart": bool(marker_hits or len(keyword_hits) >= 2),
+        "keyword_hits": keyword_hits,
+        "marker_hits": marker_hits,
+        "risk_hits": risk_hits,
+        "visible_relevant_text": relevant_texts[:80],
+    }
 
 
 def attention_color_components(image_path: Path, *, y_start_ratio: float = 0.82) -> list[dict[str, Any]]:
@@ -1133,7 +1161,8 @@ def run_adb_cart_open(
     time.sleep(1.8)
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
     after_detected = after.get("detected_text") or []
-    reached_cart = is_cart_review_page(after_detected)
+    cart_details = after.get("cart_review_details") or {}
+    reached_cart = bool(cart_details.get("reached_cart")) or is_cart_review_page(after_detected)
     status = "cart_review_ready" if tap_result.returncode == 0 and after.get("captured") and reached_cart else "cart_open_unproven"
     return {
         "status": status,
@@ -1157,7 +1186,10 @@ def run_adb_cart_open(
         "after": after,
         "cart_review": {
             "reached_cart": reached_cart,
-            "cart_keywords_seen": [word for word in CART_REVIEW_KEYWORDS if word in " ".join(str(text) for text in after_detected)],
+            "cart_keywords_seen": cart_details.get("keyword_hits") or [word for word in CART_REVIEW_KEYWORDS if word in " ".join(str(text) for text in after_detected)],
+            "cart_marker_hits": cart_details.get("marker_hits") or [],
+            "risk_hits": cart_details.get("risk_hits") or [],
+            "visible_relevant_text": cart_details.get("visible_relevant_text") or [],
             "detected_text": after_detected,
         },
         "safety": {
