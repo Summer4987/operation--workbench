@@ -574,13 +574,43 @@ def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 def dedup_add_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     deduped = []
+    by_key: dict[tuple[int, int], dict[str, Any]] = {}
     seen: set[tuple[int, int]] = set()
+
+    def merge_text_rows(existing: list[dict[str, Any]], incoming: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        merged = list(existing or [])
+        row_keys = {
+            (str(row.get("text") or ""), tuple(row.get("bounds") or []))
+            for row in merged
+        }
+        for row in incoming or []:
+            key = (str(row.get("text") or ""), tuple(row.get("bounds") or []))
+            if key in row_keys:
+                continue
+            row_keys.add(key)
+            merged.append(row)
+        return merged[:40]
+
     for candidate in candidates:
         center = candidate.get("center") or [0, 0]
         key = (int(round(float(center[0]) / 18)), int(round(float(center[1]) / 18)))
         if key in seen:
+            existing = by_key[key]
+            existing["nearby_texts"] = merge_text_rows(existing.get("nearby_texts") or [], candidate.get("nearby_texts") or [])
+            existing["context_texts"] = merge_text_rows(existing.get("context_texts") or [], candidate.get("context_texts") or [])
+            if not existing.get("source") and candidate.get("source"):
+                existing["source"] = candidate.get("source")
+            if not existing.get("control_text") and candidate.get("control_text"):
+                existing["control_text"] = candidate.get("control_text")
+            reasons = list(existing.get("detection_reasons") or [])
+            for reason in candidate.get("detection_reasons") or []:
+                if reason not in reasons:
+                    reasons.append(reason)
+            if reasons:
+                existing["detection_reasons"] = reasons
             continue
         seen.add(key)
+        by_key[key] = candidate
         deduped.append(candidate)
     deduped.sort(key=lambda item: (float((item.get("center") or [0, 0])[1]), float((item.get("center") or [0, 0])[0])))
     return deduped[:60]
