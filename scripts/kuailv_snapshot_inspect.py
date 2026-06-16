@@ -158,9 +158,46 @@ def scan_bottom_colors(image_path: Path, nodes: list[dict[str, Any]]) -> list[di
     return candidates[:30]
 
 
+def trim_node(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "text": row.get("text", ""),
+        "content_desc": row.get("content_desc", ""),
+        "resource_id": row.get("resource_id", ""),
+        "clickable": row.get("clickable"),
+        "bounds": row.get("bounds"),
+        "center": row.get("center"),
+    }
+
+
+def brief_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    regions = summary.get("region_clickables") or {}
+    detected = summary.get("detected_text_first_120") or []
+    page_terms = [
+        text
+        for text in detected
+        if any(word in str(text) for word in ["搜索", "首页", "分类", "购物车", "进货车", "我的", "豆腐", "商品", "配送"])
+    ]
+    return {
+        "status": summary.get("status"),
+        "session_dir": summary.get("session_dir"),
+        "xml_exists": summary.get("xml_exists"),
+        "screen_exists": summary.get("screen_exists"),
+        "screen_size": summary.get("screen_size"),
+        "cart_text_seen": summary.get("cart_text_seen"),
+        "relevant_detected": summary.get("relevant_detected"),
+        "page_terms": page_terms[:40],
+        "suspect_nodes": [trim_node(row) for row in (summary.get("suspect_nodes") or [])[:30]],
+        "top_clickables": [trim_node(row) for row in (regions.get("top") or [])[:20]],
+        "bottom_clickables": [trim_node(row) for row in (regions.get("bottom_bar") or [])[:20]],
+        "cart_entry_candidates": (summary.get("cart_entry_candidates") or [])[:10],
+        "bottom_color_candidates": (summary.get("bottom_color_candidates") or [])[:10],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="只读分析快驴 latest/session 截图和控件树，定位底部入口与购物车线索。")
     parser.add_argument("--session-dir", default="", help="指定 session 目录；默认读取 latest.json 的 adb.session_dir")
+    parser.add_argument("--brief", action="store_true", help="只输出页面定位、顶部/底部可点节点和购物车候选，避免大 JSON 卡顿")
     args = parser.parse_args()
 
     latest = load_latest()
@@ -198,6 +235,8 @@ def main() -> int:
         "cart_entry_candidates": find_cart_entry_candidates(nodes, image_path),
         "cart_text_seen": any(any(word in text for word in ["购物车", "进货车", "采购车", "去结算", "提交订单"]) for text in detected),
     }
+    if args.brief:
+        summary = brief_summary(summary)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 
