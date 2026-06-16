@@ -443,7 +443,7 @@ def parse_ui_nodes(xml_text: str) -> list[dict[str, Any]]:
     return nodes
 
 
-def nearby_texts(nodes: list[dict[str, Any]], center: tuple[float, float], radius_y: int = 140, radius_x: int = 760) -> list[dict[str, Any]]:
+def nearby_texts(nodes: list[dict[str, Any]], center: tuple[float, float], radius_y: int = 140, radius_x: int = 760, limit: int = 12) -> list[dict[str, Any]]:
     cx, cy = center
     rows = []
     for node in nodes:
@@ -455,7 +455,7 @@ def nearby_texts(nodes: list[dict[str, Any]], center: tuple[float, float], radiu
         if abs(ny - cy) <= radius_y and abs(nx - cx) <= radius_x:
             rows.append({"text": text, "bounds": node["bounds"], "distance_y": round(abs(ny - cy), 1)})
     rows.sort(key=lambda item: (item["distance_y"], item["bounds"][1], item["bounds"][0]))
-    return rows[:12]
+    return rows[:limit]
 
 
 def candidate_text(candidate: dict[str, Any], radius: str = "nearby_texts") -> str:
@@ -466,6 +466,12 @@ def candidate_context(nodes: list[dict[str, Any]], center: tuple[float, float]) 
     # Include the product title above the spec row, but keep the window narrow
     # enough that the previous product's risky spec does not bleed into a target row.
     return nearby_texts(nodes, center, radius_y=360, radius_x=760)
+
+
+def candidate_card_context(nodes: list[dict[str, Any]], center: tuple[float, float]) -> list[dict[str, Any]]:
+    # Text controls in Kuailv product cards can be far apart vertically:
+    # title, spec, and "选规格" may span more than 500 px.
+    return nearby_texts(nodes, center, radius_y=760, radius_x=820, limit=28)
 
 
 def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -557,7 +563,7 @@ def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]
                 "source": "xml_add_control",
                 "control_text": text,
                 "nearby_texts": nearby_texts(nodes, (cx, cy)),
-                "context_texts": candidate_context(nodes, (cx, cy)),
+                "context_texts": candidate_card_context(nodes, (cx, cy)),
                 "detection_reasons": reasons,
             }
         )
