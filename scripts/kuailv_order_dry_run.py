@@ -1085,8 +1085,12 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
                 str(best.get(key) or "")
                 for key in ("line_name", "pack_label", "row_text", "context_text", "target_title_text", "target_spec_text")
             )
-            best_hits = [word for word in target_words if word and word in best_text]
-            if best_hits:
+            spec_targets = [word for word in target_words if word and looks_like_spec_keyword(str(word))]
+            identity_targets = [word for word in target_words if word and not looks_like_spec_keyword(str(word))]
+            identity_hits = [word for word in identity_targets if word in best_text]
+            spec_hits = [word for word in spec_targets if valid_pack_label_hit(best_text, str(word))]
+            best_hits = identity_hits + spec_hits
+            if (identity_hits or not identity_targets) and (spec_hits or not spec_targets):
                 safe_candidate_rows.append(
                     {
                         "center": candidate.get("center"),
