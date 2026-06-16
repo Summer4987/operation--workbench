@@ -33,12 +33,12 @@ ADB_COMMON_PATHS = [
 
 PACK_RULES: dict[str, dict[str, Any]] = {
     "洋葱": {
-        "pack_sizes": [40, 20, 10, 5],
+        "pack_sizes": [20, 10, 5],
         "allowed_overage": 0,
         "keywords": ["洋葱"],
         "accept": ["洋葱"],
-        "prefer": ["40斤", "20斤", "10斤", "5斤"],
-        "lesson": "银泰城实跑发现搜索页有白皮洋葱 40斤/360枚，40 斤需求优先整件；30 斤再拆 20斤+10斤。",
+        "prefer": ["20斤", "10斤", "5斤"],
+        "lesson": "银泰城 XML 坐标确认黄皮洋葱 20斤的标题/规格/选规格按钮在同一商品卡，40 斤需求优先按 20斤 x2。",
     },
     "白玉菇": {
         "pack_sizes": [4, 1],
@@ -542,7 +542,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     row_preferred_hits = [word for word in preferred if word in row_text]
     context_preferred_hits = [word for word in preferred if word in all_text]
     excluded_hits = [word for word in excluded if word in all_text]
-    pack_hits = [pack_label] if pack_label and pack_label in row_text else []
+    pack_hits = [pack_label] if pack_label and (pack_label in row_text or pack_label in context_text) else []
     identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
     identity_hits = [word for word in identity_keywords if word in all_text]
     reasons = []
@@ -553,7 +553,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     if excluded_hits:
         reasons.append("excluded_keyword_seen")
     if pack_label and not pack_hits:
-        reasons.append("pack_label_not_on_row")
+        reasons.append("pack_label_not_in_card_context")
     allowed = not reasons
     score = 0
     score += 100 if allowed else 0
@@ -578,6 +578,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         "identity_hits": identity_hits,
         "excluded_hits": excluded_hits,
         "pack_hits": pack_hits,
+        "pack_label_scope": "nearby_row" if pack_label and pack_label in row_text else ("card_context" if pack_hits else ""),
         "center": candidate.get("center"),
         "bounds": candidate.get("bounds"),
     }
