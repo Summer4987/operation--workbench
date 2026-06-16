@@ -1,6 +1,7 @@
 const data = window.WORKBENCH_DATA || {};
 const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
 const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
+const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
@@ -220,7 +221,7 @@ function initializeFinanceIntakeControls() {
     form.dataset.bound = "true";
     const dateInput = form.querySelector("#financeEntryDate");
     if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const formData = new FormData(form);
       const entry = {
@@ -237,12 +238,29 @@ function initializeFinanceIntakeControls() {
         files: financeFileSummary(form.querySelector('[name="attachments"]')?.files || []),
         sync_status: "local_pending",
       };
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
       const entries = readLocalList(FINANCE_LOCAL_ENTRIES_KEY);
-      writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [entry, ...entries]);
-      text("financeManualEntryMessage", "已保存到本页最近录入。云端保存接口接入后，这里会自动同步到财务账本。");
-      form.reset();
-      if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
-      renderFinanceRecentEntries();
+      try {
+        const response = await fetch(FINANCE_ENTRY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [result.entry || { ...entry, sync_status: "cloud_saved" }, ...entries]);
+        text("financeManualEntryMessage", "已保存到云端财务录入记录。");
+        form.reset();
+        if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+        renderFinanceRecentEntries();
+      } catch {
+        writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [entry, ...entries]);
+        text("financeManualEntryMessage", "云端保存暂时失败，已先保存在本页待同步记录。");
+        renderFinanceRecentEntries();
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
     });
   }
 

@@ -50,6 +50,7 @@ TEMPLATE_DIR = BASE_DIR / "data" / "templates"
 PROMO_BUDGET_PATH = BASE_DIR / "data" / "promo_budget_overrides.json"
 FINANCE_UPLOAD_DIR = BASE_DIR / "data" / "finance-uploads"
 FINANCE_UPLOAD_MANIFEST = FINANCE_UPLOAD_DIR / "manifest.jsonl"
+FINANCE_ENTRY_MANIFEST = FINANCE_UPLOAD_DIR / "manual_entries.jsonl"
 FINANCE_SOURCE_IDS = {
     "bank",
     "wechat_pay",
@@ -349,6 +350,29 @@ def finance_uploads(request: Request):
     return {"items": list(reversed(items))}
 
 
+@app.post("/api/finance/entry")
+async def finance_entry(request: Request, payload: dict):
+    _require_public_order_token(request)
+    entry = _validate_finance_entry(payload)
+    FINANCE_ENTRY_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    with FINANCE_ENTRY_MANIFEST.open("a", encoding="utf-8") as target:
+        target.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return {"status": "success", "entry": entry}
+
+
+@app.get("/api/finance/entries")
+def finance_entries(request: Request):
+    _require_public_order_token(request)
+    items = []
+    if FINANCE_ENTRY_MANIFEST.exists():
+        for line in FINANCE_ENTRY_MANIFEST.read_text(encoding="utf-8").splitlines()[-120:]:
+            try:
+                items.append(json.loads(line))
+            except Exception:
+                continue
+    return {"items": list(reversed(items))}
+
+
 @app.patch("/api/products/{sku}/warning")
 async def update_warning(sku: str, payload: dict):
     try:
@@ -513,6 +537,34 @@ def _public_order_token() -> str:
 
 def _safe_upload_filename(filename: str) -> str:
     return "".join(char if char.isalnum() or char in ".-_" else "_" for char in Path(filename).name)
+
+
+def _validate_finance_entry(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="记账数据格式不正确")
+    try:
+        amount = float(payload.get("amount") or 0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="金额必须是数字") from exc
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="金额必须大于 0")
+    entry = {
+        "id": str(payload.get("id") or now_iso()),
+        "created_at": now_iso(),
+        "date": str(payload.get("date") or "")[:20],
+        "ledger": str(payload.get("ledger") or "")[:80],
+        "direction": str(payload.get("direction") or "")[:20],
+        "amount": amount,
+        "channel": str(payload.get("channel") or "")[:80],
+        "counterparty": str(payload.get("counterparty") or "")[:120],
+        "account": str(payload.get("account") or "")[:40],
+        "note": str(payload.get("note") or "")[:500],
+        "files": str(payload.get("files") or "")[:500],
+        "sync_status": "cloud_saved",
+    }
+    if not entry["date"] or not entry["ledger"] or not entry["direction"] or not entry["channel"]:
+        raise HTTPException(status_code=400, detail="日期、账本、收支和渠道不能为空")
+    return entry
 
 
 def _inbound_template_path() -> Path | None:
