@@ -1565,6 +1565,9 @@ function renderFinance() {
   const dailyCollection = finance.daily_collection || {};
   const reconciliationPreview = finance.reconciliation_preview || {};
   const reconciliationSummary = reconciliationPreview.summary || {};
+  const monthlyLedgers = finance.monthly_ledgers || [];
+  const assignmentPolicy = finance.ledger_assignment_policy || {};
+  const financeChannels = finance.finance_channels || {};
   const channelRows = reconciliationPreview.channel_summary || [];
   const channelReviewRows = reconciliationPreview.channel_review_samples || [];
   const ledgerTables = ledgerDesign.tables || [];
@@ -1591,6 +1594,18 @@ function renderFinance() {
         warn: !table.ready,
       })),
       {
+        label: "月度账本",
+        value: `${monthlyLedgers.length || 0} 本`,
+        detail: monthlyLedgers.length ? monthlyLedgers.map((item) => item.name).join("、") : "待配置门店和供应链账本",
+        warn: monthlyLedgers.length < 6,
+      },
+      {
+        label: "业务渠道",
+        value: `${(financeChannels.income_channels || []).length || 0} 收入 / ${(financeChannels.expense_channels || []).length || 0} 支出`,
+        detail: "先识别渠道，再归属到 5 家门店和供应链销售账本。",
+        warn: false,
+      },
+      {
         label: "核对预览",
         value: reconciliationPreview.status === "ready_for_manual_review" ? "已生成" : "待生成",
         detail: `${Number(reconciliationSummary.transaction_count || 0)} 笔流水 · ${Number(reconciliationSummary.matched_bank_payment_count || 0)} 笔自动匹配 · ${Number(reconciliationSummary.unmatched_payment_count || 0)} 笔待确认`,
@@ -1605,9 +1620,15 @@ function renderFinance() {
       ...channelRows.slice(0, 8).map((channel) => ({
         label: "渠道汇总",
         value: channel.channel_name || channel.channel_id,
-        detail: `${channel.channel_group || "渠道"} · ${Number(channel.count || 0)} 笔 · 收入 ${yuan(channel.income)} · 支出 ${yuan(channel.expense)} · 净额 ${yuan(channel.net)}`,
+        detail: `${channel.channel_group || "渠道"} · ${channel.ledger_scope || "manual_review"} · ${Number(channel.count || 0)} 笔 · 收入 ${yuan(channel.income)} · 支出 ${yuan(channel.expense)} · 净额 ${yuan(channel.net)}`,
         warn: channel.channel_group === "待确认渠道",
       })),
+      ...((assignmentPolicy.manual_split_required || []).map((item) => ({
+        label: "需手动拆分",
+        value: item.channel_id || "规则",
+        detail: item.reason || "",
+        warn: true,
+      }))),
       {
         label: "待确认渠道",
         value: `${channelReviewRows.length} 个样例`,

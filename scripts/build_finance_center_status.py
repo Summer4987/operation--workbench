@@ -10,6 +10,7 @@ from task_run_state import classify_failure_text, record_task_event
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "config" / "finance_bill_schema.json"
+LEDGER_RULES_PATH = ROOT / "config" / "finance_ledger_rules.json"
 RECONCILIATION_PREVIEW_PATH = ROOT / "outputs" / "finance_reconciliation_preview" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "finance_center_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
@@ -229,6 +230,7 @@ def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sour
 
 def build_payload() -> dict[str, Any]:
     schema = read_json(SCHEMA_PATH, {})
+    ledger_rules = read_json(LEDGER_RULES_PATH, {})
     reconciliation_preview = read_json(RECONCILIATION_PREVIEW_PATH, {})
     accepted_extensions = {str(item).lower() for item in schema.get("accepted_extensions", [])}
     inbox = schema.get("sample_inbox") or {}
@@ -258,6 +260,8 @@ def build_payload() -> dict[str, Any]:
         )
 
     accounts = schema.get("accounts") or []
+    monthly_ledgers = ledger_rules.get("monthly_ledgers") or []
+    ledger_assignment_policy = ledger_rules.get("ledger_assignment_policy") or {}
     order_feed = load_order_automation_feed()
     daily_collection = build_daily_collection_design(schema, sources)
     ledger_design = build_ledger_design(schema, order_feed, sources)
@@ -293,6 +297,8 @@ def build_payload() -> dict[str, Any]:
         "schema": {
             "path": "config/finance_bill_schema.json",
             "version": schema.get("version"),
+            "ledger_rules_path": "config/finance_ledger_rules.json",
+            "ledger_rules_version": ledger_rules.get("version"),
             "account_count": len(accounts),
             "accepted_extensions": sorted(accepted_extensions),
         },
@@ -301,12 +307,20 @@ def build_payload() -> dict[str, Any]:
             "sample_file_count": sum(item["file_count"] for item in sources),
             "missing_count": len(missing),
             "account_count": len(accounts),
+            "monthly_ledger_count": len(monthly_ledgers),
             "order_source_count": len(schema.get("order_sources") or []),
             "payment_source_count": len(schema.get("payment_sources") or []),
             "ledger_table_count": len(ledger_design["tables"]),
         },
         "sources": sources,
         "accounts": accounts,
+        "monthly_ledgers": monthly_ledgers,
+        "ledger_assignment_policy": ledger_assignment_policy,
+        "finance_channels": {
+            "income_channels": ledger_rules.get("income_channels") or [],
+            "expense_channels": ledger_rules.get("expense_channels") or [],
+            "neutral_channels": ledger_rules.get("neutral_channels") or [],
+        },
         "order_sources": schema.get("order_sources") or [],
         "payment_sources": schema.get("payment_sources") or [],
         "daily_collection": daily_collection,
@@ -318,6 +332,7 @@ def build_payload() -> dict[str, Any]:
             "source_summary": reconciliation_preview.get("source_summary") or [],
             "channel_summary": reconciliation_preview.get("channel_summary") or [],
             "channel_review_samples": reconciliation_preview.get("channel_review_samples") or [],
+            "ledger_rules": reconciliation_preview.get("ledger_rules") or {},
             "profit_preview": reconciliation_preview.get("profit_preview") or {},
             "outputs": reconciliation_preview.get("outputs") or {},
             "message": reconciliation_preview.get("message") or "三方流水核对预览尚未生成。",

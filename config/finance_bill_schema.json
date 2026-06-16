@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "updated_at": "2026-06-16",
   "sample_inbox": {
     "bank": "data/finance-inbox/bank",
@@ -167,6 +167,17 @@
       "bank_keywords": [
         "拼多多",
         "多多支付"
+      ]
+    },
+    {
+      "id": "jd",
+      "name": "京东",
+      "type": "procurement_and_store_income",
+      "bank_keywords": [
+        "京东",
+        "京东支付",
+        "京东到家",
+        "达达"
       ]
     },
     {

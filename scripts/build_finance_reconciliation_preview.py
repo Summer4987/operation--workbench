@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INBOX = ROOT / "data" / "finance-inbox"
 OUTPUT_DIR = ROOT / "outputs" / "finance_reconciliation_preview"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+LEDGER_RULES_PATH = ROOT / "config" / "finance_ledger_rules.json"
 TASK_ID = "finance.bill_analysis"
 
 
@@ -43,111 +44,29 @@ class NormalizedTransaction:
     channel_name: str = ""
     channel_group: str = ""
     channel_rule: str = ""
+    ledger_scope: str = ""
     match_status: str = "unmatched"
     match_id: str = ""
     notes: str = ""
 
 
-CHANNEL_RULES = [
-    {
-        "id": "meituan_income",
-        "name": "美团/钱袋宝收入",
-        "group": "收入渠道",
-        "direction": "income",
-        "keywords": ["北京钱袋宝支付技术有限公司", "钱袋宝", "美团"],
-    },
-    {
-        "id": "eleme_income",
-        "name": "饿了么/网商银行收入",
-        "group": "收入渠道",
-        "direction": "income",
-        "keywords": ["浙江网商银行", "饿了么", "拉扎斯"],
-    },
-    {
-        "id": "unionpay_income",
-        "name": "银联/随行付收入",
-        "group": "收入渠道",
-        "direction": "income",
-        "keywords": ["随行付", "银联代付"],
-    },
-    {
-        "id": "store_entity_income",
-        "name": "门店主体入账",
-        "group": "收入渠道",
-        "direction": "income",
-        "keywords": ["波奇熊餐饮店", "婆婆食品店"],
-    },
-    {
-        "id": "wechat_transfer_procurement",
-        "name": "微信群/微信转账采购",
-        "group": "采购支出",
-        "direction": "expense",
-        "keywords": ["微信转账", "转账备注:微信转账", "绿泰和牛", "京太冷链", "海霸王", "全韵商贸", "佰岛汇"],
-    },
-    {
-        "id": "wechat_merchant_procurement",
-        "name": "微信商户采购",
-        "group": "采购支出",
-        "direction": "expense",
-        "keywords": ["雪花牛肉", "鸿犇犇食品", "清凉净地"],
-    },
-    {
-        "id": "taobao_alipay_procurement",
-        "name": "淘宝/支付宝采购",
-        "group": "采购支出",
-        "direction": "expense",
-        "keywords": ["淘宝", "天猫", "tb", "T200P", "一次性", "黄油", "淡奶油", "餐盒", "打包盒", "塑料袋", "木鱼", "大米包装袋"],
-    },
-    {
-        "id": "logistics",
-        "name": "物流/货拉拉",
-        "group": "履约费用",
-        "direction": "expense",
-        "keywords": ["货拉拉", "淘天物流", "寄件费"],
-    },
-    {
-        "id": "platform_promotion",
-        "name": "平台推广费",
-        "group": "平台费用",
-        "direction": "expense",
-        "keywords": ["店铺推广", "点金", "饿了么", "北京三快在线科技有限公司", "（特约）美团", "大众点评"],
-    },
-    {
-        "id": "utilities",
-        "name": "水电燃气",
-        "group": "门店固定费用",
-        "direction": "expense",
-        "keywords": ["燃气", "成都燃气", "成都世纪源通燃气"],
-    },
-    {
-        "id": "rent_property",
-        "name": "房租/物业/停车",
-        "group": "门店固定费用",
-        "direction": "expense",
-        "keywords": ["房东", "物业", "停车", "银泰智享物业"],
-    },
-    {
-        "id": "payroll_or_personal_transfer",
-        "name": "人工/个人转账",
-        "group": "人工及往来",
-        "direction": "expense",
-        "keywords": ["转账汇款", "亲情卡", "徐艳", "Miss刘", "杨杨"],
-    },
-    {
-        "id": "refund_neutral",
-        "name": "退款/冲正",
-        "group": "退款及中性",
-        "direction": "neutral",
-        "keywords": ["退款", "退货", "交易关闭"],
-    },
-    {
-        "id": "financial_neutral",
-        "name": "金融转存/还款",
-        "group": "退款及中性",
-        "direction": "neutral",
-        "keywords": ["花呗", "余利宝", "自动还款", "不计收支", "账户转存"],
-    },
-]
+def read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+
+def load_ledger_rules() -> dict[str, Any]:
+    return read_json(LEDGER_RULES_PATH, {})
+
+
+def channel_rules_from_config(config: dict[str, Any]) -> list[dict[str, Any]]:
+    rules: list[dict[str, Any]] = []
+    for section in ("income_channels", "expense_channels", "neutral_channels"):
+        for rule in config.get(section) or []:
+            rules.append(rule)
+    return rules
 
 
 def now_text() -> str:
@@ -181,7 +100,7 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", text.replace("\t", "")).strip()
 
 
-def classify_channel(item: NormalizedTransaction) -> None:
+def classify_channel(item: NormalizedTransaction, rules: list[dict[str, Any]]) -> None:
     haystack = " ".join(
         [
             item.source_name,
@@ -196,7 +115,7 @@ def classify_channel(item: NormalizedTransaction) -> None:
         ]
     ).lower()
     amount_direction = "income" if item.amount > 0 else "expense" if item.amount < 0 else "neutral"
-    for rule in CHANNEL_RULES:
+    for rule in rules:
         rule_direction = rule.get("direction", "")
         if rule_direction and rule_direction != amount_direction:
             continue
@@ -206,6 +125,7 @@ def classify_channel(item: NormalizedTransaction) -> None:
                 item.channel_name = str(rule["name"])
                 item.channel_group = str(rule["group"])
                 item.channel_rule = f"keyword:{keyword}"
+                item.ledger_scope = str(rule.get("default_ledger_scope") or "")
                 return
 
     if item.source == "wechat_pay":
@@ -213,21 +133,25 @@ def classify_channel(item: NormalizedTransaction) -> None:
         item.channel_name = "微信支付其他"
         item.channel_group = "待确认渠道" if item.amount else "退款及中性"
         item.channel_rule = "fallback:source"
+        item.ledger_scope = "manual_review"
     elif item.source == "alipay":
         item.channel_id = "alipay_other"
         item.channel_name = "支付宝其他"
         item.channel_group = "待确认渠道" if item.amount else "退款及中性"
         item.channel_rule = "fallback:source"
+        item.ledger_scope = "manual_review"
     elif item.source == "bank":
         item.channel_id = "bank_other"
         item.channel_name = "银行其他"
         item.channel_group = "待确认渠道" if item.amount else "退款及中性"
         item.channel_rule = "fallback:source"
+        item.ledger_scope = "manual_review"
     else:
         item.channel_id = "unknown"
         item.channel_name = "未知渠道"
         item.channel_group = "待确认渠道"
         item.channel_rule = "fallback:unknown"
+        item.ledger_scope = "manual_review"
 
 
 def safe_date(value: str) -> str:
@@ -431,6 +355,8 @@ def parse_bank_pdf(path: Path) -> list[NormalizedTransaction]:
 def parse_all_sources() -> tuple[list[NormalizedTransaction], list[dict[str, Any]]]:
     transactions: list[NormalizedTransaction] = []
     source_status = []
+    ledger_rules = load_ledger_rules()
+    channel_rules = channel_rules_from_config(ledger_rules)
     parsers = [
         ("bank", "银行流水", "bank", {".pdf"}, parse_bank_pdf),
         ("wechat_pay", "微信支付账单", "wechat-pay", {".xlsx", ".xls"}, parse_wechat),
@@ -458,7 +384,7 @@ def parse_all_sources() -> tuple[list[NormalizedTransaction], list[dict[str, Any
             }
         )
     for item in transactions:
-        classify_channel(item)
+        classify_channel(item, channel_rules)
     return transactions, source_status
 
 
@@ -495,6 +421,7 @@ def summarize(transactions: list[NormalizedTransaction]) -> dict[str, Any]:
                 "channel_id": channel_key,
                 "channel_name": item.channel_name or "未知渠道",
                 "channel_group": item.channel_group or "待确认渠道",
+                "ledger_scope": item.ledger_scope or "manual_review",
                 "count": 0,
                 "income": 0.0,
                 "expense": 0.0,
@@ -636,6 +563,7 @@ def public_tx(item: NormalizedTransaction) -> dict[str, Any]:
         "channel_name": item.channel_name,
         "channel_group": item.channel_group,
         "channel_rule": item.channel_rule,
+        "ledger_scope": item.ledger_scope,
         "match_status": item.match_status,
     }
 
@@ -653,6 +581,7 @@ def channel_review_samples(transactions: list[NormalizedTransaction]) -> list[di
 def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str, Any]:
     by_source = summarize(transactions)["by_source"]
     by_channel = summarize(transactions)["by_channel"]
+    ledger_rules = load_ledger_rules()
     payment_expense = sum(abs(item.amount) for item in transactions if item.source in {"wechat_pay", "alipay"} and item.amount < 0 and "关闭" not in item.status)
     payment_income = sum(item.amount for item in transactions if item.source in {"wechat_pay", "alipay"} and item.amount > 0)
     bank_income = sum(item.amount for item in transactions if item.source == "bank" and item.amount > 0)
@@ -668,6 +597,8 @@ def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str,
         },
         "source_totals": by_source,
         "channel_totals": by_channel,
+        "monthly_ledgers": ledger_rules.get("monthly_ledgers") or [],
+        "ledger_assignment_policy": ledger_rules.get("ledger_assignment_policy") or {},
         "needed_for_store_pnl": [
             "门店基础表：用于把收货地址、店铺名、供应商规则归到门店。",
             "外卖平台收入账单：用于确认每家门店收入、佣金、配送费、退款、补贴。",
@@ -692,6 +623,7 @@ def write_outputs(payload: dict[str, Any], transactions: list[NormalizedTransact
 
 
 def build_payload() -> dict[str, Any]:
+    ledger_rules = load_ledger_rules()
     transactions, source_status = parse_all_sources()
     summary = summarize(transactions)
     reconciliation = reconcile_bank(transactions)
@@ -716,6 +648,12 @@ def build_payload() -> dict[str, Any]:
         "daily_summary": summary["daily"],
         "bank_reconciliation": reconciliation,
         "channel_review_samples": channel_review_samples(transactions),
+        "ledger_rules": {
+            "path": str(LEDGER_RULES_PATH.relative_to(ROOT)),
+            "version": ledger_rules.get("version"),
+            "monthly_ledgers": ledger_rules.get("monthly_ledgers") or [],
+            "ledger_assignment_policy": ledger_rules.get("ledger_assignment_policy") or {},
+        },
         "profit_preview": profit_preview,
         "outputs": {
             "latest_json": str(LATEST_PATH.relative_to(ROOT)),
