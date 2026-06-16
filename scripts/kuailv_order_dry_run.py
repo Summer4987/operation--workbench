@@ -833,15 +833,45 @@ def target_text_position(result_check: dict[str, Any]) -> dict[str, Any]:
     ]
     if not hits:
         return {}
-    bounds = [row["bounds"] for row in hits]
+    hits.sort(key=lambda row: (row["bounds"][1], row["bounds"][0]))
+    clusters: list[list[dict[str, Any]]] = []
+    for row in hits:
+        if not clusters:
+            clusters.append([row])
+            continue
+        last_bounds = clusters[-1][-1]["bounds"]
+        if row["bounds"][1] - last_bounds[3] <= 360:
+            clusters[-1].append(row)
+        else:
+            clusters.append([row])
+
+    def cluster_score(cluster: list[dict[str, Any]]) -> float:
+        texts = " ".join(str(row.get("text") or "") for row in cluster)
+        bounds = [row["bounds"] for row in cluster]
+        top = min(item[1] for item in bounds)
+        bottom = max(item[3] for item in bounds)
+        score = len(cluster) * 10
+        if re.search(r"\d", texts):
+            score += 25
+        if any(token in texts for token in ["400g", "斤", "盒", "箱", "桶", "瓶"]):
+            score += 20
+        if any(token in texts for token in ["[", "]", "胆水"]):
+            score += 12
+        score += ((top + bottom) / 2) / 10000
+        return score
+
+    selected = max(clusters, key=cluster_score)
+    bounds = [row["bounds"] for row in selected]
     top = min(item[1] for item in bounds)
     bottom = max(item[3] for item in bounds)
     return {
         "top": top,
         "bottom": bottom,
         "center_y": round((top + bottom) / 2, 1),
-        "hit_count": len(hits),
-        "texts": [row.get("text") for row in hits[:8]],
+        "hit_count": len(selected),
+        "texts": [row.get("text") for row in selected[:8]],
+        "all_hit_count": len(hits),
+        "cluster_count": len(clusters),
     }
 
 
