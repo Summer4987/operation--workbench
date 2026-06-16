@@ -1,4 +1,6 @@
 const data = window.WORKBENCH_DATA || {};
+const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
+let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
 const commandBoard = document.querySelector(".command-board");
@@ -1064,6 +1066,32 @@ function platformBudgetStores(budget, saved, platform) {
   return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
+function applyBudgetOverrides(payload, refreshedAt = "") {
+  const overrides = payload?.data || payload;
+  if (!overrides || typeof overrides !== "object") return false;
+  data.budget = data.budget || {};
+  data.budget.overrides = overrides;
+  if (refreshedAt) data.budget.overrides_refreshed_at = refreshedAt;
+  return true;
+}
+
+async function hydrateBudgetOverrides() {
+  if (budgetOverridesFetchStarted) return;
+  budgetOverridesFetchStarted = true;
+  try {
+    const response = await fetch(PROMO_BUDGET_OVERRIDES_URL, { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "预算配置读取失败");
+    if (applyBudgetOverrides(payload, new Date().toLocaleString("zh-CN", { hour12: false }))) {
+      renderBudget();
+    }
+  } catch (error) {
+    data.budget = data.budget || {};
+    data.budget.overrides_load_error = error.message || "预算配置读取失败";
+    renderBudget();
+  }
+}
+
 function renderBudgetEditor(budget, saved) {
   const container = document.querySelector("#budgetEditorRows");
   if (!container) return;
@@ -1119,13 +1147,15 @@ async function saveBudgetEditor() {
   status.className = "save-status pending";
   status.textContent = "正在同步云端预算配置。";
   try {
-    const response = await fetch("http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order", {
+    const response = await fetch(PROMO_BUDGET_OVERRIDES_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(collectBudgetEditorPayload()),
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "保存失败");
+    applyBudgetOverrides(payload, new Date().toLocaleString("zh-CN", { hour12: false }));
+    renderBudget();
     status.className = "save-status success";
     status.textContent = `已保存到云端：${new Date().toLocaleString("zh-CN", { hour12: false })}`;
     button.textContent = "已保存";
@@ -1153,9 +1183,13 @@ function renderBudget() {
   const retryGuide = (retry.repair_guides || [])[0] || {};
   const retryGuideStep = (retryGuide.checklist || [])[0] || "";
   const retryText = retry.status === "ready" ? `门店级重试：${retrySummary.safe_retry_count || 0} 项可重试，${retrySummary.manual_count || 0} 项需人工${affectedByLatestRun ? `，最近执行影响 ${affectedByLatestRun} 项` : ""}${retryGuide.title ? `，修复向导 ${retrySummary.repair_guide_count || (retry.repair_guides || []).length} 个` : ""}。` : "门店级重试策略待生成。";
-  text("budgetSummary", `云端预算配置读取时间：${budget.generated_at || "-"}。只展示已保存的预算配置；如果执行失败，不显示为已设置成功。${retryText}`);
+  const configReadAt = budget.overrides_refreshed_at || budget.generated_at || "-";
+  const loadErrorText = budget.overrides_load_error ? `云端预算实时读取失败：${budget.overrides_load_error}。` : "";
+  text("budgetSummary", `云端预算配置读取时间：${configReadAt}。${loadErrorText}只展示已保存的预算配置；如果执行失败，不显示为已设置成功。${retryText}`);
   renderBudgetEditor(budget, saved);
-  document.querySelector("#budgetSaveButton")?.addEventListener("click", saveBudgetEditor);
+  const budgetSaveButton = document.querySelector("#budgetSaveButton");
+  if (budgetSaveButton) budgetSaveButton.onclick = saveBudgetEditor;
+  hydrateBudgetOverrides();
   rows(
     "budgetRows",
     budgetStoreNames(budget, saved),
