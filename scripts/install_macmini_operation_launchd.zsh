@@ -46,8 +46,10 @@ run_with_timeout() {
     sleep "\$seconds"
     if kill -0 "\$child_pid" 2>/dev/null; then
       echo "步骤超时：\${seconds}s，已终止：\$*"
+      pkill -TERM -P "\$child_pid" 2>/dev/null || true
       kill -TERM "\$child_pid" 2>/dev/null || true
       sleep 2
+      pkill -KILL -P "\$child_pid" 2>/dev/null || true
       kill -KILL "\$child_pid" 2>/dev/null || true
     fi
   ) &

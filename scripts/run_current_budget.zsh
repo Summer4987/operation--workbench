@@ -112,8 +112,10 @@ run_with_timeout() {
     sleep "$seconds"
     if kill -0 "$child_pid" 2>/dev/null; then
       echo "步骤超时：${seconds}s，已终止：$*"
+      pkill -TERM -P "$child_pid" 2>/dev/null || true
       kill -TERM "$child_pid" 2>/dev/null || true
       sleep 2
+      pkill -KILL -P "$child_pid" 2>/dev/null || true
       kill -KILL "$child_pid" 2>/dev/null || true
     fi
   ) &
@@ -181,7 +183,7 @@ run_node_from_safe_cwd() {
   local script_path="$1"
   shift
   cd "$HOME/Library/Scripts/xiong-operation"
-  "$NODE" "$script_path" "$@"
+  exec "$NODE" "$script_path" "$@"
 }
 
 if run_required_step "${PERIOD}预算配置同步" "${BUDGET_CONFIG_SYNC_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"; then
