@@ -236,16 +236,49 @@ if [ "\$now_hhmm" -lt 800 ] || [ "\$now_hhmm" -gt 1050 ]; then
   exit 0
 fi
 
-PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
-if [ ! -x "\$PYTHON" ]; then
-  PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
-fi
-if [ ! -x "\$PYTHON" ]; then
-  PYTHON="python3"
+run_with_timeout() {
+  local seconds="\$1"
+  shift
+  "\$@" &
+  local child_pid=\$!
+  (
+    sleep "\$seconds"
+    if kill -0 "\$child_pid" 2>/dev/null; then
+      echo "[\$(date '+%F %T')] 步骤超时：\${seconds}s，已终止：\$*"
+      kill -TERM "\$child_pid" 2>/dev/null || true
+      sleep 2
+      kill -KILL "\$child_pid" 2>/dev/null || true
+    fi
+  ) &
+  local watchdog_pid=\$!
+  local exit_status=0
+  wait "\$child_pid" || exit_status=\$?
+  kill "\$watchdog_pid" 2>/dev/null || true
+  wait "\$watchdog_pid" 2>/dev/null || true
+  return "\$exit_status"
+}
+
+PYTHON=""
+for candidate in \
+  "\$ROOT/business-report-dashboard/.venv/bin/python" \
+  "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3" \
+  "python3"
+do
+  if command -v "\$candidate" >/dev/null 2>&1 || [ -x "\$candidate" ]; then
+    if run_with_timeout "\${MORNING_OPS_PYTHON_PREFLIGHT_TIMEOUT_SECONDS:-30}" "\$candidate" -c "import sys; print(sys.executable)" >> "\$LOG_DIR/scheduler.log" 2>&1; then
+      PYTHON="\$candidate"
+      break
+    fi
+    echo "[\$(date '+%F %T')] Python 预检失败，尝试下一个解释器：\$candidate" >> "\$LOG_DIR/scheduler.log"
+  fi
+done
+if [ -z "\$PYTHON" ]; then
+  echo "[\$(date '+%F %T')] 未找到可用 Python，上午运营采集停止。" >> "\$LOG_DIR/scheduler.log"
+  exit 127
 fi
 
 echo "[\$(date '+%F %T')] 开始上午运营采集。" >> "\$LOG_DIR/scheduler.log"
-"\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" >> "\$LOG_DIR/scheduler.log" 2>&1
+run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-7200}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" >> "\$LOG_DIR/scheduler.log" 2>&1
 echo "[\$(date '+%F %T')] 上午运营采集结束。" >> "\$LOG_DIR/scheduler.log"
 EOF
 chmod +x "$SCRIPT_DIR/run_morning_ops.zsh"
