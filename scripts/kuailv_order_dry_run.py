@@ -443,6 +443,16 @@ def nearby_texts(nodes: list[dict[str, Any]], center: tuple[float, float], radiu
     return rows[:12]
 
 
+def candidate_text(candidate: dict[str, Any], radius: str = "nearby_texts") -> str:
+    return " ".join(str(row.get("text") or "") for row in candidate.get(radius) or [])
+
+
+def candidate_context(nodes: list[dict[str, Any]], center: tuple[float, float]) -> list[dict[str, Any]]:
+    # Include the product title above the spec row, but keep the window narrow
+    # enough that the previous product's risky spec does not bleed into a target row.
+    return nearby_texts(nodes, center, radius_y=360, radius_x=760)
+
+
 def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not image_path or not image_path.exists():
         return []
@@ -498,10 +508,96 @@ def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> lis
                     "bounds": [x1, y1, x2, y2],
                     "color": list(sample),
                     "nearby_texts": nearby_texts(nodes, center),
+                    "context_texts": candidate_context(nodes, center),
                 }
             )
     candidates.sort(key=lambda item: (item["center"][1], item["center"][0]))
     return candidates[:40]
+
+
+def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pack_label: str = "") -> dict[str, Any]:
+    row_text = candidate_text(candidate, "nearby_texts")
+    context_text = candidate_text(candidate, "context_texts")
+    all_text = f"{context_text} {row_text}"
+    required = [word for word in line.get("required_keywords") or [] if word]
+    excluded = [word for word in line.get("excluded_keywords") or [] if word]
+    preferred = [word for word in line.get("preferred_spec_keywords") or [] if word]
+    row_required_hits = [word for word in required if word in row_text]
+    context_required_hits = [word for word in required if word in all_text]
+    row_preferred_hits = [word for word in preferred if word in row_text]
+    context_preferred_hits = [word for word in preferred if word in all_text]
+    excluded_hits = [word for word in excluded if word in all_text]
+    pack_hits = [pack_label] if pack_label and pack_label in row_text else []
+    reasons = []
+    if not context_required_hits:
+        reasons.append("missing_required_keyword")
+    if excluded_hits:
+        reasons.append("excluded_keyword_seen")
+    if pack_label and not pack_hits:
+        reasons.append("pack_label_not_on_row")
+    allowed = not reasons
+    score = 0
+    score += 100 if allowed else 0
+    score += 20 * len(row_required_hits)
+    score += 12 * len(row_preferred_hits)
+    score += 8 * len(context_preferred_hits)
+    score += 5 * len(pack_hits)
+    score -= 80 * len(excluded_hits)
+    return {
+        "allowed": allowed,
+        "score": score,
+        "reasons": reasons,
+        "line_name": line.get("name", ""),
+        "pack_label": pack_label,
+        "row_text": row_text,
+        "context_text": context_text,
+        "row_required_hits": row_required_hits,
+        "context_required_hits": context_required_hits,
+        "row_preferred_hits": row_preferred_hits,
+        "context_preferred_hits": context_preferred_hits,
+        "excluded_hits": excluded_hits,
+        "pack_hits": pack_hits,
+        "center": candidate.get("center"),
+        "bounds": candidate.get("bounds"),
+    }
+
+
+def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
+    annotated = []
+    actionable_lines = [line for line in plan.get("lines") or [] if line.get("action") == "search_and_add"]
+    for candidate in candidates:
+        line_scores = []
+        for line in actionable_lines:
+            pack_labels = [str(pack.get("label") or "").split(" x ", 1)[0] for pack in line.get("pack_strategy") or []]
+            pack_labels.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if re.search(r"\d", str(word)))
+            pack_labels = list(dict.fromkeys(label for label in pack_labels if label))
+            if not pack_labels:
+                pack_labels = [""]
+            for pack_label in pack_labels:
+                line_scores.append(score_candidate_for_line(candidate, line, pack_label))
+        line_scores.sort(key=lambda item: item["score"], reverse=True)
+        enriched = dict(candidate)
+        enriched["line_scores"] = line_scores[:8]
+        enriched["best_allowed_match"] = next((item for item in line_scores if item.get("allowed")), None)
+        annotated.append(enriched)
+    return annotated
+
+
+def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: str = "") -> dict[str, Any] | None:
+    matches = []
+    for candidate in analysis.get("orange_add_candidates") or []:
+        for score in candidate.get("line_scores") or []:
+            if not score.get("allowed"):
+                continue
+            if item_name and score.get("line_name") != item_name:
+                continue
+            if pack_label and score.get("pack_label") != pack_label:
+                continue
+            item = dict(score)
+            item["candidate"] = {key: candidate.get(key) for key in ("center", "bounds", "color", "nearby_texts", "context_texts")}
+            matches.append(item)
+    matches.sort(key=lambda item: item.get("score", 0), reverse=True)
+    return matches[0] if matches else None
 
 
 def extract_delivery_text(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -531,7 +627,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         for node in nodes
         if node["bounds"][1] >= 2150 or node["bounds"][3] >= 2210
     ][:80]
-    orange_candidates = detect_orange_controls(image_path, nodes)
+    orange_candidates = annotate_add_candidates(detect_orange_controls(image_path, nodes), plan)
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
     expected_store = str(plan.get("store_name") or "")
@@ -609,6 +705,89 @@ def run_adb_dry_run(plan: dict[str, Any], serial: str, timeout: int) -> dict[str
     }
 
 
+def resolve_adb_serial(serial: str, timeout: int) -> tuple[str, dict[str, Any] | None]:
+    if not adb_available():
+        return "", {
+            "status": "blocked",
+            "message": "当前机器未找到 adb，无法连接安卓机；请在 Mac mini 上运行。",
+            "device_serial": serial,
+        }
+    devices = adb_devices(timeout)
+    if serial and serial not in devices:
+        return "", {
+            "status": "blocked",
+            "message": f"未找到指定 adb 设备 {serial}；在线设备：{', '.join(devices) or '无'}。",
+            "device_serial": serial,
+        }
+    if not serial:
+        if len(devices) != 1:
+            return "", {
+                "status": "blocked",
+                "message": f"需要指定 adb 设备；在线设备数量 {len(devices)}。",
+                "devices": devices,
+            }
+        serial = devices[0]
+    return serial, None
+
+
+def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name: str, pack_label: str) -> dict[str, Any]:
+    serial, blocked = resolve_adb_serial(serial, timeout)
+    if blocked:
+        return blocked
+    if not item_name or not pack_label:
+        return {"status": "blocked", "message": "safe-tap 需要同时指定 --tap-item 和 --tap-pack。", "device_serial": serial}
+
+    session = datetime.now().strftime("%Y%m%d-%H%M%S-safe-tap")
+    session_dir = OUTPUT_DIR / session
+    before_dir = session_dir / "before"
+    after_dir = session_dir / "after"
+    before = save_adb_snapshot(serial, before_dir, timeout, plan)
+    analysis = before.get("ui_analysis") or {}
+    if not before.get("captured"):
+        return {"status": "blocked", "message": "safe-tap 前截图/控件树采集失败，未点击。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+    if not analysis.get("delivery_store_match"):
+        return {
+            "status": "blocked",
+            "message": "收货门店未匹配订单门店，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+        }
+    selected = select_safe_candidate(analysis, item_name, pack_label)
+    if not selected:
+        return {
+            "status": "blocked",
+            "message": f"未找到安全加购候选：{item_name} / {pack_label}，未点击。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+        }
+
+    center = selected.get("center") or []
+    if len(center) != 2:
+        return {"status": "blocked", "message": "安全候选缺少 center，未点击。", "device_serial": serial, "session_dir": str(session_dir), "selected": selected}
+    x, y = int(round(float(center[0]))), int(round(float(center[1])))
+    tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
+    time.sleep(1.5)
+    after = save_adb_snapshot(serial, after_dir, timeout, plan)
+    status = "tapped_for_manual_review" if tap_result.returncode == 0 and after.get("captured") else "blocked"
+    return {
+        "status": status,
+        "message": "已执行一次受保护加购 tap；已保存前后截图和控件树。未提交订单，未付款。",
+        "device_serial": serial,
+        "session_dir": str(session_dir),
+        "selected": selected,
+        "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+        "before": before,
+        "after": after,
+        "safety": {
+            "delivery_store_match_required": True,
+            "single_tap_only": True,
+            "forbidden_actions": ["提交订单", "付款", "自动切换收货地址"],
+        },
+    }
+
+
 def write_latest(payload: dict[str, Any]) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     LATEST_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -635,8 +814,15 @@ def main() -> int:
     parser.add_argument("--date", default=today_text(), help="订单日期，默认今天")
     parser.add_argument("--order-id", default="", help="指定订单；为空时从日期内快驴订单随机选择")
     parser.add_argument("--seed", default="", help="随机种子；为空时按日期稳定随机")
-    parser.add_argument("--mode", choices=["plan-only", "adb-dry-run"], default="plan-only", help="plan-only 只生成计划；adb-dry-run 额外采集安卓截图/控件树")
+    parser.add_argument(
+        "--mode",
+        choices=["plan-only", "adb-dry-run", "adb-safe-tap"],
+        default="plan-only",
+        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap",
+    )
     parser.add_argument("--adb-serial", default=os.environ.get("ANDROID_ADB_SERIAL", ""), help="ADB 设备号")
+    parser.add_argument("--tap-item", default="", help="adb-safe-tap 的目标品项名，例如：豆腐")
+    parser.add_argument("--tap-pack", default="", help="adb-safe-tap 的目标规格标签，例如：400g")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     args = parser.parse_args()
 
@@ -644,13 +830,18 @@ def main() -> int:
     try:
         _, order = load_order(args.server, args.token, args.date, args.order_id.strip(), args.seed, args.timeout)
         plan = build_plan(order)
-        adb_result = run_adb_dry_run(plan, args.adb_serial.strip(), args.timeout) if args.mode == "adb-dry-run" else {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
+        if args.mode == "adb-dry-run":
+            adb_result = run_adb_dry_run(plan, args.adb_serial.strip(), args.timeout)
+        elif args.mode == "adb-safe-tap":
+            adb_result = run_adb_safe_tap(plan, args.adb_serial.strip(), args.timeout, args.tap_item.strip(), args.tap_pack.strip())
+        else:
+            adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
             "generated_at": started_at,
-            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review"} else "blocked",
+            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review"} else "blocked",
             "mode": args.mode,
             "source": admin_summary_url(args.server, "***"),
-            "message": "快驴订货 dry-run 计划已生成；未提交订单，未付款。",
+            "message": "快驴订货计划已生成；未提交订单，未付款。",
             "plan": plan,
             "adb": adb_result,
         }
