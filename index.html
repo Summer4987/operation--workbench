@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-flow" />
+    <link rel="stylesheet" href="./workbench.css?v=20260616-finance-bank-only" />
   </head>
   <body>
     <main class="app">
@@ -327,7 +327,7 @@
             <div class="module-head">
               <div>
                 <p>录入台</p>
-                <h2>每日账单与订单入口</h2>
+                <h2>银行流水导入与人工确认</h2>
               </div>
               <span class="tag planning" id="financeInputStatus">待录入</span>
             </div>
@@ -335,7 +335,7 @@
               <div class="finance-upload-panel">
                 <div class="finance-intake-hero">
                   <div>
-                    <span>上传账单</span>
+                    <span>银行流水导入</span>
                     <strong id="financeInputCount">-</strong>
                     <p id="financeInputSummary">等待财务中心状态。</p>
                   </div>
@@ -348,7 +348,7 @@
                 <div class="module-head">
                   <div>
                     <p>待确认流水</p>
-                    <h2>系统识别后，只确认不明确的收入和支出</h2>
+                    <h2>系统识别后，只确认不明确的流水</h2>
                   </div>
                   <span class="tag planning" id="financeReviewStatus">待确认</span>
                 </div>
@@ -428,7 +428,7 @@
                     <textarea name="note" rows="2" placeholder="例如：某笔采购由谁代付，或供应链采购如何分摊"></textarea>
                   </label>
                 </div>
-                <div class="finance-form-message" id="financeManualEntryMessage">收入不用手工录入，请上传美团、饿了么、京东等平台收入表格。</div>
+                <div class="finance-form-message" id="financeManualEntryMessage">收入不用手工录入，平台收入由 Mac mini 自动下载；这里只补流水里没有的支出、应付、代付和调整。</div>
               </form>
 
               <div class="finance-recent-panel">
@@ -602,6 +602,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260616-finance-flow"></script>
+    <script src="./workbench.js?v=20260616-finance-bank-only"></script>
   </body>
 </html>

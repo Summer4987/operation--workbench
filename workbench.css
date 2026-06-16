@@ -1645,8 +1645,6 @@ h2 {
 
 .finance-profit-table th:first-child,
 .finance-profit-table td:first-child,
-.finance-profit-table th:nth-child(2),
-.finance-profit-table td:nth-child(2),
 .finance-profit-table th:last-child,
 .finance-profit-table td:last-child {
   text-align: left;
@@ -2495,7 +2493,7 @@ h2 {
   }
 
   .finance-profit-table {
-    min-width: 760px;
+    min-width: 520px;
   }
 
   .embedded-board-bar {

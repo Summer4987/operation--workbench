@@ -1735,30 +1735,30 @@ function renderFinance() {
   const orderSources = finance.order_sources || [];
   const paymentRows = dailyCollection.sources || [];
   const waiting = finance.status === "waiting_samples";
-  const readySourceCount = sources.filter((source) => Number(source.file_count || 0) > 0).length;
-  const requiredSourceCount = sources.filter((source) => source.required).length;
-  const intakeRows = sources.map((source) => {
+  const bankSources = sources.filter((source) => source.id === "bank");
+  const bankUploadSources = bankSources.length ? bankSources : sources.slice(0, 1);
+  const bankReady = bankUploadSources.some((source) => Number(source.file_count || 0) > 0);
+  const intakeRows = bankUploadSources.map((source) => {
     const fileCount = Number(source.file_count || 0);
-    const requiredText = source.required ? "必填" : "选填";
     const fields = (source.required_fields || []).slice(0, 4).join("、");
     return {
-      label: fileCount > 0 ? "已接收" : requiredText,
-      value: source.name,
+      label: fileCount > 0 ? "已接收" : "必填",
+      value: "银行流水",
       detail: `${fileCount} 个文件 · ${source.path || ""}${fields ? ` · 字段：${fields}` : ""}`,
       path: source.path || "",
       templatePath: source.template_path || "",
       fields,
       fileCount,
       sourceId: source.id || "",
-      required: Boolean(source.required),
-      warn: source.required && fileCount === 0,
+      required: true,
+      warn: fileCount === 0,
     };
   });
   const manualInputRows = [
     {
       label: "收入来源",
-      value: "平台收入表格",
-      detail: "美团、饿了么、京东等收入不手工记账，统一上传平台收入账单后进入门店总账或供应链账。",
+      value: "Mac mini 自动下载",
+      detail: "美团、饿了么、京东、小程序等收入不在录入页手工上传，后续由生产主机定时下载后入账。",
       warn: false,
     },
     {
@@ -1780,11 +1780,11 @@ function renderFinance() {
       warn: true,
     },
   ];
-  text("financeInputStatus", missing.length ? "待补齐" : "可核对");
-  text("financeInputCount", `${readySourceCount}/${sources.length || requiredSourceCount} 类已到`);
-  text("financeInputSummary", "先上传银行、微信、支付宝和平台收入表；系统识别后，只把不明确的流水交给你确认。");
-  text("financeInputNext", missing.length ? `下一步先补：${missing.slice(0, 3).join("、")}` : "基础账单已到齐，可以进入核对和报表预览。");
-  document.querySelector("#finance-intake")?.classList.toggle("alert", waiting);
+  text("financeInputStatus", bankReady ? "可核对" : "待导入");
+  text("financeInputCount", bankReady ? "银行流水已到" : "等待银行流水");
+  text("financeInputSummary", "录入页只保留银行流水导入；收入由 Mac mini 自动下载平台收入表，其余不明确流水在下方确认。");
+  text("financeInputNext", bankReady ? "下一步确认不明确流水，并用手工补录登记流水外的应付、代付和调整。" : "下一步先上传本月银行流水。");
+  document.querySelector("#finance-intake")?.classList.toggle("alert", !bankReady || waiting);
   html(
     "financeInputRows",
     intakeRows
@@ -1803,7 +1803,7 @@ function renderFinance() {
               </div>
               <div>
                 <dt>模板</dt>
-                <dd>${escapeHtml(item.templatePath || "无模板")}</dd>
+                <dd>${escapeHtml(item.templatePath || "直接上传银行流水 PDF / Excel")}</dd>
               </div>
               <div>
                 <dt>关键字段</dt>
@@ -1857,7 +1857,7 @@ function renderFinance() {
   const assignedExpense = Number(ledgerPreviewSummary.assigned_expense || 0);
   const pendingIncome = Number(ledgerPreviewSummary.pending_income || 0);
   const pendingExpense = Number(ledgerPreviewSummary.pending_expense || 0);
-  const reportRows = [...formalLedgerRows, ...workPoolRows];
+  const reportRows = [...formalLedgerRows, ...workPoolRows].filter((row) => row.ledger_type !== "work_pool" || Number(row.count || 0) > 0);
   text("financeReportStatus", profitPreview.status === "ready" ? "已出表" : "预览");
   text("financeReportCount", `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 2)} 本账`);
   text("financeReportSummary", profitPreview.message || "当前先做门店总账和供应链账；5 家门店拆分后续再启用。");
@@ -1883,24 +1883,20 @@ function renderFinance() {
             <thead>
               <tr>
                 <th>账本</th>
-                <th>状态</th>
-                <th>笔数</th>
                 <th>收入</th>
                 <th>支出</th>
                 <th>利润</th>
-                <th>主要渠道 / 往来方</th>
+                <th>状态</th>
               </tr>
             </thead>
             <tbody>
-              ${reportRows.map((row) => `
+              ${(reportRows.length ? reportRows : formalLedgerRows).map((row) => `
                 <tr class="${row.ledger_type === "work_pool" ? "pending-row" : ""}">
                   <td>${escapeHtml(row.ledger_name || row.ledger_id)}</td>
-                  <td>${escapeHtml(row.ledger_type === "work_pool" ? "待分配" : row.status === "assigned" ? "已归属" : "待规则")}</td>
-                  <td>${Number(row.count || 0)}</td>
                   <td>${yuan(row.income)}</td>
                   <td>${yuan(row.expense)}</td>
                   <td>${yuan(row.net)}</td>
-                  <td>${escapeHtml([...(row.sample_channels || []), ...(row.sample_counterparties || [])].slice(0, 4).join("、") || "-")}</td>
+                  <td>${escapeHtml(row.ledger_type === "work_pool" ? `待分配 ${Number(row.count || 0)} 笔` : row.status === "assigned" ? "已归属" : "待规则")}</td>
                 </tr>
               `).join("")}
             </tbody>
