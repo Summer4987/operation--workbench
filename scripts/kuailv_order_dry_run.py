@@ -669,22 +669,24 @@ def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]
     return candidates[:40]
 
 
-def detect_target_card_add_controls(nodes: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
+def detect_target_card_add_controls(
+    nodes: list[dict[str, Any]],
+    plan: dict[str, Any],
+    orange_controls: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     candidates = []
     actionable_lines = [line for line in plan.get("lines") or [] if line.get("action") == "search_and_add"]
-    add_nodes = []
     text_nodes = []
     for node in nodes:
         text = node_text(node)
         bounds = tuple(node["bounds"])
         if not text or bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
             continue
-        cx, cy = bounds_center(bounds)
-        if any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]) and cx >= 700:
-            add_nodes.append(node)
-        else:
+        cx, _cy = bounds_center(bounds)
+        if not (any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]) and cx >= 700):
             text_nodes.append(node)
 
+    add_controls = list(orange_controls or [])
     for line in actionable_lines:
         required = [word for word in line.get("required_keywords") or [] if word]
         excluded = [word for word in line.get("excluded_keywords") or [] if word]
@@ -712,16 +714,26 @@ def detect_target_card_add_controls(nodes: list[dict[str, Any]], plan: dict[str,
             for spec in spec_nodes:
                 spec_bounds = tuple(spec["bounds"])
                 spec_cx, spec_cy = bounds_center(spec_bounds)
-                if spec_cy < title_cy - 80 or spec_cy > title_cy + 260:
+                if spec_cy < title_cy - 80 or spec_cy > title_cy + 420:
                     continue
-                if abs(spec_cx - title_cx) > 520:
+                if abs(spec_cx - title_cx) > 680:
                     continue
-                for add_node in add_nodes:
-                    add_bounds = tuple(add_node["bounds"])
-                    cx, cy = bounds_center(add_bounds)
-                    if cy < title_cy - 180 or cy > title_cy + 120:
+                target_text = f"{node_text(title)} {node_text(spec)}"
+                if not all(word in target_text for word in identity_keywords):
+                    continue
+                if not any(valid_pack_label_hit(node_text(spec), str(word)) for word in spec_keywords):
+                    continue
+                if any(word in target_text for word in excluded):
+                    continue
+                for add_control in add_controls:
+                    add_bounds = tuple(add_control.get("bounds") or [])
+                    center = add_control.get("center") or []
+                    if len(add_bounds) != 4 or len(center) != 2:
                         continue
-                    if cx <= title_cx or cx < 760:
+                    cx, cy = float(center[0]), float(center[1])
+                    if abs(cy - spec_cy) > 85:
+                        continue
+                    if cx <= spec_cx or cx < 760:
                         continue
                     y1 = max(0, min(title_bounds[1], spec_bounds[1], add_bounds[1]) - 90)
                     y2 = max(title_bounds[3], spec_bounds[3], add_bounds[3]) + 90
@@ -735,24 +747,17 @@ def detect_target_card_add_controls(nodes: list[dict[str, Any]], plan: dict[str,
                         if y1 <= ny <= y2 and nx <= cx + 120:
                             rows.append({"text": text, "bounds": node["bounds"], "distance_y": round(abs(ny - cy), 1)})
                     rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
-                    target_text = f"{node_text(title)} {node_text(spec)}"
-                    if not all(word in target_text for word in identity_keywords):
-                        continue
-                    if not any(valid_pack_label_hit(target_text, str(word)) for word in spec_keywords):
-                        continue
-                    if any(word in target_text for word in excluded):
-                        continue
                     candidates.append(
                         {
                             "center": [round(cx, 1), round(cy, 1)],
                             "bounds": list(add_bounds),
                             "source": "xml_target_card_control",
-                            "control_text": node_text(add_node),
+                            "control_text": "orange_add_icon",
                             "nearby_texts": rows[:24],
                             "context_texts": rows[:24],
                             "target_title_text": node_text(title),
                             "target_spec_text": node_text(spec),
-                            "detection_reasons": ["xml_target_card_text_spec_add_aligned"],
+                            "detection_reasons": ["image_target_card_text_spec_add_aligned"],
                             "target_line_name": line.get("name", ""),
                         }
                     )
@@ -993,6 +998,8 @@ def valid_pack_label_hit(text: str, pack_label: str) -> bool:
         prefix = text[max(0, start - 6) : start]
         suffix = text[end : min(len(text), end + 6)]
         if "同品" in prefix or "低价" in suffix:
+            continue
+        if suffix.lstrip().startswith(("×", "x", "X", "*")):
             continue
         if end < len(text) and text[end].isdigit():
             continue
@@ -1280,7 +1287,8 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         for node in nodes
         if node["bounds"][1] >= 2150 or node["bounds"][3] >= 2210
     ][:80]
-    raw_add_candidates = detect_orange_controls(image_path, nodes) + detect_xml_add_controls(nodes) + detect_target_card_add_controls(nodes, plan)
+    orange_controls = detect_orange_controls(image_path, nodes)
+    raw_add_candidates = orange_controls + detect_xml_add_controls(nodes) + detect_target_card_add_controls(nodes, plan, orange_controls)
     orange_candidates = annotate_add_candidates(dedup_add_candidates(filter_visible_xml_add_candidates(raw_add_candidates, image_path)), plan)
     cart_entry_candidates = find_cart_entry_candidates(nodes, image_path)
     search_entry_candidates = find_search_entry_candidates(nodes, image_path)
