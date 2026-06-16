@@ -22,7 +22,7 @@ MacBook 或 Codex 所在设备：
 
 ## 基本规则
 
-- 现阶段 AI 业务中心生产代码从 GitHub `codex/ai-business-center` 分支部署到 Mac mini；合并回主线后再切回主线分支。
+- AI 业务中心生产代码从 GitHub `main` 分支部署到 Mac mini；Mac mini 不运行未合并的开发分支。
 - Mac mini 默认只拉取已验证代码；生产现场允许修复紧急 bug，但修复验证后当天必须推送到 GitHub。
 - 不通过手动拷贝在两台设备之间同步程序文件。
 - Mac mini 的日志、下载文件、浏览器登录态和运行状态不上传 GitHub。
@@ -36,7 +36,7 @@ MacBook 或 Codex 所在设备：
 1. 验证本地改动。
 2. 只暂存本次有效改动。
 3. 提交到 Git。
-4. 推送到 GitHub `codex/ai-business-center`。
+4. 推送到 GitHub `main`。
 
 在 Mac mini 上部署：
 
@@ -69,7 +69,7 @@ MacBook 或 Codex 所在设备：
 4. 手动拉取路径：
 
    ```zsh
-   git pull --ff-only origin codex/ai-business-center
+   git pull --ff-only origin main
    ```
 
 5. 如果出现未提交改动，先暂停部署，不要强行覆盖。需要判断这些改动属于：
@@ -145,7 +145,7 @@ Mac mini 是生产环境，不代表它永远不能产生代码改动。遇到�
 
 ## 遇到冲突时怎么处理
 
-如果 `git pull --ff-only origin codex/ai-business-center` 失败：
+如果 `git pull --ff-only origin main` 失败：
 
 - 不要运行覆盖、重置或强制拉取。
 - 先保留现场。

@@ -42,14 +42,14 @@ git status --short --branch
 /bin/zsh scripts/macmini_pull_and_check.zsh --smoke --install-launchd
 ```
 
-脚本只会在工作区干净时 fast-forward 拉取 `origin/codex/ai-business-center`，然后运行只读检查；如果发现本地改动，会拒绝继续并打印状态，不会覆盖生产现场。
+脚本只会在工作区干净时 fast-forward 拉取 `origin/main`，然后运行只读检查；如果发现本地改动，会拒绝继续并打印状态，不会覆盖生产现场。
 
 手动路径如下：
 
 如果 Codex 确认可以拉取，再执行：
 
 ```zsh
-git pull --ff-only origin codex/ai-business-center
+git pull --ff-only origin main
 ```
 
 拉取后运行只读检查：

@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 REMOTE="${MACMINI_DEPLOY_REMOTE:-origin}"
-BRANCH="${MACMINI_DEPLOY_BRANCH:-codex/ai-business-center}"
+BRANCH="${MACMINI_DEPLOY_BRANCH:-main}"
 RUN_SMOKE=0
 INSTALL_LAUNCHD=0
 
@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "未知参数：$1"
-      echo "用法：/bin/zsh scripts/macmini_pull_and_check.zsh [--branch codex/ai-business-center] [--smoke] [--install-launchd]"
+      echo "用法：/bin/zsh scripts/macmini_pull_and_check.zsh [--branch main] [--smoke] [--install-launchd]"
       exit 2
       ;;
   esac

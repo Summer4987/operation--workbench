@@ -6,7 +6,7 @@
 
 - 远端仓库：`git@github.com:Summer4987/operation--workbench.git`
 - 主线分支：`main`
-- AI 业务中心当前交接分支：`codex/ai-business-center`
+- AI 业务中心生产交接分支：`main`
 - 生产主机：Mac mini
 - 管理/开发设备：MacBook 或 Codex 所在设备
 
