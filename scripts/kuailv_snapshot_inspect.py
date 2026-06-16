@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from kuailv_order_dry_run import bounds_center, detect_page_text, nearby_texts, parse_ui_nodes
+from kuailv_order_dry_run import bounds_center, detect_page_text, find_cart_entry_candidates, nearby_texts, parse_ui_nodes
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +34,70 @@ def compact_node(node: dict[str, Any]) -> dict[str, Any]:
         "clickable": node.get("clickable"),
         "bounds": node.get("bounds"),
     }
+
+
+def image_size(image_path: Path) -> dict[str, int]:
+    if not image_path.exists():
+        return {}
+    try:
+        from PIL import Image
+    except Exception:
+        return {}
+    with Image.open(image_path) as image:
+        return {"width": image.size[0], "height": image.size[1]}
+
+
+def node_center(node: dict[str, Any]) -> list[float]:
+    center = bounds_center(tuple(node.get("bounds") or [0, 0, 0, 0]))
+    return [round(center[0], 1), round(center[1], 1)]
+
+
+def enrich_node(node: dict[str, Any], nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    center = tuple(node_center(node))
+    row = compact_node(node)
+    row["center"] = list(center)
+    row["nearby_texts"] = nearby_texts(nodes, (float(center[0]), float(center[1])), radius_y=130, radius_x=360)[:8]
+    return row
+
+
+def region_clickables(nodes: list[dict[str, Any]], width: int, height: int) -> dict[str, list[dict[str, Any]]]:
+    regions = {
+        "top": [],
+        "upper_middle": [],
+        "lower_middle": [],
+        "bottom_bar": [],
+        "right_edge": [],
+    }
+    for node in nodes:
+        if not node.get("clickable"):
+            continue
+        cx, cy = bounds_center(tuple(node["bounds"]))
+        enriched = enrich_node(node, nodes)
+        if cy <= height * 0.18:
+            regions["top"].append(enriched)
+        if height * 0.18 < cy <= height * 0.62:
+            regions["upper_middle"].append(enriched)
+        if height * 0.62 < cy < height * 0.90:
+            regions["lower_middle"].append(enriched)
+        if cy >= height * 0.88 or node["bounds"][3] >= height - 120:
+            regions["bottom_bar"].append(enriched)
+        if cx >= width * 0.82:
+            regions["right_edge"].append(enriched)
+    for key, rows in regions.items():
+        rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+        regions[key] = rows[:60]
+    return regions
+
+
+def suspect_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    words = ["返回", "关闭", "取消", "搜索", "购物车", "进货车", "采购车", "首页", "分类", "我的", "去结算", "提交订单"]
+    rows = []
+    for node in nodes:
+        text = " ".join(str(node.get(key) or "") for key in ("text", "content_desc", "resource_id"))
+        if any(word in text for word in words) or any(word in text.lower() for word in ["back", "close", "cart", "search"]):
+            rows.append(compact_node(node))
+    rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return rows[:120]
 
 
 def scan_bottom_colors(image_path: Path, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -109,6 +173,9 @@ def main() -> int:
     xml_text = xml_path.read_text(encoding="utf-8", errors="ignore") if xml_path.exists() else ""
     nodes = parse_ui_nodes(xml_text)
     detected = detect_page_text(xml_text)
+    size = image_size(image_path)
+    width = int(size.get("width") or 1080)
+    height = int(size.get("height") or 2400)
     bottom_nodes = [compact_node(node) for node in nodes if node["bounds"][1] >= 2100 or node["bounds"][3] >= 2200]
     clickable = [compact_node(node) for node in nodes if node.get("clickable")]
     relevant_detected = [text for text in detected if any(word in text for word in RELEVANT_WORDS)]
@@ -119,12 +186,16 @@ def main() -> int:
         "session_dir": str(session_dir),
         "xml_exists": xml_path.exists(),
         "screen_exists": image_path.exists(),
+        "screen_size": size,
         "detected_text_first_120": detected[:120],
         "relevant_detected": relevant_detected,
         "clickable_count": len(clickable),
         "clickable_first_150": clickable[:150],
+        "suspect_nodes": suspect_nodes(nodes),
+        "region_clickables": region_clickables(nodes, width, height),
         "bottom_nodes": bottom_nodes[:120],
         "bottom_color_candidates": scan_bottom_colors(image_path, nodes),
+        "cart_entry_candidates": find_cart_entry_candidates(nodes, image_path),
         "cart_text_seen": any(any(word in text for word in ["购物车", "进货车", "采购车", "去结算", "提交订单"]) for text in detected),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
