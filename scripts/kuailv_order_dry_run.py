@@ -112,6 +112,7 @@ LEARNED_OPERATOR_SKILLS = [
 CART_REVIEW_KEYWORDS = ["购物车", "进货车", "采购车", "去结算", "结算", "合计", "删除", "清空", "全选", "编辑", "提交订单"]
 CART_XML_MARKERS = ["cart-page-wrap", "cart-page", "去结算", "合计:", "全选"]
 CART_RISK_WORDS = ["纸巾", "嫩豆腐", "5斤", "2盒", "胆水老豆腐", "老豆腐", "400g", "去结算", "合计", "全选"]
+OTHER_PRODUCT_CONTEXT_WORDS = ["金针菇", "鸡翅", "西兰花", "樟树椒", "蟹味菇", "大豆油", "海藻沙拉", "玉米", "豆腐", "纸巾", "胡萝卜", "土豆", "白玉菇"]
 
 
 @dataclass
@@ -597,6 +598,8 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     row_preferred_hits = [word for word in preferred if word in row_text]
     context_preferred_hits = [word for word in preferred if word in all_text]
     excluded_hits = [word for word in excluded if word in all_text]
+    allowed_identity_words = set(required + [str(line.get("name") or "")])
+    other_product_hits = [word for word in OTHER_PRODUCT_CONTEXT_WORDS if word in all_text and not any(word in identity for identity in allowed_identity_words)]
     row_pack_hit = bool(pack_label and valid_pack_label_hit(row_text, pack_label))
     context_pack_hit = bool(pack_label and valid_pack_label_hit(context_text, pack_label))
     pack_hits = [pack_label] if pack_label and (row_pack_hit or context_pack_hit) else []
@@ -609,6 +612,8 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         reasons.append("missing_identity_keyword")
     if excluded_hits:
         reasons.append("excluded_keyword_seen")
+    if other_product_hits:
+        reasons.append("other_product_context_seen")
     if pack_label and not pack_hits:
         reasons.append("pack_label_not_in_card_context")
     allowed = not reasons
@@ -634,6 +639,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         "identity_keywords": identity_keywords,
         "identity_hits": identity_hits,
         "excluded_hits": excluded_hits,
+        "other_product_hits": other_product_hits,
         "pack_hits": pack_hits,
         "pack_label_scope": "nearby_row" if row_pack_hit else ("card_context" if context_pack_hit else ""),
         "center": candidate.get("center"),
