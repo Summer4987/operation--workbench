@@ -65,6 +65,7 @@ def main() -> int:
         "session_dir": adb.get("session_dir"),
         "selected": compact_score(adb.get("selected")),
         "tap": adb.get("tap"),
+        "post_tap_validation": adb.get("post_tap_validation"),
         "before_files": (adb.get("before") or {}).get("files"),
         "after_files": (adb.get("after") or {}).get("files"),
         "after_detected_relevant": [

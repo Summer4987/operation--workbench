@@ -824,21 +824,54 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
     time.sleep(1.5)
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
+    post_tap_validation = validate_post_tap(selected, after)
     status = "tapped_for_manual_review" if tap_result.returncode == 0 and after.get("captured") else "blocked"
     return {
         "status": status,
-        "message": "已执行一次受保护加购 tap；已保存前后截图和控件树。未提交订单，未付款。",
+        "message": "已执行一次受保护加购 tap；已保存前后截图和控件树。未提交订单，未付款；加购结果仍需购物车复核。",
         "device_serial": serial,
         "session_dir": str(session_dir),
         "selected": selected,
         "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
         "before": before,
         "after": after,
+        "post_tap_validation": post_tap_validation,
         "safety": {
             "delivery_store_match_required": True,
             "single_tap_only": True,
+            "cart_review_required": True,
             "forbidden_actions": ["提交订单", "付款", "自动切换收货地址"],
         },
+    }
+
+
+def validate_post_tap(selected: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    detected_text = after.get("detected_text") or []
+    text_blob = " ".join(str(text) for text in detected_text)
+    selected_text = f"{selected.get('row_text') or ''} {selected.get('context_text') or ''}"
+    identity_hits = [word for word in selected.get("identity_hits") or [] if word]
+    relevant_after_text = [
+        text
+        for text in detected_text
+        if any(keyword in str(text) for keyword in ["数量", "购物车", "去结算", "提交订单", "付款", "已加购", "加入"])
+    ]
+    reasons = []
+    if not after.get("captured"):
+        reasons.append("after_snapshot_missing")
+    if not identity_hits:
+        reasons.append("selected_identity_not_proven")
+    if not relevant_after_text:
+        reasons.append("no_after_quantity_or_cart_signal")
+    if any(word in text_blob for word in ["提交订单", "付款"]):
+        reasons.append("submit_or_payment_text_visible")
+    return {
+        "cart_review_required": True,
+        "add_result_proven": False,
+        "reasons": reasons,
+        "selected_identity_hits": identity_hits,
+        "selected_text": selected_text,
+        "after_relevant_text": relevant_after_text,
+        "has_cart_hint": (after.get("plan_match") or {}).get("has_cart_hint"),
     }
 
 
