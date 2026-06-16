@@ -33,12 +33,12 @@ ADB_COMMON_PATHS = [
 
 PACK_RULES: dict[str, dict[str, Any]] = {
     "洋葱": {
-        "pack_sizes": [20, 10, 5],
+        "pack_sizes": [40, 20, 10, 5],
         "allowed_overage": 0,
         "keywords": ["洋葱"],
         "accept": ["洋葱"],
-        "prefer": ["20斤", "10斤", "5斤"],
-        "lesson": "银泰城实跑时 40 斤按 20斤 x2 处理，优先整件，减少加购次数。",
+        "prefer": ["40斤", "20斤", "10斤", "5斤"],
+        "lesson": "银泰城实跑发现搜索页有白皮洋葱 40斤/360枚，40 斤需求优先整件；30 斤再拆 20斤+10斤。",
     },
     "白玉菇": {
         "pack_sizes": [4, 1],
