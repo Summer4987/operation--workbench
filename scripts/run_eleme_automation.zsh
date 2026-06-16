@@ -144,5 +144,4 @@ echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "日志：$RUN_LOG"
 }
 
-main "$@" 2>&1 | tee -a "$RUN_LOG"
-exit "${pipestatus[1]}"
+main "$@" >> "$RUN_LOG" 2>&1
