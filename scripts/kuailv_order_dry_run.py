@@ -528,9 +528,13 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     context_preferred_hits = [word for word in preferred if word in all_text]
     excluded_hits = [word for word in excluded if word in all_text]
     pack_hits = [pack_label] if pack_label and pack_label in row_text else []
+    identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
+    identity_hits = [word for word in identity_keywords if word in all_text]
     reasons = []
     if not context_required_hits:
         reasons.append("missing_required_keyword")
+    if identity_keywords and not identity_hits:
+        reasons.append("missing_identity_keyword")
     if excluded_hits:
         reasons.append("excluded_keyword_seen")
     if pack_label and not pack_hits:
@@ -555,11 +559,17 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         "context_required_hits": context_required_hits,
         "row_preferred_hits": row_preferred_hits,
         "context_preferred_hits": context_preferred_hits,
+        "identity_keywords": identity_keywords,
+        "identity_hits": identity_hits,
         "excluded_hits": excluded_hits,
         "pack_hits": pack_hits,
         "center": candidate.get("center"),
         "bounds": candidate.get("bounds"),
     }
+
+
+def looks_like_spec_keyword(word: str) -> bool:
+    return bool(re.search(r"\d", word)) or word in {"斤", "盒", "箱", "桶", "瓶", "袋", "g", "kg"}
 
 
 def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, Any]) -> list[dict[str, Any]]:
