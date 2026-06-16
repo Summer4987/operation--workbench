@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -367,6 +368,7 @@ def save_adb_snapshot(serial: str, session_dir: Path, timeout: int, plan: dict[s
     snapshot["captured"] = bool(snapshot["files"])
     snapshot["detected_text"] = detect_page_text(xml_text)
     snapshot["plan_match"] = analyze_page_against_plan(xml_text, plan)
+    snapshot["ui_analysis"] = analyze_snapshot_ui(xml_text, Path(snapshot["files"].get("screen", "")), plan)
     snapshot["kuailv_hint_found"] = any(text in xml_text for text in ["快驴", "美团", "购物车", "搜索"])
     return snapshot
 
@@ -382,6 +384,166 @@ def detect_page_text(xml_text: str) -> list[str]:
         if value and value not in cleaned:
             cleaned.append(value)
     return cleaned[:80]
+
+
+def parse_bounds(value: str) -> tuple[int, int, int, int] | None:
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", value or "")
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def bounds_center(bounds: tuple[int, int, int, int]) -> tuple[float, float]:
+    x1, y1, x2, y2 = bounds
+    return ((x1 + x2) / 2, (y1 + y2) / 2)
+
+
+def node_text(node: dict[str, Any]) -> str:
+    return " ".join(str(node.get(key) or "").strip() for key in ("text", "content_desc", "resource_id") if str(node.get(key) or "").strip())
+
+
+def parse_ui_nodes(xml_text: str) -> list[dict[str, Any]]:
+    if not xml_text:
+        return []
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return []
+    nodes = []
+    for index, elem in enumerate(root.iter("node")):
+        bounds = parse_bounds(elem.attrib.get("bounds", ""))
+        if not bounds:
+            continue
+        nodes.append(
+            {
+                "index": index,
+                "text": elem.attrib.get("text", ""),
+                "content_desc": elem.attrib.get("content-desc", ""),
+                "class": elem.attrib.get("class", ""),
+                "resource_id": elem.attrib.get("resource-id", ""),
+                "clickable": elem.attrib.get("clickable", "") == "true",
+                "bounds": list(bounds),
+            }
+        )
+    return nodes
+
+
+def nearby_texts(nodes: list[dict[str, Any]], center: tuple[float, float], radius_y: int = 140, radius_x: int = 760) -> list[dict[str, Any]]:
+    cx, cy = center
+    rows = []
+    for node in nodes:
+        text = node_text(node)
+        if not text:
+            continue
+        bounds = tuple(node["bounds"])
+        nx, ny = bounds_center(bounds)
+        if abs(ny - cy) <= radius_y and abs(nx - cx) <= radius_x:
+            rows.append({"text": text, "bounds": node["bounds"], "distance_y": round(abs(ny - cy), 1)})
+    rows.sort(key=lambda item: (item["distance_y"], item["bounds"][1], item["bounds"][0]))
+    return rows[:12]
+
+
+def detect_orange_controls(image_path: Path, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not image_path or not image_path.exists():
+        return []
+    try:
+        from PIL import Image
+    except Exception:
+        return []
+
+    image = Image.open(image_path).convert("RGB")
+    width, height = image.size
+    pixels = image.load()
+    visited: set[tuple[int, int]] = set()
+    candidates = []
+
+    def is_orange(x: int, y: int) -> bool:
+        r, g, b = pixels[x, y]
+        return r >= 210 and 85 <= g <= 185 and b <= 85 and r - g >= 45
+
+    # Kuailv add/quantity buttons observed as orange circles on the right side.
+    x_start = max(0, int(width * 0.72))
+    y_start = max(0, int(height * 0.28))
+    y_end = min(height, int(height * 0.92))
+    for y in range(y_start, y_end, 3):
+        for x in range(x_start, width - 10, 3):
+            if (x, y) in visited or not is_orange(x, y):
+                continue
+            stack = [(x, y)]
+            component = []
+            visited.add((x, y))
+            while stack:
+                px, py = stack.pop()
+                component.append((px, py))
+                for nx, ny in ((px + 3, py), (px - 3, py), (px, py + 3), (px, py - 3)):
+                    if nx < x_start or nx >= width or ny < y_start or ny >= y_end or (nx, ny) in visited:
+                        continue
+                    if is_orange(nx, ny):
+                        visited.add((nx, ny))
+                        stack.append((nx, ny))
+            if len(component) < 80:
+                continue
+            xs = [point[0] for point in component]
+            ys = [point[1] for point in component]
+            x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
+            box_width = x2 - x1 + 1
+            box_height = y2 - y1 + 1
+            if not (24 <= box_width <= 90 and 24 <= box_height <= 90):
+                continue
+            center = ((x1 + x2) / 2, (y1 + y2) / 2)
+            sample = pixels[int(center[0]), int(center[1])]
+            candidates.append(
+                {
+                    "center": [round(center[0], 1), round(center[1], 1)],
+                    "bounds": [x1, y1, x2, y2],
+                    "color": list(sample),
+                    "nearby_texts": nearby_texts(nodes, center),
+                }
+            )
+    candidates.sort(key=lambda item: (item["center"][1], item["center"][0]))
+    return candidates[:40]
+
+
+def extract_delivery_text(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for node in nodes:
+        text = node_text(node)
+        if any(keyword in text for keyword in ("配送", "送至", "地址", "银泰", "金融", "万象", "保利")):
+            rows.append({"text": text, "bounds": node["bounds"]})
+    return rows[:20]
+
+
+def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -> dict[str, Any]:
+    nodes = parse_ui_nodes(xml_text)
+    clickable = [
+        {
+            "text": node.get("text", ""),
+            "content_desc": node.get("content_desc", ""),
+            "class": node.get("class", ""),
+            "resource_id": node.get("resource_id", ""),
+            "bounds": node.get("bounds", []),
+        }
+        for node in nodes
+        if node.get("clickable")
+    ][:120]
+    bottom_nodes = [
+        {"text": node_text(node), "class": node.get("class", ""), "clickable": node.get("clickable"), "bounds": node["bounds"]}
+        for node in nodes
+        if node["bounds"][1] >= 2150 or node["bounds"][3] >= 2210
+    ][:80]
+    orange_candidates = detect_orange_controls(image_path, nodes)
+    delivery_rows = extract_delivery_text(nodes)
+    delivery_text = " ".join(row["text"] for row in delivery_rows)
+    expected_store = str(plan.get("store_name") or "")
+    return {
+        "node_count": len(nodes),
+        "clickable_nodes": clickable,
+        "bottom_nodes": bottom_nodes,
+        "delivery_candidates": delivery_rows,
+        "delivery_store_match": bool(expected_store and expected_store in delivery_text),
+        "expected_store": expected_store,
+        "orange_add_candidates": orange_candidates,
+    }
 
 
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
