@@ -1782,6 +1782,13 @@ def is_search_overlay_snapshot(snapshot: dict[str, Any]) -> bool:
     return any(word in text_blob for word in ["历史搜索", "猜你想搜", "常买清单"])
 
 
+def query_visible_in_snapshot(snapshot: dict[str, Any], query: str) -> bool:
+    text_blob = " ".join(str(text) for text in snapshot.get("detected_text") or [])
+    compact_blob = re.sub(r"\s+", "", text_blob)
+    compact_query = re.sub(r"\s+", "", str(query or ""))
+    return bool(compact_query and (query in text_blob or compact_query in compact_blob))
+
+
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
     text = " ".join(detect_page_text(xml_text))
     hits = []
@@ -2290,7 +2297,7 @@ def run_adb_search(
         time.sleep(1.2)
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
     after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
-    query_visible_after = query in after_text_blob
+    query_visible_after = query_visible_in_snapshot(after, query)
     target_words = search_target_words(plan, query)
     result_check = search_result_hits(after, target_words)
     search_key_retry = None
@@ -2311,9 +2318,9 @@ def run_adb_search(
             after = after_search_key
             result_check = retry_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
-            query_visible_after = query in after_text_blob
+            query_visible_after = query_visible_in_snapshot(after, query)
 
-    if press_enter and after.get("captured") and query_visible_after and is_search_overlay_snapshot(after):
+    if press_enter and after.get("captured") and input_result.get("entered") and is_search_overlay_snapshot(after):
         submit_candidates = (after.get("ui_analysis") or {}).get("search_submit_candidates") or []
         if submit_candidates:
             submit = submit_candidates[0]
@@ -2330,10 +2337,10 @@ def run_adb_search(
                 after = after_submit_tap
                 result_check = submit_check
                 after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
-                query_visible_after = query in after_text_blob
+                query_visible_after = query_visible_in_snapshot(after, query)
 
     for scroll_index in range(1, 4):
-        if not (after.get("captured") and query_visible_after and result_check.get("page_text_hit_count") and not result_check.get("safe_candidate_hit_count")):
+        if not (after.get("captured") and result_check.get("page_text_hit_count") and not result_check.get("safe_candidate_hit_count")):
             break
         scroll_args = target_guided_scroll_args(result_check)
         before_target_position = target_text_position(result_check)
@@ -2356,7 +2363,7 @@ def run_adb_search(
             after = after_target_scroll
             result_check = scroll_check
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
-            query_visible_after = query in after_text_blob
+            query_visible_after = query_visible_in_snapshot(after, query)
         if scroll_check.get("safe_candidate_hit_count"):
             break
     status = (
@@ -2364,7 +2371,6 @@ def run_adb_search(
         if tap_result.returncode == 0
         and input_result.get("entered")
         and after.get("captured")
-        and query_visible_after
         and result_check.get("safe_candidate_hit_count")
         else "blocked"
     )
