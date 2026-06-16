@@ -61,7 +61,18 @@ def main() -> int:
         "order_id": plan.get("order_id"),
         "store_name": plan.get("store_name"),
         "adb_status": adb.get("status"),
+        "adb_message": adb.get("message"),
         "session_dir": adb.get("session_dir"),
+        "selected": compact_score(adb.get("selected")),
+        "tap": adb.get("tap"),
+        "before_files": (adb.get("before") or {}).get("files"),
+        "after_files": (adb.get("after") or {}).get("files"),
+        "after_detected_relevant": [
+            text
+            for text in ((adb.get("after") or {}).get("detected_text") or [])
+            if any(keyword in text for keyword in ["数量", "购物车", "去结算", "提交订单", "付款"])
+        ],
+        "after_plan_match": (adb.get("after") or {}).get("plan_match"),
         "delivery_store_match": analysis.get("delivery_store_match"),
         "delivery_candidates": analysis.get("delivery_candidates"),
         "orange_add_candidates_count": len(candidates),
