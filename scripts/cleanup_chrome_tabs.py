@@ -14,8 +14,16 @@ KEEP_PATTERNS = [
     re.compile(r"r\.ele\.me/doujin-isv-manage"),
     re.compile(r"waimaieapp\.meituan\.com/ad/"),
     re.compile(r"e\.waimai\.meituan\.com"),
+    re.compile(r"melody\.shop\.ele\.me"),
     re.compile(r"^about:blank$"),
     re.compile(r"^chrome://newtab/?$"),
+]
+
+CATEGORY_PATTERNS = [
+    ("eleme_realtime", re.compile(r"melody\.shop\.ele\.me")),
+    ("eleme_promo", re.compile(r"r\.ele\.me/doujin-isv-manage")),
+    ("meituan_ad", re.compile(r"waimaieapp\.meituan\.com/ad/")),
+    ("meituan_business", re.compile(r"e\.waimai\.meituan\.com")),
 ]
 
 
@@ -28,6 +36,13 @@ def keep_tab(url: str) -> bool:
     return any(pattern.search(url) for pattern in KEEP_PATTERNS)
 
 
+def tab_category(url: str) -> str:
+    for name, pattern in CATEGORY_PATTERNS:
+        if pattern.search(url):
+            return name
+    return ""
+
+
 def main() -> int:
     try:
         tabs = read_json(f"{DEBUG_URL}/json/list")
@@ -37,13 +52,20 @@ def main() -> int:
 
     closed = []
     kept = []
+    seen_categories = set()
     for tab in tabs:
         if tab.get("type") != "page":
             continue
         tab_id = str(tab.get("id") or "")
         url = str(tab.get("url") or "")
         title = str(tab.get("title") or "")
-        if keep_tab(url):
+        category = tab_category(url)
+        if category:
+            if category not in seen_categories:
+                seen_categories.add(category)
+                kept.append({"id": tab_id, "title": title, "url": url, "category": category})
+                continue
+        elif keep_tab(url):
             kept.append({"id": tab_id, "title": title, "url": url})
             continue
         if not tab_id:
