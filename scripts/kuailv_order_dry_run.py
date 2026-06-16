@@ -1023,7 +1023,7 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     }
 
 
-def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate_index: int) -> dict[str, Any]:
+def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate_index: int, cart_tap_x: int, cart_tap_y: int) -> dict[str, Any]:
     serial, blocked = resolve_adb_serial(serial, timeout)
     if blocked:
         return blocked
@@ -1047,7 +1047,15 @@ def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate
         }
 
     candidates = analysis.get("cart_entry_candidates") or []
-    if not candidates:
+    if cart_tap_x > 0 and cart_tap_y > 0:
+        selected = {
+            "kind": "manual_cart_navigation_coordinate",
+            "center": [cart_tap_x, cart_tap_y],
+            "bounds": [cart_tap_x, cart_tap_y, cart_tap_x, cart_tap_y],
+            "score": 0,
+            "reasons": ["operator_selected_after_previous_candidates_no_change"],
+        }
+    elif not candidates:
         return {
             "status": "blocked",
             "message": "未找到购物车入口候选，未点击。",
@@ -1055,7 +1063,7 @@ def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate
             "session_dir": str(session_dir),
             "before": before,
         }
-    if candidate_index < 0 or candidate_index >= len(candidates):
+    elif candidate_index < 0 or candidate_index >= len(candidates):
         return {
             "status": "blocked",
             "message": f"候选下标 {candidate_index} 超出范围，未点击。",
@@ -1064,8 +1072,8 @@ def run_adb_cart_open(plan: dict[str, Any], serial: str, timeout: int, candidate
             "before": before,
             "cart_entry_candidates": candidates,
         }
-
-    selected = candidates[candidate_index]
+    else:
+        selected = candidates[candidate_index]
     center = selected.get("center") or []
     if len(center) != 2:
         return {"status": "blocked", "message": "购物车候选缺少 center，未点击。", "device_serial": serial, "session_dir": str(session_dir), "selected": selected}
@@ -1165,6 +1173,8 @@ def main() -> int:
     parser.add_argument("--tap-item", default="", help="adb-safe-tap 的目标品项名，例如：豆腐")
     parser.add_argument("--tap-pack", default="", help="adb-safe-tap 的目标规格标签，例如：400g")
     parser.add_argument("--cart-candidate-index", type=int, default=0, help="adb-cart-open 使用的购物车入口候选下标，默认最高分候选 0")
+    parser.add_argument("--cart-tap-x", type=int, default=0, help="adb-cart-open 坐标覆盖：指定 x 时仍会执行前后截图和购物车判定")
+    parser.add_argument("--cart-tap-y", type=int, default=0, help="adb-cart-open 坐标覆盖：指定 y 时仍会执行前后截图和购物车判定")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     args = parser.parse_args()
 
@@ -1177,7 +1187,7 @@ def main() -> int:
         elif args.mode == "adb-safe-tap":
             adb_result = run_adb_safe_tap(plan, args.adb_serial.strip(), args.timeout, args.tap_item.strip(), args.tap_pack.strip())
         elif args.mode == "adb-cart-open":
-            adb_result = run_adb_cart_open(plan, args.adb_serial.strip(), args.timeout, args.cart_candidate_index)
+            adb_result = run_adb_cart_open(plan, args.adb_serial.strip(), args.timeout, args.cart_candidate_index, args.cart_tap_x, args.cart_tap_y)
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
