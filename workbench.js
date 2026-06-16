@@ -1830,46 +1830,76 @@ function renderFinance() {
   );
   initializeFinanceIntakeControls();
 
-  const workflowRows = (ledgerDesign.workflow || []).slice(0, 5).map((item, index) => ({
-    label: `步骤 ${index + 1}`,
-    value: item,
-    detail: "财务自动化闭环",
-  }));
-  const collectionRows = (dailyCollection.policy?.reconciliation_priority || []).slice(0, 4).map((item, index) => ({
-    label: `日核对 ${index + 1}`,
-    value: item,
-    detail: dailyCollection.policy?.default_mode === "preview_only" ? "只读预览" : "每日采集",
-  }));
-  const policyRows = (ledgerDesign.policy?.auto_match_priority || []).slice(0, 4).map((item, index) => ({
-    label: `匹配 ${index + 1}`,
-    value: item,
-    detail: ledgerDesign.policy?.primary_cost_owner || "订单先归属门店，支付流水确认，银行流水后核销。",
-  }));
-
-  text("financeReportStatus", reportGeneration.status_text || "建设中");
-  text("financeReportCount", `${Number(reportGeneration.account_count || summary.account_count || accounts.length)} 个科目`);
-  text("financeReportSummary", reportGeneration.message || "先完成付款匹配，再生成门店月度利润表。");
-  rows(
+  const profitPreview = reconciliationPreview.profit_preview || {};
+  const preliminaryTotals = profitPreview.preliminary_totals || {};
+  const neededForPnl = profitPreview.needed_for_store_pnl || [];
+  const assignedIncome = Number(ledgerPreviewSummary.assigned_income || 0);
+  const assignedExpense = Number(ledgerPreviewSummary.assigned_expense || 0);
+  const pendingIncome = Number(ledgerPreviewSummary.pending_income || 0);
+  const pendingExpense = Number(ledgerPreviewSummary.pending_expense || 0);
+  const reportRows = [...formalLedgerRows, ...workPoolRows];
+  text("financeReportStatus", profitPreview.status === "ready" ? "已出表" : "预览");
+  text("financeReportCount", `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 6)} 本账`);
+  text("financeReportSummary", profitPreview.message || "当前为月度损益预览；收入表、订单主账和门店规则补齐后生成正式利润表。");
+  html(
     "financeReportRows",
-    [
-      { label: "初始化", value: setup.directories_ready && setup.templates_ready ? "已准备" : "可执行", detail: setup.init_command || "python3 scripts/init_finance_inbox.py" },
-      { label: "三方核对", value: reconciliationPreview.status === "ready_for_manual_review" ? "预览已生成" : "待生成", detail: reconciliationPreview.message || "运行 scripts/build_finance_reconciliation_preview.py" },
-      { label: "模板目录", value: setup.templates_ready ? "已就绪" : "待生成", detail: setup.template_dir || "data/finance-inbox/templates" },
-      ...collectionRows,
-      ...workflowRows,
-      ...policyRows,
-      ...(reportGeneration.report_outputs || []).slice(0, 4).map((item) => ({
-        label: "报表",
-        value: item,
-        detail: "字段映射后生成",
-      })),
-      ...accounts.slice(0, 6).map((account) => ({
-        label: account.direction === "income" ? "收入" : "支出",
-        value: account.name,
-        detail: (account.keywords || []).slice(0, 3).join("、"),
-      })),
-    ],
-    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+    `
+      <div class="finance-report-dashboard">
+        <section class="finance-report-kpis" aria-label="财务报表摘要">
+          <article><span>已归属收入</span><strong>${yuan(assignedIncome)}</strong><em>6 本账当前已确认收入</em></article>
+          <article><span>已归属支出</span><strong>${yuan(assignedExpense)}</strong><em>已进入具体账本的成本费用</em></article>
+          <article><span>待分配支出</span><strong>${yuan(pendingExpense)}</strong><em>${Number(ledgerPreviewSummary.pending_transaction_count || 0)} 笔待归属门店</em></article>
+          <article><span>当前预览利润</span><strong>${yuan(assignedIncome - assignedExpense)}</strong><em>未含待分配和未上传收入</em></article>
+        </section>
+        <section class="finance-profit-table-wrap">
+          <div class="finance-report-title">
+            <div>
+              <span>${escapeHtml(reportingPeriod.month || "本月")}</span>
+              <strong>6 本账月度损益预览</strong>
+            </div>
+            <em>收入来自平台收入表格，支出来自手工录入和支付流水。</em>
+          </div>
+          <table class="finance-profit-table">
+            <thead>
+              <tr>
+                <th>账本</th>
+                <th>状态</th>
+                <th>笔数</th>
+                <th>收入</th>
+                <th>支出</th>
+                <th>利润</th>
+                <th>主要渠道 / 往来方</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${reportRows.map((row) => `
+                <tr class="${row.ledger_type === "work_pool" ? "pending-row" : ""}">
+                  <td>${escapeHtml(row.ledger_name || row.ledger_id)}</td>
+                  <td>${escapeHtml(row.ledger_type === "work_pool" ? "待分配" : row.status === "assigned" ? "已归属" : "待规则")}</td>
+                  <td>${Number(row.count || 0)}</td>
+                  <td>${yuan(row.income)}</td>
+                  <td>${yuan(row.expense)}</td>
+                  <td>${yuan(row.net)}</td>
+                  <td>${escapeHtml([...(row.sample_channels || []), ...(row.sample_counterparties || [])].slice(0, 4).join("、") || "-")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+        <section class="finance-report-notes">
+          <article>
+            <span>流水预览</span>
+            <strong>${Number(reconciliationSummary.transaction_count || 0)} 笔本期流水</strong>
+            <em>支付流水支出 ${yuan(preliminaryTotals.payment_statement_expense)}，银行流水收入 ${yuan(preliminaryTotals.bank_income)}</em>
+          </article>
+          <article>
+            <span>当前缺口</span>
+            <strong>${neededForPnl.length || missing.length || 0} 项</strong>
+            <em>${escapeHtml((neededForPnl.length ? neededForPnl : missing).slice(0, 3).join("；") || "暂无明显缺口")}</em>
+          </article>
+        </section>
+      </div>
+    `
   );
 }
 
