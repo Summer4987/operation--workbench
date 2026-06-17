@@ -624,15 +624,15 @@ function renderFinanceFlow() {
   html(
     "financeFlowKpis",
     [
-      { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪" },
-      { label: "工厂应付", value: yuan(totals.payable_amount), detail: `待付工厂 ${yuan(totals.open_payable_amount)}` },
-      { label: "已付给工厂", value: yuan(totals.paid_amount), detail: "已实际支付给厂家或供应商" },
-      { label: "北京仓应收", value: yuan(totals.beijing_warehouse_receivable_amount), detail: `未收 ${yuan(totals.open_beijing_warehouse_receivable_amount)}` },
-      { label: "北京仓已收", value: yuan(totals.beijing_warehouse_received_amount), detail: "北京仓对应批次已收款" },
-      { label: "直营店应收", value: yuan(totals.direct_store_receivable_amount), detail: `北京直营店 + 成都仓，未收 ${yuan(totals.open_direct_store_receivable_amount)}` },
-      { label: "直营店已收", value: yuan(totals.direct_store_received_amount), detail: "北京直营店 + 成都仓已收款" },
+      { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪", tone: "neutral" },
+      { label: "工厂应付", value: yuan(totals.payable_amount), detail: `待付工厂 ${yuan(totals.open_payable_amount)}`, tone: "factory-payable" },
+      { label: "已付给工厂", value: yuan(totals.paid_amount), detail: "已实际支付给厂家或供应商", tone: "factory-paid" },
+      { label: "北京仓应收", value: yuan(totals.beijing_warehouse_receivable_amount), detail: `未收 ${yuan(totals.open_beijing_warehouse_receivable_amount)}`, tone: "beijing-receivable" },
+      { label: "北京仓已收", value: yuan(totals.beijing_warehouse_received_amount), detail: "北京仓对应批次已收款", tone: "beijing-received" },
+      { label: "直营店应收", value: yuan(totals.direct_store_receivable_amount), detail: `北京直营店 + 成都仓，未收 ${yuan(totals.open_direct_store_receivable_amount)}`, tone: "direct-receivable" },
+      { label: "直营店已收", value: yuan(totals.direct_store_received_amount), detail: "北京直营店 + 成都仓已收款", tone: "direct-received" },
     ].map((item) => `
-      <article>
+      <article class="finance-flow-tone ${escapeHtml(item.tone)}">
         <span>${escapeHtml(item.label)}</span>
         <strong>${escapeHtml(item.value)}</strong>
         <em>${escapeHtml(item.detail)}</em>
