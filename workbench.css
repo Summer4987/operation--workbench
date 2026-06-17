@@ -1527,6 +1527,33 @@ h2 {
   line-height: 1.15;
 }
 
+.finance-flow-payment-grid,
+.finance-flow-factory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.finance-flow-payment-grid > section,
+.finance-flow-factory-grid > section {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid #e3eaf2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.finance-flow-factory-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.finance-flow-money-list > div strong {
+  color: #0f766e;
+}
+
 .finance-flow-workspace {
   display: grid;
   grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
@@ -2947,6 +2974,8 @@ h2 {
   .finance-flow-entry-grid,
   .finance-flow-toolbar,
   .finance-flow-kpis,
+  .finance-flow-payment-grid,
+  .finance-flow-factory-grid,
   .finance-flow-workspace,
   .finance-flow-location-grid,
   .finance-opening-grid,

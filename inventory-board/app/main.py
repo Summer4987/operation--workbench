@@ -709,6 +709,14 @@ def _supply_chain_flow_summary() -> dict:
     entries = _read_supply_chain_flow_entries()
     lots: dict[str, dict] = {}
     location_totals: dict[str, float] = {}
+    payment_lines: dict[str, list[dict]] = {
+        "factory_payable": [],
+        "factory_paid": [],
+        "beijing_warehouse_receivable": [],
+        "beijing_warehouse_received": [],
+        "direct_store_receivable": [],
+        "direct_store_received": [],
+    }
     receivable_total = 0.0
     beijing_warehouse_receivable_total = 0.0
     direct_store_receivable_total = 0.0
@@ -753,7 +761,10 @@ def _supply_chain_flow_summary() -> dict:
                 "receivable_amount": 0.0,
                 "received_amount": 0.0,
                 "beijing_warehouse_receivable_amount": 0.0,
+                "beijing_warehouse_received_amount": 0.0,
                 "direct_store_receivable_amount": 0.0,
+                "direct_store_received_amount": 0.0,
+                "production_status": "",
                 "locations": {},
                 "recent_events": [],
             },
@@ -768,23 +779,55 @@ def _supply_chain_flow_summary() -> dict:
             lot["unit"] = entry["unit"]
         if entry.get("unit_cost"):
             lot["unit_cost"] = entry["unit_cost"]
+        if entry.get("production_status"):
+            lot["production_status"] = entry["production_status"]
 
         from_location = entry.get("from_location") or ""
         total_amount = float(entry.get("total_amount") or 0)
         payable_amount = float(entry.get("payable_amount") or 0)
         receivable_amount = float(entry.get("receivable_amount") or 0)
+        unit_cost = float(entry.get("unit_cost") or 0)
+        line_base = {
+            "date": entry.get("date") or "",
+            "lot_id": lot_id,
+            "sku": entry.get("product_name") or "",
+            "product_name": entry.get("product_name") or "",
+            "item_type": entry.get("item_type") or "",
+            "factory": entry.get("factory") or "",
+            "counterparty": entry.get("counterparty") or "",
+            "quantity": quantity,
+            "unit": entry.get("unit") or "",
+            "unit_price": unit_cost,
+            "total_amount": total_amount,
+            "payment_status": entry.get("payment_status") or "",
+            "production_status": entry.get("production_status") or "",
+        }
         payable_total += payable_amount
         paid_total += paid_amount
         receivable_total += receivable_amount
         received_total += received_amount
+        if payable_amount:
+            payment_lines["factory_payable"].append({**line_base, "amount": payable_amount})
+        if paid_amount:
+            payment_lines["factory_paid"].append({**line_base, "amount": paid_amount})
         if receivable_bucket == "beijing_warehouse":
             beijing_warehouse_receivable_total += receivable_amount
             beijing_warehouse_received_total += received_amount
             lot["beijing_warehouse_receivable_amount"] += receivable_amount
+            lot["beijing_warehouse_received_amount"] += received_amount
+            if receivable_amount:
+                payment_lines["beijing_warehouse_receivable"].append({**line_base, "amount": receivable_amount})
+            if received_amount:
+                payment_lines["beijing_warehouse_received"].append({**line_base, "amount": received_amount})
         elif receivable_bucket == "direct_store":
             direct_store_receivable_total += receivable_amount
             direct_store_received_total += received_amount
             lot["direct_store_receivable_amount"] += receivable_amount
+            lot["direct_store_received_amount"] += received_amount
+            if receivable_amount:
+                payment_lines["direct_store_receivable"].append({**line_base, "amount": receivable_amount})
+            if received_amount:
+                payment_lines["direct_store_received"].append({**line_base, "amount": received_amount})
         lot["payable_amount"] += payable_amount
         lot["paid_amount"] += paid_amount
         lot["receivable_amount"] += receivable_amount
@@ -812,6 +855,11 @@ def _supply_chain_flow_summary() -> dict:
 
     for lot in lots.values():
         lot["balance_quantity"] = sum(float(value or 0) for value in lot["locations"].values())
+        lot["factory_quantity"] = sum(
+            float(quantity or 0)
+            for location, quantity in lot["locations"].items()
+            if "工厂" in location
+        )
         lot["locations"] = [
             {"location": location, "quantity": quantity}
             for location, quantity in sorted(lot["locations"].items())
@@ -823,6 +871,20 @@ def _supply_chain_flow_summary() -> dict:
 
     return {
         "items": sorted(lots.values(), key=lambda item: item["lot_id"], reverse=True),
+        "factory_producing_items": [
+            lot
+            for lot in sorted(lots.values(), key=lambda item: item["lot_id"], reverse=True)
+            if lot.get("production_status") == "工厂在生产" and float(lot.get("factory_quantity") or 0) > 0
+        ],
+        "factory_completed_items": [
+            lot
+            for lot in sorted(lots.values(), key=lambda item: item["lot_id"], reverse=True)
+            if lot.get("production_status") == "工厂已生产完成" and float(lot.get("factory_quantity") or 0) > 0
+        ],
+        "payment_lines": {
+            key: list(reversed(value[-20:]))
+            for key, value in payment_lines.items()
+        },
         "recent_events": list(reversed([_normalize_supply_chain_flow_entry_for_summary(entry) for entry in entries[-40:]])),
         "locations": [
             {"location": location, "quantity": quantity}
@@ -835,7 +897,9 @@ def _supply_chain_flow_summary() -> dict:
             "received_amount": received_total,
             "receivable_amount": receivable_total,
             "beijing_warehouse_receivable_amount": beijing_warehouse_receivable_total,
+            "beijing_warehouse_received_amount": beijing_warehouse_received_total,
             "direct_store_receivable_amount": direct_store_receivable_total,
+            "direct_store_received_amount": direct_store_received_total,
             "open_payable_amount": max(payable_total - paid_total, 0),
             "open_receivable_amount": max(receivable_total - received_total, 0),
             "open_beijing_warehouse_receivable_amount": max(beijing_warehouse_receivable_total - beijing_warehouse_received_total, 0),
@@ -902,16 +966,22 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         received_amount = float(payload.get("received_amount") or 0)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="金额必须是数字") from exc
-    payment_status = str(payload.get("payment_status") or "")[:40]
+    raw_payment_status = str(payload.get("payment_status") or "")[:40]
+    payment_status_map = {
+        "应付": "工厂应付",
+        "已付工厂": "已付给工厂",
+        "应收": "北京仓应收",
+    }
+    payment_status = payment_status_map.get(raw_payment_status, raw_payment_status)
     if event_type in {"生产", "采购"} and total_amount > 0:
-        if payment_status == "已付工厂":
+        if payment_status == "已付给工厂":
             payable_amount = total_amount
             paid_amount = total_amount
-        elif payment_status == "应付" and payable_amount <= 0:
+        elif payment_status == "工厂应付" and payable_amount <= 0:
             payable_amount = total_amount
     if event_type in {"销售", "领用"} and total_amount > 0 and receivable_amount <= 0:
         receivable_amount = total_amount
-        if payment_status == "北京仓已收":
+        if payment_status in {"北京仓已收", "直营店已收"}:
             received_amount = total_amount
     entry = {
         "id": str(payload.get("id") or now_iso()),
@@ -932,6 +1002,7 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         "received_amount": max(received_amount, 0),
         "settlement_status": str(payload.get("settlement_status") or "")[:40],
         "payment_status": payment_status,
+        "production_status": str(payload.get("production_status") or "")[:40],
         "from_location": str(payload.get("from_location") or "")[:80],
         "to_location": str(payload.get("to_location") or "")[:80],
         "counterparty": str(payload.get("counterparty") or "")[:120],
