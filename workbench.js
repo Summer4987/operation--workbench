@@ -329,7 +329,7 @@ function initializeFinanceOpeningControls() {
 
 function financeFlowMonthValue() {
   const input = document.querySelector("#financeFlowMonth");
-  return input?.value || "2026-07";
+  return input?.value || "2026-06";
 }
 
 function financeFlowSearchValue() {
@@ -441,7 +441,7 @@ function initializeFinanceFlowControls() {
   const card = document.querySelector("#finance-flow-card");
   if (!card) return;
   const monthInput = document.querySelector("#financeFlowMonth");
-  if (monthInput && !monthInput.value) monthInput.value = "2026-07";
+  if (monthInput && !monthInput.value) monthInput.value = "2026-06";
   if (!card.dataset.bound) {
     card.dataset.bound = "true";
     document.querySelector("#financeFlowRefresh")?.addEventListener("click", loadFinanceFlow);
