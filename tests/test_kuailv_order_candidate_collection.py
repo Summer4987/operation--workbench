@@ -94,6 +94,12 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertEqual(line["overage"], 0)
         self.assertEqual(line["pack_strategy"], [{"pack_size": 10.0, "count": 1, "label": "10斤 x 1"}, {"pack_size": 5.0, "count": 1, "label": "5斤 x 1"}])
 
+    def test_carrot_prefers_pack_size_searches(self) -> None:
+        line = build_line_plan({"sku": "CARROT-001", "name": "胡萝卜", "quantity": 10, "unit": "斤", "purchase_channel": "快驴"})
+
+        self.assertEqual(line["search_terms"][:2], ["胡萝卜5斤", "胡萝卜10斤"])
+        self.assertIn("食堂菜", line["excluded_keywords"])
+
     def test_batch_cli_expands_multiple_spec_controls_by_default(self) -> None:
         script_text = (ROOT / "scripts" / "kuailv_adb_order_candidate_collection.py").read_text(encoding="utf-8")
 
