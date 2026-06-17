@@ -90,6 +90,11 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertEqual(line["search_terms"][:2], ["土豆5斤", "土豆10斤"])
         self.assertIn("土豆", line["search_terms"])
 
+    def test_batch_cli_expands_multiple_spec_controls_by_default(self) -> None:
+        script_text = (ROOT / "scripts" / "kuailv_adb_order_candidate_collection.py").read_text(encoding="utf-8")
+
+        self.assertIn('default=3, help="每个搜索页最多展开几个规格控件"', script_text)
+
     def test_line_decision_status_reads_current_line(self) -> None:
         payload = {
             "decision": {

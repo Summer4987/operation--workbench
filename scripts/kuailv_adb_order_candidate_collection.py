@@ -559,7 +559,7 @@ def main() -> int:
     parser.add_argument("--line-limit", type=int, default=0, help="只采集前 N 个快驴品项；0 表示全量")
     parser.add_argument("--expand-specs", action=argparse.BooleanOptionalAction, default=True, help="采集后自动点开规格控件并只读回收展开规格")
     parser.add_argument("--spec-wait", type=float, default=1.2, help="点开规格后等待秒数")
-    parser.add_argument("--max-spec-expansions-per-page", type=int, default=1, help="每个搜索页最多展开几个规格控件")
+    parser.add_argument("--max-spec-expansions-per-page", type=int, default=3, help="每个搜索页最多展开几个规格控件")
     parser.add_argument("--timeout", type=int, default=25)
     args = parser.parse_args()
 
