@@ -468,6 +468,26 @@ function updateFinanceFlowCalculatedAmounts(form) {
   return { amount, unitPrice: effectiveUnitPrice };
 }
 
+function financeFlowMoneyText(item) {
+  const payable = Number(item.payable_amount || 0);
+  const paid = Number(item.paid_amount || 0);
+  const receivable = Number(item.receivable_amount || 0);
+  const received = Number(item.received_amount || 0);
+  const pendingPayable = Math.max(payable - paid, 0);
+  const parts = [];
+  if (payable || paid) {
+    parts.push(`采购总额 ${yuan(payable || item.total_amount || 0)}`);
+    parts.push(`已付工厂 ${yuan(paid)}`);
+    parts.push(`待付工厂 ${yuan(pendingPayable)}`);
+  }
+  if (receivable || received) {
+    parts.push(`应收 ${yuan(receivable)}`);
+    parts.push(`北京仓已收 ${yuan(received)}`);
+    parts.push(`待收 ${yuan(Math.max(receivable - received, 0))}`);
+  }
+  return parts.join(" / ") || "暂无金额";
+}
+
 const financeFlowPresets = {
   purchase_paid: {
     event_type: "采购",
@@ -569,7 +589,7 @@ function renderFinanceFlow() {
       const outbound = Number(item.out_quantity || 0);
       const balance = Number(item.balance_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
-      const money = `工厂应付 ${yuan(item.payable_amount)} / 已付工厂 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)} / 北京仓已收 ${yuan(item.received_amount)}`;
+      const money = financeFlowMoneyText(item);
       return `
         <div class="${rowClass}">
           <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
@@ -604,7 +624,7 @@ function renderFinanceFlow() {
       <div class="${Number(item.selected_location_quantity || 0) < 0 ? "warn-row" : "good-row"}">
         <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
         <strong>${num(item.selected_location_quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · 工厂应付 ${yuan(item.payable_amount)} · 应收 ${yuan(item.receivable_amount)}</em>
+        <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · ${escapeHtml(financeFlowMoneyText(item))}</em>
       </div>
     `
   );
@@ -615,7 +635,7 @@ function renderFinanceFlow() {
       <div class="${["生产", "采购", "调拨"].includes(item.event_type) ? "good-row" : "warn-row"}">
         <span>${escapeHtml(item.date || "-")} · ${escapeHtml(item.event_type || "-")} · ${escapeHtml(item.lot_id || "-")}</span>
         <strong>${escapeHtml(item.product_name || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.item_type ? ` · ${escapeHtml(item.item_type)}` : ""}${item.total_amount ? ` · 总额 ${yuan(item.total_amount)}` : ""}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.received_amount ? ` · 北京仓已收 ${yuan(item.received_amount)}` : ""}${item.payable_amount ? ` · 工厂应付 ${yuan(item.payable_amount)}` : ""}${item.paid_amount ? ` · 已付工厂 ${yuan(item.paid_amount)}` : ""}</em>
+        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.item_type ? ` · ${escapeHtml(item.item_type)}` : ""}${item.total_amount ? ` · 总额 ${yuan(item.total_amount)}` : ""} · ${escapeHtml(financeFlowMoneyText(item))}</em>
       </div>
     `
   );
@@ -687,6 +707,7 @@ function initializeFinanceFlowControls() {
         total_amount: Number(formData.get("total_amount") || 0),
         from_location: formData.get("from_location") || "",
         to_location: formData.get("to_location") || "",
+        payment_status: formData.get("payment_status") || "",
         payable_amount: Number(formData.get("payable_amount") || 0),
         paid_amount: Number(formData.get("paid_amount") || 0),
         receivable_amount: Number(formData.get("receivable_amount") || 0),

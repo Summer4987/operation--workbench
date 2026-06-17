@@ -902,6 +902,17 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         received_amount = float(payload.get("received_amount") or 0)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="金额必须是数字") from exc
+    payment_status = str(payload.get("payment_status") or "")[:40]
+    if event_type in {"生产", "采购"} and total_amount > 0:
+        if payment_status == "已付工厂":
+            payable_amount = total_amount
+            paid_amount = total_amount
+        elif payment_status == "应付" and payable_amount <= 0:
+            payable_amount = total_amount
+    if event_type in {"销售", "领用"} and total_amount > 0 and receivable_amount <= 0:
+        receivable_amount = total_amount
+        if payment_status == "北京仓已收":
+            received_amount = total_amount
     entry = {
         "id": str(payload.get("id") or now_iso()),
         "created_at": now_iso(),
@@ -920,6 +931,7 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         "receivable_amount": max(receivable_amount, 0),
         "received_amount": max(received_amount, 0),
         "settlement_status": str(payload.get("settlement_status") or "")[:40],
+        "payment_status": payment_status,
         "from_location": str(payload.get("from_location") or "")[:80],
         "to_location": str(payload.get("to_location") or "")[:80],
         "counterparty": str(payload.get("counterparty") or "")[:120],
