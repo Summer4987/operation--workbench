@@ -1661,6 +1661,11 @@ h2 {
   color: #1f2937;
 }
 
+.finance-profit-table .pending-value {
+  color: #9a5b00;
+  font-weight: 900;
+}
+
 .finance-profit-table tr.pending-row td {
   background: #fffbeb;
   color: #7c4a03;

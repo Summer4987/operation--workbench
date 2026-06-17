@@ -1858,45 +1858,55 @@ function renderFinance() {
   const pendingIncome = Number(ledgerPreviewSummary.pending_income || 0);
   const pendingExpense = Number(ledgerPreviewSummary.pending_expense || 0);
   const reportRows = [...formalLedgerRows, ...workPoolRows].filter((row) => row.ledger_type !== "work_pool" || Number(row.count || 0) > 0);
-  text("financeReportStatus", profitPreview.status === "ready" ? "已出表" : "预览");
-  text("financeReportCount", `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 2)} 本账`);
-  text("financeReportSummary", profitPreview.message || "当前先做门店总账和供应链账；5 家门店拆分后续再启用。");
+  const canCalculateProfit = profitPreview.status === "ready" && !neededForPnl.length;
+  const reportMonth = reportingPeriod.month || "本月";
+  const activeLedgerRows = reportRows.length ? reportRows : formalLedgerRows;
+  const missingReportItems = neededForPnl.length ? neededForPnl : missing;
+  const reportStatusText = canCalculateProfit ? "已出表" : "待生成";
+  text("financeReportStatus", reportStatusText);
+  text("financeReportCount", canCalculateProfit ? `${Number(ledgerPreviewSummary.formal_ledger_count || formalLedgerRows.length || 2)} 本账` : `${reportMonth} 待生成`);
+  text(
+    "financeReportSummary",
+    canCalculateProfit
+      ? (profitPreview.message || "已按门店总账和供应链账生成本月损益表。")
+      : "收入账单尚未接入，当前不能计算利润；页面只展示已识别支出和正式报表框架。"
+  );
   html(
     "financeReportRows",
     `
       <div class="finance-report-dashboard">
         <section class="finance-report-kpis" aria-label="财务报表摘要">
-          <article><span>已归属收入</span><strong>${yuan(assignedIncome)}</strong><em>门店总账和供应链账当前已确认收入</em></article>
-          <article><span>已归属支出</span><strong>${yuan(assignedExpense)}</strong><em>已进入具体账本的成本费用</em></article>
-          <article><span>待分配支出</span><strong>${yuan(pendingExpense)}</strong><em>${Number(ledgerPreviewSummary.pending_transaction_count || 0)} 笔待归属门店</em></article>
-          <article><span>当前预览利润</span><strong>${yuan(assignedIncome - assignedExpense)}</strong><em>未含待分配和未上传收入</em></article>
+          <article><span>报表状态</span><strong>${escapeHtml(reportStatusText)}</strong><em>${canCalculateProfit ? "收入、支出已满足出表条件" : "未把缺失收入当作 0 计算"}</em></article>
+          <article><span>已识别支出</span><strong>${yuan(assignedExpense + pendingExpense)}</strong><em>当前已进入流水核对的成本费用</em></article>
+          <article><span>已接入收入</span><strong>${canCalculateProfit ? yuan(assignedIncome + pendingIncome) : "待平台收入"}</strong><em>美团、饿了么、京东等收入由 Mac mini 自动下载后入账</em></article>
+          <article><span>本月利润</span><strong>${canCalculateProfit ? yuan(assignedIncome - assignedExpense) : "暂不计算"}</strong><em>${canCalculateProfit ? "已按当前账本计算" : "收入未接入前不展示亏损数"}</em></article>
         </section>
         <section class="finance-profit-table-wrap">
           <div class="finance-report-title">
             <div>
-              <span>${escapeHtml(reportingPeriod.month || "本月")}</span>
-              <strong>门店总账 / 供应链账月度损益预览</strong>
+              <span>${escapeHtml(reportMonth)}</span>
+              <strong>门店总账 / 供应链账月度损益表</strong>
             </div>
-            <em>第一阶段不拆 5 家门店，先把总账跑通。</em>
+            <em>${canCalculateProfit ? "第一阶段不拆 5 家门店，先把总账跑通。" : "收入账单接入前，这是待生成报表，不是最终盈亏。"}</em>
           </div>
           <table class="finance-profit-table">
             <thead>
               <tr>
                 <th>账本</th>
                 <th>收入</th>
-                <th>支出</th>
+                <th>成本费用</th>
                 <th>利润</th>
                 <th>状态</th>
               </tr>
             </thead>
             <tbody>
-              ${(reportRows.length ? reportRows : formalLedgerRows).map((row) => `
+              ${activeLedgerRows.map((row) => `
                 <tr class="${row.ledger_type === "work_pool" ? "pending-row" : ""}">
                   <td>${escapeHtml(row.ledger_name || row.ledger_id)}</td>
-                  <td>${yuan(row.income)}</td>
+                  <td>${canCalculateProfit ? yuan(row.income) : "<span class=\"pending-value\">待平台收入</span>"}</td>
                   <td>${yuan(row.expense)}</td>
-                  <td>${yuan(row.net)}</td>
-                  <td>${escapeHtml(row.ledger_type === "work_pool" ? `待分配 ${Number(row.count || 0)} 笔` : row.status === "assigned" ? "已归属" : "待规则")}</td>
+                  <td>${canCalculateProfit ? yuan(row.net) : "<span class=\"pending-value\">待收入后计算</span>"}</td>
+                  <td>${escapeHtml(canCalculateProfit ? (row.ledger_type === "work_pool" ? `待分配 ${Number(row.count || 0)} 笔` : row.status === "assigned" ? "已归属" : "待规则") : "待收入账单")}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -1906,12 +1916,12 @@ function renderFinance() {
           <article>
             <span>流水预览</span>
             <strong>${Number(reconciliationSummary.transaction_count || 0)} 笔本期流水</strong>
-            <em>支付流水支出 ${yuan(preliminaryTotals.payment_statement_expense)}，银行流水收入 ${yuan(preliminaryTotals.bank_income)}</em>
+            <em>已识别支出 ${yuan(preliminaryTotals.payment_statement_expense)}；收入未接入时不计入利润</em>
           </article>
           <article>
-            <span>当前缺口</span>
-            <strong>${neededForPnl.length || missing.length || 0} 项</strong>
-            <em>${escapeHtml((neededForPnl.length ? neededForPnl : missing).slice(0, 3).join("；") || "暂无明显缺口")}</em>
+            <span>出表缺口</span>
+            <strong>${missingReportItems.length || 0} 项</strong>
+            <em>${escapeHtml(missingReportItems.slice(0, 3).join("；") || "暂无明显缺口")}</em>
           </article>
         </section>
       </div>
