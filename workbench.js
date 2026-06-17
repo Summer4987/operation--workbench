@@ -3,7 +3,6 @@ const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-over
 const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
 const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
 const FINANCE_OPENING_URL = "/api/finance/opening?token=xiongxiaoxiao-order";
-const INVENTORY_FLOW_URL = "/api/inventory/flow";
 const SUPPLY_CHAIN_FLOW_URL = "/api/supply-chain/flow?token=xiongxiaoxiao-order";
 let budgetOverridesFetchStarted = false;
 
@@ -189,7 +188,6 @@ const FINANCE_ARAP_ENTRIES_KEY = "xiong_finance_arap_entries_v1";
 const FINANCE_OPENING_ENTRIES_KEY = "xiong_finance_opening_entries_v1";
 const financeFlowState = {
   payload: null,
-  warehousePayload: null,
 };
 
 function readLocalList(key) {
@@ -407,11 +405,9 @@ function applyFinanceFlowPreset(form, presetKey) {
 
 function renderFinanceFlow() {
   const payload = financeFlowState.payload || {};
-  const warehousePayload = financeFlowState.warehousePayload || {};
   const term = financeFlowSearchValue();
   const items = (payload.items || []).filter((item) => financeFlowMatches(item, term));
   const totals = payload.totals || {};
-  const warehouseItems = warehousePayload.items || [];
   text("financeFlowStatus", payload.items ? `${items.length} 个批次` : "待读取");
   html(
     "financeFlowKpis",
@@ -420,7 +416,6 @@ function renderFinanceFlow() {
       { label: "供应链应付", value: yuan(totals.payable_amount), detail: `未结算 ${yuan(totals.open_payable_amount)}` },
       { label: "供应链应收", value: yuan(totals.receivable_amount), detail: `未收 ${yuan(totals.open_receivable_amount)}` },
       { label: "已结算付款", value: yuan(totals.paid_amount), detail: "批次用完后结算付款" },
-      { label: "成都仓参考", value: `${warehouseItems.length} 项`, detail: "来自现有成都仓库存系统" },
     ].map((item) => `
       <article>
         <span>${escapeHtml(item.label)}</span>
@@ -472,34 +467,17 @@ function renderFinanceFlow() {
       </div>
     `
   );
-  rows(
-    "financeWarehouseFlowRows",
-    warehouseItems.slice(0, 8),
-    (item) => `
-      <div class="good-row">
-        <span>${escapeHtml(item.sku || "-")} · ${escapeHtml(item.name || "-")}</span>
-        <strong>成都仓余 ${num(item.current_balance, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml((item.destinations || []).map((entry) => `${entry.destination} ${num(entry.quantity, 2)}`).join(" / ") || "本月暂无成都仓出库")}</em>
-      </div>
-    `
-  );
 }
 
 async function loadFinanceFlow() {
-  const month = financeFlowMonthValue();
   text("financeFlowStatus", "读取中");
   try {
-    const [flowResponse, warehouseResponse] = await Promise.all([
-      fetch(SUPPLY_CHAIN_FLOW_URL),
-      fetch(`${INVENTORY_FLOW_URL}?month=${encodeURIComponent(month)}&limit=120`),
-    ]);
+    const flowResponse = await fetch(SUPPLY_CHAIN_FLOW_URL);
     if (!flowResponse.ok) throw new Error(`inventory ${flowResponse.status}`);
     financeFlowState.payload = await flowResponse.json();
-    financeFlowState.warehousePayload = warehouseResponse.ok ? await warehouseResponse.json() : { items: [], recent_movements: [], totals: {} };
     renderFinanceFlow();
   } catch {
     financeFlowState.payload = { items: [], recent_events: [], locations: [], totals: {} };
-    financeFlowState.warehousePayload = { items: [], recent_movements: [], totals: {} };
     text("financeFlowStatus", "读取失败");
     renderFinanceFlow();
   }
