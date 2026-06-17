@@ -269,7 +269,7 @@
       "id": "flow.inventory",
       "name": "库存全自动",
       "center": "直营店货流中心",
-      "module": "成都库存管理",
+      "module": "成都仓库存管理",
       "status": "running",
       "risk": "medium",
       "schedule": "云端库存服务持续运行",
