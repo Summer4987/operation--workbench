@@ -337,9 +337,15 @@
                 <div class="finance-form-head">
                   <div>
                     <span>货权流向录入</span>
-                    <strong>采购、调拨、销售、耗用都从这里记</strong>
+                    <strong>生产批次、工厂暂存、发货、应收应付都从这里记</strong>
                   </div>
                   <button type="submit">保存流向</button>
+                </div>
+                <div class="finance-flow-presets" aria-label="货权流向常用动作">
+                  <button type="button" data-flow-preset="production">生产暂存</button>
+                  <button type="button" data-flow-preset="warehouse_sale">发北京仓</button>
+                  <button type="button" data-flow-preset="direct_store">发直营店</button>
+                  <button type="button" data-flow-preset="settlement">批次结算</button>
                 </div>
                 <div class="finance-flow-entry-grid">
                   <label>
@@ -349,24 +355,25 @@
                   <label>
                     <span>动作</span>
                     <select name="event_type" required>
-                      <option value="采购">采购</option>
+                      <option value="生产">生产</option>
                       <option value="调拨">调拨</option>
                       <option value="销售">销售</option>
-                      <option value="耗用">耗用</option>
+                      <option value="领用">领用</option>
+                      <option value="结算">结算</option>
                       <option value="调整">调整</option>
                     </select>
                   </label>
                   <label>
                     <span>批次号</span>
-                    <input name="lot_id" type="text" placeholder="例如 20260617-牛五花" required />
+                    <input name="lot_id" type="text" list="financeFlowLotOptions" placeholder="例如 20260610-牛五花牛排" required />
                   </label>
                   <label>
                     <span>货品</span>
-                    <input name="product_name" type="text" placeholder="例如 牛五花牛排" required />
+                    <input name="product_name" type="text" list="financeFlowProductOptions" placeholder="例如 牛五花牛排" required />
                   </label>
                   <label>
                     <span>工厂/供应商</span>
-                    <input name="factory" type="text" placeholder="例如 某某工厂" />
+                    <input name="factory" type="text" list="financeFlowFactoryOptions" placeholder="例如 牛五花牛排工厂" />
                   </label>
                   <label>
                     <span>数量</span>
@@ -374,14 +381,15 @@
                   </label>
                   <label>
                     <span>单位</span>
-                    <input name="unit" type="text" value="kg" />
+                    <input name="unit" type="text" value="件" />
                   </label>
                   <label>
                     <span>来源位置</span>
                     <select name="from_location">
                       <option value="">无</option>
                       <option value="工厂暂存">工厂暂存</option>
-                      <option value="北京">北京</option>
+                      <option value="北京仓">北京仓</option>
+                      <option value="北京直营店">北京直营店</option>
                       <option value="成都仓">成都仓</option>
                       <option value="在途">在途</option>
                     </select>
@@ -390,19 +398,33 @@
                     <span>去向位置</span>
                     <select name="to_location">
                       <option value="工厂暂存">工厂暂存</option>
-                      <option value="北京">北京</option>
+                      <option value="北京仓">北京仓</option>
+                      <option value="北京直营店">北京直营店</option>
                       <option value="成都仓">成都仓</option>
                       <option value="在途">在途</option>
                       <option value="">无</option>
                     </select>
                   </label>
                   <label>
-                    <span>已付款</span>
+                    <span>形成应付</span>
+                    <input name="payable_amount" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>已结算付款</span>
                     <input name="paid_amount" type="number" min="0" step="0.01" placeholder="0.00" />
                   </label>
                   <label>
                     <span>形成应收</span>
                     <input name="receivable_amount" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>结算方式</span>
+                    <select name="settlement_status">
+                      <option value="批次用完结算">批次用完结算</option>
+                      <option value="未结算">未结算</option>
+                      <option value="部分结算">部分结算</option>
+                      <option value="已结算">已结算</option>
+                    </select>
                   </label>
                   <label>
                     <span>客户/去向</span>
@@ -413,6 +435,16 @@
                     <textarea name="note" rows="2" placeholder="例如：采购后仍在工厂，或从工厂调拨到北京"></textarea>
                   </label>
                 </div>
+                <datalist id="financeFlowLotOptions">
+                  <option value="20260610-牛五花牛排"></option>
+                  <option value="20260616-牛五花牛排"></option>
+                </datalist>
+                <datalist id="financeFlowProductOptions">
+                  <option value="牛五花牛排"></option>
+                </datalist>
+                <datalist id="financeFlowFactoryOptions">
+                  <option value="牛五花牛排工厂"></option>
+                </datalist>
                 <div class="finance-form-message" id="financeFlowEntryMessage">这张表管理的是公司货权库存，不等同于成都仓库存。</div>
               </form>
               <div class="finance-flow-toolbar">

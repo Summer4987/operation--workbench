@@ -342,6 +342,69 @@ function financeFlowMatches(item, term) {
   return `${item.lot_id || ""} ${item.product_name || ""} ${item.factory || ""} ${locations}`.toLowerCase().includes(term);
 }
 
+const financeFlowPresets = {
+  production: {
+    event_type: "生产",
+    product_name: "牛五花牛排",
+    factory: "牛五花牛排工厂",
+    unit: "件",
+    from_location: "",
+    to_location: "工厂暂存",
+    settlement_status: "批次用完结算",
+    counterparty: "牛五花牛排工厂",
+    note: "工厂生产完成，货权暂存工厂，批次用完后结算应付。",
+  },
+  warehouse_sale: {
+    event_type: "销售",
+    product_name: "牛五花牛排",
+    factory: "牛五花牛排工厂",
+    unit: "件",
+    from_location: "工厂暂存",
+    to_location: "北京仓",
+    settlement_status: "批次用完结算",
+    counterparty: "北京仓",
+    note: "发给北京仓，形成供应链应收。",
+  },
+  direct_store: {
+    event_type: "领用",
+    product_name: "牛五花牛排",
+    factory: "牛五花牛排工厂",
+    unit: "件",
+    from_location: "工厂暂存",
+    to_location: "北京直营店",
+    settlement_status: "批次用完结算",
+    counterparty: "北京直营店",
+    note: "发给北京直营店，作为门店领用/成本归集。",
+  },
+  settlement: {
+    event_type: "结算",
+    product_name: "牛五花牛排",
+    factory: "牛五花牛排工厂",
+    unit: "件",
+    from_location: "",
+    to_location: "",
+    settlement_status: "已结算",
+    counterparty: "牛五花牛排工厂",
+    note: "批次用完后与工厂结算付款，冲减应付。",
+  },
+};
+
+function applyFinanceFlowPreset(form, presetKey) {
+  const preset = financeFlowPresets[presetKey];
+  if (!form || !preset) return;
+  Object.entries(preset).forEach(([name, value]) => {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (field) field.value = value;
+  });
+  if (presetKey === "production") {
+    const dateValue = form.querySelector('[name="date"]')?.value || "";
+    const lotField = form.querySelector('[name="lot_id"]');
+    if (lotField && !lotField.value && dateValue) {
+      lotField.value = `${dateValue.replaceAll("-", "")}-牛五花牛排`;
+    }
+  }
+}
+
 function renderFinanceFlow() {
   const payload = financeFlowState.payload || {};
   const warehousePayload = financeFlowState.warehousePayload || {};
@@ -354,8 +417,9 @@ function renderFinanceFlow() {
     "financeFlowKpis",
     [
       { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪" },
-      { label: "已付货款", value: yuan(totals.paid_amount), detail: "采购动作里登记的已付款" },
-      { label: "供应链应收", value: yuan(totals.receivable_amount), detail: "销售动作里形成的应收" },
+      { label: "供应链应付", value: yuan(totals.payable_amount), detail: `未结算 ${yuan(totals.open_payable_amount)}` },
+      { label: "供应链应收", value: yuan(totals.receivable_amount), detail: `未收 ${yuan(totals.open_receivable_amount)}` },
+      { label: "已结算付款", value: yuan(totals.paid_amount), detail: "批次用完后结算付款" },
       { label: "成都仓参考", value: `${warehouseItems.length} 项`, detail: "来自现有成都仓库存系统" },
     ].map((item) => `
       <article>
@@ -376,11 +440,12 @@ function renderFinanceFlow() {
       const outbound = Number(item.out_quantity || 0);
       const balance = Number(item.balance_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
+      const money = `应付 ${yuan(item.payable_amount)} / 已结 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)}`;
       return `
         <div class="${rowClass}">
           <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
           <strong>购 ${num(purchased, 2)} / 出 ${num(outbound, 2)} / 余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
-          <em>${escapeHtml(locations)}${item.factory ? ` · ${escapeHtml(item.factory)}` : ""}</em>
+          <em>${escapeHtml(locations)}${item.factory ? ` · ${escapeHtml(item.factory)}` : ""} · ${escapeHtml(money)}</em>
         </div>
       `;
     }
@@ -400,10 +465,10 @@ function renderFinanceFlow() {
     "financeFlowMovementRows",
     (payload.recent_events || []).slice(0, 16),
     (item) => `
-      <div class="${item.event_type === "采购" || item.event_type === "调拨" ? "good-row" : "warn-row"}">
+      <div class="${["生产", "采购", "调拨"].includes(item.event_type) ? "good-row" : "warn-row"}">
         <span>${escapeHtml(item.date || "-")} · ${escapeHtml(item.event_type || "-")} · ${escapeHtml(item.lot_id || "-")}</span>
         <strong>${escapeHtml(item.product_name || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}</em>
+        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.payable_amount ? ` · 应付 ${yuan(item.payable_amount)}` : ""}</em>
       </div>
     `
   );
@@ -453,6 +518,9 @@ function initializeFinanceFlowControls() {
     const form = document.querySelector("#financeFlowEntryForm");
     const dateInput = form?.querySelector('[name="date"]');
     if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    form?.querySelectorAll("[data-flow-preset]").forEach((button) => {
+      button.addEventListener("click", () => applyFinanceFlowPreset(form, button.dataset.flowPreset));
+    });
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const formData = new FormData(form);
@@ -467,8 +535,10 @@ function initializeFinanceFlowControls() {
         unit: formData.get("unit") || "",
         from_location: formData.get("from_location") || "",
         to_location: formData.get("to_location") || "",
+        payable_amount: Number(formData.get("payable_amount") || 0),
         paid_amount: Number(formData.get("paid_amount") || 0),
         receivable_amount: Number(formData.get("receivable_amount") || 0),
+        settlement_status: formData.get("settlement_status") || "",
         counterparty: formData.get("counterparty") || "",
         note: formData.get("note") || "",
       };
@@ -487,6 +557,10 @@ function initializeFinanceFlowControls() {
         text("financeFlowEntryMessage", "已保存到云端货权流向台账。");
         form.reset();
         if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+        const unitInput = form.querySelector('[name="unit"]');
+        if (unitInput) unitInput.value = "件";
+        const settlementInput = form.querySelector('[name="settlement_status"]');
+        if (settlementInput) settlementInput.value = "批次用完结算";
         renderFinanceFlow();
       } catch (error) {
         text("financeFlowEntryMessage", error.message || "云端保存失败，请稍后重试。");

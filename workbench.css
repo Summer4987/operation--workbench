@@ -1401,6 +1401,31 @@ h2 {
   gap: 10px;
 }
 
+.finance-flow-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.finance-flow-presets button {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.finance-flow-presets button:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
 .finance-flow-entry-grid label {
   min-width: 0;
   display: grid;

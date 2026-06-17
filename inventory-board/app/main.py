@@ -710,6 +710,7 @@ def _supply_chain_flow_summary() -> dict:
     lots: dict[str, dict] = {}
     location_totals: dict[str, float] = {}
     receivable_total = 0.0
+    payable_total = 0.0
     paid_total = 0.0
 
     for entry in entries:
@@ -726,6 +727,7 @@ def _supply_chain_flow_summary() -> dict:
                 "unit_cost": entry.get("unit_cost") or 0,
                 "purchase_quantity": 0.0,
                 "out_quantity": 0.0,
+                "payable_amount": 0.0,
                 "paid_amount": 0.0,
                 "receivable_amount": 0.0,
                 "locations": {},
@@ -743,22 +745,27 @@ def _supply_chain_flow_summary() -> dict:
 
         from_location = entry.get("from_location") or ""
         to_location = entry.get("to_location") or ""
+        payable_amount = float(entry.get("payable_amount") or 0)
         paid_amount = float(entry.get("paid_amount") or 0)
         receivable_amount = float(entry.get("receivable_amount") or 0)
+        payable_total += payable_amount
         paid_total += paid_amount
         receivable_total += receivable_amount
+        lot["payable_amount"] += payable_amount
         lot["paid_amount"] += paid_amount
         lot["receivable_amount"] += receivable_amount
 
-        if event_type == "采购":
+        if event_type in {"生产", "采购"}:
             lot["purchase_quantity"] += quantity
             _add_location_balance(lot["locations"], to_location or "工厂暂存", quantity)
         elif event_type == "调拨":
             _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
             _add_location_balance(lot["locations"], to_location or "在途", quantity)
-        elif event_type in {"销售", "耗用"}:
+        elif event_type in {"销售", "领用", "耗用"}:
             lot["out_quantity"] += quantity
             _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
+        elif event_type == "结算":
+            pass
         elif event_type == "调整":
             if from_location:
                 _add_location_balance(lot["locations"], from_location, -quantity)
@@ -787,8 +794,11 @@ def _supply_chain_flow_summary() -> dict:
         ],
         "totals": {
             "lot_count": len(lots),
+            "payable_amount": payable_total,
             "paid_amount": paid_total,
             "receivable_amount": receivable_total,
+            "open_payable_amount": max(payable_total - paid_total, 0),
+            "open_receivable_amount": receivable_total,
         },
     }
 
@@ -802,13 +812,15 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="货权流向数据格式不正确")
     event_type = str(payload.get("event_type") or "")[:20]
-    if event_type not in {"采购", "调拨", "销售", "耗用", "调整"}:
-        raise HTTPException(status_code=400, detail="请选择采购、调拨、销售、耗用或调整")
+    if event_type not in {"生产", "采购", "调拨", "销售", "领用", "耗用", "结算", "调整"}:
+        raise HTTPException(status_code=400, detail="请选择生产、调拨、销售、领用、结算或调整")
     try:
         quantity = float(payload.get("quantity") or 0)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="数量必须是数字") from exc
-    if quantity <= 0:
+    if event_type == "结算" and quantity < 0:
+        raise HTTPException(status_code=400, detail="结算数量不能小于 0")
+    if event_type != "结算" and quantity <= 0:
         raise HTTPException(status_code=400, detail="数量必须大于 0")
     lot_id = str(payload.get("lot_id") or "")[:80].strip()
     product_name = str(payload.get("product_name") or "")[:120].strip()
@@ -816,6 +828,7 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail="批次号和货品名称不能为空")
     try:
         unit_cost = float(payload.get("unit_cost") or 0)
+        payable_amount = float(payload.get("payable_amount") or 0)
         paid_amount = float(payload.get("paid_amount") or 0)
         receivable_amount = float(payload.get("receivable_amount") or 0)
     except Exception as exc:
@@ -831,8 +844,10 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         "quantity": quantity,
         "unit": str(payload.get("unit") or "")[:20],
         "unit_cost": max(unit_cost, 0),
+        "payable_amount": max(payable_amount, 0),
         "paid_amount": max(paid_amount, 0),
         "receivable_amount": max(receivable_amount, 0),
+        "settlement_status": str(payload.get("settlement_status") or "")[:40],
         "from_location": str(payload.get("from_location") or "")[:80],
         "to_location": str(payload.get("to_location") or "")[:80],
         "counterparty": str(payload.get("counterparty") or "")[:120],
@@ -841,12 +856,14 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
     }
     if not entry["date"]:
         raise HTTPException(status_code=400, detail="日期不能为空")
-    if event_type == "采购" and not entry["to_location"]:
-        raise HTTPException(status_code=400, detail="采购需要填写货物当前位置")
+    if event_type in {"生产", "采购"} and not entry["to_location"]:
+        raise HTTPException(status_code=400, detail="生产或采购需要填写货物当前位置")
     if event_type == "调拨" and (not entry["from_location"] or not entry["to_location"]):
         raise HTTPException(status_code=400, detail="调拨需要填写来源和去向")
-    if event_type in {"销售", "耗用"} and not entry["from_location"]:
-        raise HTTPException(status_code=400, detail="销售或耗用需要填写从哪里发出")
+    if event_type in {"销售", "领用", "耗用"} and not entry["from_location"]:
+        raise HTTPException(status_code=400, detail="销售或领用需要填写从哪里发出")
+    if event_type == "结算" and not entry["paid_amount"]:
+        raise HTTPException(status_code=400, detail="结算需要填写已结算付款金额")
     return entry
 
 
