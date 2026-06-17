@@ -244,6 +244,72 @@ def query_visible_in_search_header(xml_text: str, query: str) -> bool:
     return False
 
 
+def search_page_context(xml_text: str, query: str) -> dict[str, Any]:
+    compact_query = normalize_text(query)
+    header_texts: list[str] = []
+    sort_hits: set[str] = set()
+    blocking_reasons: list[str] = []
+    promotion_top_hits: list[str] = []
+    search_overlay_hits: list[str] = []
+
+    for node in parse_ui_nodes(xml_text):
+        text = node_text(node)
+        display_text = str(node.get("text") or node.get("content-desc") or "").strip()
+        bounds = node.get("bounds") or []
+        if len(bounds) != 4 or bounds == [0, 0, 0, 0] or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        x1, y1, x2, y2 = bounds
+        if y1 <= 280 and (
+            text in {"promotion-navbar-container", "promotion-common", "输入商品名称", "分享"}
+            or "promotion-navbar" in text
+        ):
+            promotion_top_hits.append(text)
+        if y1 <= 900 and display_text in {"历史搜索", "猜你想搜"}:
+            search_overlay_hits.append(display_text)
+        if 80 <= y1 <= 245 and 80 <= x1 <= 930 and 160 <= x2 <= 930:
+            ignored_header_terms = [
+                "filter-item",
+                "全部-",
+                "商品分类",
+                "是否带皮",
+                "等级",
+                "净重",
+                "月售",
+                "带皮",
+                "新货上市",
+                "袋装",
+                "紫皮洋葱",
+            ]
+            if display_text and display_text not in {"搜索"}:
+                if any(term in display_text for term in ignored_header_terms):
+                    continue
+                if not re.fullmatch(r"[\ue000-\uf8ff]+", display_text):
+                    header_texts.append(display_text)
+        if 230 <= y1 <= 340 and display_text in {"综合排序", "销量", "价格", "店铺", "筛选"}:
+            sort_hits.add(display_text)
+
+    unique_headers = list(dict.fromkeys(header_texts))
+    matching_headers = [
+        text for text in unique_headers if compact_query and (compact_query in normalize_text(text) or normalize_text(text) in compact_query)
+    ]
+    if promotion_top_hits:
+        blocking_reasons.append("检测到详情/活动页顶层导航")
+    if search_overlay_hits:
+        blocking_reasons.append("检测到搜索输入/历史页")
+    if compact_query and not matching_headers:
+        blocking_reasons.append("顶部搜索区未匹配当前搜索词")
+    if not {"综合排序", "销量", "价格"}.issubset(sort_hits):
+        blocking_reasons.append("未识别到搜索结果排序栏")
+    return {
+        "blocking_reasons": blocking_reasons,
+        "header_texts": unique_headers[:12],
+        "matching_headers": matching_headers,
+        "sort_hits": sorted(sort_hits),
+        "promotion_top_hits": list(dict.fromkeys(promotion_top_hits)),
+        "search_overlay_hits": list(dict.fromkeys(search_overlay_hits)),
+    }
+
+
 def extract_candidates(
     xml_text: str,
     query: str,
@@ -365,6 +431,25 @@ def build_payload(
                 "screen": (snapshot or {}).get("screen_path", ""),
             },
             "summary": {"candidate_count": 0},
+            "items": [],
+        }
+    page_context = search_page_context(xml_text, query)
+    if page_context["blocking_reasons"]:
+        return {
+            "generated_at": now_text(),
+            "status": "blocked",
+            "message": "当前页面不像单一搜索结果页，拒绝抽取候选；请先回到搜索结果页并切换排序。",
+            "capture": {
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "line_name": line_name,
+                "source": "adb_xml",
+                "snapshot_dir": (snapshot or {}).get("session_dir", ""),
+                "screen": (snapshot or {}).get("screen_path", ""),
+            },
+            "summary": {"candidate_count": 0},
+            "page_context": page_context,
             "items": [],
         }
     if not query_visible_in_search_header(xml_text, query):
