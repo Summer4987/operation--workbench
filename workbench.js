@@ -2107,7 +2107,7 @@ function renderFinance() {
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
   const reviewRows = [
-    ...ledgerReviewRows.slice(0, 12).map((item, index) => ({
+    ...ledgerReviewRows.slice(0, 120).map((item, index) => ({
       ...item,
       index,
       label: item.direction || "待确认",
@@ -2115,7 +2115,7 @@ function renderFinance() {
       detail: `${item.counterparty || ""} · ${item.channel_name || "未知渠道"} · ${item.ledger_name || "待确认账本"}`,
       warn: true,
     })),
-    ...(!ledgerReviewRows.length ? channelReviewRows.slice(0, 12).map((item, index) => ({
+    ...(!ledgerReviewRows.length ? channelReviewRows.slice(0, 120).map((item, index) => ({
       ...item,
       index,
       label: item.direction || "待确认",
@@ -2124,7 +2124,7 @@ function renderFinance() {
       warn: true,
     })) : []),
   ];
-  text("financeReviewStatus", reviewRows.length ? `${reviewRows.length} 条` : "暂无");
+  text("financeReviewStatus", ledgerReviewRows.length ? `${ledgerReviewRows.length} 条待确认` : reviewRows.length ? `${reviewRows.length} 条待确认` : "暂无");
   html(
     "financeReviewRows",
     reviewRows.length
