@@ -292,13 +292,14 @@ def search_page_context(xml_text: str, query: str) -> dict[str, Any]:
     matching_headers = [
         text for text in unique_headers if compact_query and (compact_query in normalize_text(text) or normalize_text(text) in compact_query)
     ]
+    has_core_sort = {"综合排序", "销量", "价格"}.issubset(sort_hits)
     if promotion_top_hits:
         blocking_reasons.append("检测到详情/活动页顶层导航")
-    if search_overlay_hits:
+    if search_overlay_hits and not has_core_sort:
         blocking_reasons.append("检测到搜索输入/历史页")
     if compact_query and not matching_headers:
         blocking_reasons.append("顶部搜索区未匹配当前搜索词")
-    if not {"综合排序", "销量", "价格"}.issubset(sort_hits):
+    if not has_core_sort:
         blocking_reasons.append("未识别到搜索结果排序栏")
     return {
         "blocking_reasons": blocking_reasons,
