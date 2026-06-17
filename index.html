@@ -436,22 +436,27 @@
                 <button type="button" id="financeFlowRefresh">刷新</button>
               </div>
               <div class="finance-flow-kpis" id="financeFlowKpis"></div>
-              <div class="finance-flow-layout">
-                <section>
-                  <div class="finance-flow-title">
-                    <strong>采购批次余额</strong>
-                    <span>按工厂、北京仓、直营店和在途汇总</span>
-                  </div>
-                  <div class="mini-table finance-flow-list" id="financeFlowRows"></div>
-                </section>
-                <section>
+              <div class="finance-flow-workspace">
+                <section class="finance-flow-location-panel">
                   <div class="finance-flow-title">
                     <strong>位置汇总</strong>
-                    <span>这是供应链货权位置，不等同于仓库库存</span>
+                    <span>点击位置查看批次</span>
                   </div>
-                  <div class="mini-table" id="financeFlowLocationRows"></div>
+                  <div class="finance-flow-location-grid" id="financeFlowLocationRows"></div>
+                </section>
+                <section class="finance-flow-selected-panel">
+                  <div class="finance-flow-title">
+                    <strong id="financeFlowSelectedTitle">位置明细</strong>
+                    <span id="financeFlowSelectedMeta">选择左侧位置后查看</span>
+                  </div>
+                  <div class="mini-table finance-flow-selected-list" id="financeFlowSelectedRows"></div>
                 </section>
               </div>
+              <div class="finance-flow-title">
+                <strong>采购批次余额</strong>
+                <span>按批次追踪总量、出库和余额</span>
+              </div>
+              <div class="mini-table finance-flow-list" id="financeFlowRows"></div>
               <div class="finance-flow-title">
                 <strong>最近货权动作</strong>
                 <span>采购、调拨、销售、耗用记录</span>

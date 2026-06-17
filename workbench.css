@@ -1505,12 +1505,12 @@ h2 {
 
 .finance-flow-kpis article {
   min-width: 0;
-  padding: 13px;
+  padding: 10px 12px;
   border: 1px solid #e3eaf2;
   border-radius: 8px;
   background: #fff;
   display: grid;
-  gap: 5px;
+  gap: 3px;
 }
 
 .finance-flow-kpis span,
@@ -1523,20 +1523,75 @@ h2 {
 
 .finance-flow-kpis strong {
   color: #111827;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.15;
 }
 
-.finance-flow-layout {
+.finance-flow-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
   gap: 14px;
 }
 
-.finance-flow-layout > section {
+.finance-flow-workspace > section {
   min-width: 0;
   display: grid;
   gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid #e3eaf2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.finance-flow-location-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.finance-flow-location-button {
+  min-width: 0;
+  min-height: 74px;
+  padding: 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  font: inherit;
+}
+
+.finance-flow-location-button:hover,
+.finance-flow-location-button.active {
+  border-color: #0f766e;
+  background: #ecfdf5;
+}
+
+.finance-flow-location-button span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-flow-location-button strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.05;
+}
+
+.finance-flow-location-button em {
+  color: #667085;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.finance-flow-selected-list {
+  min-height: 168px;
 }
 
 .finance-flow-title {
@@ -2892,7 +2947,8 @@ h2 {
   .finance-flow-entry-grid,
   .finance-flow-toolbar,
   .finance-flow-kpis,
-  .finance-flow-layout,
+  .finance-flow-workspace,
+  .finance-flow-location-grid,
   .finance-opening-grid,
   .finance-upload-controls,
   .finance-review-controls,

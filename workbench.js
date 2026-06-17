@@ -188,6 +188,7 @@ const FINANCE_ARAP_ENTRIES_KEY = "xiong_finance_arap_entries_v1";
 const FINANCE_OPENING_ENTRIES_KEY = "xiong_finance_opening_entries_v1";
 const financeFlowState = {
   payload: null,
+  selectedLocation: "",
 };
 
 function readLocalList(key) {
@@ -340,6 +341,22 @@ function financeFlowMatches(item, term) {
   return `${item.lot_id || ""} ${item.product_name || ""} ${item.factory || ""} ${locations}`.toLowerCase().includes(term);
 }
 
+function financeFlowLocationItems(items, location) {
+  if (!location) return [];
+  return (items || [])
+    .map((item) => {
+      const locationEntry = (item.locations || []).find((entry) => entry.location === location);
+      if (!locationEntry) return null;
+      return { ...item, selected_location_quantity: Number(locationEntry.quantity || 0) };
+    })
+    .filter(Boolean);
+}
+
+function financeFlowLocationEvents(events, location) {
+  if (!location) return [];
+  return (events || []).filter((event) => event.from_location === location || event.to_location === location);
+}
+
 const financeFlowSettlementPrices = [
   { sku: "牛五花牛排", spec: "20kg/箱", prices: { 北京直营店: 1316.51, 成都直营店: 1316.51, 北京仓: 1500 } },
   { sku: "嫩肩牛肉", spec: "27.5kg/箱", prices: { 北京直营店: 2255, 成都直营店: 2255, 北京仓: 2420 } },
@@ -485,6 +502,13 @@ function renderFinanceFlow() {
   const term = financeFlowSearchValue();
   const items = (payload.items || []).filter((item) => financeFlowMatches(item, term));
   const totals = payload.totals || {};
+  const locations = payload.locations || [];
+  if (!financeFlowState.selectedLocation || !locations.some((entry) => entry.location === financeFlowState.selectedLocation)) {
+    financeFlowState.selectedLocation = locations[0]?.location || "";
+  }
+  const selectedLocation = financeFlowState.selectedLocation;
+  const selectedItems = financeFlowLocationItems(items, selectedLocation);
+  const selectedEvents = financeFlowLocationEvents(payload.recent_events || [], selectedLocation);
   text("financeFlowStatus", payload.items ? `${items.length} 个批次` : "待读取");
   html(
     "financeFlowKpis",
@@ -524,12 +548,30 @@ function renderFinanceFlow() {
   );
   rows(
     "financeFlowLocationRows",
-    payload.locations || [],
+    locations,
     (entry) => `
-      <div class="good-row">
+      <button class="finance-flow-location-button ${entry.location === selectedLocation ? "active" : ""}" type="button" data-location="${escapeHtml(entry.location || "")}">
         <span>${escapeHtml(entry.location || "未指定位置")}</span>
         <strong>${num(entry.quantity, 2)}</strong>
-        <em>所有采购批次当前位置合计</em>
+        <em>${entry.location === selectedLocation ? "正在查看" : "点击查看"}</em>
+      </button>
+    `
+  );
+  text("financeFlowSelectedTitle", selectedLocation || "位置明细");
+  text(
+    "financeFlowSelectedMeta",
+    selectedLocation
+      ? `${selectedItems.length} 个批次 · ${selectedEvents.length} 条动作`
+      : "暂无位置数据"
+  );
+  rows(
+    "financeFlowSelectedRows",
+    selectedItems,
+    (item) => `
+      <div class="${Number(item.selected_location_quantity || 0) < 0 ? "warn-row" : "good-row"}">
+        <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
+        <strong>${num(item.selected_location_quantity, 2)}${escapeHtml(item.unit || "")}</strong>
+        <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · 应付 ${yuan(item.payable_amount)}</em>
       </div>
     `
   );
@@ -570,6 +612,12 @@ function initializeFinanceFlowControls() {
     document.querySelector("#financeFlowRefresh")?.addEventListener("click", loadFinanceFlow);
     monthInput?.addEventListener("change", loadFinanceFlow);
     document.querySelector("#financeFlowSearch")?.addEventListener("input", renderFinanceFlow);
+    document.querySelector("#financeFlowLocationRows")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-location]");
+      if (!button) return;
+      financeFlowState.selectedLocation = button.dataset.location || "";
+      renderFinanceFlow();
+    });
     const form = document.querySelector("#financeFlowEntryForm");
     const dateInput = form?.querySelector('[name="date"]');
     if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
