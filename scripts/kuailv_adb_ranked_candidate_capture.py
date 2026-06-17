@@ -595,7 +595,7 @@ def scroll_results(serial: str, scroll_count: int, timeout: int) -> dict[str, An
     base = adb_base(serial)
     commands = []
     for _ in range(max(0, scroll_count)):
-        commands.append(run_command(base + ["shell", "input", "swipe", "820", "1880", "820", "820", "550"], timeout))
+        commands.append(run_command(base + ["shell", "input", "swipe", "500", "1880", "500", "820", "700"], timeout))
         time.sleep(0.4)
     ok = all(command.get("returncode") == 0 for command in commands)
     return {"status": "scrolled" if ok else "blocked", "count": max(0, scroll_count), "commands": commands}
