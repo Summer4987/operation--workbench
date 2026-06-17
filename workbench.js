@@ -451,11 +451,11 @@ function updateFinanceFlowCalculatedAmounts(form) {
   if (receivedField) receivedField.value = "0";
   if (unitPriceField) unitPriceField.value = String(unitPrice || 0);
   if (settlementField) {
-    settlementField.value = paymentStatus === "已付工厂" || paymentStatus === "已收客户款" ? "部分已结算" : "批次用完结算";
+    settlementField.value = paymentStatus === "已付工厂" || paymentStatus === "北京仓已收" ? "部分已结算" : "批次用完结算";
   }
   if (["销售", "领用"].includes(eventType) && receivableBucket) {
     if (receivableField) receivableField.value = String(amount);
-    if (paymentStatus === "已收客户款" && receivedField) receivedField.value = String(amount);
+    if (paymentStatus === "北京仓已收" && receivedField) receivedField.value = String(amount);
   } else if (paymentStatus === "已付工厂") {
     if (paidField) paidField.value = String(amount);
   } else {
@@ -529,7 +529,7 @@ function renderFinanceFlow() {
       { label: "工厂应付", value: yuan(totals.payable_amount), detail: `待付工厂 ${yuan(totals.open_payable_amount)}` },
       { label: "北京仓应收", value: yuan(totals.beijing_warehouse_receivable_amount), detail: `未收 ${yuan(totals.open_beijing_warehouse_receivable_amount)}` },
       { label: "直营店应收", value: yuan(totals.direct_store_receivable_amount), detail: `北京直营店 + 成都仓，未收 ${yuan(totals.open_direct_store_receivable_amount)}` },
-      { label: "已收客户款", value: yuan(totals.received_amount), detail: `你已收到款；待付工厂 ${yuan(totals.open_payable_amount)}` },
+      { label: "北京仓已收", value: yuan(totals.received_amount), detail: `北京仓已付款；待付工厂 ${yuan(totals.open_payable_amount)}` },
     ].map((item) => `
       <article>
         <span>${escapeHtml(item.label)}</span>
@@ -549,7 +549,7 @@ function renderFinanceFlow() {
       const outbound = Number(item.out_quantity || 0);
       const balance = Number(item.balance_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
-      const money = `工厂应付 ${yuan(item.payable_amount)} / 已付工厂 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)} / 已收客户 ${yuan(item.received_amount)}`;
+      const money = `工厂应付 ${yuan(item.payable_amount)} / 已付工厂 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)} / 北京仓已收 ${yuan(item.received_amount)}`;
       return `
         <div class="${rowClass}">
           <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
@@ -595,7 +595,7 @@ function renderFinanceFlow() {
       <div class="${["生产", "采购", "调拨"].includes(item.event_type) ? "good-row" : "warn-row"}">
         <span>${escapeHtml(item.date || "-")} · ${escapeHtml(item.event_type || "-")} · ${escapeHtml(item.lot_id || "-")}</span>
         <strong>${escapeHtml(item.product_name || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.received_amount ? ` · 已收客户 ${yuan(item.received_amount)}` : ""}${item.payable_amount ? ` · 工厂应付 ${yuan(item.payable_amount)}` : ""}${item.paid_amount ? ` · 已付工厂 ${yuan(item.paid_amount)}` : ""}</em>
+        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.received_amount ? ` · 北京仓已收 ${yuan(item.received_amount)}` : ""}${item.payable_amount ? ` · 工厂应付 ${yuan(item.payable_amount)}` : ""}${item.paid_amount ? ` · 已付工厂 ${yuan(item.paid_amount)}` : ""}</em>
       </div>
     `
   );
