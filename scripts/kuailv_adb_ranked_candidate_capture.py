@@ -449,7 +449,7 @@ def search_page_context(xml_text: str, query: str) -> dict[str, Any]:
                     continue
                 if not re.fullmatch(r"[\ue000-\uf8ff]+", display_text):
                     header_texts.append(display_text)
-        if 230 <= y1 <= 340 and display_text in {"综合排序", "销量", "价格", "店铺", "筛选"}:
+        if 230 <= y1 <= 760 and display_text in {"综合排序", "销量", "价格", "店铺", "筛选"}:
             sort_hits.add(display_text)
 
     unique_headers = list(dict.fromkeys(header_texts))
@@ -569,7 +569,7 @@ def find_sort_target(xml_text: str, sort_mode: str) -> dict[str, Any] | None:
             continue
         if bounds == [0, 0, 0, 0] or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
             continue
-        if not (190 <= bounds[1] <= 380):
+        if not (190 <= bounds[1] <= 760):
             continue
         cx, cy = bounds_center(tuple(bounds))
         candidates.append({"text": text, "bounds": bounds, "center": [cx, cy]})
