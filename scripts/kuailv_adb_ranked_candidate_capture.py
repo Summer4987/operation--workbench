@@ -16,6 +16,7 @@ from kuailv_order_dry_run import (
     CHANNEL,
     DEFAULT_SERVER,
     DEFAULT_TOKEN,
+    GLOBAL_REJECT_KEYWORDS,
     analyze_cart_review_xml,
     bounds_center,
     build_line_plan,
@@ -331,6 +332,7 @@ def extract_card_candidates(
     line_name: str,
 ) -> list[dict[str, Any]]:
     title_terms = allowed_title_terms(query, order, line_name)
+    rejected_terms = rejected_title_terms(order, line_name)
     candidates: list[dict[str, Any]] = []
     seen_titles: set[tuple[str, int]] = set()
     for group in product_card_groups(xml_text):
@@ -352,6 +354,8 @@ def extract_card_candidates(
         if not title_row:
             continue
         title = title_row["text"]
+        if has_rejected_title_text(title, texts, rejected_terms):
+            continue
         key = (title, int((card_bounds[1] if len(card_bounds) == 4 else title_row["bounds"][1]) / 30))
         if key in seen_titles:
             continue
@@ -417,6 +421,7 @@ def find_spec_control_target(
     candidate_index: int,
 ) -> dict[str, Any]:
     title_terms = allowed_title_terms(query, order, line_name)
+    rejected_terms = rejected_title_terms(order, line_name)
     matches: list[dict[str, Any]] = []
     for group in product_card_groups(xml_text):
         card_bounds = group["card"].get("bounds") or []
@@ -435,6 +440,8 @@ def find_spec_control_target(
                 title_row = row
                 break
         if not title_row:
+            continue
+        if has_rejected_title_text(title_row["text"], texts, rejected_terms):
             continue
         controls = [
             row
@@ -602,6 +609,11 @@ def infer_line_name(title: str, query: str, order: dict[str, Any] | None, explic
     return ""
 
 
+def title_identity_term(term: Any) -> str:
+    compact = normalize_text(term)
+    return re.sub(r"\d+(?:\.\d+)?(?:斤|kg|g|克|袋|盒|箱|桶|瓶|个)(?:/[^\s]*)?", "", compact)
+
+
 def allowed_title_terms(query: str, order: dict[str, Any] | None, line_name: str) -> list[str]:
     terms = [query, line_name]
     if order:
@@ -616,7 +628,35 @@ def allowed_title_terms(query: str, order: dict[str, Any] | None, line_name: str
                 if not any(name and (name in compact_query or compact_query in name) for name in compact_names):
                     continue
             terms.extend(str(name) for name in names if name)
+    normalized_terms: list[str] = []
+    for term in terms:
+        compact = normalize_text(term)
+        identity = title_identity_term(term)
+        if compact and not has_explicit_pack_text(compact):
+            normalized_terms.append(compact)
+        if identity and identity != compact:
+            normalized_terms.append(identity)
+    return list(dict.fromkeys(term for term in normalized_terms if term))
+
+
+def rejected_title_terms(order: dict[str, Any] | None, line_name: str) -> list[str]:
+    terms = list(GLOBAL_REJECT_KEYWORDS)
+    if order:
+        for item in kuailv_items(order):
+            line = build_line_plan(item)
+            if line_name and line.get("name") != line_name:
+                continue
+            terms.extend(str(word) for word in line.get("excluded_keywords") or [] if word)
     return list(dict.fromkeys(normalize_text(term) for term in terms if normalize_text(term)))
+
+
+def has_rejected_title_text(title: str, rows: list[dict[str, Any]], rejected_terms: list[str]) -> bool:
+    if not rejected_terms:
+        return False
+    title_text = normalize_text(title)
+    if any(term and term in title_text for term in rejected_terms):
+        return True
+    return any(term and term in normalize_text(row.get("text")) for row in rows[:4] for term in rejected_terms)
 
 
 def query_visible_in_search_header(xml_text: str, query: str) -> bool:

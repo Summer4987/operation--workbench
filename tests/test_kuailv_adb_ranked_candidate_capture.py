@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from kuailv_adb_ranked_candidate_capture import (  # noqa: E402
+    allowed_title_terms,
     build_spec_modal_payload,
     find_spec_control_target,
 )
@@ -48,6 +49,40 @@ class KuailvAdbRankedCandidateCaptureTest(unittest.TestCase):
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["target"]["title"], "黄皮洋葱精选")
         self.assertEqual(result["target"]["control_text"], "选规格")
+
+    def test_pack_search_terms_match_identity_title(self) -> None:
+        self.assertIn("胡萝卜", allowed_title_terms("胡萝卜5斤", None, "胡萝卜"))
+        self.assertNotIn("胡萝卜5斤", allowed_title_terms("胡萝卜5斤", None, "胡萝卜"))
+
+    def test_find_spec_control_target_skips_canteen_dish_title(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="" resource-id="search-page-container" bounds="[0,0][1080,2358]">
+    <node text="本地胡萝卜（断截）食堂菜" resource-id="complex-card-goods-1" bounds="[0,330][1080,650]" />
+    <node text="本地胡萝卜（断截）食堂菜" bounds="[300,360][760,420]" />
+    <node text="月售 7382" bounds="[300,430][480,470]" />
+    <node text="选规格" bounds="[850,540][1020,620]" />
+    <node text="断节胡萝卜" resource-id="complex-card-goods-2" bounds="[0,660][1080,970]" />
+    <node text="断节胡萝卜" bounds="[300,700][560,760]" />
+    <node text="月售 16000" bounds="[300,780][500,830]" />
+    <node text="选规格" bounds="[850,860][1020,940]" />
+  </node>
+</hierarchy>"""
+        order = {
+            "items": [
+                {
+                    "name": "胡萝卜",
+                    "quantity": 10,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ]
+        }
+
+        result = find_spec_control_target(xml_text, "胡萝卜5斤", order, "胡萝卜", 0)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["target"]["title"], "断节胡萝卜")
 
     def test_spec_modal_candidates_are_extracted(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
