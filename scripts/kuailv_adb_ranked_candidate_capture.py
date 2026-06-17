@@ -1081,6 +1081,9 @@ def main() -> int:
                 elif spec_payload.get("items"):
                     payload["status"] = "ready"
                     payload["message"] = "已从当前搜索结果页和规格弹窗抽取候选；未加购、未提交、未付款。"
+                else:
+                    payload["status"] = "needs_review"
+                    payload["message"] = "已抽取搜索页候选，但规格弹窗没有可安全读取的规格候选；未加购、未提交、未付款。"
                 if not args.leave_spec_modal:
                     payload["spec_modal_close"] = close_current_overlay(args.adb_serial.strip(), args.timeout)
         write_latest(payload)
