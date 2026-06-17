@@ -1,0 +1,69 @@
+{
+  "洋葱": [
+    {
+      "sku_id": "onion-20",
+      "title": "白皮洋葱",
+      "spec": "20斤",
+      "price": 28.8,
+      "available": true,
+      "bought_before": true
+    },
+    {
+      "sku_id": "onion-10",
+      "title": "白皮 洋葱",
+      "spec": "10斤",
+      "price": 12.7,
+      "available": true,
+      "self_operated": true
+    },
+    {
+      "sku_id": "yellow-onion-20",
+      "title": "黄皮洋葱",
+      "spec": "20斤",
+      "price": 30.5,
+      "available": true
+    }
+  ],
+  "豆腐": [
+    {
+      "sku_id": "tofu-good",
+      "title": "[其辉]胆水老豆腐",
+      "spec": "400g",
+      "price": 3.2,
+      "available": true,
+      "bought_before": true
+    },
+    {
+      "sku_id": "tofu-bad",
+      "title": "嫩豆腐",
+      "spec": "5斤 x 2盒",
+      "price": 21.8,
+      "available": true
+    }
+  ],
+  "圣女果": [
+    {
+      "sku_id": "tomato-6",
+      "title": "圣女果 小番茄",
+      "spec": "6斤",
+      "price": 42.5,
+      "available": true
+    }
+  ],
+  "樟树椒": [
+    {
+      "sku_id": "pepper-bad",
+      "title": "螺丝椒",
+      "spec": "5斤",
+      "price": 18.8,
+      "available": true
+    },
+    {
+      "sku_id": "pepper-good",
+      "title": "樟树椒",
+      "spec": "5斤",
+      "price": 22.5,
+      "available": true
+    }
+  ]
+}
