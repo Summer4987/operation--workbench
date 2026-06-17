@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -550,6 +551,46 @@ def capture_snapshot(serial: str, timeout: int) -> dict[str, Any]:
     }
 
 
+def sort_label_for_mode(sort_mode: str) -> str:
+    if sort_mode == "sales_desc":
+        return "销量"
+    if sort_mode == "price_asc":
+        return "价格"
+    return "综合排序"
+
+
+def find_sort_target(xml_text: str, sort_mode: str) -> dict[str, Any] | None:
+    target_label = sort_label_for_mode(sort_mode)
+    candidates = []
+    for node in parse_ui_nodes(xml_text):
+        text = display_text(node)
+        bounds = node.get("bounds") or []
+        if text != target_label or len(bounds) != 4:
+            continue
+        if bounds == [0, 0, 0, 0] or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        if not (190 <= bounds[1] <= 380):
+            continue
+        cx, cy = bounds_center(tuple(bounds))
+        candidates.append({"text": text, "bounds": bounds, "center": [cx, cy]})
+    candidates.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return candidates[0] if candidates else None
+
+
+def tap_sort_control(serial: str, xml_text: str, sort_mode: str, tap_count: int, timeout: int) -> dict[str, Any]:
+    target = find_sort_target(xml_text, sort_mode)
+    if not target:
+        return {"status": "blocked", "message": f"未找到排序控件：{sort_label_for_mode(sort_mode)}"}
+    base = adb_base(serial)
+    commands = []
+    x, y = target["center"]
+    for _ in range(max(1, tap_count)):
+        commands.append(run_command(base + ["shell", "input", "tap", str(x), str(y)], timeout))
+        time.sleep(0.4)
+    ok = all(command.get("returncode") == 0 for command in commands)
+    return {"status": "tapped" if ok else "blocked", "target": target, "commands": commands}
+
+
 def build_payload(
     xml_text: str,
     query: str,
@@ -573,6 +614,7 @@ def build_payload(
                 "source": "adb_xml",
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
+                "sort_tap": (snapshot or {}).get("sort_tap"),
             },
             "summary": {"candidate_count": 0},
             "cart_review_details": {
@@ -596,6 +638,7 @@ def build_payload(
                 "source": "adb_xml",
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
+                "sort_tap": (snapshot or {}).get("sort_tap"),
             },
             "summary": {"candidate_count": 0},
             "items": [],
@@ -614,6 +657,7 @@ def build_payload(
                 "source": "adb_xml",
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
+                "sort_tap": (snapshot or {}).get("sort_tap"),
             },
             "summary": {"candidate_count": 0},
             "page_context": page_context,
@@ -632,6 +676,7 @@ def build_payload(
                 "source": "adb_xml",
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
+                "sort_tap": (snapshot or {}).get("sort_tap"),
             },
             "summary": {"candidate_count": 0},
             "items": [],
@@ -649,6 +694,7 @@ def build_payload(
             "source": "adb_xml",
             "snapshot_dir": (snapshot or {}).get("session_dir", ""),
             "screen": (snapshot or {}).get("screen_path", ""),
+            "sort_tap": (snapshot or {}).get("sort_tap"),
         },
         "summary": {
             "candidate_count": len(candidates),
@@ -684,6 +730,9 @@ def main() -> int:
     parser.add_argument("--xml-file", default="", help="离线 XML 文件；为空时从 ADB 现场采集")
     parser.add_argument("--adb-serial", default=os.environ.get("ANDROID_ADB_SERIAL", ""))
     parser.add_argument("--timeout", type=int, default=25)
+    parser.add_argument("--tap-sort", action="store_true", help="采集前先点击当前页排序栏；只点排序，不加购")
+    parser.add_argument("--sort-wait", type=float, default=2.0, help="点击排序后等待刷新秒数")
+    parser.add_argument("--sort-tap-count", type=int, default=1, help="排序控件点击次数，用于价格升降序切换")
     args = parser.parse_args()
 
     try:
@@ -693,6 +742,13 @@ def main() -> int:
             xml_text = Path(args.xml_file).read_text(encoding="utf-8", errors="ignore")
         else:
             snapshot = capture_snapshot(args.adb_serial.strip(), args.timeout)
+            if args.tap_sort:
+                sort_tap = tap_sort_control(args.adb_serial.strip(), snapshot.get("xml_text") or "", args.sort_mode, args.sort_tap_count, args.timeout)
+                snapshot["sort_tap"] = sort_tap
+                if sort_tap.get("status") != "tapped":
+                    raise RuntimeError(sort_tap.get("message") or "排序点击失败。")
+                time.sleep(max(0.0, args.sort_wait))
+                snapshot = capture_snapshot(args.adb_serial.strip(), args.timeout) | {"sort_tap": sort_tap}
             xml_text = snapshot.get("xml_text") or ""
         payload = build_payload(xml_text, args.query.strip(), args.sort_mode, max(1, args.search_page), order, args.line_name.strip(), snapshot)
         write_latest(payload)
