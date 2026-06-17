@@ -11,9 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from kuailv_adb_ranked_candidate_capture import (
+    build_spec_modal_payload,
     build_payload as build_capture_payload,
     capture_snapshot,
+    close_current_overlay,
     scroll_results,
+    tap_spec_control,
     tap_sort_control,
 )
 from kuailv_order_dry_run import (
@@ -109,6 +112,126 @@ def capture_current_page(
     return build_capture_payload(snapshot.get("xml_text") or "", query, sort_mode, search_page, order, line_name, snapshot)
 
 
+def capture_needs_spec_expansion(capture: dict[str, Any], line: dict[str, Any]) -> bool:
+    if line.get("unit") != "斤":
+        return False
+    for item in capture.get("items") or []:
+        if item.get("source") == "adb_xml_product_card_offer":
+            return False
+    for item in capture.get("items") or []:
+        if item.get("source") == "adb_xml_product_card" and item.get("price") and not item.get("spec"):
+            return True
+    return False
+
+
+def build_inline_spec_capture(
+    xml_text: str,
+    query: str,
+    sort_mode: str,
+    search_page: int,
+    order: dict[str, Any],
+    line_name: str,
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    inline_payload = build_capture_payload(xml_text, query, sort_mode, search_page, order, line_name, snapshot)
+    inline_items = [
+        item
+        for item in inline_payload.get("items") or []
+        if item.get("source") == "adb_xml_product_card_offer" and item.get("spec")
+    ]
+    return {
+        "generated_at": now_text(),
+        "status": "ready" if inline_items else "needs_review",
+        "message": "已从展开的商品卡片抽取规格候选；未加购、未提交、未付款。" if inline_items else "展开后未读到可用规格候选；未加购、未提交、未付款。",
+        "capture": {
+            "query": query,
+            "sort_mode": sort_mode,
+            "search_page": search_page,
+            "line_name": line_name,
+            "source": "adb_xml_inline_spec",
+            "snapshot_dir": snapshot.get("session_dir", ""),
+            "screen": snapshot.get("screen_path", ""),
+        },
+        "summary": {"candidate_count": len(inline_items)},
+        "items": inline_items,
+    }
+
+
+def expand_specs_for_capture(
+    serial: str,
+    capture: dict[str, Any],
+    query: str,
+    sort_mode: str,
+    search_page: int,
+    order: dict[str, Any],
+    line: dict[str, Any],
+    timeout: int,
+    spec_wait: float,
+    spec_candidate_index: int,
+) -> dict[str, Any]:
+    capture_xml = ((capture.get("snapshot") or {}).get("xml_text") or "")
+    if not capture_xml:
+        snapshot_dir = ((capture.get("capture") or {}).get("snapshot_dir") or "")
+        xml_path = Path(snapshot_dir) / "window_dump.xml" if snapshot_dir else None
+        if xml_path and xml_path.exists():
+            capture_xml = xml_path.read_text(encoding="utf-8", errors="ignore")
+    if not capture_xml:
+        return {
+            "status": "needs_review",
+            "query": query,
+            "sort_mode": sort_mode,
+            "search_page": search_page,
+            "line_name": line.get("name"),
+            "message": "缺少页面 XML，无法展开规格。",
+            "items": [],
+        }
+    line_name = str(line.get("name") or "")
+    spec_tap = tap_spec_control(serial, capture_xml, query, order, line_name, spec_candidate_index, timeout)
+    if spec_tap.get("status") != "tapped":
+        return {
+            "status": "needs_review",
+            "query": query,
+            "sort_mode": sort_mode,
+            "search_page": search_page,
+            "line_name": line_name,
+            "message": spec_tap.get("message") or "规格控件未打开。",
+            "capture": {"spec_tap": spec_tap},
+            "items": [],
+        }
+    time.sleep(max(0.0, spec_wait))
+    spec_snapshot = capture_snapshot(serial, timeout)
+    spec_payload = build_spec_modal_payload(
+        spec_snapshot.get("xml_text") or "",
+        query,
+        sort_mode,
+        search_page,
+        order,
+        line_name,
+        spec_snapshot,
+        spec_tap,
+    )
+    if spec_payload.get("items"):
+        expansion = spec_payload
+    else:
+        expansion = build_inline_spec_capture(
+            spec_snapshot.get("xml_text") or "",
+            query,
+            sort_mode,
+            search_page,
+            order,
+            line_name,
+            spec_snapshot,
+        )
+        expansion["spec_modal_capture"] = {
+            "status": spec_payload.get("status"),
+            "summary": spec_payload.get("summary"),
+            "message": spec_payload.get("message"),
+        }
+    expansion["capture"]["spec_tap"] = spec_tap
+    expansion["spec_modal_close"] = close_current_overlay(serial, timeout)
+    return expansion
+
+
 def run_sort_and_page_captures(
     serial: str,
     query: str,
@@ -119,6 +242,9 @@ def run_sort_and_page_captures(
     timeout: int,
     sort_wait: float,
     scroll_wait: float,
+    expand_specs: bool,
+    spec_wait: float,
+    max_spec_expansions_per_page: int,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     before_sort = capture_snapshot(serial, timeout)
@@ -146,7 +272,33 @@ def run_sort_and_page_captures(
         if scroll_result:
             snapshot["scroll"] = scroll_result
         snapshot["sort_tap"] = sort_tap
-        rows.append(build_capture_payload(snapshot.get("xml_text") or "", query, sort_mode, page, order, line_name, snapshot))
+        capture = build_capture_payload(snapshot.get("xml_text") or "", query, sort_mode, page, order, line_name, snapshot)
+        capture["snapshot"] = {"xml_text": snapshot.get("xml_text") or ""}
+        rows.append(capture)
+        line = {"name": line_name}
+        for item in kuailv_items(order):
+            planned_line = build_line_plan(item)
+            if planned_line.get("name") == line_name:
+                line = planned_line
+                break
+        if expand_specs and max_spec_expansions_per_page > 0 and capture_needs_spec_expansion(capture, line):
+            for spec_index in range(max_spec_expansions_per_page):
+                expansion = expand_specs_for_capture(
+                    serial,
+                    capture,
+                    query,
+                    sort_mode,
+                    page,
+                    order,
+                    line,
+                    timeout,
+                    spec_wait,
+                    spec_index,
+                )
+                rows.append(expansion)
+                if expansion.get("items"):
+                    break
+        capture.pop("snapshot", None)
     return rows
 
 
@@ -249,6 +401,9 @@ def build_adb_payload(
     sort_wait: float,
     scroll_wait: float,
     line_limit: int,
+    expand_specs: bool,
+    spec_wait: float,
+    max_spec_expansions_per_page: int,
 ) -> dict[str, Any]:
     plan = build_plan(order)
     captures: list[dict[str, Any]] = []
@@ -321,6 +476,9 @@ def build_adb_payload(
                 timeout,
                 sort_wait,
                 scroll_wait,
+                expand_specs,
+                spec_wait,
+                max_spec_expansions_per_page,
             )
             captures.extend(sort_captures)
             print(f"采集 {line.get('name')} / {query} / {sort_mode}: {sum(len(row.get('items') or []) for row in sort_captures)} 个候选", flush=True)
@@ -369,6 +527,9 @@ def main() -> int:
     parser.add_argument("--sort-wait", type=float, default=2.0)
     parser.add_argument("--scroll-wait", type=float, default=1.2)
     parser.add_argument("--line-limit", type=int, default=0, help="只采集前 N 个快驴品项；0 表示全量")
+    parser.add_argument("--expand-specs", action=argparse.BooleanOptionalAction, default=True, help="采集后自动点开规格控件并只读回收展开规格")
+    parser.add_argument("--spec-wait", type=float, default=1.2, help="点开规格后等待秒数")
+    parser.add_argument("--max-spec-expansions-per-page", type=int, default=1, help="每个搜索页最多展开几个规格控件")
     parser.add_argument("--timeout", type=int, default=25)
     args = parser.parse_args()
 
@@ -389,6 +550,9 @@ def main() -> int:
                 args.sort_wait,
                 args.scroll_wait,
                 max(0, args.line_limit),
+                bool(args.expand_specs),
+                args.spec_wait,
+                max(0, args.max_spec_expansions_per_page),
             )
         write_latest(payload)
         print_summary(payload)

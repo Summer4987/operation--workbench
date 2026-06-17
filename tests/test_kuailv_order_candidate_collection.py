@@ -8,7 +8,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from kuailv_adb_order_candidate_collection import build_plan_payload  # noqa: E402
+from kuailv_adb_order_candidate_collection import (  # noqa: E402
+    build_inline_spec_capture,
+    build_plan_payload,
+    capture_needs_spec_expansion,
+)
 from kuailv_order_dry_run import build_line_plan  # noqa: E402
 
 
@@ -54,6 +58,58 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         onion_jobs = [job for job in payload["collection_jobs"] if job["line_name"] == "洋葱"]
         self.assertEqual({job["query"] for job in onion_jobs}, {"黄皮洋葱", "洋葱"})
         self.assertTrue(all(job["pages"] == [1, 2] for job in payload["collection_jobs"]))
+
+    def test_missing_jin_pack_candidate_requests_spec_expansion(self) -> None:
+        line = build_line_plan(sample_order()["items"][0])
+        capture = {
+            "items": [
+                {
+                    "source": "adb_xml_product_card",
+                    "title": "黄皮洋葱",
+                    "price": 1.15,
+                    "spec": "",
+                }
+            ]
+        }
+
+        self.assertTrue(capture_needs_spec_expansion(capture, line))
+
+        capture["items"].append(
+            {
+                "source": "adb_xml_product_card_offer",
+                "title": "黄皮洋葱",
+                "price": 1.15,
+                "unit_price": 1.15,
+                "spec": "10斤",
+            }
+        )
+        self.assertFalse(capture_needs_spec_expansion(capture, line))
+
+    def test_inline_spec_capture_keeps_only_spec_offer_rows(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="" resource-id="search-page-container" bounds="[0,0][1080,2358]">
+    <node text="黄皮洋葱" bounds="[120,120][300,210]" />
+    <node text="综合排序" bounds="[40,620][210,680]" />
+    <node text="销量" bounds="[300,620][390,680]" />
+    <node text="价格" bounds="[480,620][570,680]" />
+    <node text="黄皮洋葱" resource-id="complex-card-goods-1" bounds="[20,760][1060,1500]" />
+    <node text="黄皮洋葱" bounds="[440,820][620,880]" />
+    <node text="月售8292" bounds="[440,900][620,950]" />
+    <node text="10斤" bounds="[440,1160][525,1220]" />
+    <node text="¥" bounds="[590,1160][630,1220]" />
+    <node text="1.15" bounds="[640,1155][730,1225]" />
+    <node text="/斤" bounds="[735,1160][790,1220]" />
+  </node>
+</hierarchy>"""
+
+        payload = build_inline_spec_capture(xml_text, "黄皮洋葱", "price_asc", 1, sample_order(), "洋葱", {})
+
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["summary"]["candidate_count"], 1)
+        self.assertEqual(payload["items"][0]["source"], "adb_xml_product_card_offer")
+        self.assertEqual(payload["items"][0]["spec"], "10斤")
+        self.assertEqual(payload["items"][0]["unit_price"], 1.15)
 
 
 if __name__ == "__main__":
