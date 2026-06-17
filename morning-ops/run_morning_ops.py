@@ -307,7 +307,7 @@ def main() -> int:
                     f"饿了么{budget_period}预算真实提交",
                     ["/bin/zsh", str(ELEME_BUDGET_RUNNER), "--time", budget_time, "--mode", "commit", "--limit", "all"],
                     required=False,
-                    timeout_seconds=int(os.environ.get("ELEME_BUDGET_TIMEOUT_SECONDS", "720")),
+                    timeout_seconds=int(os.environ.get("ELEME_BUDGET_TIMEOUT_SECONDS", "1800")),
                 ).returncode != 0:
                     failures.append(f"饿了么{budget_period}预算")
                 if run_step_with_pause(f"美团{budget_period}预算真实提交", [str(REPORT_PYTHON), str(MEITUAN_BUDGET_CDP_RUNNER), "--period", budget_period], required=False, timeout_seconds=360).returncode != 0:

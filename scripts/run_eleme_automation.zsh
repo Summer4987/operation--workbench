@@ -12,6 +12,9 @@ fi
 TIME_POINT=""
 MODE="rehearse"
 LIMIT="all"
+STORE_FILTER=""
+STORE_FILTERS=""
+SHOP_ID_FILTER=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -25,6 +28,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --limit)
       LIMIT="$2"
+      shift 2
+      ;;
+    --store)
+      STORE_FILTER="$2"
+      shift 2
+      ;;
+    --stores)
+      STORE_FILTERS="$2"
+      shift 2
+      ;;
+    --shop-id)
+      SHOP_ID_FILTER="$2"
       shift 2
       ;;
     *)
@@ -50,6 +65,15 @@ echo "== 饿了么点金自动化 =="
 echo "时间点：$TIME_POINT"
 echo "模式：$MODE"
 echo "数量：$LIMIT"
+if [[ -n "$STORE_FILTER" ]]; then
+  echo "门店过滤：$STORE_FILTER"
+fi
+if [[ -n "$STORE_FILTERS" ]]; then
+  echo "门店列表：$STORE_FILTERS"
+fi
+if [[ -n "$SHOP_ID_FILTER" ]]; then
+  echo "shopId过滤：$SHOP_ID_FILTER"
+fi
 echo "开始：$(date '+%Y-%m-%d %H:%M:%S')"
 echo
 
@@ -105,6 +129,15 @@ if [[ "$MODE" == "preview" ]]; then
 fi
 
 EXEC_ARGS=(execute-preview --file "$PREVIEW_FILE" --limit "$LIMIT")
+if [[ -n "$STORE_FILTER" ]]; then
+  EXEC_ARGS+=(--store "$STORE_FILTER")
+fi
+if [[ -n "$STORE_FILTERS" ]]; then
+  EXEC_ARGS+=(--stores "$STORE_FILTERS")
+fi
+if [[ -n "$SHOP_ID_FILTER" ]]; then
+  EXEC_ARGS+=(--shopId "$SHOP_ID_FILTER")
+fi
 if [[ "$MODE" == "commit" ]]; then
   EXEC_ARGS+=(--commit)
 fi
@@ -120,7 +153,7 @@ if [[ "$MODE" == "commit" ]]; then
 else
   echo "开始执行演练..."
 fi
-run_with_timeout "${ELEME_EXECUTE_TIMEOUT_SECONDS:-420}" "$NODE" scripts/eleme_dianjin_adapter.mjs "${EXEC_ARGS[@]}"
+run_with_timeout "${ELEME_EXECUTE_TIMEOUT_SECONDS:-1500}" "$NODE" scripts/eleme_dianjin_adapter.mjs "${EXEC_ARGS[@]}"
 
 LATEST_EXEC_RESULT="$("$PYTHON_FALLBACK" - <<PY
 from pathlib import Path

@@ -244,7 +244,7 @@ if [[ "$MODE" == "commit" ]]; then
 else
   echo "执行饿了么${PERIOD}预算页面预演..."
 fi
-run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-540}" "${BUDGET_STEP_RETRIES:-2}" /bin/zsh "$ELEME_RUNNER" --time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT" || true
+run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-1800}" "${BUDGET_STEP_RETRIES:-2}" /bin/zsh "$ELEME_RUNNER" --time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT" || true
 
 echo
 if [[ "$MODE" == "commit" ]]; then

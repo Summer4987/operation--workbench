@@ -775,10 +775,15 @@ async function runExecutionPreview(config, args) {
   const previewPath = args.file || "outputs/dianjin_automation/execution_preview_1040.json";
   const preview = JSON.parse(await fs.readFile(previewPath, "utf8"));
   const limit = args.limit === "all" ? Number.POSITIVE_INFINITY : Number(args.limit || 1);
+  const storeFilters = String(args.stores || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
   const rows = (preview.rows || [])
     .filter((row) => row.canExecute)
     .filter((row) => !args.type || row.type === args.type)
     .filter((row) => !args.store || row.store.includes(args.store))
+    .filter((row) => !storeFilters.length || storeFilters.some((store) => row.store.includes(store) || String(row.shopId) === store))
     .filter((row) => !args.shopId || Number(row.shopId) === Number(args.shopId))
     .filter((row) => row.type !== "bid-check" || row.currentBid !== row.targetBid)
     .filter((row) => row.type !== "budget" || row.currentBudget !== row.targetBudget)
@@ -795,6 +800,28 @@ async function runExecutionPreview(config, args) {
   const tab = await findOrOpenPromotionTab(config);
   const cdp = new CDP(tab.webSocketDebuggerUrl);
   const results = [];
+  const mode = commit ? "commit" : "rehearse";
+  const progressPath = args.progressFile || `${outputDir}/eleme_execution_${mode}_partial.json`;
+  const writeProgress = async (activeRow = null) => {
+    await fs.mkdir(outputDir, { recursive: true });
+    await fs.writeFile(progressPath, JSON.stringify({
+      ok: results.every((result) => result.ok),
+      partial: true,
+      mode,
+      previewPath,
+      total: rows.length,
+      completed: results.length,
+      active: activeRow ? {
+        store: activeRow.store,
+        shopId: activeRow.shopId,
+        type: activeRow.type,
+        targetBudget: activeRow.targetBudget,
+        targetBid: activeRow.targetBid,
+      } : null,
+      updatedAt: new Date().toISOString(),
+      results,
+    }, null, 2), "utf8");
+  };
   try {
     await cdp.send("Runtime.enable");
     await cdp.send("Page.enable");
@@ -803,6 +830,7 @@ async function runExecutionPreview(config, args) {
     await cdp.send("Page.navigate", { url: config.eleme.promotionUrl });
     await new Promise((resolve) => setTimeout(resolve, 5000));
     for (const row of rows) {
+      await writeProgress(row);
       await cdp.send("Page.navigate", { url: config.eleme.promotionUrl });
       await new Promise((resolve) => setTimeout(resolve, 3500));
       const value = row.type === "budget" ? row.targetBudget : row.targetBid;
@@ -1107,8 +1135,10 @@ async function runExecutionPreview(config, args) {
             saved
           };
         })(${JSON.stringify({ row, value, actionButton, commit })})`,
+        __timeoutMs: Number(args.rowTimeoutMs || 120000),
       });
       results.push(result.result.value);
+      await writeProgress(null);
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
   } finally {
@@ -1116,9 +1146,10 @@ async function runExecutionPreview(config, args) {
   }
   return {
     ok: results.every((result) => result.ok),
-    mode: commit ? "commit" : "rehearse",
+    mode,
     previewPath,
     total: rows.length,
+    progressPath,
     results,
   };
 }
