@@ -1280,10 +1280,16 @@ def safe_tap_visual_proof(before: dict[str, Any], selected: dict[str, Any]) -> d
     spec_parts = [word for word in pack_hits + [target_spec, str(selected.get("pack_label") or "")] if word]
     identity_seen = [word for word in title_parts if word and word in text_blob]
     spec_seen = [word for word in spec_parts if word and valid_pack_label_hit(text_blob, word)]
+    xml_identity_seen = []
+    if selected.get("source") == "xml_target_card_control" and selected.get("identity_hits"):
+        xml_identity_seen = [word for word in title_parts if word and word in str(selected.get("target_title_text") or "")]
+    xml_spec_seen = []
+    if selected.get("source") == "xml_target_card_control" and selected.get("pack_hits"):
+        xml_spec_seen = [word for word in spec_parts if word and valid_pack_label_hit(str(selected.get("target_spec_text") or ""), word)]
     reasons = []
-    if title_parts and not identity_seen:
+    if title_parts and not identity_seen and not xml_identity_seen:
         reasons.append("target_identity_not_visible_in_screenshot")
-    if spec_parts and not spec_seen:
+    if spec_parts and not spec_seen and not xml_spec_seen:
         reasons.append("target_spec_not_visible_in_screenshot")
     if any(word in text_blob for word in ["提交订单", "付款"]):
         reasons.append("submit_or_payment_text_visible")
@@ -1292,6 +1298,8 @@ def safe_tap_visual_proof(before: dict[str, Any], selected: dict[str, Any]) -> d
         "reasons": reasons,
         "identity_seen": identity_seen,
         "spec_seen": spec_seen,
+        "xml_identity_seen": xml_identity_seen,
+        "xml_spec_seen": xml_spec_seen,
         "required_identity": title_parts,
         "required_spec": spec_parts,
         "detected_relevant_text": [
