@@ -125,6 +125,43 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         self.assertEqual(payload["decisions"][0]["safe_candidate_count"], 0)
         self.assertEqual(payload["decisions"][1]["status"], "manual_note_only")
 
+    def test_potato_can_fallback_to_twenty_jin_when_five_jin_missing(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "POTATO-001",
+                    "name": "土豆",
+                    "quantity": 15,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "土豆": [
+                {
+                    "title": "刀削土豆食堂菜",
+                    "spec": "20斤",
+                    "unit_price": 0.67,
+                    "monthly_sales": 9000,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc", "sales_desc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "ready")
+        self.assertEqual(decision["planned_quantity"], 20)
+        self.assertEqual(decision["overage"], 5)
+        self.assertEqual(decision["selection"][0]["spec"], "20斤")
+
 
 if __name__ == "__main__":
     unittest.main()

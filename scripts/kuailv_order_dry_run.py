@@ -53,11 +53,11 @@ PACK_RULES: dict[str, dict[str, Any]] = {
     },
     "土豆": {
         "pack_sizes": [10, 5],
-        "allowed_overage": 0,
+        "allowed_overage": 5,
         "keywords": ["土豆5斤", "土豆10斤", "土豆"],
         "accept": ["土豆"],
-        "prefer": ["10斤", "5斤"],
-        "lesson": "银泰城实跑时 15/20 斤都可用 10斤和 5斤拆分；先用大规格减少重复点击。",
+        "prefer": ["10斤", "5斤", "20斤"],
+        "lesson": "银泰城实跑时 15/20 斤优先用 10斤和 5斤拆分；如果前两页找不到 5斤，允许 20斤 x1 作为 fallback。",
     },
     "圣女果": {
         "pack_sizes": [6, 5, 3],

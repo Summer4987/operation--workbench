@@ -89,6 +89,8 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
 
         self.assertEqual(line["search_terms"][:2], ["土豆5斤", "土豆10斤"])
         self.assertIn("土豆", line["search_terms"])
+        self.assertEqual(line["overage"], 0)
+        self.assertEqual(line["pack_strategy"], [{"pack_size": 10.0, "count": 1, "label": "10斤 x 1"}, {"pack_size": 5.0, "count": 1, "label": "5斤 x 1"}])
 
     def test_batch_cli_expands_multiple_spec_controls_by_default(self) -> None:
         script_text = (ROOT / "scripts" / "kuailv_adb_order_candidate_collection.py").read_text(encoding="utf-8")
