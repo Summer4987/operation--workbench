@@ -710,13 +710,32 @@ def _supply_chain_flow_summary() -> dict:
     lots: dict[str, dict] = {}
     location_totals: dict[str, float] = {}
     receivable_total = 0.0
+    beijing_warehouse_receivable_total = 0.0
+    direct_store_receivable_total = 0.0
     payable_total = 0.0
     paid_total = 0.0
+    received_total = 0.0
+    beijing_warehouse_received_total = 0.0
+    direct_store_received_total = 0.0
 
     for entry in entries:
         lot_id = entry["lot_id"]
         quantity = float(entry.get("quantity") or 0)
         event_type = entry.get("event_type") or ""
+        to_location = entry.get("to_location") or ""
+        receivable_bucket = _supply_chain_receivable_bucket(to_location)
+        is_receivable_event = event_type in {"销售", "领用"} and bool(receivable_bucket)
+        raw_paid_amount = float(entry.get("paid_amount") or 0)
+        raw_received_amount = float(entry.get("received_amount") or 0)
+        paid_amount = raw_paid_amount
+        received_amount = raw_received_amount
+        if is_receivable_event and raw_paid_amount and not raw_received_amount:
+            received_amount = raw_paid_amount
+            paid_amount = 0.0
+        normalized_entry = dict(entry)
+        normalized_entry["paid_amount"] = paid_amount
+        normalized_entry["received_amount"] = received_amount
+        normalized_entry["receivable_bucket"] = receivable_bucket
         lot = lots.setdefault(
             lot_id,
             {
@@ -730,6 +749,9 @@ def _supply_chain_flow_summary() -> dict:
                 "payable_amount": 0.0,
                 "paid_amount": 0.0,
                 "receivable_amount": 0.0,
+                "received_amount": 0.0,
+                "beijing_warehouse_receivable_amount": 0.0,
+                "direct_store_receivable_amount": 0.0,
                 "locations": {},
                 "recent_events": [],
             },
@@ -744,16 +766,24 @@ def _supply_chain_flow_summary() -> dict:
             lot["unit_cost"] = entry["unit_cost"]
 
         from_location = entry.get("from_location") or ""
-        to_location = entry.get("to_location") or ""
         payable_amount = float(entry.get("payable_amount") or 0)
-        paid_amount = float(entry.get("paid_amount") or 0)
         receivable_amount = float(entry.get("receivable_amount") or 0)
         payable_total += payable_amount
         paid_total += paid_amount
         receivable_total += receivable_amount
+        received_total += received_amount
+        if receivable_bucket == "beijing_warehouse":
+            beijing_warehouse_receivable_total += receivable_amount
+            beijing_warehouse_received_total += received_amount
+            lot["beijing_warehouse_receivable_amount"] += receivable_amount
+        elif receivable_bucket == "direct_store":
+            direct_store_receivable_total += receivable_amount
+            direct_store_received_total += received_amount
+            lot["direct_store_receivable_amount"] += receivable_amount
         lot["payable_amount"] += payable_amount
         lot["paid_amount"] += paid_amount
         lot["receivable_amount"] += receivable_amount
+        lot["received_amount"] += received_amount
 
         if event_type in {"生产", "采购"}:
             lot["purchase_quantity"] += quantity
@@ -772,7 +802,7 @@ def _supply_chain_flow_summary() -> dict:
             if to_location:
                 _add_location_balance(lot["locations"], to_location, quantity)
 
-        lot["recent_events"].append(entry)
+        lot["recent_events"].append(normalized_entry)
 
     for lot in lots.values():
         lot["balance_quantity"] = sum(float(value or 0) for value in lot["locations"].values())
@@ -787,7 +817,7 @@ def _supply_chain_flow_summary() -> dict:
 
     return {
         "items": sorted(lots.values(), key=lambda item: item["lot_id"], reverse=True),
-        "recent_events": list(reversed(entries[-40:])),
+        "recent_events": list(reversed([_normalize_supply_chain_flow_entry_for_summary(entry) for entry in entries[-40:]])),
         "locations": [
             {"location": location, "quantity": quantity}
             for location, quantity in sorted(location_totals.items())
@@ -796,11 +826,42 @@ def _supply_chain_flow_summary() -> dict:
             "lot_count": len(lots),
             "payable_amount": payable_total,
             "paid_amount": paid_total,
+            "received_amount": received_total,
             "receivable_amount": receivable_total,
+            "beijing_warehouse_receivable_amount": beijing_warehouse_receivable_total,
+            "direct_store_receivable_amount": direct_store_receivable_total,
             "open_payable_amount": max(payable_total - paid_total, 0),
-            "open_receivable_amount": receivable_total,
+            "open_receivable_amount": max(receivable_total - received_total, 0),
+            "open_beijing_warehouse_receivable_amount": max(beijing_warehouse_receivable_total - beijing_warehouse_received_total, 0),
+            "open_direct_store_receivable_amount": max(direct_store_receivable_total - direct_store_received_total, 0),
         },
     }
+
+
+def _supply_chain_receivable_bucket(location: str) -> str:
+    clean_location = (location or "").strip()
+    if clean_location == "北京仓":
+        return "beijing_warehouse"
+    if clean_location in {"北京直营店", "成都仓", "成都直营店"}:
+        return "direct_store"
+    return ""
+
+
+def _normalize_supply_chain_flow_entry_for_summary(entry: dict) -> dict:
+    event_type = entry.get("event_type") or ""
+    receivable_bucket = _supply_chain_receivable_bucket(entry.get("to_location") or "")
+    raw_paid_amount = float(entry.get("paid_amount") or 0)
+    raw_received_amount = float(entry.get("received_amount") or 0)
+    paid_amount = raw_paid_amount
+    received_amount = raw_received_amount
+    if event_type in {"销售", "领用"} and receivable_bucket and raw_paid_amount and not raw_received_amount:
+        received_amount = raw_paid_amount
+        paid_amount = 0.0
+    normalized = dict(entry)
+    normalized["paid_amount"] = paid_amount
+    normalized["received_amount"] = received_amount
+    normalized["receivable_bucket"] = receivable_bucket
+    return normalized
 
 
 def _add_location_balance(locations: dict[str, float], location: str, quantity: float) -> None:
@@ -831,6 +892,7 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         payable_amount = float(payload.get("payable_amount") or 0)
         paid_amount = float(payload.get("paid_amount") or 0)
         receivable_amount = float(payload.get("receivable_amount") or 0)
+        received_amount = float(payload.get("received_amount") or 0)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="金额必须是数字") from exc
     entry = {
@@ -847,6 +909,7 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         "payable_amount": max(payable_amount, 0),
         "paid_amount": max(paid_amount, 0),
         "receivable_amount": max(receivable_amount, 0),
+        "received_amount": max(received_amount, 0),
         "settlement_status": str(payload.get("settlement_status") or "")[:40],
         "from_location": str(payload.get("from_location") or "")[:80],
         "to_location": str(payload.get("to_location") or "")[:80],

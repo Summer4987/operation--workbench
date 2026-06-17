@@ -391,6 +391,12 @@ function financeFlowPricingDestination(eventType, destination) {
   return destination;
 }
 
+function financeFlowReceivableBucket(destination) {
+  if (destination === "北京仓") return "beijing_warehouse";
+  if (["北京直营店", "成都仓", "成都直营店"].includes(destination)) return "direct_store";
+  return "";
+}
+
 function updateFinanceFlowDatalists(payload = financeFlowState.payload || {}) {
   const productList = document.querySelector("#financeFlowProductOptions");
   if (productList) {
@@ -435,16 +441,22 @@ function updateFinanceFlowCalculatedAmounts(form) {
   const payableField = form.querySelector('[name="payable_amount"]');
   const paidField = form.querySelector('[name="paid_amount"]');
   const receivableField = form.querySelector('[name="receivable_amount"]');
+  const receivedField = form.querySelector('[name="received_amount"]');
   const settlementField = form.querySelector('[name="settlement_status"]');
   const unitPriceField = form.querySelector('[name="unit_price"]');
+  const receivableBucket = financeFlowReceivableBucket(destination);
   if (payableField) payableField.value = "0";
   if (paidField) paidField.value = "0";
   if (receivableField) receivableField.value = "0";
+  if (receivedField) receivedField.value = "0";
   if (unitPriceField) unitPriceField.value = String(unitPrice || 0);
-  if (settlementField) settlementField.value = paymentStatus === "已付" ? "已结算" : "批次用完结算";
-  if (eventType === "销售" && destination === "北京仓") {
+  if (settlementField) {
+    settlementField.value = paymentStatus === "已付工厂" || paymentStatus === "已收客户款" ? "部分已结算" : "批次用完结算";
+  }
+  if (["销售", "领用"].includes(eventType) && receivableBucket) {
     if (receivableField) receivableField.value = String(amount);
-  } else if (paymentStatus === "已付") {
+    if (paymentStatus === "已收客户款" && receivedField) receivedField.value = String(amount);
+  } else if (paymentStatus === "已付工厂") {
     if (paidField) paidField.value = String(amount);
   } else {
     if (payableField) payableField.value = String(amount);
@@ -469,19 +481,19 @@ const financeFlowPresets = {
     unit: "件",
     from_location: "工厂暂存",
     to_location: "北京仓",
-    payment_status: "应付",
+    payment_status: "应收",
     counterparty: "北京仓",
     note: "发给北京仓，形成供应链应收。",
   },
   direct_store: {
-    event_type: "领用",
+    event_type: "销售",
     product_name: "牛五花牛排",
     unit: "件",
     from_location: "工厂暂存",
     to_location: "北京直营店",
-    payment_status: "应付",
+    payment_status: "应收",
     counterparty: "北京直营店",
-    note: "发给北京直营店，作为门店领用/成本归集。",
+    note: "发给北京直营店或成都仓，形成直营店应收。",
   },
 };
 
@@ -514,9 +526,10 @@ function renderFinanceFlow() {
     "financeFlowKpis",
     [
       { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪" },
-      { label: "供应链应付", value: yuan(totals.payable_amount), detail: `未结算 ${yuan(totals.open_payable_amount)}` },
-      { label: "供应链应收", value: yuan(totals.receivable_amount), detail: `未收 ${yuan(totals.open_receivable_amount)}` },
-      { label: "供应链已收", value: yuan(totals.paid_amount), detail: "供应链已收到款" },
+      { label: "工厂应付", value: yuan(totals.payable_amount), detail: `待付工厂 ${yuan(totals.open_payable_amount)}` },
+      { label: "北京仓应收", value: yuan(totals.beijing_warehouse_receivable_amount), detail: `未收 ${yuan(totals.open_beijing_warehouse_receivable_amount)}` },
+      { label: "直营店应收", value: yuan(totals.direct_store_receivable_amount), detail: `北京直营店 + 成都仓，未收 ${yuan(totals.open_direct_store_receivable_amount)}` },
+      { label: "已收客户款", value: yuan(totals.received_amount), detail: `你已收到款；待付工厂 ${yuan(totals.open_payable_amount)}` },
     ].map((item) => `
       <article>
         <span>${escapeHtml(item.label)}</span>
@@ -536,7 +549,7 @@ function renderFinanceFlow() {
       const outbound = Number(item.out_quantity || 0);
       const balance = Number(item.balance_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
-      const money = `应付 ${yuan(item.payable_amount)} / 已收 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)}`;
+      const money = `工厂应付 ${yuan(item.payable_amount)} / 已付工厂 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)} / 已收客户 ${yuan(item.received_amount)}`;
       return `
         <div class="${rowClass}">
           <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
@@ -571,7 +584,7 @@ function renderFinanceFlow() {
       <div class="${Number(item.selected_location_quantity || 0) < 0 ? "warn-row" : "good-row"}">
         <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
         <strong>${num(item.selected_location_quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · 应付 ${yuan(item.payable_amount)}</em>
+        <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · 工厂应付 ${yuan(item.payable_amount)} · 应收 ${yuan(item.receivable_amount)}</em>
       </div>
     `
   );
@@ -582,7 +595,7 @@ function renderFinanceFlow() {
       <div class="${["生产", "采购", "调拨"].includes(item.event_type) ? "good-row" : "warn-row"}">
         <span>${escapeHtml(item.date || "-")} · ${escapeHtml(item.event_type || "-")} · ${escapeHtml(item.lot_id || "-")}</span>
         <strong>${escapeHtml(item.product_name || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.payable_amount ? ` · 应付 ${yuan(item.payable_amount)}` : ""}</em>
+        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.received_amount ? ` · 已收客户 ${yuan(item.received_amount)}` : ""}${item.payable_amount ? ` · 工厂应付 ${yuan(item.payable_amount)}` : ""}${item.paid_amount ? ` · 已付工厂 ${yuan(item.paid_amount)}` : ""}</em>
       </div>
     `
   );
@@ -655,6 +668,7 @@ function initializeFinanceFlowControls() {
         payable_amount: Number(formData.get("payable_amount") || 0),
         paid_amount: Number(formData.get("paid_amount") || 0),
         receivable_amount: Number(formData.get("receivable_amount") || 0),
+        received_amount: Number(formData.get("received_amount") || 0),
         settlement_status: formData.get("settlement_status") || "",
         unit_cost: Number(formData.get("unit_price") || 0),
         counterparty: formData.get("counterparty") || "",
@@ -678,7 +692,7 @@ function initializeFinanceFlowControls() {
         const unitInput = form.querySelector('[name="unit"]');
         if (unitInput) unitInput.value = "件";
         const paymentInput = form.querySelector('[name="payment_status"]');
-        if (paymentInput) paymentInput.value = "应付";
+        if (paymentInput) paymentInput.value = "应收";
         updateFinanceFlowDatalists(financeFlowState.payload);
         updateFinanceFlowCalculatedAmounts(form);
         renderFinanceFlow();

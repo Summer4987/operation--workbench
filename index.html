@@ -394,6 +394,7 @@
                       <option value="工厂暂存">工厂暂存</option>
                       <option value="北京仓">北京仓</option>
                       <option value="北京直营店">北京直营店</option>
+                      <option value="成都仓">成都仓</option>
                       <option value="成都直营店">成都直营店</option>
                       <option value="在途">在途</option>
                       <option value="">无</option>
@@ -402,8 +403,10 @@
                   <label>
                     <span>款项状态</span>
                     <select name="payment_status">
-                      <option value="应付">应付</option>
-                      <option value="已付">已付</option>
+                      <option value="应收">应收客户款</option>
+                      <option value="已收客户款">已收客户款</option>
+                      <option value="应付">应付工厂</option>
+                      <option value="已付工厂">已付工厂</option>
                     </select>
                   </label>
                   <label>
@@ -413,6 +416,7 @@
                   <input name="payable_amount" type="hidden" value="0" />
                   <input name="paid_amount" type="hidden" value="0" />
                   <input name="receivable_amount" type="hidden" value="0" />
+                  <input name="received_amount" type="hidden" value="0" />
                   <input name="settlement_status" type="hidden" value="批次用完结算" />
                   <input name="unit_price" type="hidden" value="0" />
                   <label class="finance-flow-entry-note">
