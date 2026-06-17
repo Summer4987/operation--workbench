@@ -113,6 +113,7 @@ def inventory_snapshot() -> dict:
             "product_count": int(stats.get("product_count") or len(items)),
             "warning_count": int(stats.get("warning_count") or 0),
             "inventory_value": float(stats.get("inventory_value") or 0),
+            "warnings_reliable": True,
             "items": items[:12],
         }
     except Exception as exc:
@@ -120,9 +121,20 @@ def inventory_snapshot() -> dict:
 
     db_path = ROOT / "inventory-board" / "data" / "inventory.sqlite3"
     if not db_path.exists():
-        return {"status": "missing", "source": "none", "error": cloud_error, "product_count": 0, "warning_count": 0, "inventory_value": 0, "items": []}
+        return {
+            "status": "unavailable",
+            "source": "none",
+            "error": cloud_error,
+            "message": "库存云端未返回可用数据，本地备用库不存在；已暂停低库存预警。",
+            "product_count": 0,
+            "warning_count": 0,
+            "inventory_value": 0,
+            "warnings_reliable": False,
+            "items": [],
+        }
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
+        movement_count = int(conn.execute("SELECT COUNT(*) FROM movements").fetchone()[0] or 0)
         rows = conn.execute(
             """
             SELECT sku, name, spec, unit, warning_threshold, unit_cost,
@@ -131,6 +143,18 @@ def inventory_snapshot() -> dict:
             ORDER BY name
             """
         ).fetchall()
+    if rows and movement_count == 0:
+        return {
+            "status": "unavailable",
+            "source": "local_fallback_empty",
+            "error": cloud_error,
+            "message": "库存云端未返回可用数据，本地备用库只有商品目录、没有入出库流水；已暂停低库存预警，避免把 0 库存种子数据误报为异常。",
+            "product_count": len(rows),
+            "warning_count": 0,
+            "inventory_value": 0,
+            "warnings_reliable": False,
+            "items": [],
+        }
     items = []
     warning_count = 0
     inventory_value = 0.0
@@ -159,6 +183,7 @@ def inventory_snapshot() -> dict:
         "product_count": len(items),
         "warning_count": warning_count,
         "inventory_value": inventory_value,
+        "warnings_reliable": True,
         "items": items[:12],
     }
 

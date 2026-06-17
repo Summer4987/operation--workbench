@@ -1523,6 +1523,12 @@ function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshol
 }
 
 function countInventoryAbnormal(inventory) {
+  if (inventory.warnings_reliable === false || inventory.status === "unavailable") {
+    return {
+      count: 0,
+      detail: inventory.message || "库存数据待同步",
+    };
+  }
   const warnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
   const count = Number(inventory.warning_count ?? warnings.length);
   return {
@@ -2410,19 +2416,26 @@ function renderOrdering() {
 
 function renderInventory() {
   const inventory = data.inventory || {};
-  const warnings = (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0));
-  text("metricInventory", `${inventory.warning_count ?? warnings.length} 个`);
-  text("metricInventoryValue", `货值 ${yuan(inventory.inventory_value || 0)} · ${inventory.source === "cloud" ? "云端" : "本地"}`);
+  const warningsReliable = inventory.warnings_reliable !== false && inventory.status !== "unavailable";
+  const warnings = warningsReliable ? (inventory.items || []).filter((item) => Number(item.balance || 0) <= Number(item.warning_threshold || 0)) : [];
+  const warningCount = warningsReliable ? Number(inventory.warning_count ?? warnings.length) : 0;
+  const sourceText = inventory.source === "cloud" ? "云端" : inventory.source === "local_fallback_empty" ? "本地空库" : "本地";
+  text("metricInventory", warningsReliable ? `${warningCount} 个` : "待同步");
+  text("metricInventoryValue", warningsReliable ? `货值 ${yuan(inventory.inventory_value || 0)} · ${sourceText}` : `货值待同步 · ${sourceText}`);
   text("inventoryProductCount", `${inventory.product_count || 0} 项`);
-  text("inventorySummary", `当前库存货值 ${yuan(inventory.inventory_value || 0)}，预警 ${inventory.warning_count || 0} 项，来源：${inventory.source === "cloud" ? "腾讯云库存" : "本地备用数据"}。`);
+  text("inventorySummary", warningsReliable ? `当前库存货值 ${yuan(inventory.inventory_value || 0)}，预警 ${warningCount} 项，来源：${sourceText}。` : (inventory.message || "库存数据待同步，暂不展示低库存预警。"));
   cls("inventoryMetricCard", "alert", warnings.length > 0);
   document.querySelector("#inventory")?.classList.toggle("alert", warnings.length > 0);
   document.querySelector("#metricInventoryValue")?.classList.toggle("danger", warnings.length > 0);
-  rows(
-    "inventoryRows",
-    warnings.slice(0, 6),
-    (item) => `<div class="warn-row"><span>${item.name}</span><strong>${num(item.balance, 2)} ${item.unit || ""}</strong><em>预警 ${num(item.warning_threshold, 2)}</em></div>`
-  );
+  if (warningsReliable) {
+    rows(
+      "inventoryRows",
+      warnings.slice(0, 6),
+      (item) => `<div class="warn-row"><span>${item.name}</span><strong>${num(item.balance, 2)} ${item.unit || ""}</strong><em>预警 ${num(item.warning_threshold, 2)}</em></div>`
+    );
+  } else {
+    html("inventoryRows", `<div class="empty-line">${escapeHtml(inventory.message || "库存数据待同步，暂不展示低库存预警。")}</div>`);
+  }
 }
 
 function renderTools() {
