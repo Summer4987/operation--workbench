@@ -499,9 +499,9 @@ const financeFlowPresets = {
     from_location: "",
     to_location: "工厂暂存",
     payment_status: "已付给工厂",
-    production_status: "",
+    production_status: "工厂在生产",
     counterparty: "",
-    note: "购买 1 吨板腱原料，已付给工厂 86,530 元。",
+    note: "购买 1 吨板腱原料，已付给工厂 86,530 元，原料留在工厂生产。",
   },
   production: {
     event_type: "生产",
