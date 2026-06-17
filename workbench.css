@@ -1522,6 +1522,91 @@ h2 {
   gap: 10px;
 }
 
+.finance-review-panel .mini-table {
+  gap: 10px;
+}
+
+.finance-review-card {
+  padding: 12px;
+  border: 1px solid #f4c16c;
+  border-radius: 8px;
+  background: #fffaf0;
+  display: grid;
+  gap: 10px;
+}
+
+.finance-review-card.confirmed {
+  border-color: #b7e4cb;
+  background: #f0fdf4;
+}
+
+.finance-review-card-main {
+  display: grid;
+  gap: 4px;
+}
+
+.finance-review-card-main span,
+.finance-review-card-main em,
+.finance-review-controls span,
+.finance-review-confirm-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.finance-review-card-main strong {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.finance-review-controls {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.2fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.finance-review-controls label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-review-controls select,
+.finance-review-controls input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #d5dce6;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+
+.finance-review-confirm {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: #0f766e;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.finance-review-confirm:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.finance-review-confirm-status {
+  grid-column: 1 / -1;
+}
+
 .finance-arap-modal {
   position: fixed;
   inset: 0;
@@ -2583,6 +2668,7 @@ h2 {
   .finance-form-head,
   .finance-form-grid,
   .finance-upload-controls,
+  .finance-review-controls,
   .finance-report-kpis,
   .finance-report-notes,
   .finance-report-title,

@@ -542,6 +542,73 @@ function initializeFinanceArapControls() {
   renderFinanceArapEntries();
 }
 
+function financeReviewKey(item) {
+  return [
+    item.source || "",
+    item.time || item.transaction_time || item.transaction_date || "",
+    item.amount || "",
+    item.counterparty || "",
+    item.description || "",
+  ].join("|");
+}
+
+function initializeFinanceReviewControls() {
+  document.querySelectorAll(".finance-review-confirm").forEach((button) => {
+    if (button.dataset.bound) return;
+    button.dataset.bound = "true";
+    button.addEventListener("click", async () => {
+      const row = button.closest(".finance-review-card");
+      const status = row?.querySelector(".finance-review-confirm-status");
+      const ledger = row?.querySelector('[name="review_ledger"]')?.value || "";
+      const channel = row?.querySelector('[name="review_channel"]')?.value || "";
+      const note = row?.querySelector('[name="review_note"]')?.value || "";
+      const amount = Number(button.dataset.amount || 0);
+      const direction = button.dataset.direction || (amount >= 0 ? "收入" : "支出");
+      const entry = {
+        id: `${Date.now()}-${button.dataset.index || "0"}`,
+        created_at: new Date().toISOString(),
+        date: button.dataset.date || new Date().toISOString().slice(0, 10),
+        ledger,
+        direction: "确认流水",
+        amount: Math.abs(amount),
+        channel,
+        counterparty: button.dataset.counterparty || "",
+        account: button.dataset.source || "银行流水",
+        note: `${direction} ${amount >= 0 ? "+" : "-"}${yuan(Math.abs(amount))}；原摘要：${button.dataset.description || ""}${note ? `；确认备注：${note}` : ""}`,
+        files: "",
+        sync_status: "local_pending",
+        review_key: button.dataset.reviewKey || "",
+      };
+      if (!ledger || !channel) {
+        if (status) status.textContent = "请选择账本和渠道。";
+        return;
+      }
+      button.disabled = true;
+      if (status) status.textContent = "正在保存...";
+      const entries = readLocalList(FINANCE_LOCAL_ENTRIES_KEY);
+      try {
+        const response = await fetch(FINANCE_ENTRY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [result.entry || { ...entry, sync_status: "cloud_saved" }, ...entries]);
+        row?.classList.add("confirmed");
+        if (status) status.textContent = "已保存确认记录。";
+        button.textContent = "已确认";
+        renderFinanceRecentEntries();
+      } catch {
+        writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [entry, ...entries]);
+        if (status) status.textContent = "云端暂未保存，已先记在本页。";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
 function realtimeStores(daily) {
   const realtime = data.realtime || {};
   const directStores = realtime.stores || realtime.store_summary || realtime.items;
@@ -2040,13 +2107,17 @@ function renderFinance() {
     (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
   const reviewRows = [
-    ...ledgerReviewRows.slice(0, 8).map((item) => ({
+    ...ledgerReviewRows.slice(0, 12).map((item, index) => ({
+      ...item,
+      index,
       label: item.direction || "待确认",
       value: `${item.source || ""} ${yuan(item.amount)}`,
       detail: `${item.counterparty || ""} · ${item.channel_name || "未知渠道"} · ${item.ledger_name || "待确认账本"}`,
       warn: true,
     })),
-    ...(!ledgerReviewRows.length ? channelReviewRows.slice(0, 8).map((item) => ({
+    ...(!ledgerReviewRows.length ? channelReviewRows.slice(0, 12).map((item, index) => ({
+      ...item,
+      index,
       label: item.direction || "待确认",
       value: `${item.source || ""} ${yuan(item.amount)}`,
       detail: `${item.counterparty || ""} · ${item.description || ""}`,
@@ -2054,12 +2125,74 @@ function renderFinance() {
     })) : []),
   ];
   text("financeReviewStatus", reviewRows.length ? `${reviewRows.length} 条` : "暂无");
-  rows(
+  html(
     "financeReviewRows",
-    reviewRows.length ? reviewRows : [{ label: "待确认", value: "暂无", detail: "上传新账单后，系统无法自动判断的流水会出现在这里。", warn: false }],
-    (item) => `<div class="${item.warn ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+    reviewRows.length
+      ? reviewRows.map((item) => {
+        const amount = Number(item.amount || 0);
+        const date = item.date || item.time || item.transaction_date || "";
+        const reviewKey = financeReviewKey(item);
+        return `
+          <article class="finance-review-card">
+            <div class="finance-review-card-main">
+              <span>${escapeHtml(date || item.source || "待确认")}</span>
+              <strong>${escapeHtml(item.direction || (amount >= 0 ? "收入" : "支出"))} ${yuan(Math.abs(amount))}</strong>
+              <em>${escapeHtml(item.counterparty || "未识别往来方")} · ${escapeHtml(item.description || item.channel_name || "无摘要")}</em>
+            </div>
+            <div class="finance-review-controls">
+              <label>
+                <span>归属账本</span>
+                <select name="review_ledger">
+                  <option value="门店总账">门店总账</option>
+                  <option value="供应链账">供应链账</option>
+                  <option value="待拆分">待拆分</option>
+                </select>
+              </label>
+              <label>
+                <span>渠道/科目</span>
+                <select name="review_channel">
+                  <option value="快驴订货">快驴订货</option>
+                  <option value="淘宝采购">淘宝采购</option>
+                  <option value="拼多多采购">拼多多采购</option>
+                  <option value="京东采购">京东采购</option>
+                  <option value="线下扫码/转账">线下扫码/转账</option>
+                  <option value="平台收入">平台收入</option>
+                  <option value="供应链销售收入">供应链销售收入</option>
+                  <option value="供应链采购">供应链采购</option>
+                  <option value="他人代付">他人代付</option>
+                  <option value="物流/货拉拉">物流/货拉拉</option>
+                  <option value="水电燃气">水电燃气</option>
+                  <option value="房租/物业">房租/物业</option>
+                  <option value="应收账款">应收账款</option>
+                  <option value="应付账款">应付账款</option>
+                  <option value="人工调整">人工调整</option>
+                </select>
+              </label>
+              <label class="finance-review-note">
+                <span>备注</span>
+                <input name="review_note" type="text" placeholder="用途、门店、供应商或核销说明" />
+              </label>
+              <button
+                class="finance-review-confirm"
+                type="button"
+                data-index="${Number(item.index || 0)}"
+                data-review-key="${escapeHtml(reviewKey)}"
+                data-source="${escapeHtml(item.source || "")}"
+                data-date="${escapeHtml(date)}"
+                data-direction="${escapeHtml(item.direction || "")}"
+                data-amount="${escapeHtml(amount)}"
+                data-counterparty="${escapeHtml(item.counterparty || "")}"
+                data-description="${escapeHtml(item.description || item.channel_name || "")}"
+              >确认归属</button>
+              <em class="finance-review-confirm-status">待确认</em>
+            </div>
+          </article>
+        `;
+      }).join("")
+      : '<div class="empty-line">暂无待确认流水。上传新账单后，系统无法自动判断的流水会出现在这里。</div>'
   );
   initializeFinanceIntakeControls();
+  initializeFinanceReviewControls();
 
   const profitPreview = reconciliationPreview.profit_preview || {};
   const preliminaryTotals = profitPreview.preliminary_totals || {};
