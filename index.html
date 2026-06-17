@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260617-finance-report-pending" />
+    <link rel="stylesheet" href="./workbench.css?v=20260617-finance-arap-bank-start" />
   </head>
   <body>
     <main class="app">
@@ -493,8 +493,8 @@
               </div>
               <div class="module-body">
                 <div class="finance-arap-actions">
-                  <button type="button">新增应收</button>
-                  <button type="button">核销收款</button>
+                  <button type="button" data-finance-arap-action="receivable_add">新增应收</button>
+                  <button type="button" data-finance-arap-action="receivable_settle">核销收款</button>
                 </div>
                 <div class="mini-table" id="financeReceivableRows"></div>
               </div>
@@ -509,8 +509,8 @@
               </div>
               <div class="module-body">
                 <div class="finance-arap-actions">
-                  <button type="button">新增应付</button>
-                  <button type="button">核销付款</button>
+                  <button type="button" data-finance-arap-action="payable_add">新增应付</button>
+                  <button type="button" data-finance-arap-action="payable_settle">核销付款</button>
                 </div>
                 <div class="mini-table" id="financePayableRows"></div>
               </div>
@@ -602,6 +602,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260617-finance-report-pending"></script>
+    <script src="./workbench.js?v=20260617-finance-arap-bank-start"></script>
   </body>
 </html>

@@ -1522,6 +1522,108 @@ h2 {
   gap: 10px;
 }
 
+.finance-arap-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  display: grid;
+  place-items: center;
+}
+
+.finance-arap-modal[hidden] {
+  display: none;
+}
+
+.finance-arap-dialog {
+  width: min(560px, 100%);
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.finance-arap-dialog-head,
+.finance-arap-dialog-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.finance-arap-dialog-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.finance-arap-dialog-head span,
+.finance-arap-dialog-foot em,
+.finance-arap-form-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.finance-arap-dialog-head strong {
+  color: #111827;
+  font-size: 20px;
+}
+
+.finance-arap-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.finance-arap-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finance-arap-form-grid label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-arap-wide {
+  grid-column: 1 / -1;
+}
+
+.finance-arap-form-grid input,
+.finance-arap-form-grid select,
+.finance-arap-form-grid textarea {
+  width: 100%;
+  border: 1px solid #d5dce6;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  background: #fff;
+  color: #111827;
+}
+
+.finance-arap-dialog-foot button {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #0f766e;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .finance-stock-form {
   padding: 14px;
   border: 1px solid #e5eaf1;
@@ -1563,7 +1665,7 @@ h2 {
 
 .finance-report-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -1674,7 +1776,7 @@ h2 {
 
 .finance-report-notes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -1688,7 +1790,7 @@ h2 {
   gap: 8px;
 }
 
-.mini-table div {
+.mini-table > div {
   min-width: 0;
   min-height: 40px;
   padding: 9px 11px;
@@ -1701,18 +1803,28 @@ h2 {
   align-items: center;
 }
 
-.mini-table div.warn-row {
+.mini-table > .finance-report-dashboard {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.mini-table > div.warn-row {
   background: var(--soft-red-bg);
   border-color: var(--soft-red-line);
   border-left: 4px solid var(--red);
 }
 
-.mini-table div.warn-row strong,
+.mini-table > div.warn-row strong,
 .anomaly-list strong {
   color: var(--red);
 }
 
-.mini-table div.good-row {
+.mini-table > div.good-row {
   background: #f7fcfa;
   border-color: #d5efe6;
 }
@@ -2282,8 +2394,8 @@ h2 {
   grid-template-columns: minmax(84px, 0.45fr) auto;
 }
 
-.mini-table span,
-.mini-table em {
+.mini-table > div > span,
+.mini-table > div > em {
   min-width: 0;
   color: var(--muted);
   font-size: 12px;
@@ -2291,13 +2403,13 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.mini-table span {
+.mini-table > div > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mini-table strong {
+.mini-table > div > strong {
   min-width: 0;
   font-size: 13px;
   white-space: nowrap;
@@ -2306,7 +2418,7 @@ h2 {
   text-overflow: ellipsis;
 }
 
-.alert-card .mini-table div {
+.alert-card .mini-table > div {
   align-items: start;
   grid-template-columns: 1fr;
   gap: 5px;
@@ -2314,25 +2426,25 @@ h2 {
   padding: 12px 13px;
 }
 
-.alert-card .mini-table span,
-.alert-card .mini-table strong,
-.alert-card .mini-table em {
+.alert-card .mini-table > div > span,
+.alert-card .mini-table > div > strong,
+.alert-card .mini-table > div > em {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
 }
 
-.alert-card .mini-table span {
+.alert-card .mini-table > div > span {
   font-size: 12px;
   line-height: 1.25;
 }
 
-.alert-card .mini-table strong {
+.alert-card .mini-table > div > strong {
   font-size: 14px;
   line-height: 1.3;
 }
 
-.alert-card .mini-table em {
+.alert-card .mini-table > div > em {
   display: -webkit-box;
   font-size: 12px;
   line-height: 1.35;
@@ -2341,7 +2453,7 @@ h2 {
   overflow: hidden;
 }
 
-.mini-table small {
+.mini-table > div > small {
   grid-column: 1 / -1;
   color: var(--muted);
   font-size: 11px;
@@ -2473,15 +2585,15 @@ h2 {
   .finance-arap-actions,
   .finance-stock-form,
   .ordering-channel-list div,
-  .mini-table div,
+  .mini-table > div,
   .anomaly-list div,
   .review-list div {
     grid-template-columns: 1fr;
   }
 
-  .mini-table span,
-  .mini-table strong,
-  .mini-table em {
+  .mini-table > div > span,
+  .mini-table > div > strong,
+  .mini-table > div > em {
     white-space: normal;
   }
 

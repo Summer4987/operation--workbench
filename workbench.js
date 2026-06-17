@@ -182,6 +182,7 @@ function rows(id, items, render) {
 
 const FINANCE_LOCAL_ENTRIES_KEY = "xiong_finance_manual_entries_v1";
 const FINANCE_PENDING_UPLOADS_KEY = "xiong_finance_pending_uploads_v1";
+const FINANCE_ARAP_ENTRIES_KEY = "xiong_finance_arap_entries_v1";
 
 function readLocalList(key) {
   try {
@@ -329,6 +330,216 @@ function initializeFinanceIntakeControls() {
   });
 
   renderFinanceRecentEntries();
+}
+
+const financeArapActions = {
+  receivable_add: {
+    title: "新增应收",
+    ledger: "供应链账",
+    direction: "应收",
+    channel: "应收账款",
+    account: "未收款",
+    counterpartyLabel: "客户",
+    note: "登记客户欠款，收款时再核销应收。",
+  },
+  receivable_settle: {
+    title: "核销收款",
+    ledger: "供应链账",
+    direction: "核销收款",
+    channel: "应收账款",
+    account: "银行卡",
+    counterpartyLabel: "客户",
+    note: "收到款项后冲减应收，不重复计收入。",
+  },
+  payable_add: {
+    title: "新增应付",
+    ledger: "门店总账",
+    direction: "应付",
+    channel: "应付账款",
+    account: "未付款",
+    counterpartyLabel: "供应商",
+    note: "登记已发生但未支付的采购或费用。",
+  },
+  payable_settle: {
+    title: "核销付款",
+    ledger: "门店总账",
+    direction: "核销付款",
+    channel: "应付账款",
+    account: "银行卡",
+    counterpartyLabel: "供应商",
+    note: "付款后冲减应付，不重复计成本费用。",
+  },
+};
+
+function ensureFinanceArapModal() {
+  let modal = document.querySelector("#financeArapModal");
+  if (modal) return modal;
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `
+      <div class="finance-arap-modal" id="financeArapModal" hidden>
+        <form class="finance-arap-dialog" id="financeArapForm">
+          <div class="finance-arap-dialog-head">
+            <div>
+              <span id="financeArapFormEyebrow">应收应付</span>
+              <strong id="financeArapFormTitle">新增记录</strong>
+            </div>
+            <button type="button" class="finance-arap-close" id="financeArapClose" aria-label="关闭">×</button>
+          </div>
+          <div class="finance-arap-form-grid">
+            <label>
+              <span>日期</span>
+              <input name="date" type="date" required />
+            </label>
+            <label>
+              <span>账本</span>
+              <select name="ledger" required>
+                <option value="门店总账">门店总账</option>
+                <option value="供应链账">供应链账</option>
+              </select>
+            </label>
+            <label>
+              <span>金额</span>
+              <input name="amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+            </label>
+            <label>
+              <span id="financeArapCounterpartyLabel">往来方</span>
+              <input name="counterparty" type="text" placeholder="客户或供应商" required />
+            </label>
+            <label class="finance-arap-wide">
+              <span>备注</span>
+              <textarea name="note" rows="2" placeholder="例如：对应哪笔采购、哪张发票、哪次收款"></textarea>
+            </label>
+          </div>
+          <input name="direction" type="hidden" />
+          <input name="channel" type="hidden" />
+          <input name="account" type="hidden" />
+          <div class="finance-arap-dialog-foot">
+            <em id="financeArapFormHint">保存后进入云端财务记录。</em>
+            <button type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    `
+  );
+  modal = document.querySelector("#financeArapModal");
+  modal.querySelector("#financeArapClose")?.addEventListener("click", () => {
+    modal.hidden = true;
+  });
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) modal.hidden = true;
+  });
+  return modal;
+}
+
+function renderFinanceArapEntries() {
+  const entries = readLocalList(FINANCE_ARAP_ENTRIES_KEY);
+  const receivables = entries.filter((entry) => ["应收", "核销收款"].includes(entry.direction));
+  const payables = entries.filter((entry) => ["应付", "核销付款"].includes(entry.direction));
+  rows(
+    "financeReceivableRows",
+    [
+      ...receivables.slice(0, 8).map((entry) => ({
+        label: `${entry.date || "-"} · ${entry.direction}`,
+        value: `${entry.counterparty || "未填客户"} ${yuan(entry.amount)}`,
+        detail: entry.note || (entry.direction === "应收" ? "客户欠款登记" : "收款核销"),
+      })),
+      ...(!receivables.length ? [
+        { label: "新增应收", value: "供应链销售客户欠款", detail: "业务发生时确认收入并形成应收，收款时只核销应收，不重复计收入。" },
+        { label: "核销收款", value: "冲减应收", detail: "银行或微信到账后，选择对应应收记录核销。" },
+      ] : []),
+    ],
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+  rows(
+    "financePayableRows",
+    [
+      ...payables.slice(0, 8).map((entry) => ({
+        label: `${entry.date || "-"} · ${entry.direction}`,
+        value: `${entry.counterparty || "未填供应商"} ${yuan(entry.amount)}`,
+        detail: entry.note || (entry.direction === "应付" ? "供应商欠款登记" : "付款核销"),
+      })),
+      ...(!payables.length ? [
+        { label: "新增应付", value: "供应商欠款", detail: "采购或费用发生但未付款时登记应付。" },
+        { label: "核销付款", value: "冲减应付", detail: "付款时只冲应付，不重复计成本费用。" },
+      ] : []),
+    ],
+    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+  );
+}
+
+function initializeFinanceArapControls() {
+  document.querySelectorAll("[data-finance-arap-action]").forEach((button) => {
+    if (button.dataset.bound) return;
+    button.dataset.bound = "true";
+    button.addEventListener("click", () => {
+      const config = financeArapActions[button.dataset.financeArapAction || ""];
+      if (!config) return;
+      const modal = ensureFinanceArapModal();
+      const form = modal.querySelector("#financeArapForm");
+      form.reset();
+      form.dataset.action = button.dataset.financeArapAction || "";
+      form.elements.date.value = new Date().toISOString().slice(0, 10);
+      form.elements.ledger.value = config.ledger;
+      form.elements.direction.value = config.direction;
+      form.elements.channel.value = config.channel;
+      form.elements.account.value = config.account;
+      text("financeArapFormTitle", config.title);
+      text("financeArapCounterpartyLabel", config.counterpartyLabel);
+      text("financeArapFormHint", config.note);
+      modal.hidden = false;
+    });
+  });
+
+  const modal = ensureFinanceArapModal();
+  const form = modal.querySelector("#financeArapForm");
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = "true";
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const entry = {
+        id: `${Date.now()}`,
+        created_at: new Date().toISOString(),
+        date: formData.get("date") || "",
+        ledger: formData.get("ledger") || "",
+        direction: formData.get("direction") || "",
+        amount: Number(formData.get("amount") || 0),
+        channel: formData.get("channel") || "",
+        counterparty: formData.get("counterparty") || "",
+        account: formData.get("account") || "",
+        note: formData.get("note") || "",
+        files: "",
+        sync_status: "local_pending",
+      };
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      const arapEntries = readLocalList(FINANCE_ARAP_ENTRIES_KEY);
+      try {
+        const response = await fetch(FINANCE_ENTRY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const saved = result.entry || { ...entry, sync_status: "cloud_saved" };
+        writeLocalList(FINANCE_ARAP_ENTRIES_KEY, [saved, ...arapEntries]);
+        const manualEntries = readLocalList(FINANCE_LOCAL_ENTRIES_KEY);
+        writeLocalList(FINANCE_LOCAL_ENTRIES_KEY, [saved, ...manualEntries]);
+        renderFinanceArapEntries();
+        renderFinanceRecentEntries();
+        modal.hidden = true;
+      } catch {
+        writeLocalList(FINANCE_ARAP_ENTRIES_KEY, [entry, ...arapEntries]);
+        renderFinanceArapEntries();
+        modal.hidden = true;
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+  }
+  renderFinanceArapEntries();
 }
 
 function realtimeStores(daily) {
@@ -1927,22 +2138,7 @@ function renderFinance() {
       </div>
     `
   );
-  rows(
-    "financeReceivableRows",
-    [
-      { label: "新增应收", value: "供应链销售客户欠款", detail: "业务发生时确认收入并形成应收，收款时只核销应收，不重复计收入。" },
-      { label: "核销收款", value: "冲减应收", detail: "银行或微信到账后，选择对应应收记录核销。" },
-    ],
-    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
-  );
-  rows(
-    "financePayableRows",
-    [
-      { label: "新增应付", value: "供应商欠款", detail: "采购或费用发生但未付款时登记应付。" },
-      { label: "核销付款", value: "冲减应付", detail: "付款时只冲应付，不重复计成本费用。" },
-    ],
-    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
-  );
+  initializeFinanceArapControls();
   rows(
     "financeStockRows",
     [

@@ -105,6 +105,14 @@ def clean_text(value: Any) -> str:
 
 
 def classify_channel(item: NormalizedTransaction, rules: list[dict[str, Any]]) -> None:
+    if "用途待确认" in (item.notes or ""):
+        item.channel_id = "bank_manual_review"
+        item.channel_name = "银行流水待确认"
+        item.channel_group = "待确认渠道"
+        item.channel_rule = "import_flag:manual_review"
+        item.ledger_scope = "manual_review"
+        return
+
     haystack = " ".join(
         [
             item.source_name,
@@ -489,13 +497,49 @@ def parse_bank_pdf(path: Path) -> list[NormalizedTransaction]:
     return transactions
 
 
+def parse_bank_csv(path: Path) -> list[NormalizedTransaction]:
+    with path.open("r", encoding="utf-8-sig", newline="") as source:
+        reader = csv.DictReader(source)
+        rows = [{clean_text(k): clean_text(v) for k, v in row.items() if k is not None} for row in reader]
+    transactions = []
+    for row in rows:
+        tx_date = safe_date(row.get("交易日期", ""))
+        if not tx_date:
+            continue
+        tx_time = clean_text(row.get("交易时间")) or tx_date
+        amount = money(row.get("交易金额"))
+        direction = clean_text(row.get("收支方向")) or ("收入" if amount > 0 else "支出" if amount < 0 else "中性")
+        signed = signed_amount(abs(amount), direction) if amount >= 0 else amount
+        transactions.append(
+            NormalizedTransaction(
+                source="bank",
+                source_name="招商银行",
+                transaction_time=tx_time,
+                transaction_date=tx_date,
+                direction=direction,
+                amount=round(signed, 2),
+                original_amount=round(abs(signed), 2),
+                counterparty=clean_text(row.get("对方户名")),
+                description=clean_text(row.get("摘要")),
+                payment_method=clean_text(row.get("账户")) or "招商银行储蓄卡(1415)",
+                status=clean_text(row.get("状态")) or "已记账",
+                transaction_id=clean_text(row.get("交易流水号")),
+                merchant_order_id="",
+                raw_file=str(path.relative_to(ROOT)),
+                category=clean_text(row.get("摘要")),
+                notes=clean_text(row.get("备注")),
+            )
+        )
+    return transactions
+
+
 def parse_all_sources() -> tuple[list[NormalizedTransaction], list[dict[str, Any]]]:
     transactions: list[NormalizedTransaction] = []
     source_status = []
     ledger_rules = load_ledger_rules()
     channel_rules = channel_rules_from_config(ledger_rules)
     parsers = [
-        ("bank", "银行流水", "bank", {".pdf"}, parse_bank_pdf),
+        ("bank", "银行流水", "bank", {".pdf", ".csv"}, lambda path: parse_bank_csv(path) if path.suffix.lower() == ".csv" else parse_bank_pdf(path)),
         ("wechat_pay", "微信支付账单", "wechat-pay", {".xlsx", ".xls"}, parse_wechat),
         ("alipay", "支付宝账单", "alipay", {".csv"}, parse_alipay),
     ]
