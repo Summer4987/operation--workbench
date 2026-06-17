@@ -2,9 +2,9 @@ const data = window.WORKBENCH_DATA || {};
 const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
 const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
 const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
-const FINANCE_ENTRIES_URL = "/api/finance/entries?token=xiongxiaoxiao-order";
 const FINANCE_OPENING_URL = "/api/finance/opening?token=xiongxiaoxiao-order";
 const INVENTORY_FLOW_URL = "/api/inventory/flow";
+const SUPPLY_CHAIN_FLOW_URL = "/api/supply-chain/flow?token=xiongxiaoxiao-order";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
@@ -189,7 +189,7 @@ const FINANCE_ARAP_ENTRIES_KEY = "xiong_finance_arap_entries_v1";
 const FINANCE_OPENING_ENTRIES_KEY = "xiong_finance_opening_entries_v1";
 const financeFlowState = {
   payload: null,
-  receivables: [],
+  warehousePayload: null,
 };
 
 function readLocalList(key) {
@@ -338,24 +338,25 @@ function financeFlowSearchValue() {
 
 function financeFlowMatches(item, term) {
   if (!term) return true;
-  const destinations = (item.destinations || []).map((entry) => entry.destination).join(" ");
-  return `${item.sku || ""} ${item.name || ""} ${item.spec || ""} ${destinations}`.toLowerCase().includes(term);
+  const locations = (item.locations || []).map((entry) => entry.location).join(" ");
+  return `${item.lot_id || ""} ${item.product_name || ""} ${item.factory || ""} ${locations}`.toLowerCase().includes(term);
 }
 
 function renderFinanceFlow() {
   const payload = financeFlowState.payload || {};
+  const warehousePayload = financeFlowState.warehousePayload || {};
   const term = financeFlowSearchValue();
   const items = (payload.items || []).filter((item) => financeFlowMatches(item, term));
   const totals = payload.totals || {};
-  const receivables = financeFlowState.receivables || [];
-  text("financeFlowStatus", payload.items ? `${items.length} 个货品` : "待读取");
+  const warehouseItems = warehousePayload.items || [];
+  text("financeFlowStatus", payload.items ? `${items.length} 个批次` : "待读取");
   html(
     "financeFlowKpis",
     [
-      { label: "本月入库", value: num(totals.inbound_quantity, 2), detail: "工厂采购到货数量合计" },
-      { label: "本月出库", value: num(totals.outbound_quantity, 2), detail: "发给门店或客户的数量合计" },
-      { label: "当前货值", value: yuan(totals.current_value), detail: "按库存系统商品成本估算" },
-      { label: "应收记录", value: `${receivables.length} 条`, detail: "供应链销售发货后形成应收" },
+      { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪" },
+      { label: "已付货款", value: yuan(totals.paid_amount), detail: "采购动作里登记的已付款" },
+      { label: "供应链应收", value: yuan(totals.receivable_amount), detail: "销售动作里形成的应收" },
+      { label: "成都仓参考", value: `${warehouseItems.length} 项`, detail: "来自现有成都仓库存系统" },
     ].map((item) => `
       <article>
         <span>${escapeHtml(item.label)}</span>
@@ -368,41 +369,52 @@ function renderFinanceFlow() {
     "financeFlowRows",
     items.slice(0, 40),
     (item) => {
-      const destinations = (item.destinations || []).length
-        ? item.destinations.map((entry) => `${entry.destination} ${num(entry.quantity, 2)}${item.unit || ""}`).join(" / ")
-        : "本月暂无出库去向";
-      const inbound = Number(item.inbound_quantity || 0);
-      const outbound = Number(item.outbound_quantity || 0);
-      const balance = Number(item.current_balance || 0);
+      const locations = (item.locations || []).length
+        ? item.locations.map((entry) => `${entry.location} ${num(entry.quantity, 2)}${item.unit || ""}`).join(" / ")
+        : "暂无位置余额";
+      const purchased = Number(item.purchase_quantity || 0);
+      const outbound = Number(item.out_quantity || 0);
+      const balance = Number(item.balance_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
       return `
         <div class="${rowClass}">
-          <span>${escapeHtml(item.sku || "-")} · ${escapeHtml(item.name || "-")}</span>
-          <strong>入 ${num(inbound, 2)} / 出 ${num(outbound, 2)} / 余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
-          <em>${escapeHtml(destinations)}</em>
+          <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
+          <strong>购 ${num(purchased, 2)} / 出 ${num(outbound, 2)} / 余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
+          <em>${escapeHtml(locations)}${item.factory ? ` · ${escapeHtml(item.factory)}` : ""}</em>
         </div>
       `;
     }
   );
   rows(
-    "financeFlowReceivableRows",
-    receivables.slice(0, 12),
+    "financeFlowLocationRows",
+    payload.locations || [],
     (entry) => `
-      <div class="${entry.direction === "核销收款" ? "good-row" : "warn-row"}">
-        <span>${escapeHtml(entry.date || "-")} · ${escapeHtml(entry.counterparty || "未填客户")}</span>
-        <strong>${escapeHtml(entry.direction || "应收")} ${yuan(entry.amount)}</strong>
-        <em>${escapeHtml(entry.note || "发货后登记应收；收款后核销，不重复计收入。")}</em>
+      <div class="good-row">
+        <span>${escapeHtml(entry.location || "未指定位置")}</span>
+        <strong>${num(entry.quantity, 2)}</strong>
+        <em>所有采购批次当前位置合计</em>
       </div>
     `
   );
   rows(
     "financeFlowMovementRows",
-    (payload.recent_movements || []).slice(0, 16),
+    (payload.recent_events || []).slice(0, 16),
     (item) => `
-      <div class="${item.movement_type === "inbound" ? "good-row" : "warn-row"}">
-        <span>${escapeHtml(item.created_at || item.document_date || "-")} · ${escapeHtml(item.movement_type === "inbound" ? "入库" : "出库")}</span>
-        <strong>${escapeHtml(item.name || item.sku || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml(item.destination || item.filename || "")}</em>
+      <div class="${item.event_type === "采购" || item.event_type === "调拨" ? "good-row" : "warn-row"}">
+        <span>${escapeHtml(item.date || "-")} · ${escapeHtml(item.event_type || "-")} · ${escapeHtml(item.lot_id || "-")}</span>
+        <strong>${escapeHtml(item.product_name || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
+        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}</em>
+      </div>
+    `
+  );
+  rows(
+    "financeWarehouseFlowRows",
+    warehouseItems.slice(0, 8),
+    (item) => `
+      <div class="good-row">
+        <span>${escapeHtml(item.sku || "-")} · ${escapeHtml(item.name || "-")}</span>
+        <strong>成都仓余 ${num(item.current_balance, 2)}${escapeHtml(item.unit || "")}</strong>
+        <em>${escapeHtml((item.destinations || []).map((entry) => `${entry.destination} ${num(entry.quantity, 2)}`).join(" / ") || "本月暂无成都仓出库")}</em>
       </div>
     `
   );
@@ -412,26 +424,17 @@ async function loadFinanceFlow() {
   const month = financeFlowMonthValue();
   text("financeFlowStatus", "读取中");
   try {
-    const [flowResponse, entriesResponse] = await Promise.all([
+    const [flowResponse, warehouseResponse] = await Promise.all([
+      fetch(SUPPLY_CHAIN_FLOW_URL),
       fetch(`${INVENTORY_FLOW_URL}?month=${encodeURIComponent(month)}&limit=120`),
-      fetch(FINANCE_ENTRIES_URL),
     ]);
     if (!flowResponse.ok) throw new Error(`inventory ${flowResponse.status}`);
-    const flowPayload = await flowResponse.json();
-    financeFlowState.payload = flowPayload;
-    if (entriesResponse.ok) {
-      const entriesPayload = await entriesResponse.json();
-      financeFlowState.receivables = (entriesPayload.items || []).filter((entry) => ["应收", "核销收款"].includes(entry.direction));
-      if (financeFlowState.receivables.length) {
-        writeLocalList(FINANCE_ARAP_ENTRIES_KEY, financeFlowState.receivables);
-      }
-    } else {
-      financeFlowState.receivables = readLocalList(FINANCE_ARAP_ENTRIES_KEY).filter((entry) => ["应收", "核销收款"].includes(entry.direction));
-    }
+    financeFlowState.payload = await flowResponse.json();
+    financeFlowState.warehousePayload = warehouseResponse.ok ? await warehouseResponse.json() : { items: [], recent_movements: [], totals: {} };
     renderFinanceFlow();
   } catch {
-    financeFlowState.payload = { items: [], recent_movements: [], totals: {} };
-    financeFlowState.receivables = readLocalList(FINANCE_ARAP_ENTRIES_KEY).filter((entry) => ["应收", "核销收款"].includes(entry.direction));
+    financeFlowState.payload = { items: [], recent_events: [], locations: [], totals: {} };
+    financeFlowState.warehousePayload = { items: [], recent_movements: [], totals: {} };
     text("financeFlowStatus", "读取失败");
     renderFinanceFlow();
   }
@@ -447,6 +450,50 @@ function initializeFinanceFlowControls() {
     document.querySelector("#financeFlowRefresh")?.addEventListener("click", loadFinanceFlow);
     monthInput?.addEventListener("change", loadFinanceFlow);
     document.querySelector("#financeFlowSearch")?.addEventListener("input", renderFinanceFlow);
+    const form = document.querySelector("#financeFlowEntryForm");
+    const dateInput = form?.querySelector('[name="date"]');
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const entry = {
+        id: `${Date.now()}`,
+        date: formData.get("date") || "",
+        event_type: formData.get("event_type") || "",
+        lot_id: formData.get("lot_id") || "",
+        product_name: formData.get("product_name") || "",
+        factory: formData.get("factory") || "",
+        quantity: Number(formData.get("quantity") || 0),
+        unit: formData.get("unit") || "",
+        from_location: formData.get("from_location") || "",
+        to_location: formData.get("to_location") || "",
+        paid_amount: Number(formData.get("paid_amount") || 0),
+        receivable_amount: Number(formData.get("receivable_amount") || 0),
+        counterparty: formData.get("counterparty") || "",
+        note: formData.get("note") || "",
+      };
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      text("financeFlowEntryMessage", "正在保存货权流向...");
+      try {
+        const response = await fetch(SUPPLY_CHAIN_FLOW_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+        financeFlowState.payload = result.summary || financeFlowState.payload;
+        text("financeFlowEntryMessage", "已保存到云端货权流向台账。");
+        form.reset();
+        if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+        renderFinanceFlow();
+      } catch (error) {
+        text("financeFlowEntryMessage", error.message || "云端保存失败，请稍后重试。");
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
   }
   if (!card.dataset.loaded) {
     card.dataset.loaded = "true";

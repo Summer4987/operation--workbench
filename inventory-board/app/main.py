@@ -53,6 +53,7 @@ FINANCE_UPLOAD_DIR = BASE_DIR / "data" / "finance-uploads"
 FINANCE_UPLOAD_MANIFEST = FINANCE_UPLOAD_DIR / "manifest.jsonl"
 FINANCE_ENTRY_MANIFEST = FINANCE_UPLOAD_DIR / "manual_entries.jsonl"
 FINANCE_OPENING_MANIFEST = FINANCE_UPLOAD_DIR / "opening_balances.jsonl"
+SUPPLY_CHAIN_FLOW_MANIFEST = FINANCE_UPLOAD_DIR / "supply_chain_flow.jsonl"
 FINANCE_SOURCE_IDS = {
     "bank",
     "wechat_pay",
@@ -161,6 +162,22 @@ def inventory_flow(month: Optional[str] = None, limit: int = 80):
     clean_month = (month or "").strip()[:7]
     clean_limit = max(1, min(int(limit or 80), 200))
     return inventory_flow_summary(clean_month or None, clean_limit)
+
+
+@app.post("/api/supply-chain/flow")
+async def supply_chain_flow_entry(request: Request, payload: dict):
+    _require_public_order_token(request)
+    entry = _validate_supply_chain_flow_entry(payload)
+    SUPPLY_CHAIN_FLOW_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    with SUPPLY_CHAIN_FLOW_MANIFEST.open("a", encoding="utf-8") as target:
+        target.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return {"status": "success", "entry": entry, "summary": _supply_chain_flow_summary()}
+
+
+@app.get("/api/supply-chain/flow")
+def supply_chain_flow(request: Request):
+    _require_public_order_token(request)
+    return _supply_chain_flow_summary()
 
 
 @app.get("/api/inbound-template")
@@ -643,6 +660,162 @@ def _validate_finance_opening(payload: dict) -> dict:
         - opening["third_party_payable_amount"]
     )
     return opening
+
+
+def _read_supply_chain_flow_entries() -> list[dict]:
+    items = []
+    if SUPPLY_CHAIN_FLOW_MANIFEST.exists():
+        for line in SUPPLY_CHAIN_FLOW_MANIFEST.read_text(encoding="utf-8").splitlines():
+            try:
+                items.append(json.loads(line))
+            except Exception:
+                continue
+    return items
+
+
+def _supply_chain_flow_summary() -> dict:
+    entries = _read_supply_chain_flow_entries()
+    lots: dict[str, dict] = {}
+    location_totals: dict[str, float] = {}
+    receivable_total = 0.0
+    paid_total = 0.0
+
+    for entry in entries:
+        lot_id = entry["lot_id"]
+        quantity = float(entry.get("quantity") or 0)
+        event_type = entry.get("event_type") or ""
+        lot = lots.setdefault(
+            lot_id,
+            {
+                "lot_id": lot_id,
+                "product_name": entry.get("product_name") or "",
+                "factory": entry.get("factory") or "",
+                "unit": entry.get("unit") or "",
+                "unit_cost": entry.get("unit_cost") or 0,
+                "purchase_quantity": 0.0,
+                "out_quantity": 0.0,
+                "paid_amount": 0.0,
+                "receivable_amount": 0.0,
+                "locations": {},
+                "recent_events": [],
+            },
+        )
+        if entry.get("product_name"):
+            lot["product_name"] = entry["product_name"]
+        if entry.get("factory"):
+            lot["factory"] = entry["factory"]
+        if entry.get("unit"):
+            lot["unit"] = entry["unit"]
+        if entry.get("unit_cost"):
+            lot["unit_cost"] = entry["unit_cost"]
+
+        from_location = entry.get("from_location") or ""
+        to_location = entry.get("to_location") or ""
+        paid_amount = float(entry.get("paid_amount") or 0)
+        receivable_amount = float(entry.get("receivable_amount") or 0)
+        paid_total += paid_amount
+        receivable_total += receivable_amount
+        lot["paid_amount"] += paid_amount
+        lot["receivable_amount"] += receivable_amount
+
+        if event_type == "采购":
+            lot["purchase_quantity"] += quantity
+            _add_location_balance(lot["locations"], to_location or "工厂暂存", quantity)
+        elif event_type == "调拨":
+            _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
+            _add_location_balance(lot["locations"], to_location or "在途", quantity)
+        elif event_type in {"销售", "耗用"}:
+            lot["out_quantity"] += quantity
+            _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
+        elif event_type == "调整":
+            if from_location:
+                _add_location_balance(lot["locations"], from_location, -quantity)
+            if to_location:
+                _add_location_balance(lot["locations"], to_location, quantity)
+
+        lot["recent_events"].append(entry)
+
+    for lot in lots.values():
+        lot["balance_quantity"] = sum(float(value or 0) for value in lot["locations"].values())
+        lot["locations"] = [
+            {"location": location, "quantity": quantity}
+            for location, quantity in sorted(lot["locations"].items())
+            if abs(quantity) > 0.000001
+        ]
+        lot["recent_events"] = list(reversed(lot["recent_events"][-8:]))
+        for item in lot["locations"]:
+            location_totals[item["location"]] = location_totals.get(item["location"], 0.0) + float(item["quantity"] or 0)
+
+    return {
+        "items": sorted(lots.values(), key=lambda item: item["lot_id"], reverse=True),
+        "recent_events": list(reversed(entries[-40:])),
+        "locations": [
+            {"location": location, "quantity": quantity}
+            for location, quantity in sorted(location_totals.items())
+        ],
+        "totals": {
+            "lot_count": len(lots),
+            "paid_amount": paid_total,
+            "receivable_amount": receivable_total,
+        },
+    }
+
+
+def _add_location_balance(locations: dict[str, float], location: str, quantity: float) -> None:
+    clean_location = (location or "未指定位置").strip()
+    locations[clean_location] = locations.get(clean_location, 0.0) + float(quantity or 0)
+
+
+def _validate_supply_chain_flow_entry(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="货权流向数据格式不正确")
+    event_type = str(payload.get("event_type") or "")[:20]
+    if event_type not in {"采购", "调拨", "销售", "耗用", "调整"}:
+        raise HTTPException(status_code=400, detail="请选择采购、调拨、销售、耗用或调整")
+    try:
+        quantity = float(payload.get("quantity") or 0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="数量必须是数字") from exc
+    if quantity <= 0:
+        raise HTTPException(status_code=400, detail="数量必须大于 0")
+    lot_id = str(payload.get("lot_id") or "")[:80].strip()
+    product_name = str(payload.get("product_name") or "")[:120].strip()
+    if not lot_id or not product_name:
+        raise HTTPException(status_code=400, detail="批次号和货品名称不能为空")
+    try:
+        unit_cost = float(payload.get("unit_cost") or 0)
+        paid_amount = float(payload.get("paid_amount") or 0)
+        receivable_amount = float(payload.get("receivable_amount") or 0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="金额必须是数字") from exc
+    entry = {
+        "id": str(payload.get("id") or now_iso()),
+        "created_at": now_iso(),
+        "date": str(payload.get("date") or "")[:20],
+        "event_type": event_type,
+        "lot_id": lot_id,
+        "product_name": product_name,
+        "factory": str(payload.get("factory") or "")[:120],
+        "quantity": quantity,
+        "unit": str(payload.get("unit") or "")[:20],
+        "unit_cost": max(unit_cost, 0),
+        "paid_amount": max(paid_amount, 0),
+        "receivable_amount": max(receivable_amount, 0),
+        "from_location": str(payload.get("from_location") or "")[:80],
+        "to_location": str(payload.get("to_location") or "")[:80],
+        "counterparty": str(payload.get("counterparty") or "")[:120],
+        "note": str(payload.get("note") or "")[:500],
+        "sync_status": "cloud_saved",
+    }
+    if not entry["date"]:
+        raise HTTPException(status_code=400, detail="日期不能为空")
+    if event_type == "采购" and not entry["to_location"]:
+        raise HTTPException(status_code=400, detail="采购需要填写货物当前位置")
+    if event_type == "调拨" and (not entry["from_location"] or not entry["to_location"]):
+        raise HTTPException(status_code=400, detail="调拨需要填写来源和去向")
+    if event_type in {"销售", "耗用"} and not entry["from_location"]:
+        raise HTTPException(status_code=400, detail="销售或耗用需要填写从哪里发出")
+    return entry
 
 
 def _inbound_template_path() -> Path | None:
