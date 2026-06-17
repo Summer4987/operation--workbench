@@ -259,6 +259,23 @@ def row_text(row: dict[str, Any]) -> str:
     return str(row.get("text") or "")
 
 
+def spec_modal_content_bounds(xml_text: str) -> list[int] | None:
+    modal_bounds: list[list[int]] = []
+    for node in parse_ui_nodes(xml_text):
+        bounds = node.get("bounds") or []
+        if len(bounds) != 4 or bounds == [0, 0, 0, 0] or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        resource_id = str(node.get("resource_id") or node.get("resource-id") or "")
+        text = node_text(node)
+        if "bottom_layout" in resource_id or text in {"规格", "选择规格", "商品规格"}:
+            if bounds[3] - bounds[1] >= 80 and bounds[2] - bounds[0] >= 500:
+                modal_bounds.append(bounds)
+    if not modal_bounds:
+        return None
+    modal_bounds.sort(key=lambda item: ((item[3] - item[1]) * (item[2] - item[0]), item[1]), reverse=True)
+    return modal_bounds[0]
+
+
 def product_card_groups(xml_text: str) -> list[dict[str, Any]]:
     nodes = parse_ui_nodes(xml_text)
     cards: list[tuple[int, dict[str, Any]]] = []
@@ -421,13 +438,24 @@ def extract_spec_modal_candidates(
     parent_bounds: list[int] | None = None,
 ) -> list[dict[str, Any]]:
     nodes = visible_nodes(xml_text)
+    content_bounds = spec_modal_content_bounds(xml_text)
+    if content_bounds is not None and content_bounds[3] - content_bounds[1] < 400:
+        return []
     rows = [{"text": node_text(node), "bounds": node["bounds"]} for node in nodes]
     rows = [
         row
         for row in rows
         if row["text"]
         and len(row["bounds"]) == 4
-        and row["bounds"][1] >= 360
+        and row["bounds"][3] - row["bounds"][1] >= 8
+        and (
+            (
+                content_bounds is not None
+                and content_bounds[0] <= bounds_center(tuple(row["bounds"]))[0] <= content_bounds[2]
+                and content_bounds[1] <= bounds_center(tuple(row["bounds"]))[1] <= content_bounds[3]
+            )
+            or (content_bounds is None and row["bounds"][1] >= 360)
+        )
         and not re.fullmatch(r"[\ue000-\uf8ff]+", row["text"])
     ]
     global_sales = parse_sales([row_text(row) for row in rows])
