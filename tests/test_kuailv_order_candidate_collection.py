@@ -75,6 +75,13 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertIn("小番茄", line["required_keywords"])
         self.assertIn("红西红柿", line["excluded_keywords"])
 
+    def test_white_beech_mushroom_rejects_neighbor_mushrooms(self) -> None:
+        line = build_line_plan({"sku": "MUSHROOM-001", "name": "白玉菇", "quantity": 15, "unit": "斤", "purchase_channel": "快驴"})
+
+        self.assertIn("白玉菇", line["required_keywords"])
+        self.assertIn("海鲜菇", line["excluded_keywords"])
+        self.assertIn("蟹味菇", line["excluded_keywords"])
+
     def test_line_decision_status_reads_current_line(self) -> None:
         payload = {
             "decision": {

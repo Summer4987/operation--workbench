@@ -48,6 +48,7 @@ PACK_RULES: dict[str, dict[str, Any]] = {
         "keywords": ["白玉菇"],
         "accept": ["白玉菇"],
         "prefer": ["4斤", "1斤"],
+        "reject": ["海鲜菇", "蟹味菇"],
         "lesson": "银泰城实跑时白玉菇按 4斤规格连加；需求 15 斤可提示 4斤 x4 会超 1 斤，需要购物车复核。",
     },
     "土豆": {

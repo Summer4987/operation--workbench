@@ -137,6 +137,30 @@ class KuailvAdbRankedCandidateCaptureTest(unittest.TestCase):
         self.assertEqual(payload["items"][0]["source"], "adb_xml_product_card")
         self.assertEqual(payload["items"][0]["price"], 1.2)
 
+    def test_product_cards_without_matching_title_do_not_fallback_to_filters(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="" resource-id="search-page-container" bounds="[0,0][1080,2358]">
+    <node text="白玉菇" bounds="[120,120][300,210]" />
+    <node text="综合排序" bounds="[40,620][210,680]" />
+    <node text="销量" bounds="[300,620][390,680]" />
+    <node text="价格" bounds="[480,620][570,680]" />
+    <node text="白玉菇" bounds="[80,500][220,560]" />
+    <node text="海鲜菇" resource-id="complex-card-goods-1" bounds="[20,760][1060,1150]" />
+    <node text="海鲜菇" bounds="[440,820][620,880]" />
+    <node text="月售6732" bounds="[440,900][620,950]" />
+    <node text="选规格" bounds="[880,990][1030,1060]" />
+    <node text="¥" bounds="[440,1030][480,1090]" />
+    <node text="1.98-3.27" bounds="[490,1025][650,1095]" />
+  </node>
+</hierarchy>"""
+
+        payload = build_payload(xml_text, "白玉菇", "price_asc", 1, None, "白玉菇")
+
+        self.assertEqual(payload["status"], "needs_review")
+        self.assertEqual(payload["summary"]["candidate_count"], 0)
+        self.assertEqual(payload["items"], [])
+
     def test_spec_modal_blocks_checkout_page(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">

@@ -711,7 +711,7 @@ def extract_candidates(
     line_name: str,
 ) -> list[dict[str, Any]]:
     card_candidates = extract_card_candidates(xml_text, query, sort_mode, search_page, order, line_name)
-    if card_candidates:
+    if card_candidates or product_card_groups(xml_text):
         return card_candidates
     nodes = visible_nodes(xml_text)
     title_terms = allowed_title_terms(query, order, line_name)
