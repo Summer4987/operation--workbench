@@ -79,6 +79,39 @@ class KuailvAdbRankedCandidateCaptureTest(unittest.TestCase):
         self.assertEqual(prices_by_spec["20斤/袋"], 24.0)
         self.assertEqual(prices_by_spec["10斤/袋"], 13.0)
 
+    def test_expanded_product_card_emits_each_offer_row(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="" resource-id="search-page-container" bounds="[0,0][1080,2358]">
+    <node text="黄皮洋葱" bounds="[120,120][300,210]" />
+    <node text="综合排序" bounds="[40,620][210,680]" />
+    <node text="销量" bounds="[300,620][390,680]" />
+    <node text="价格" bounds="[480,620][570,680]" />
+    <node text="黄皮洋葱" resource-id="complex-card-goods-1" bounds="[20,760][1060,1500]" />
+    <node text="黄皮洋葱" bounds="[440,820][620,880]" />
+    <node text="月售8292" bounds="[440,900][620,950]" />
+    <node text="5斤" bounds="[440,1030][510,1090]" />
+    <node text="¥" bounds="[590,1030][630,1090]" />
+    <node text="1.19" bounds="[640,1025][730,1095]" />
+    <node text="/斤" bounds="[735,1030][790,1090]" />
+    <node text="10斤" bounds="[440,1160][525,1220]" />
+    <node text="¥" bounds="[590,1160][630,1220]" />
+    <node text="1.15" bounds="[640,1155][730,1225]" />
+    <node text="/斤" bounds="[735,1160][790,1220]" />
+    <node text="20斤" bounds="[440,1290][525,1350]" />
+    <node text="¥" bounds="[590,1290][630,1350]" />
+    <node text="1.17" bounds="[640,1285][730,1355]" />
+    <node text="/斤" bounds="[735,1290][790,1350]" />
+  </node>
+</hierarchy>"""
+
+        payload = build_payload(xml_text, "黄皮洋葱", "price_asc", 1, None, "洋葱")
+
+        offers = [item for item in payload["items"] if item["source"] == "adb_xml_product_card_offer"]
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual({item["spec"] for item in offers}, {"5斤", "10斤", "20斤"})
+        self.assertEqual({item["price"] for item in offers}, {1.19, 1.15, 1.17})
+
     def test_spec_modal_blocks_checkout_page(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">

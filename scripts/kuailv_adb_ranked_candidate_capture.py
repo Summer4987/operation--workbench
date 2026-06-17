@@ -228,7 +228,16 @@ def numeric_price_value(text: str) -> float:
 
 
 def parse_card_best_offer(rows: list[dict[str, Any]]) -> tuple[str, float]:
+    offers = parse_card_offer_rows(rows)
+    if not offers:
+        return "", parse_price([row["text"] for row in rows])
+    best = min(offers, key=lambda item: item["price"])
+    return str(best.get("spec") or ""), float(best.get("price") or 0)
+
+
+def parse_card_offer_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     offers: list[dict[str, Any]] = []
+    seen: set[tuple[str, float, int]] = set()
     for row in rows:
         price = numeric_price_value(row["text"])
         if price <= 0:
@@ -244,11 +253,11 @@ def parse_card_best_offer(rows: list[dict[str, Any]]) -> tuple[str, float]:
             if re.fullmatch(r"\d+(?:\.\d+)?(?:斤|kg|g|克|袋|盒|箱|桶|瓶|个)", normalize_text(candidate["text"])):
                 spec = candidate["text"]
                 break
-        offers.append({"spec": spec, "price": price})
-    if not offers:
-        return "", parse_price([row["text"] for row in rows])
-    best = min(offers, key=lambda item: item["price"])
-    return str(best.get("spec") or ""), float(best.get("price") or 0)
+        key = (spec, price, int(cy / 20))
+        if spec and key not in seen:
+            seen.add(key)
+            offers.append({"spec": spec, "price": price, "bounds": row["bounds"]})
+    return offers
 
 
 def has_explicit_pack_text(text: str) -> bool:
@@ -333,13 +342,34 @@ def extract_card_candidates(
         _title_cx, title_cy = bounds_center(tuple(title_row["bounds"]))
         candidate_rows = [row for row in texts if bounds_center(tuple(row["bounds"]))[1] >= title_cy - 8]
         row_values = [row["text"] for row in candidate_rows]
-        spec, price = parse_card_best_offer(candidate_rows)
-        if not spec and price <= 0:
-            spec = parse_spec(title, row_values)
         sales = parse_sales(row_values)
         inferred_line = infer_line_name(title, query, order, line_name)
         if not inferred_line and order:
             continue
+        offers = parse_card_offer_rows(candidate_rows)
+        if offers:
+            for offer in offers[:8]:
+                candidates.append(
+                    {
+                        "line_name": inferred_line,
+                        "query": query,
+                        "sort_mode": sort_mode,
+                        "search_page": search_page,
+                        "title": title,
+                        "spec": str(offer.get("spec") or ""),
+                        "price": float(offer.get("price") or 0),
+                        "monthly_sales": sales,
+                        "available": True,
+                        "source": "adb_xml_product_card_offer",
+                        "bounds": offer.get("bounds") or title_row["bounds"],
+                        "card_bounds": card_bounds,
+                        "row_texts": row_values[:36],
+                    }
+                )
+            continue
+        spec, price = parse_card_best_offer(candidate_rows)
+        if not spec and price <= 0:
+            spec = parse_spec(title, row_values)
         candidates.append(
             {
                 "line_name": inferred_line,
@@ -1082,8 +1112,33 @@ def main() -> int:
                     payload["status"] = "ready"
                     payload["message"] = "已从当前搜索结果页和规格弹窗抽取候选；未加购、未提交、未付款。"
                 else:
-                    payload["status"] = "needs_review"
-                    payload["message"] = "已抽取搜索页候选，但规格弹窗没有可安全读取的规格候选；未加购、未提交、未付款。"
+                    inline_payload = build_payload(
+                        spec_snapshot.get("xml_text") or "",
+                        args.query.strip(),
+                        args.sort_mode,
+                        max(1, args.search_page),
+                        order,
+                        args.line_name.strip(),
+                        spec_snapshot,
+                    )
+                    inline_items = [
+                        item
+                        for item in inline_payload.get("items") or []
+                        if item.get("source") == "adb_xml_product_card_offer" and item.get("spec")
+                    ]
+                    payload["spec_inline_capture"] = {
+                        "status": inline_payload.get("status"),
+                        "summary": {"candidate_count": len(inline_items)},
+                        "items": inline_items,
+                    }
+                    payload["items"].extend(inline_items)
+                    payload["summary"]["candidate_count"] = len(payload["items"])
+                    if inline_items:
+                        payload["status"] = "ready"
+                        payload["message"] = "已从展开的商品卡片抽取规格候选；未加购、未提交、未付款。"
+                    else:
+                        payload["status"] = "needs_review"
+                        payload["message"] = "已抽取搜索页候选，但规格弹窗/展开卡片没有可安全读取的规格候选；未加购、未提交、未付款。"
                 if not args.leave_spec_modal:
                     payload["spec_modal_close"] = close_current_overlay(args.adb_serial.strip(), args.timeout)
         write_latest(payload)
