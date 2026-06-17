@@ -26,7 +26,29 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
-location = """    location /daily-order/ {
+location = """    location = /daily-order/admin {
+        auth_basic "Xiong Operation";
+        auth_basic_user_file /etc/nginx/.operation_workbench_htpasswd;
+        proxy_pass http://127.0.0.1:8010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /daily-order/api/admin/ {
+        auth_basic "Xiong Operation";
+        auth_basic_user_file /etc/nginx/.operation_workbench_htpasswd;
+        proxy_pass http://127.0.0.1:8010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /daily-order/ {
         proxy_pass http://127.0.0.1:8010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

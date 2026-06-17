@@ -875,10 +875,6 @@ def _request_token(request: Request) -> str:
 
 def _is_public_order_request(request: Request) -> bool:
     path = request.url.path
-    if path == "/api/promo-budget-overrides":
-        return secrets.compare_digest(_request_token(request), _public_order_token())
-    if path.startswith("/api/finance/"):
-        return secrets.compare_digest(_request_token(request), _public_order_token())
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())
     return False
