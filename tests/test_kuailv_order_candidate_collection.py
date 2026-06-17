@@ -13,6 +13,7 @@ from kuailv_adb_order_candidate_collection import (  # noqa: E402
     build_inline_spec_capture,
     build_plan_payload,
     capture_needs_spec_expansion,
+    collection_status_from_decision,
     expand_specs_for_capture,
     line_decision_status,
 )
@@ -110,6 +111,13 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertEqual(line_decision_status(payload, "洋葱"), "ready")
         self.assertEqual(line_decision_status(payload, "土豆"), "needs_review")
         self.assertEqual(line_decision_status(payload, "圣女果"), "")
+
+    def test_collection_status_follows_ready_decision_despite_blocked_captures(self) -> None:
+        grouped = {"土豆": [{"title": "刀削土豆食堂菜", "spec": "20斤"}]}
+
+        self.assertEqual(collection_status_from_decision(grouped, {"status": "ready"}), "ready")
+        self.assertEqual(collection_status_from_decision(grouped, {"status": "needs_review"}), "needs_review")
+        self.assertEqual(collection_status_from_decision({}, {"status": "needs_candidates"}), "blocked")
 
     def test_missing_jin_pack_candidate_requests_spec_expansion(self) -> None:
         line = build_line_plan(sample_order()["items"][0])

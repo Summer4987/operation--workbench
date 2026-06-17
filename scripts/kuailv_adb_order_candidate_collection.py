@@ -371,9 +371,10 @@ def build_adb_summary_payload(
     grouped = group_candidates(items)
     decision = build_decision_payload(order, grouped, max_search_page=max_search_page, sort_modes=sort_modes)
     blocked = [capture for capture in captures if capture.get("status") not in {"ready", "needs_review"}]
+    status = collection_status_from_decision(grouped, decision)
     return {
         "generated_at": now_text(),
-        "status": "ready" if grouped and not blocked else "needs_review" if grouped else "blocked",
+        "status": status,
         "order": {
             "order_id": order.get("order_id"),
             "store_name": order.get("store_name"),
@@ -399,6 +400,14 @@ def build_adb_summary_payload(
         "decision": decision,
         "message": message,
     }
+
+
+def collection_status_from_decision(grouped: dict[str, list[dict[str, Any]]], decision: dict[str, Any]) -> str:
+    if decision.get("status") == "ready":
+        return "ready"
+    if grouped:
+        return "needs_review"
+    return "blocked"
 
 
 def line_decision_status(summary_payload: dict[str, Any], line_name: str) -> str:
