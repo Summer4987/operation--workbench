@@ -47,6 +47,48 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         self.assertEqual(decision["status"], "needs_review")
         self.assertIn("excessive_click_count", decision["risk_flags"])
 
+    def test_missing_price_candidates_are_not_safe(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "MUSHROOM-001",
+                    "name": "白玉菇",
+                    "quantity": 15,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                },
+                {
+                    "sku": "MEAL-001",
+                    "name": "工作餐（自主填写）",
+                    "quantity": 1,
+                    "unit": "份",
+                    "note": "自主填写",
+                    "purchase_channel": "快驴",
+                },
+            ],
+        }
+        candidates = {
+            "白玉菇": [
+                {
+                    "title": "白玉菇",
+                    "spec": "1斤",
+                    "monthly_sales": 8203,
+                    "sort_mode": "sales_desc",
+                    "search_page": 1,
+                    "available": True,
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc", "sales_desc"])
+
+        self.assertEqual(payload["decisions"][0]["status"], "blocked")
+        self.assertEqual(payload["decisions"][0]["safe_candidate_count"], 0)
+        self.assertEqual(payload["decisions"][1]["status"], "manual_note_only")
+
 
 if __name__ == "__main__":
     unittest.main()

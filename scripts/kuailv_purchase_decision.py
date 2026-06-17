@@ -257,6 +257,7 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
     if unit_price < 999999:
         reasons.append(f"折算单价 {unit_price:.2f}/{requested_unit or '单位'}")
     else:
+        allowed = False
         risk_flags.append("missing_price")
         reasons.append("缺少价格，需人工复核")
 
@@ -405,6 +406,18 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
     line = dict(line)
     line["max_search_page"] = max_search_page
     line["allowed_sort_modes"] = sort_modes
+    if line.get("action") != "search_and_add":
+        return {
+            "name": line.get("name"),
+            "sku": line.get("sku"),
+            "status": "manual_note_only",
+            "message": line.get("note") or "该品项不执行快驴自动采集/加购。",
+            "selection": [],
+            "risk_flags": [],
+            "candidate_count": 0,
+            "safe_candidate_count": 0,
+            "top_candidates": [],
+        }
     if not raw_candidates:
         return {
             "name": line.get("name"),
