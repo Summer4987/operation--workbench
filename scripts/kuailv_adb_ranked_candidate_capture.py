@@ -591,6 +591,16 @@ def tap_sort_control(serial: str, xml_text: str, sort_mode: str, tap_count: int,
     return {"status": "tapped" if ok else "blocked", "target": target, "commands": commands}
 
 
+def scroll_results(serial: str, scroll_count: int, timeout: int) -> dict[str, Any]:
+    base = adb_base(serial)
+    commands = []
+    for _ in range(max(0, scroll_count)):
+        commands.append(run_command(base + ["shell", "input", "swipe", "820", "1880", "820", "820", "550"], timeout))
+        time.sleep(0.4)
+    ok = all(command.get("returncode") == 0 for command in commands)
+    return {"status": "scrolled" if ok else "blocked", "count": max(0, scroll_count), "commands": commands}
+
+
 def build_payload(
     xml_text: str,
     query: str,
@@ -615,6 +625,7 @@ def build_payload(
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
                 "sort_tap": (snapshot or {}).get("sort_tap"),
+                "scroll": (snapshot or {}).get("scroll"),
             },
             "summary": {"candidate_count": 0},
             "cart_review_details": {
@@ -639,6 +650,7 @@ def build_payload(
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
                 "sort_tap": (snapshot or {}).get("sort_tap"),
+                "scroll": (snapshot or {}).get("scroll"),
             },
             "summary": {"candidate_count": 0},
             "items": [],
@@ -658,6 +670,7 @@ def build_payload(
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
                 "sort_tap": (snapshot or {}).get("sort_tap"),
+                "scroll": (snapshot or {}).get("scroll"),
             },
             "summary": {"candidate_count": 0},
             "page_context": page_context,
@@ -677,6 +690,7 @@ def build_payload(
                 "snapshot_dir": (snapshot or {}).get("session_dir", ""),
                 "screen": (snapshot or {}).get("screen_path", ""),
                 "sort_tap": (snapshot or {}).get("sort_tap"),
+                "scroll": (snapshot or {}).get("scroll"),
             },
             "summary": {"candidate_count": 0},
             "items": [],
@@ -695,6 +709,7 @@ def build_payload(
             "snapshot_dir": (snapshot or {}).get("session_dir", ""),
             "screen": (snapshot or {}).get("screen_path", ""),
             "sort_tap": (snapshot or {}).get("sort_tap"),
+            "scroll": (snapshot or {}).get("scroll"),
         },
         "summary": {
             "candidate_count": len(candidates),
@@ -733,6 +748,8 @@ def main() -> int:
     parser.add_argument("--tap-sort", action="store_true", help="采集前先点击当前页排序栏；只点排序，不加购")
     parser.add_argument("--sort-wait", type=float, default=2.0, help="点击排序后等待刷新秒数")
     parser.add_argument("--sort-tap-count", type=int, default=1, help="排序控件点击次数，用于价格升降序切换")
+    parser.add_argument("--scroll-count", type=int, default=0, help="采集前向下滚动结果列表次数；只滚动，不加购")
+    parser.add_argument("--scroll-wait", type=float, default=1.0, help="滚动后等待刷新秒数")
     args = parser.parse_args()
 
     try:
@@ -749,6 +766,16 @@ def main() -> int:
                     raise RuntimeError(sort_tap.get("message") or "排序点击失败。")
                 time.sleep(max(0.0, args.sort_wait))
                 snapshot = capture_snapshot(args.adb_serial.strip(), args.timeout) | {"sort_tap": sort_tap}
+            if args.scroll_count > 0:
+                scroll_result = scroll_results(args.adb_serial.strip(), args.scroll_count, args.timeout)
+                snapshot["scroll"] = scroll_result
+                if scroll_result.get("status") != "scrolled":
+                    raise RuntimeError("列表滚动失败。")
+                time.sleep(max(0.0, args.scroll_wait))
+                snapshot = capture_snapshot(args.adb_serial.strip(), args.timeout) | {
+                    "sort_tap": snapshot.get("sort_tap"),
+                    "scroll": scroll_result,
+                }
             xml_text = snapshot.get("xml_text") or ""
         payload = build_payload(xml_text, args.query.strip(), args.sort_mode, max(1, args.search_page), order, args.line_name.strip(), snapshot)
         write_latest(payload)
