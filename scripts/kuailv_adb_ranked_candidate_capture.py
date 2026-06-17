@@ -230,9 +230,26 @@ def numeric_price_value(text: str) -> float:
 def parse_card_best_offer(rows: list[dict[str, Any]]) -> tuple[str, float]:
     offers = parse_card_offer_rows(rows)
     if not offers:
-        return "", parse_price([row["text"] for row in rows])
+        unit_prices = parse_card_unit_price_values(rows)
+        return "", min(unit_prices) if unit_prices else parse_price([row["text"] for row in rows])
     best = min(offers, key=lambda item: item["price"])
     return str(best.get("spec") or ""), float(best.get("price") or 0)
+
+
+def parse_card_unit_price_values(rows: list[dict[str, Any]]) -> list[float]:
+    prices: list[float] = []
+    for row in rows:
+        price = numeric_price_value(row["text"])
+        if price <= 0:
+            continue
+        _cx, cy = bounds_center(tuple(row["bounds"]))
+        same_line = [candidate for candidate in rows if abs(bounds_center(tuple(candidate["bounds"]))[1] - cy) <= 42]
+        if not any("/" in candidate["text"] for candidate in same_line):
+            continue
+        if not any(candidate["text"] in {"¥", "￥"} or "¥" in candidate["text"] or "￥" in candidate["text"] for candidate in same_line):
+            continue
+        prices.append(price)
+    return prices
 
 
 def parse_card_offer_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
