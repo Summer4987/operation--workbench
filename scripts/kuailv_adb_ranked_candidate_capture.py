@@ -15,6 +15,7 @@ from kuailv_order_dry_run import (
     CHANNEL,
     DEFAULT_SERVER,
     DEFAULT_TOKEN,
+    analyze_cart_review_xml,
     bounds_center,
     build_line_plan,
     eligible_orders,
@@ -46,6 +47,13 @@ EXCLUDED_TITLE_WORDS = [
     "分类",
     "推荐",
     "全部",
+    "销量第",
+    "回购率第",
+    "口碑好货",
+    "新鲜蔬菜",
+    "热销精选",
+    "蔬菜豆制品",
+    "肉禽水产蛋",
 ]
 
 
@@ -201,6 +209,23 @@ def infer_line_name(title: str, query: str, order: dict[str, Any] | None, explic
     return ""
 
 
+def allowed_title_terms(query: str, order: dict[str, Any] | None, line_name: str) -> list[str]:
+    terms = [query, line_name]
+    if order:
+        for item in kuailv_items(order):
+            line = build_line_plan(item)
+            if line_name and line.get("name") != line_name:
+                continue
+            names = [line.get("name"), *(line.get("search_terms") or []), *(line.get("required_keywords") or [])]
+            if not line_name and query:
+                compact_query = normalize_text(query)
+                compact_names = [normalize_text(name) for name in names if name]
+                if not any(name and (name in compact_query or compact_query in name) for name in compact_names):
+                    continue
+            terms.extend(str(name) for name in names if name)
+    return list(dict.fromkeys(normalize_text(term) for term in terms if normalize_text(term)))
+
+
 def extract_candidates(
     xml_text: str,
     query: str,
@@ -210,12 +235,16 @@ def extract_candidates(
     line_name: str,
 ) -> list[dict[str, Any]]:
     nodes = visible_nodes(xml_text)
+    title_terms = allowed_title_terms(query, order, line_name)
     titles = [node for node in nodes if looks_like_title(node_text(node), node["bounds"])]
     titles.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
     candidates: list[dict[str, Any]] = []
     seen_titles: set[tuple[str, int]] = set()
     for index, title_node in enumerate(titles):
         title = node_text(title_node)
+        compact_title = normalize_text(title)
+        if title_terms and not any(term and term in compact_title for term in title_terms):
+            continue
         y1 = max(0, int(title_node["bounds"][1]) - 80)
         next_y = int(titles[index + 1]["bounds"][1]) - 40 if index + 1 < len(titles) else int(title_node["bounds"][1]) + 360
         y2 = min(2300, max(next_y, int(title_node["bounds"][3]) + 160))
@@ -279,6 +308,29 @@ def build_payload(
     line_name: str,
     snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    cart_details = analyze_cart_review_xml(xml_text, None)
+    if cart_details.get("reached_cart"):
+        return {
+            "generated_at": now_text(),
+            "status": "blocked",
+            "message": "当前识别为购物车页/结算检查页，拒绝抽取搜索候选；请先回到搜索结果页并切换排序。",
+            "capture": {
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "line_name": line_name,
+                "source": "adb_xml",
+                "snapshot_dir": (snapshot or {}).get("session_dir", ""),
+                "screen": (snapshot or {}).get("screen_path", ""),
+            },
+            "summary": {"candidate_count": 0},
+            "cart_review_details": {
+                "keyword_hits": cart_details.get("keyword_hits"),
+                "marker_hits": cart_details.get("marker_hits"),
+                "visible_cart_items": cart_details.get("visible_cart_items"),
+            },
+            "items": [],
+        }
     candidates = extract_candidates(xml_text, query, sort_mode, search_page, order, line_name)
     return {
         "generated_at": now_text(),
