@@ -83,6 +83,23 @@ def item_identity_text(item: dict[str, Any]) -> str:
     return normalize_text(" ".join(str(item.get(key) or "") for key in ["title", "name", "spec", "subtitle", "description"]))
 
 
+def global_reject_hits(candidate: dict[str, Any]) -> list[str]:
+    hits: list[str] = []
+    identity = item_identity_text(candidate)
+    for word in GLOBAL_REJECT_KEYWORDS:
+        compact = normalize_text(word)
+        if compact and compact in identity:
+            hits.append(compact)
+    row_texts = candidate.get("row_texts") or []
+    if isinstance(row_texts, list):
+        normalized_rows = [normalize_text(row) for row in row_texts]
+        for word in GLOBAL_REJECT_KEYWORDS:
+            compact = normalize_text(word)
+            if compact and any(row == compact for row in normalized_rows):
+                hits.append(compact)
+    return list(dict.fromkeys(hits))
+
+
 def pack_label_to_quantity(label: str, unit: str) -> float | None:
     text = normalize_text(label)
     if not text:
@@ -238,8 +255,8 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
         risk_flags.append("excluded_keyword_seen")
         reasons.append(f"命中排除词：{', '.join(excluded_hits)}")
 
-    global_reject_hits = [word for word in [normalize_text(item) for item in GLOBAL_REJECT_KEYWORDS] if word and word in text]
-    if global_reject_hits:
+    global_hits = global_reject_hits(candidate)
+    if global_hits:
         allowed = False
         score -= 240
         risk_flags.append("canteen_dish_keyword_seen")

@@ -198,6 +198,79 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         self.assertEqual(decision["safe_candidate_count"], 0)
         self.assertIn("canteen_dish_keyword_seen", decision["top_candidates"][0]["risk_flags"])
 
+    def test_canteen_dish_row_tag_is_globally_rejected(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "MUSHROOM-001",
+                    "name": "白玉菇",
+                    "quantity": 15,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "白玉菇": [
+                {
+                    "title": "白玉菇 散装",
+                    "spec": "4斤",
+                    "unit_price": 2.43,
+                    "monthly_sales": 521,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                    "row_texts": ["白玉菇 散装", "月售521", "食堂菜", "4斤"],
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "blocked")
+        self.assertEqual(decision["safe_candidate_count"], 0)
+        self.assertIn("canteen_dish_keyword_seen", decision["top_candidates"][0]["risk_flags"])
+
+    def test_canteen_dish_award_text_alone_does_not_reject_candidate(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "CARROT-001",
+                    "name": "胡萝卜",
+                    "quantity": 10,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "胡萝卜": [
+                {
+                    "title": "断节胡萝卜",
+                    "spec": "10斤",
+                    "unit_price": 0.31,
+                    "monthly_sales": 16000,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                    "row_texts": ["断节胡萝卜", "胡萝卜食堂菜销量第1名", "10斤"],
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "ready")
+        self.assertNotIn("canteen_dish_keyword_seen", decision["top_candidates"][0]["risk_flags"])
+
     def test_equal_value_combination_prefers_fewer_clicks(self) -> None:
         order = {
             "order_id": "DO-TEST",
