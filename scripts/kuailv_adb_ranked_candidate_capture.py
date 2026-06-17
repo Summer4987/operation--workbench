@@ -366,6 +366,7 @@ def extract_card_candidates(
         offers = parse_card_offer_rows(candidate_rows)
         if offers:
             for offer in offers[:8]:
+                unit_price = float(offer.get("price") or 0)
                 candidates.append(
                     {
                         "line_name": inferred_line,
@@ -374,7 +375,8 @@ def extract_card_candidates(
                         "search_page": search_page,
                         "title": title,
                         "spec": str(offer.get("spec") or ""),
-                        "price": float(offer.get("price") or 0),
+                        "price": unit_price,
+                        "unit_price": unit_price,
                         "monthly_sales": sales,
                         "available": True,
                         "source": "adb_xml_product_card_offer",

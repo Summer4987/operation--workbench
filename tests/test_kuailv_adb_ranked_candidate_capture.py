@@ -111,6 +111,7 @@ class KuailvAdbRankedCandidateCaptureTest(unittest.TestCase):
         self.assertEqual(payload["status"], "ready")
         self.assertEqual({item["spec"] for item in offers}, {"5斤", "10斤", "20斤"})
         self.assertEqual({item["price"] for item in offers}, {1.19, 1.15, 1.17})
+        self.assertEqual({item["unit_price"] for item in offers}, {1.19, 1.15, 1.17})
 
     def test_collapsed_product_card_keeps_unit_price(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
