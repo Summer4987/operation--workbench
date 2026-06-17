@@ -18,7 +18,9 @@ from kuailv_order_dry_run import (
     analyze_cart_review_xml,
     bounds_center,
     build_line_plan,
+    detect_page_text,
     eligible_orders,
+    is_product_detail_page,
     node_text,
     parse_ui_nodes,
 )
@@ -329,6 +331,24 @@ def build_payload(
                 "marker_hits": cart_details.get("marker_hits"),
                 "visible_cart_items": cart_details.get("visible_cart_items"),
             },
+            "items": [],
+        }
+    nodes = parse_ui_nodes(xml_text)
+    if is_product_detail_page(nodes, detect_page_text(xml_text)):
+        return {
+            "generated_at": now_text(),
+            "status": "blocked",
+            "message": "当前识别为商品详情页，拒绝抽取搜索候选；请先返回搜索结果页并切换排序。",
+            "capture": {
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "line_name": line_name,
+                "source": "adb_xml",
+                "snapshot_dir": (snapshot or {}).get("session_dir", ""),
+                "screen": (snapshot or {}).get("screen_path", ""),
+            },
+            "summary": {"candidate_count": 0},
             "items": [],
         }
     candidates = extract_candidates(xml_text, query, sort_mode, search_page, order, line_name)
