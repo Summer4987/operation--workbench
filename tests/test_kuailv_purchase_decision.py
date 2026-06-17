@@ -44,8 +44,44 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         payload = build_payload(order, candidates, 2, ["price_asc", "sales_desc"])
 
         decision = payload["decisions"][0]
-        self.assertEqual(decision["status"], "needs_review")
-        self.assertIn("excessive_click_count", decision["risk_flags"])
+        self.assertEqual(decision["status"], "blocked")
+        self.assertEqual(decision["safe_candidate_count"], 0)
+        self.assertIn("missing_pack_quantity", decision["top_candidates"][0]["risk_flags"])
+
+    def test_explicit_pack_candidate_can_be_selected(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "ONION-001",
+                    "name": "洋葱",
+                    "quantity": 40,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "洋葱": [
+                {
+                    "title": "黄皮洋葱",
+                    "spec": "20斤",
+                    "price": 24,
+                    "monthly_sales": 8000,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc", "sales_desc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "ready")
+        self.assertEqual(decision["selection"][0]["count"], 2)
 
     def test_missing_price_candidates_are_not_safe(self) -> None:
         order = {

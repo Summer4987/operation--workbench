@@ -110,6 +110,8 @@ def candidate_pack_quantity(candidate: dict[str, Any], unit: str) -> float:
         parsed = pack_label_to_quantity(str(candidate.get(key) or ""), unit)
         if parsed and parsed > 0:
             return parsed
+    if unit == "斤":
+        return 0.0
     return 1.0
 
 
@@ -215,6 +217,11 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
         allowed = False
         risk_flags.append("unsupported_sort_mode")
         reasons.append(f"不是允许的排序来源：{sort_mode or '未标注'}")
+
+    if pack_quantity <= 0:
+        allowed = False
+        risk_flags.append("missing_pack_quantity")
+        reasons.append("缺少明确包装规格，不能自动组合数量")
 
     if required_hits:
         score += 70 + 12 * len(required_hits)

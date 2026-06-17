@@ -302,9 +302,11 @@ def extract_card_candidates(
         if key in seen_titles:
             continue
         seen_titles.add(key)
-        row_values = [row["text"] for row in texts]
-        spec, price = parse_card_best_offer(texts)
-        if not spec:
+        _title_cx, title_cy = bounds_center(tuple(title_row["bounds"]))
+        candidate_rows = [row for row in texts if bounds_center(tuple(row["bounds"]))[1] >= title_cy - 8]
+        row_values = [row["text"] for row in candidate_rows]
+        spec, price = parse_card_best_offer(candidate_rows)
+        if not spec and price <= 0:
             spec = parse_spec(title, row_values)
         sales = parse_sales(row_values)
         inferred_line = infer_line_name(title, query, order, line_name)

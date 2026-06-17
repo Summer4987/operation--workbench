@@ -282,7 +282,9 @@ def build_adb_payload(
             }
         )
         print(f"搜索 {line.get('name')} / {query}: {search_result.get('status')}", flush=True)
-        if search_result.get("status") != "search_ready_for_manual_review":
+        search_result_check = search_result.get("search_result_check") or {}
+        search_can_capture = search_result.get("status") == "search_ready_for_manual_review" or bool(search_result_check.get("page_text_hit_count"))
+        if not search_can_capture:
             for sort_mode in sort_modes:
                 captures.append(
                     {
@@ -306,6 +308,8 @@ def build_adb_payload(
                 )
             )
             continue
+        if search_result.get("status") != "search_ready_for_manual_review":
+            print(f"搜索 {line.get('name')} / {query}: 结果文本已命中，继续只读采集候选", flush=True)
         for sort_mode in sort_modes:
             sort_captures = run_sort_and_page_captures(
                 serial,
