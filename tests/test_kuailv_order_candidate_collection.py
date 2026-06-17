@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,7 @@ from kuailv_adb_order_candidate_collection import (  # noqa: E402
     build_inline_spec_capture,
     build_plan_payload,
     capture_needs_spec_expansion,
+    expand_specs_for_capture,
     line_decision_status,
 )
 from kuailv_order_dry_run import build_line_plan  # noqa: E402
@@ -147,6 +149,36 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertEqual(payload["items"][0]["source"], "adb_xml_product_card_offer")
         self.assertEqual(payload["items"][0]["spec"], "10斤")
         self.assertEqual(payload["items"][0]["unit_price"], 1.15)
+
+    def test_inline_spec_expansion_does_not_press_back(self) -> None:
+        line = build_line_plan(sample_order()["items"][0])
+        capture = {"snapshot": {"xml_text": "<hierarchy />"}}
+        expanded_xml = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="" resource-id="search-page-container" bounds="[0,0][1080,2358]">
+    <node text="黄皮洋葱" bounds="[120,120][300,210]" />
+    <node text="综合排序" bounds="[40,620][210,680]" />
+    <node text="销量" bounds="[300,620][390,680]" />
+    <node text="价格" bounds="[480,620][570,680]" />
+    <node text="黄皮洋葱" resource-id="complex-card-goods-1" bounds="[20,760][1060,1500]" />
+    <node text="黄皮洋葱" bounds="[440,820][620,880]" />
+    <node text="月售8292" bounds="[440,900][620,950]" />
+    <node text="10斤" bounds="[440,1160][525,1220]" />
+    <node text="¥" bounds="[590,1160][630,1220]" />
+    <node text="1.15" bounds="[640,1155][730,1225]" />
+    <node text="/斤" bounds="[735,1160][790,1220]" />
+  </node>
+</hierarchy>"""
+        snapshot = {"xml_text": expanded_xml, "session_dir": "", "screen_path": ""}
+
+        with patch("kuailv_adb_order_candidate_collection.tap_spec_control", return_value={"status": "tapped", "target": {"title": "黄皮洋葱"}}), patch(
+            "kuailv_adb_order_candidate_collection.capture_snapshot", return_value=snapshot
+        ), patch("kuailv_adb_order_candidate_collection.close_current_overlay") as close_mock:
+            payload = expand_specs_for_capture("SERIAL", capture, "黄皮洋葱", "price_asc", 1, sample_order(), line, 25, 0, 0)
+
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["spec_modal_close"]["status"], "skipped")
+        close_mock.assert_not_called()
 
 
 if __name__ == "__main__":

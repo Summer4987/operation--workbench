@@ -16,6 +16,7 @@ from kuailv_adb_ranked_candidate_capture import (
     capture_snapshot,
     close_current_overlay,
     scroll_results,
+    spec_modal_content_bounds,
     tap_spec_control,
     tap_sort_control,
 )
@@ -200,15 +201,21 @@ def expand_specs_for_capture(
         }
     time.sleep(max(0.0, spec_wait))
     spec_snapshot = capture_snapshot(serial, timeout)
-    spec_payload = build_spec_modal_payload(
-        spec_snapshot.get("xml_text") or "",
-        query,
-        sort_mode,
-        search_page,
-        order,
-        line_name,
-        spec_snapshot,
-        spec_tap,
+    modal_bounds = spec_modal_content_bounds(spec_snapshot.get("xml_text") or "")
+    has_modal = bool(modal_bounds and modal_bounds[3] - modal_bounds[1] >= 400)
+    spec_payload = (
+        build_spec_modal_payload(
+            spec_snapshot.get("xml_text") or "",
+            query,
+            sort_mode,
+            search_page,
+            order,
+            line_name,
+            spec_snapshot,
+            spec_tap,
+        )
+        if has_modal
+        else {"status": "needs_review", "summary": {"candidate_count": 0}, "message": "未识别到独立规格弹窗，改读行内展开规格。", "items": []}
     )
     if spec_payload.get("items"):
         expansion = spec_payload
@@ -228,7 +235,10 @@ def expand_specs_for_capture(
             "message": spec_payload.get("message"),
         }
     expansion["capture"]["spec_tap"] = spec_tap
-    expansion["spec_modal_close"] = close_current_overlay(serial, timeout)
+    if spec_payload.get("items") or has_modal:
+        expansion["spec_modal_close"] = close_current_overlay(serial, timeout)
+    else:
+        expansion["spec_modal_close"] = {"status": "skipped", "message": "识别为行内规格展开，保留当前搜索结果页以便继续滚动。"}
     return expansion
 
 
