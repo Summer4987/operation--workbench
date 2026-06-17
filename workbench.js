@@ -340,50 +340,125 @@ function financeFlowMatches(item, term) {
   return `${item.lot_id || ""} ${item.product_name || ""} ${item.factory || ""} ${locations}`.toLowerCase().includes(term);
 }
 
+const financeFlowSettlementPrices = [
+  { sku: "牛五花牛排", spec: "20kg/箱", prices: { 北京直营店: 1316.51, 成都直营店: 1316.51, 北京仓: 1500 } },
+  { sku: "嫩肩牛肉", spec: "27.5kg/箱", prices: { 北京直营店: 2255, 成都直营店: 2255, 北京仓: 2420 } },
+  { sku: "藤椒牛肉", spec: "28kg/箱", prices: { 北京直营店: 2016, 成都直营店: 2016, 北京仓: 2100 } },
+  { sku: "眼肉牛排", spec: "10kg/箱", prices: { 北京直营店: 844.79, 成都直营店: 844.79, 北京仓: 940 } },
+  { sku: "板腱牛排", spec: "10kg/箱", prices: { 北京直营店: 923.62, 成都直营店: 923.62, 北京仓: 1040 } },
+  { sku: "菲力牛排", spec: "10kg/箱", prices: { 北京直营店: 912.98, 成都直营店: 912.98, 北京仓: 1030 } },
+  { sku: "三文鱼块", spec: "10kg/箱", prices: { 北京直营店: 700, 成都直营店: 700, 北京仓: 1060 } },
+  { sku: "调理鸡胸肉", spec: "14.4kg/箱", prices: { 北京直营店: 249.12, 成都直营店: 249.12, 北京仓: 288 } },
+  { sku: "调理手枪腿", spec: "15kg/箱", prices: { 北京直营店: 253.5, 成都直营店: 253.5, 北京仓: 300 } },
+  { sku: "冷冻虾仁", spec: "10kg/箱", prices: { 北京直营店: 515, 成都直营店: 515, 北京仓: 610 } },
+  { sku: "拌鱼酱", spec: "10kg/箱", prices: { 北京直营店: 175, 成都直营店: 175, 北京仓: 240 } },
+  { sku: "藤椒酱", spec: "10kg/箱", prices: { 北京直营店: 240, 成都直营店: 240, 北京仓: 320 } },
+  { sku: "拌饭汁", spec: "10kg/箱", prices: { 北京直营店: 327, 成都直营店: 327, 北京仓: 435 } },
+  { sku: "双椒酱", spec: "12kg/箱", prices: { 北京直营店: 276, 成都直营店: 276, 北京仓: 330 } },
+  { sku: "寿司调味汁", spec: "10kg/箱", prices: { 北京直营店: 255, 成都直营店: 255, 北京仓: 320 } },
+  { sku: "白卡定制餐盒", spec: "300个/箱", prices: { 北京直营店: 108, 成都直营店: 108, 北京仓: 116 } },
+  { sku: "玉米淀粉餐盒", spec: "300个/箱", prices: { 北京直营店: 227, 成都直营店: 227, 北京仓: 234 } },
+  { sku: "四件套餐具", spec: "800个/袋", prices: { 北京直营店: 158, 成都直营店: 158, 北京仓: 168 } },
+  { sku: "无纺布打包袋", spec: "1000个/袋", prices: { 北京直营店: 440, 成都直营店: 440, 北京仓: 460 } },
+];
+
+function financeFlowPriceFor(productName, destination) {
+  const cleanProduct = String(productName || "").trim();
+  const cleanDestination = String(destination || "").trim();
+  const row = financeFlowSettlementPrices.find((item) => item.sku === cleanProduct);
+  return Number(row?.prices?.[cleanDestination] || 0);
+}
+
+function updateFinanceFlowDatalists(payload = financeFlowState.payload || {}) {
+  const productList = document.querySelector("#financeFlowProductOptions");
+  if (productList) {
+    productList.innerHTML = financeFlowSettlementPrices
+      .map((item) => `<option value="${escapeHtml(item.sku)}">${escapeHtml(item.spec)}</option>`)
+      .join("");
+  }
+  const lotList = document.querySelector("#financeFlowLotOptions");
+  if (lotList) {
+    const lots = new Set();
+    (payload.items || []).forEach((item) => {
+      if (item.lot_id) lots.add(item.lot_id);
+      (item.recent_events || []).forEach((event) => {
+        if (event.event_type === "生产" && event.date && event.product_name) {
+          lots.add(`${String(event.date).replaceAll("-", "")}-${event.product_name}`);
+        }
+      });
+    });
+    lotList.innerHTML = [...lots].sort().reverse().map((lot) => `<option value="${escapeHtml(lot)}"></option>`).join("");
+  }
+}
+
+function generateFinanceFlowLotId(form) {
+  const eventType = form?.querySelector('[name="event_type"]')?.value || "";
+  const dateValue = form?.querySelector('[name="date"]')?.value || "";
+  const productName = form?.querySelector('[name="product_name"]')?.value || "";
+  const lotField = form?.querySelector('[name="lot_id"]');
+  if (!lotField || eventType !== "生产" || !dateValue || !productName) return;
+  lotField.value = `${dateValue.replaceAll("-", "")}-${productName}`;
+}
+
+function updateFinanceFlowCalculatedAmounts(form) {
+  if (!form) return { amount: 0, unitPrice: 0 };
+  const eventType = form.querySelector('[name="event_type"]')?.value || "";
+  const productName = form.querySelector('[name="product_name"]')?.value || "";
+  const destination = form.querySelector('[name="to_location"]')?.value || "";
+  const quantity = Number(form.querySelector('[name="quantity"]')?.value || 0);
+  const paymentStatus = form.querySelector('[name="payment_status"]')?.value || "应付";
+  const unitPrice = financeFlowPriceFor(productName, destination);
+  const amount = unitPrice && quantity > 0 ? Number((quantity * unitPrice).toFixed(2)) : 0;
+  const payableField = form.querySelector('[name="payable_amount"]');
+  const paidField = form.querySelector('[name="paid_amount"]');
+  const receivableField = form.querySelector('[name="receivable_amount"]');
+  const settlementField = form.querySelector('[name="settlement_status"]');
+  const unitPriceField = form.querySelector('[name="unit_price"]');
+  if (payableField) payableField.value = "0";
+  if (paidField) paidField.value = "0";
+  if (receivableField) receivableField.value = "0";
+  if (unitPriceField) unitPriceField.value = String(unitPrice || 0);
+  if (settlementField) settlementField.value = paymentStatus === "已付" ? "已结算" : "批次用完结算";
+  if (eventType === "销售" && destination === "北京仓") {
+    if (receivableField) receivableField.value = String(amount);
+  } else if (paymentStatus === "已付") {
+    if (paidField) paidField.value = String(amount);
+  } else {
+    if (payableField) payableField.value = String(amount);
+  }
+  return { amount, unitPrice };
+}
+
 const financeFlowPresets = {
   production: {
     event_type: "生产",
     product_name: "牛五花牛排",
-    factory: "牛五花牛排工厂",
     unit: "件",
     from_location: "",
     to_location: "工厂暂存",
-    settlement_status: "批次用完结算",
+    payment_status: "应付",
     counterparty: "牛五花牛排工厂",
     note: "工厂生产完成，货权暂存工厂，批次用完后结算应付。",
   },
   warehouse_sale: {
     event_type: "销售",
     product_name: "牛五花牛排",
-    factory: "牛五花牛排工厂",
     unit: "件",
     from_location: "工厂暂存",
     to_location: "北京仓",
-    settlement_status: "批次用完结算",
+    payment_status: "应付",
     counterparty: "北京仓",
     note: "发给北京仓，形成供应链应收。",
   },
   direct_store: {
     event_type: "领用",
     product_name: "牛五花牛排",
-    factory: "牛五花牛排工厂",
     unit: "件",
     from_location: "工厂暂存",
     to_location: "北京直营店",
-    settlement_status: "批次用完结算",
+    payment_status: "应付",
     counterparty: "北京直营店",
     note: "发给北京直营店，作为门店领用/成本归集。",
-  },
-  settlement: {
-    event_type: "结算",
-    product_name: "牛五花牛排",
-    factory: "牛五花牛排工厂",
-    unit: "件",
-    from_location: "",
-    to_location: "",
-    settlement_status: "已结算",
-    counterparty: "牛五花牛排工厂",
-    note: "批次用完后与工厂结算付款，冲减应付。",
   },
 };
 
@@ -394,17 +469,13 @@ function applyFinanceFlowPreset(form, presetKey) {
     const field = form.querySelector(`[name="${name}"]`);
     if (field) field.value = value;
   });
-  if (presetKey === "production") {
-    const dateValue = form.querySelector('[name="date"]')?.value || "";
-    const lotField = form.querySelector('[name="lot_id"]');
-    if (lotField && !lotField.value && dateValue) {
-      lotField.value = `${dateValue.replaceAll("-", "")}-牛五花牛排`;
-    }
-  }
+  if (presetKey === "production") generateFinanceFlowLotId(form);
+  updateFinanceFlowCalculatedAmounts(form);
 }
 
 function renderFinanceFlow() {
   const payload = financeFlowState.payload || {};
+  updateFinanceFlowDatalists(payload);
   const term = financeFlowSearchValue();
   const items = (payload.items || []).filter((item) => financeFlowMatches(item, term));
   const totals = payload.totals || {};
@@ -496,11 +567,25 @@ function initializeFinanceFlowControls() {
     const form = document.querySelector("#financeFlowEntryForm");
     const dateInput = form?.querySelector('[name="date"]');
     if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    updateFinanceFlowDatalists();
+    updateFinanceFlowCalculatedAmounts(form);
     form?.querySelectorAll("[data-flow-preset]").forEach((button) => {
       button.addEventListener("click", () => applyFinanceFlowPreset(form, button.dataset.flowPreset));
     });
+    form?.querySelectorAll('[name="date"], [name="event_type"], [name="product_name"], [name="quantity"], [name="to_location"], [name="payment_status"]').forEach((field) => {
+      field.addEventListener("input", () => {
+        generateFinanceFlowLotId(form);
+        updateFinanceFlowCalculatedAmounts(form);
+      });
+      field.addEventListener("change", () => {
+        generateFinanceFlowLotId(form);
+        updateFinanceFlowCalculatedAmounts(form);
+      });
+    });
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      generateFinanceFlowLotId(form);
+      updateFinanceFlowCalculatedAmounts(form);
       const formData = new FormData(form);
       const entry = {
         id: `${Date.now()}`,
@@ -508,7 +593,7 @@ function initializeFinanceFlowControls() {
         event_type: formData.get("event_type") || "",
         lot_id: formData.get("lot_id") || "",
         product_name: formData.get("product_name") || "",
-        factory: formData.get("factory") || "",
+        factory: "",
         quantity: Number(formData.get("quantity") || 0),
         unit: formData.get("unit") || "",
         from_location: formData.get("from_location") || "",
@@ -517,6 +602,7 @@ function initializeFinanceFlowControls() {
         paid_amount: Number(formData.get("paid_amount") || 0),
         receivable_amount: Number(formData.get("receivable_amount") || 0),
         settlement_status: formData.get("settlement_status") || "",
+        unit_cost: Number(formData.get("unit_price") || 0),
         counterparty: formData.get("counterparty") || "",
         note: formData.get("note") || "",
       };
@@ -537,8 +623,10 @@ function initializeFinanceFlowControls() {
         if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
         const unitInput = form.querySelector('[name="unit"]');
         if (unitInput) unitInput.value = "件";
-        const settlementInput = form.querySelector('[name="settlement_status"]');
-        if (settlementInput) settlementInput.value = "批次用完结算";
+        const paymentInput = form.querySelector('[name="payment_status"]');
+        if (paymentInput) paymentInput.value = "应付";
+        updateFinanceFlowDatalists(financeFlowState.payload);
+        updateFinanceFlowCalculatedAmounts(form);
         renderFinanceFlow();
       } catch (error) {
         text("financeFlowEntryMessage", error.message || "云端保存失败，请稍后重试。");
