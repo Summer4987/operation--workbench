@@ -23,6 +23,7 @@ DEFAULT_SORT_MODES = ["price_asc", "sales_desc"]
 MAX_COMBINATION_OPTIONS = 6
 MAX_COMBINATION_STATES = 5000
 MAX_AUTO_CLICK_COUNT = 12
+GLOBAL_REJECT_KEYWORDS = ["食堂菜"]
 
 
 UNIT_ALIASES = {
@@ -184,7 +185,7 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
     requested_unit = str(line.get("unit") or "")
     required = [normalize_text(word) for word in line.get("required_keywords") or [] if word]
     preferred = [normalize_text(word) for word in line.get("preferred_spec_keywords") or [] if word]
-    excluded = [normalize_text(word) for word in line.get("excluded_keywords") or [] if word]
+    excluded = [normalize_text(word) for word in [*(line.get("excluded_keywords") or []), *GLOBAL_REJECT_KEYWORDS] if word]
     pack_labels = [normalize_text(item.get("label")) for item in line.get("pack_strategy") or [] if item.get("label")]
 
     required_hits = [word for word in required if word and word in text]
@@ -236,6 +237,13 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
         score -= 180
         risk_flags.append("excluded_keyword_seen")
         reasons.append(f"命中排除词：{', '.join(excluded_hits)}")
+
+    global_reject_hits = [word for word in [normalize_text(item) for item in GLOBAL_REJECT_KEYWORDS] if word and word in text]
+    if global_reject_hits:
+        allowed = False
+        score -= 240
+        risk_flags.append("canteen_dish_keyword_seen")
+        reasons.append("命中全局禁用词：食堂菜")
 
     if preferred_hits:
         score += 8 * len(preferred_hits)

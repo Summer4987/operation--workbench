@@ -104,6 +104,7 @@ PACK_RULES: dict[str, dict[str, Any]] = {
 }
 
 EXCLUDED_KEYWORDS = ["嫩豆腐", "内酯豆腐", "豆腐干", "千页豆腐", "腐竹", "腐乳"]
+GLOBAL_REJECT_KEYWORDS = ["食堂菜"]
 
 LEARNED_OPERATOR_SKILLS = [
     "进入商品详情页后不要在详情页顶部硬切搜索；优先返回搜索结果页，再执行下一次搜索。",
@@ -240,7 +241,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         pack_lines, planned_quantity = split_packs(quantity, pack_sizes, allowed_overage)
     search_terms = list(rule.get("keywords") or [name])
     accept_keywords = list(rule.get("accept") or [name.replace("（自主填写）", "")])
-    reject_keywords = list(dict.fromkeys(list(rule.get("reject") or []) + (EXCLUDED_KEYWORDS if "豆腐" in name else [])))
+    reject_keywords = list(dict.fromkeys(list(rule.get("reject") or []) + GLOBAL_REJECT_KEYWORDS + (EXCLUDED_KEYWORDS if "豆腐" in name else [])))
     prefer_keywords = list(rule.get("prefer") or [])
     return {
         "sku": item.get("sku", ""),

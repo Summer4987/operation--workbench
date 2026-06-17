@@ -90,6 +90,7 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
 
         self.assertEqual(line["search_terms"][:2], ["土豆5斤", "土豆10斤"])
         self.assertIn("土豆", line["search_terms"])
+        self.assertIn("食堂菜", line["excluded_keywords"])
         self.assertEqual(line["overage"], 0)
         self.assertEqual(line["pack_strategy"], [{"pack_size": 10.0, "count": 1, "label": "10斤 x 1"}, {"pack_size": 5.0, "count": 1, "label": "5斤 x 1"}])
 
