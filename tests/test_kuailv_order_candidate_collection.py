@@ -64,7 +64,7 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
 
         self.assertEqual(payload["status"], "needs_collection")
         self.assertEqual(payload["summary"]["line_count"], 3)
-        self.assertEqual(payload["summary"]["job_count"], 14)
+        self.assertEqual(payload["summary"]["job_count"], 18)
         onion_jobs = [job for job in payload["collection_jobs"] if job["line_name"] == "洋葱"]
         self.assertEqual({job["query"] for job in onion_jobs}, {"黄皮洋葱", "洋葱"})
         self.assertTrue(all(job["pages"] == [1, 2] for job in payload["collection_jobs"]))
@@ -83,6 +83,12 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertIn("白玉菇", line["required_keywords"])
         self.assertIn("海鲜菇", line["excluded_keywords"])
         self.assertIn("蟹味菇", line["excluded_keywords"])
+
+    def test_potato_prefers_pack_size_searches(self) -> None:
+        line = build_line_plan(sample_order()["items"][1])
+
+        self.assertEqual(line["search_terms"][:2], ["土豆5斤", "土豆10斤"])
+        self.assertIn("土豆", line["search_terms"])
 
     def test_line_decision_status_reads_current_line(self) -> None:
         payload = {
