@@ -391,6 +391,13 @@ def build_adb_summary_payload(
     }
 
 
+def line_decision_status(summary_payload: dict[str, Any], line_name: str) -> str:
+    for decision in (summary_payload.get("decision") or {}).get("decisions") or []:
+        if decision.get("name") == line_name:
+            return str(decision.get("status") or "")
+    return ""
+
+
 def build_adb_payload(
     order: dict[str, Any],
     serial: str,
@@ -413,77 +420,77 @@ def build_adb_payload(
         items_to_collect = items_to_collect[:line_limit]
     for item in items_to_collect:
         line = build_line_plan(item)
-        query = str((line.get("search_terms") or [line.get("name")])[0] or "")
-        if not query:
-            continue
-        search_result = run_adb_search(
-            plan,
-            serial,
-            timeout,
-            query,
-            0,
-            0,
-            0,
-            search_pre_back_count,
-            True,
-        )
-        search_runs.append(
-            {
-                "line_name": line.get("name"),
-                "query": query,
-                "status": search_result.get("status"),
-                "message": search_result.get("message"),
-                "session_dir": search_result.get("session_dir"),
-            }
-        )
-        print(f"搜索 {line.get('name')} / {query}: {search_result.get('status')}", flush=True)
-        search_result_check = search_result.get("search_result_check") or {}
-        search_can_capture = search_result.get("status") == "search_ready_for_manual_review" or bool(search_result_check.get("page_text_hit_count"))
-        if not search_can_capture:
-            for sort_mode in sort_modes:
-                captures.append(
-                    {
-                        "status": "blocked",
-                        "query": query,
-                        "sort_mode": sort_mode,
-                        "search_page": 1,
-                        "line_name": line.get("name"),
-                        "message": search_result.get("message") or "搜索未进入可采集状态。",
-                        "items": [],
-                    }
-                )
-            write_latest(
-                build_adb_summary_payload(
-                    order,
-                    sort_modes,
-                    max_search_page,
-                    search_runs,
-                    captures,
-                    "快驴订单候选采集中；最近一次搜索被阻断，已写入增量结果。",
-                )
-            )
-            continue
-        if search_result.get("status") != "search_ready_for_manual_review":
-            print(f"搜索 {line.get('name')} / {query}: 结果文本已命中，继续只读采集候选", flush=True)
-        for sort_mode in sort_modes:
-            sort_captures = run_sort_and_page_captures(
+        line_name = str(line.get("name") or "")
+        for query in [str(term or "") for term in line.get("search_terms") or [line.get("name")]]:
+            if not query:
+                continue
+            search_result = run_adb_search(
+                plan,
                 serial,
-                query,
-                sort_mode,
-                order,
-                str(line.get("name") or ""),
-                max_search_page,
                 timeout,
-                sort_wait,
-                scroll_wait,
-                expand_specs,
-                spec_wait,
-                max_spec_expansions_per_page,
+                query,
+                0,
+                0,
+                0,
+                search_pre_back_count,
+                True,
             )
-            captures.extend(sort_captures)
-            print(f"采集 {line.get('name')} / {query} / {sort_mode}: {sum(len(row.get('items') or []) for row in sort_captures)} 个候选", flush=True)
-            write_latest(
-                build_adb_summary_payload(
+            search_runs.append(
+                {
+                    "line_name": line_name,
+                    "query": query,
+                    "status": search_result.get("status"),
+                    "message": search_result.get("message"),
+                    "session_dir": search_result.get("session_dir"),
+                }
+            )
+            print(f"搜索 {line_name} / {query}: {search_result.get('status')}", flush=True)
+            search_result_check = search_result.get("search_result_check") or {}
+            search_can_capture = search_result.get("status") == "search_ready_for_manual_review" or bool(search_result_check.get("page_text_hit_count"))
+            if not search_can_capture:
+                for sort_mode in sort_modes:
+                    captures.append(
+                        {
+                            "status": "blocked",
+                            "query": query,
+                            "sort_mode": sort_mode,
+                            "search_page": 1,
+                            "line_name": line_name,
+                            "message": search_result.get("message") or "搜索未进入可采集状态。",
+                            "items": [],
+                        }
+                    )
+                write_latest(
+                    build_adb_summary_payload(
+                        order,
+                        sort_modes,
+                        max_search_page,
+                        search_runs,
+                        captures,
+                        "快驴订单候选采集中；最近一次搜索被阻断，已写入增量结果。",
+                    )
+                )
+                continue
+            if search_result.get("status") != "search_ready_for_manual_review":
+                print(f"搜索 {line_name} / {query}: 结果文本已命中，继续只读采集候选", flush=True)
+            for sort_mode in sort_modes:
+                sort_captures = run_sort_and_page_captures(
+                    serial,
+                    query,
+                    sort_mode,
+                    order,
+                    line_name,
+                    max_search_page,
+                    timeout,
+                    sort_wait,
+                    scroll_wait,
+                    expand_specs,
+                    spec_wait,
+                    max_spec_expansions_per_page,
+                )
+                captures.extend(sort_captures)
+                print(f"采集 {line_name} / {query} / {sort_mode}: {sum(len(row.get('items') or []) for row in sort_captures)} 个候选", flush=True)
+                latest_payload = build_adb_summary_payload(
                     order,
                     sort_modes,
                     max_search_page,
@@ -491,7 +498,20 @@ def build_adb_payload(
                     captures,
                     "快驴订单候选采集中；已写入增量结果。",
                 )
+                write_latest(latest_payload)
+                if line_decision_status(latest_payload, line_name) == "ready":
+                    print(f"{line_name}: 当前候选已满足 ready，跳过后续搜索词", flush=True)
+                    break
+            latest_payload = build_adb_summary_payload(
+                order,
+                sort_modes,
+                max_search_page,
+                search_runs,
+                captures,
+                "快驴订单候选采集中；已写入增量结果。",
             )
+            if line_decision_status(latest_payload, line_name) == "ready":
+                break
     return build_adb_summary_payload(order, sort_modes, max_search_page, search_runs, captures, "已按订单逐品项采集快驴排序候选并生成决策；未加购、未提交、未付款。")
 
 

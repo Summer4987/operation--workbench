@@ -12,6 +12,7 @@ from kuailv_adb_order_candidate_collection import (  # noqa: E402
     build_inline_spec_capture,
     build_plan_payload,
     capture_needs_spec_expansion,
+    line_decision_status,
 )
 from kuailv_order_dry_run import build_line_plan  # noqa: E402
 
@@ -36,6 +37,13 @@ def sample_order() -> dict:
                 "unit": "斤",
                 "purchase_channel": "快驴",
             },
+            {
+                "sku": "TOMATO-001",
+                "name": "圣女果",
+                "quantity": 5,
+                "unit": "斤",
+                "purchase_channel": "快驴",
+            },
         ],
     }
 
@@ -53,11 +61,33 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         payload = build_plan_payload(sample_order(), ["price_asc", "sales_desc"], 2)
 
         self.assertEqual(payload["status"], "needs_collection")
-        self.assertEqual(payload["summary"]["line_count"], 2)
-        self.assertEqual(payload["summary"]["job_count"], 6)
+        self.assertEqual(payload["summary"]["line_count"], 3)
+        self.assertEqual(payload["summary"]["job_count"], 14)
         onion_jobs = [job for job in payload["collection_jobs"] if job["line_name"] == "洋葱"]
         self.assertEqual({job["query"] for job in onion_jobs}, {"黄皮洋葱", "洋葱"})
         self.assertTrue(all(job["pages"] == [1, 2] for job in payload["collection_jobs"]))
+
+    def test_cherry_tomato_uses_precise_aliases_before_generic_search(self) -> None:
+        line = build_line_plan(sample_order()["items"][2])
+
+        self.assertEqual(line["preferred_keyword"], "红圣女果")
+        self.assertIn("圣女果", line["required_keywords"])
+        self.assertIn("小番茄", line["required_keywords"])
+        self.assertIn("红西红柿", line["excluded_keywords"])
+
+    def test_line_decision_status_reads_current_line(self) -> None:
+        payload = {
+            "decision": {
+                "decisions": [
+                    {"name": "洋葱", "status": "ready"},
+                    {"name": "土豆", "status": "needs_review"},
+                ]
+            }
+        }
+
+        self.assertEqual(line_decision_status(payload, "洋葱"), "ready")
+        self.assertEqual(line_decision_status(payload, "土豆"), "needs_review")
+        self.assertEqual(line_decision_status(payload, "圣女果"), "")
 
     def test_missing_jin_pack_candidate_requests_spec_expansion(self) -> None:
         line = build_line_plan(sample_order()["items"][0])
