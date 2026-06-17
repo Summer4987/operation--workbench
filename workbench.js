@@ -516,7 +516,7 @@ function renderFinanceFlow() {
       { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪" },
       { label: "供应链应付", value: yuan(totals.payable_amount), detail: `未结算 ${yuan(totals.open_payable_amount)}` },
       { label: "供应链应收", value: yuan(totals.receivable_amount), detail: `未收 ${yuan(totals.open_receivable_amount)}` },
-      { label: "已结算付款", value: yuan(totals.paid_amount), detail: "批次用完后结算付款" },
+      { label: "供应链已收", value: yuan(totals.paid_amount), detail: "供应链已收到款" },
     ].map((item) => `
       <article>
         <span>${escapeHtml(item.label)}</span>
@@ -536,7 +536,7 @@ function renderFinanceFlow() {
       const outbound = Number(item.out_quantity || 0);
       const balance = Number(item.balance_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
-      const money = `应付 ${yuan(item.payable_amount)} / 已结 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)}`;
+      const money = `应付 ${yuan(item.payable_amount)} / 已收 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)}`;
       return `
         <div class="${rowClass}">
           <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
