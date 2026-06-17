@@ -2,7 +2,9 @@ const data = window.WORKBENCH_DATA || {};
 const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
 const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
 const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
+const FINANCE_ENTRIES_URL = "/api/finance/entries?token=xiongxiaoxiao-order";
 const FINANCE_OPENING_URL = "/api/finance/opening?token=xiongxiaoxiao-order";
+const INVENTORY_FLOW_URL = "/api/inventory/flow";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
@@ -185,6 +187,10 @@ const FINANCE_LOCAL_ENTRIES_KEY = "xiong_finance_manual_entries_v1";
 const FINANCE_PENDING_UPLOADS_KEY = "xiong_finance_pending_uploads_v1";
 const FINANCE_ARAP_ENTRIES_KEY = "xiong_finance_arap_entries_v1";
 const FINANCE_OPENING_ENTRIES_KEY = "xiong_finance_opening_entries_v1";
+const financeFlowState = {
+  payload: null,
+  receivables: [],
+};
 
 function readLocalList(key) {
   try {
@@ -318,6 +324,135 @@ function initializeFinanceOpeningControls() {
     loadFinanceOpeningEntries();
   } else {
     renderFinanceOpeningEntries();
+  }
+}
+
+function financeFlowMonthValue() {
+  const input = document.querySelector("#financeFlowMonth");
+  return input?.value || "2026-07";
+}
+
+function financeFlowSearchValue() {
+  return String(document.querySelector("#financeFlowSearch")?.value || "").trim().toLowerCase();
+}
+
+function financeFlowMatches(item, term) {
+  if (!term) return true;
+  const destinations = (item.destinations || []).map((entry) => entry.destination).join(" ");
+  return `${item.sku || ""} ${item.name || ""} ${item.spec || ""} ${destinations}`.toLowerCase().includes(term);
+}
+
+function renderFinanceFlow() {
+  const payload = financeFlowState.payload || {};
+  const term = financeFlowSearchValue();
+  const items = (payload.items || []).filter((item) => financeFlowMatches(item, term));
+  const totals = payload.totals || {};
+  const receivables = financeFlowState.receivables || [];
+  text("financeFlowStatus", payload.items ? `${items.length} 个货品` : "待读取");
+  html(
+    "financeFlowKpis",
+    [
+      { label: "本月入库", value: num(totals.inbound_quantity, 2), detail: "工厂采购到货数量合计" },
+      { label: "本月出库", value: num(totals.outbound_quantity, 2), detail: "发给门店或客户的数量合计" },
+      { label: "当前货值", value: yuan(totals.current_value), detail: "按库存系统商品成本估算" },
+      { label: "应收记录", value: `${receivables.length} 条`, detail: "供应链销售发货后形成应收" },
+    ].map((item) => `
+      <article>
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        <em>${escapeHtml(item.detail)}</em>
+      </article>
+    `).join("")
+  );
+  rows(
+    "financeFlowRows",
+    items.slice(0, 40),
+    (item) => {
+      const destinations = (item.destinations || []).length
+        ? item.destinations.map((entry) => `${entry.destination} ${num(entry.quantity, 2)}${item.unit || ""}`).join(" / ")
+        : "本月暂无出库去向";
+      const inbound = Number(item.inbound_quantity || 0);
+      const outbound = Number(item.outbound_quantity || 0);
+      const balance = Number(item.current_balance || 0);
+      const rowClass = balance < 0 ? "warn-row" : "good-row";
+      return `
+        <div class="${rowClass}">
+          <span>${escapeHtml(item.sku || "-")} · ${escapeHtml(item.name || "-")}</span>
+          <strong>入 ${num(inbound, 2)} / 出 ${num(outbound, 2)} / 余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
+          <em>${escapeHtml(destinations)}</em>
+        </div>
+      `;
+    }
+  );
+  rows(
+    "financeFlowReceivableRows",
+    receivables.slice(0, 12),
+    (entry) => `
+      <div class="${entry.direction === "核销收款" ? "good-row" : "warn-row"}">
+        <span>${escapeHtml(entry.date || "-")} · ${escapeHtml(entry.counterparty || "未填客户")}</span>
+        <strong>${escapeHtml(entry.direction || "应收")} ${yuan(entry.amount)}</strong>
+        <em>${escapeHtml(entry.note || "发货后登记应收；收款后核销，不重复计收入。")}</em>
+      </div>
+    `
+  );
+  rows(
+    "financeFlowMovementRows",
+    (payload.recent_movements || []).slice(0, 16),
+    (item) => `
+      <div class="${item.movement_type === "inbound" ? "good-row" : "warn-row"}">
+        <span>${escapeHtml(item.created_at || item.document_date || "-")} · ${escapeHtml(item.movement_type === "inbound" ? "入库" : "出库")}</span>
+        <strong>${escapeHtml(item.name || item.sku || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
+        <em>${escapeHtml(item.destination || item.filename || "")}</em>
+      </div>
+    `
+  );
+}
+
+async function loadFinanceFlow() {
+  const month = financeFlowMonthValue();
+  text("financeFlowStatus", "读取中");
+  try {
+    const [flowResponse, entriesResponse] = await Promise.all([
+      fetch(`${INVENTORY_FLOW_URL}?month=${encodeURIComponent(month)}&limit=120`),
+      fetch(FINANCE_ENTRIES_URL),
+    ]);
+    if (!flowResponse.ok) throw new Error(`inventory ${flowResponse.status}`);
+    const flowPayload = await flowResponse.json();
+    financeFlowState.payload = flowPayload;
+    if (entriesResponse.ok) {
+      const entriesPayload = await entriesResponse.json();
+      financeFlowState.receivables = (entriesPayload.items || []).filter((entry) => ["应收", "核销收款"].includes(entry.direction));
+      if (financeFlowState.receivables.length) {
+        writeLocalList(FINANCE_ARAP_ENTRIES_KEY, financeFlowState.receivables);
+      }
+    } else {
+      financeFlowState.receivables = readLocalList(FINANCE_ARAP_ENTRIES_KEY).filter((entry) => ["应收", "核销收款"].includes(entry.direction));
+    }
+    renderFinanceFlow();
+  } catch {
+    financeFlowState.payload = { items: [], recent_movements: [], totals: {} };
+    financeFlowState.receivables = readLocalList(FINANCE_ARAP_ENTRIES_KEY).filter((entry) => ["应收", "核销收款"].includes(entry.direction));
+    text("financeFlowStatus", "读取失败");
+    renderFinanceFlow();
+  }
+}
+
+function initializeFinanceFlowControls() {
+  const card = document.querySelector("#finance-flow-card");
+  if (!card) return;
+  const monthInput = document.querySelector("#financeFlowMonth");
+  if (monthInput && !monthInput.value) monthInput.value = "2026-07";
+  if (!card.dataset.bound) {
+    card.dataset.bound = "true";
+    document.querySelector("#financeFlowRefresh")?.addEventListener("click", loadFinanceFlow);
+    monthInput?.addEventListener("change", loadFinanceFlow);
+    document.querySelector("#financeFlowSearch")?.addEventListener("input", renderFinanceFlow);
+  }
+  if (!card.dataset.loaded) {
+    card.dataset.loaded = "true";
+    loadFinanceFlow();
+  } else {
+    renderFinanceFlow();
   }
 }
 
@@ -2136,6 +2271,7 @@ function renderFinance() {
   const bankSources = sources.filter((source) => source.id === "bank");
   const bankUploadSources = bankSources.length ? bankSources : sources.slice(0, 1);
   const bankReady = bankUploadSources.some((source) => Number(source.file_count || 0) > 0);
+  initializeFinanceFlowControls();
   initializeFinanceOpeningControls();
   const intakeRows = bankUploadSources.map((source) => {
     const fileCount = Number(source.file_count || 0);

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260617-finance-opening" />
+    <link rel="stylesheet" href="./workbench.css?v=20260617-finance-flow" />
   </head>
   <body>
     <main class="app">
@@ -47,6 +47,7 @@
           <section class="nav-section" aria-labelledby="nav-finance">
             <h2 id="nav-finance">财务中心</h2>
             <div class="nav-subgroup">
+              <a href="#finance-flow">货款货流</a>
               <a href="#finance-opening">期初建账</a>
               <a href="#finance">财务录入</a>
               <a href="#finance-report">财务报表</a>
@@ -317,6 +318,57 @@
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
             title="库存管理"
           ></iframe>
+        </section>
+
+        <section class="center-section" id="finance-flow">
+          <div class="section-head">
+            <p>财务中心</p>
+            <h2>货款货流</h2>
+          </div>
+          <article class="module finance-flow-module" id="finance-flow-card">
+            <div class="module-head">
+              <div>
+                <p>库存流向与应收</p>
+                <h2>看清每批货入库、发货、剩余和欠款</h2>
+              </div>
+              <span class="tag planning" id="financeFlowStatus">读取中</span>
+            </div>
+            <div class="module-body">
+              <div class="finance-flow-toolbar">
+                <label>
+                  <span>查看月份</span>
+                  <input id="financeFlowMonth" type="month" value="2026-07" />
+                </label>
+                <label>
+                  <span>搜索货品</span>
+                  <input id="financeFlowSearch" type="search" placeholder="SKU、货品名、门店或客户" />
+                </label>
+                <button type="button" id="financeFlowRefresh">刷新</button>
+              </div>
+              <div class="finance-flow-kpis" id="financeFlowKpis"></div>
+              <div class="finance-flow-layout">
+                <section>
+                  <div class="finance-flow-title">
+                    <strong>库存流向</strong>
+                    <span>入库 - 出库 = 当前余额</span>
+                  </div>
+                  <div class="mini-table finance-flow-list" id="financeFlowRows"></div>
+                </section>
+                <section>
+                  <div class="finance-flow-title">
+                    <strong>应收提醒</strong>
+                    <span>供应链销售发货后登记应收，收款后核销</span>
+                  </div>
+                  <div class="mini-table" id="financeFlowReceivableRows"></div>
+                </section>
+              </div>
+              <div class="finance-flow-title">
+                <strong>最近货流</strong>
+                <span>云端库存流水实时记录</span>
+              </div>
+              <div class="mini-table" id="financeFlowMovementRows"></div>
+            </div>
+          </article>
         </section>
 
         <section class="center-section" id="finance-opening">
@@ -683,6 +735,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260617-finance-opening"></script>
+    <script src="./workbench.js?v=20260617-finance-flow"></script>
   </body>
 </html>

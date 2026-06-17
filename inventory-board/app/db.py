@@ -306,6 +306,107 @@ def store_delivery_summary(month: str | None = None) -> list[dict]:
     return result
 
 
+def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
+    params: list[str] = []
+    movement_filter = ""
+    if month:
+        movement_filter = "AND substr(m.created_at, 1, 7) = ?"
+        params.append(month)
+
+    with connect() as conn:
+        product_rows = conn.execute(
+            f"""
+            SELECT
+                p.sku,
+                p.name,
+                p.spec,
+                p.unit,
+                p.warehouse,
+                p.unit_cost,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'inbound' {movement_filter} THEN m.quantity ELSE 0 END), 0) AS inbound_quantity,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'outbound' {movement_filter} THEN m.quantity ELSE 0 END), 0) AS outbound_quantity,
+                COALESCE(SUM(m.signed_quantity), 0) AS current_balance,
+                COALESCE(SUM(m.signed_quantity), 0) * COALESCE(p.unit_cost, 0) AS current_value,
+                MAX(CASE WHEN m.movement_type = 'inbound' THEN m.created_at END) AS last_inbound_at,
+                MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
+            FROM products p
+            LEFT JOIN movements m ON m.sku = p.sku
+            GROUP BY p.sku
+            HAVING inbound_quantity > 0 OR outbound_quantity > 0 OR current_balance != 0
+            ORDER BY outbound_quantity DESC, inbound_quantity DESC, current_value DESC, p.sku
+            LIMIT ?
+            """,
+            [*params, *params, limit],
+        ).fetchall()
+
+        store_rows = conn.execute(
+            f"""
+            SELECT
+                m.sku,
+                COALESCE(NULLIF(m.store_name, ''), '未识别去向') AS destination,
+                SUM(m.quantity) AS quantity
+            FROM movements m
+            WHERE m.movement_type = 'outbound'
+            {movement_filter}
+            GROUP BY m.sku, destination
+            ORDER BY m.sku, quantity DESC
+            """,
+            params,
+        ).fetchall()
+
+        recent_rows = conn.execute(
+            f"""
+            SELECT
+                m.movement_type,
+                m.sku,
+                m.name,
+                m.quantity,
+                m.unit,
+                COALESCE(NULLIF(m.store_name, ''), NULLIF(m.address, ''), '未识别去向') AS destination,
+                m.document_date,
+                m.created_at,
+                f.filename,
+                f.source
+            FROM movements m
+            JOIN import_files f ON f.id = m.import_file_id
+            WHERE 1 = 1
+            {movement_filter}
+            ORDER BY m.id DESC
+            LIMIT 40
+            """,
+            params,
+        ).fetchall()
+
+    destinations: dict[str, list[dict]] = {}
+    for row in store_rows:
+        item = dict(row)
+        destinations.setdefault(item["sku"], []).append(
+            {
+                "destination": item["destination"],
+                "quantity": item["quantity"] or 0,
+            }
+        )
+
+    items = []
+    for row in product_rows:
+        item = dict(row)
+        item["destinations"] = destinations.get(item["sku"], [])[:8]
+        items.append(item)
+
+    totals = {
+        "inbound_quantity": sum(float(item["inbound_quantity"] or 0) for item in items),
+        "outbound_quantity": sum(float(item["outbound_quantity"] or 0) for item in items),
+        "current_value": sum(float(item["current_value"] or 0) for item in items),
+        "sku_count": len(items),
+    }
+    return {
+        "month": month or "",
+        "items": items,
+        "recent_movements": [dict(row) for row in recent_rows],
+        "totals": totals,
+    }
+
+
 def set_warning_threshold(sku: str, threshold: Decimal) -> bool:
     with connect() as conn:
         cursor = conn.execute(

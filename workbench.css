@@ -1379,6 +1379,115 @@ h2 {
   grid-column: span 2;
 }
 
+.finance-flow-module {
+  min-height: 0;
+}
+
+.finance-flow-toolbar {
+  padding: 14px;
+  border: 1px solid #dbe7f3;
+  border-radius: 8px;
+  background: #f8fafc;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.finance-flow-toolbar label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-flow-toolbar span,
+.finance-flow-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-flow-toolbar input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+}
+
+.finance-flow-toolbar button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: #0f766e;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.finance-flow-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finance-flow-kpis article {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #e3eaf2;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-flow-kpis span,
+.finance-flow-kpis em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.finance-flow-kpis strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.finance-flow-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
+  gap: 14px;
+}
+
+.finance-flow-layout > section {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.finance-flow-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.finance-flow-title strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.finance-flow-list > div {
+  grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1fr) minmax(260px, 1.4fr);
+}
+
 .finance-form-message {
   min-height: 34px;
   padding: 8px 10px;
@@ -2713,6 +2822,9 @@ h2 {
   .finance-entry-grid,
   .finance-form-head,
   .finance-form-grid,
+  .finance-flow-toolbar,
+  .finance-flow-kpis,
+  .finance-flow-layout,
   .finance-opening-grid,
   .finance-upload-controls,
   .finance-review-controls,

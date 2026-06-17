@@ -22,6 +22,7 @@ from .db import (
     create_import,
     delivery_months,
     finish_import,
+    inventory_flow_summary,
     init_db,
     inventory_summary,
     now_iso,
@@ -153,6 +154,13 @@ def store_deliveries(month: Optional[str] = None):
         "months": months,
         "selected_month": selected_month,
     }
+
+
+@app.get("/api/inventory/flow")
+def inventory_flow(month: Optional[str] = None, limit: int = 80):
+    clean_month = (month or "").strip()[:7]
+    clean_limit = max(1, min(int(limit or 80), 200))
+    return inventory_flow_summary(clean_month or None, clean_limit)
 
 
 @app.get("/api/inbound-template")
