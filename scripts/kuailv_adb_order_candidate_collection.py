@@ -197,74 +197,14 @@ def build_plan_payload(order: dict[str, Any], sort_modes: list[str], max_search_
     }
 
 
-def build_adb_payload(
+def build_adb_summary_payload(
     order: dict[str, Any],
-    serial: str,
     sort_modes: list[str],
     max_search_page: int,
-    timeout: int,
-    search_pre_back_count: int,
-    sort_wait: float,
-    scroll_wait: float,
+    search_runs: list[dict[str, Any]],
+    captures: list[dict[str, Any]],
+    message: str,
 ) -> dict[str, Any]:
-    plan = build_plan(order)
-    captures: list[dict[str, Any]] = []
-    search_runs: list[dict[str, Any]] = []
-    for item in kuailv_items(order):
-        line = build_line_plan(item)
-        if line.get("action") != "search_and_add":
-            continue
-        query = str((line.get("search_terms") or [line.get("name")])[0] or "")
-        if not query:
-            continue
-        for sort_mode in sort_modes:
-            search_result = run_adb_search(
-                plan,
-                serial,
-                timeout,
-                query,
-                0,
-                0,
-                0,
-                search_pre_back_count,
-                True,
-            )
-            search_runs.append(
-                {
-                    "line_name": line.get("name"),
-                    "query": query,
-                    "sort_mode": sort_mode,
-                    "status": search_result.get("status"),
-                    "message": search_result.get("message"),
-                    "session_dir": search_result.get("session_dir"),
-                }
-            )
-            if search_result.get("status") != "search_ready_for_manual_review":
-                captures.append(
-                    {
-                        "status": "blocked",
-                        "query": query,
-                        "sort_mode": sort_mode,
-                        "search_page": 1,
-                        "line_name": line.get("name"),
-                        "message": search_result.get("message") or "搜索未进入可采集状态。",
-                        "items": [],
-                    }
-                )
-                continue
-            captures.extend(
-                run_sort_and_page_captures(
-                    serial,
-                    query,
-                    sort_mode,
-                    order,
-                    str(line.get("name") or ""),
-                    max_search_page,
-                    timeout,
-                    sort_wait,
-                    scroll_wait,
-                )
-            )
     items = flatten_items(captures)
     grouped = group_candidates(items)
     decision = build_decision_payload(order, grouped, max_search_page=max_search_page, sort_modes=sort_modes)
@@ -279,7 +219,7 @@ def build_adb_payload(
             "channel": CHANNEL,
         },
         "summary": {
-            "line_count": len({line.get("name") for line in [build_line_plan(item) for item in kuailv_items(order)] if line.get("action") == "search_and_add"}),
+            "line_count": len({build_line_plan(item).get("name") for item in kuailv_items(order) if build_line_plan(item).get("action") == "search_and_add"}),
             "search_run_count": len(search_runs),
             "capture_count": len(captures),
             "candidate_count": len(items),
@@ -295,8 +235,102 @@ def build_adb_payload(
         "captures": captures,
         "candidates": grouped,
         "decision": decision,
-        "message": "已按订单逐品项采集快驴排序候选并生成决策；未加购、未提交、未付款。",
+        "message": message,
     }
+
+
+def build_adb_payload(
+    order: dict[str, Any],
+    serial: str,
+    sort_modes: list[str],
+    max_search_page: int,
+    timeout: int,
+    search_pre_back_count: int,
+    sort_wait: float,
+    scroll_wait: float,
+    line_limit: int,
+) -> dict[str, Any]:
+    plan = build_plan(order)
+    captures: list[dict[str, Any]] = []
+    search_runs: list[dict[str, Any]] = []
+    items_to_collect = [item for item in kuailv_items(order) if build_line_plan(item).get("action") == "search_and_add"]
+    if line_limit > 0:
+        items_to_collect = items_to_collect[:line_limit]
+    for item in items_to_collect:
+        line = build_line_plan(item)
+        query = str((line.get("search_terms") or [line.get("name")])[0] or "")
+        if not query:
+            continue
+        search_result = run_adb_search(
+            plan,
+            serial,
+            timeout,
+            query,
+            0,
+            0,
+            0,
+            search_pre_back_count,
+            True,
+        )
+        search_runs.append(
+            {
+                "line_name": line.get("name"),
+                "query": query,
+                "status": search_result.get("status"),
+                "message": search_result.get("message"),
+                "session_dir": search_result.get("session_dir"),
+            }
+        )
+        print(f"搜索 {line.get('name')} / {query}: {search_result.get('status')}", flush=True)
+        if search_result.get("status") != "search_ready_for_manual_review":
+            for sort_mode in sort_modes:
+                captures.append(
+                    {
+                        "status": "blocked",
+                        "query": query,
+                        "sort_mode": sort_mode,
+                        "search_page": 1,
+                        "line_name": line.get("name"),
+                        "message": search_result.get("message") or "搜索未进入可采集状态。",
+                        "items": [],
+                    }
+                )
+            write_latest(
+                build_adb_summary_payload(
+                    order,
+                    sort_modes,
+                    max_search_page,
+                    search_runs,
+                    captures,
+                    "快驴订单候选采集中；最近一次搜索被阻断，已写入增量结果。",
+                )
+            )
+            continue
+        for sort_mode in sort_modes:
+            sort_captures = run_sort_and_page_captures(
+                serial,
+                query,
+                sort_mode,
+                order,
+                str(line.get("name") or ""),
+                max_search_page,
+                timeout,
+                sort_wait,
+                scroll_wait,
+            )
+            captures.extend(sort_captures)
+            print(f"采集 {line.get('name')} / {query} / {sort_mode}: {sum(len(row.get('items') or []) for row in sort_captures)} 个候选", flush=True)
+            write_latest(
+                build_adb_summary_payload(
+                    order,
+                    sort_modes,
+                    max_search_page,
+                    search_runs,
+                    captures,
+                    "快驴订单候选采集中；已写入增量结果。",
+                )
+            )
+    return build_adb_summary_payload(order, sort_modes, max_search_page, search_runs, captures, "已按订单逐品项采集快驴排序候选并生成决策；未加购、未提交、未付款。")
 
 
 def write_latest(payload: dict[str, Any]) -> None:
@@ -330,6 +364,7 @@ def main() -> int:
     parser.add_argument("--search-pre-back-count", type=int, default=1)
     parser.add_argument("--sort-wait", type=float, default=2.0)
     parser.add_argument("--scroll-wait", type=float, default=1.2)
+    parser.add_argument("--line-limit", type=int, default=0, help="只采集前 N 个快驴品项；0 表示全量")
     parser.add_argument("--timeout", type=int, default=25)
     args = parser.parse_args()
 
@@ -349,6 +384,7 @@ def main() -> int:
                 max(0, args.search_pre_back_count),
                 args.sort_wait,
                 args.scroll_wait,
+                max(0, args.line_limit),
             )
         write_latest(payload)
         print_summary(payload)
