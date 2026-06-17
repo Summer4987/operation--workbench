@@ -20,6 +20,9 @@ OUTPUT_DIR = ROOT / "outputs" / "kuailv_purchase_decision"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 DEFAULT_MAX_SEARCH_PAGE = 2
 DEFAULT_SORT_MODES = ["price_asc", "sales_desc"]
+MAX_COMBINATION_OPTIONS = 6
+MAX_COMBINATION_STATES = 5000
+MAX_AUTO_CLICK_COUNT = 12
 
 
 UNIT_ALIASES = {
@@ -287,16 +290,22 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
     if max_overage <= 0:
         max_overage = 0.0001
     best: tuple[float, float, float, list[dict[str, Any]]] | None = None
-    top_allowed = sorted(allowed, key=lambda item: (-item.value_score, item.unit_price, -item.sales))[:8]
+    top_allowed = sorted(allowed, key=lambda item: (-item.value_score, item.unit_price, -item.sales))[:MAX_COMBINATION_OPTIONS]
+    visited_states = 0
 
     def search(index: int, current: list[dict[str, Any]]) -> None:
-        nonlocal best
+        nonlocal best, visited_states
+        visited_states += 1
+        if visited_states > MAX_COMBINATION_STATES:
+            return
         total_qty = sum(row["pack_quantity"] * row["count"] for row in current)
+        click_count = sum(row["count"] for row in current)
+        if click_count > MAX_AUTO_CLICK_COUNT:
+            return
         if total_qty >= requested:
             overage = total_qty - requested
             if overage <= max_overage:
                 total_cost = sum(row["unit_price"] * row["pack_quantity"] * row["count"] for row in current)
-                click_count = sum(row["count"] for row in current)
                 avg_value_score = sum(row["value_score"] * row["count"] for row in current) / max(click_count, 1)
                 score_tuple = (round(overage, 4), -round(avg_value_score, 4), round(total_cost, 4))
                 if best is None or score_tuple < best[:3]:
@@ -306,6 +315,7 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
             return
         option = top_allowed[index]
         max_count = max(0, int(math.ceil((requested + max_overage) / option.pack_quantity)) + 1)
+        max_count = min(max_count, MAX_AUTO_CLICK_COUNT - click_count)
         for count in range(max_count + 1):
             next_current = [dict(row) for row in current]
             if count:
@@ -330,6 +340,15 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
     if best is None:
         cheapest = min(top_allowed, key=lambda item: item.unit_price)
         count = max(1, int(math.ceil(requested / cheapest.pack_quantity)))
+        if count > MAX_AUTO_CLICK_COUNT:
+            return {
+                "status": "needs_review",
+                "message": f"最低价候选需要点击 {count} 次，超过自动组合上限 {MAX_AUTO_CLICK_COUNT} 次；需继续寻找大规格或人工确认。",
+                "selection": [],
+                "planned_quantity": 0,
+                "overage": 0 - requested,
+                "risk_flags": ["excessive_click_count", "missing_large_pack_candidate"],
+            }
         selection = [
             {
                 "candidate_id": candidate_id(cheapest.candidate),
