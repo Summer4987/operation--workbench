@@ -305,7 +305,7 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
     max_overage = allowed_overage
     if max_overage <= 0:
         max_overage = 0.0001
-    best: tuple[float, float, float, list[dict[str, Any]]] | None = None
+    best: tuple[float, int, float, float, list[dict[str, Any]]] | None = None
     top_allowed = sorted(allowed, key=lambda item: (-item.value_score, item.unit_price, -item.sales))[:MAX_COMBINATION_OPTIONS]
     visited_states = 0
 
@@ -323,9 +323,9 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
             if overage <= max_overage:
                 total_cost = sum(row["unit_price"] * row["pack_quantity"] * row["count"] for row in current)
                 avg_value_score = sum(row["value_score"] * row["count"] for row in current) / max(click_count, 1)
-                score_tuple = (round(overage, 4), -round(avg_value_score, 4), round(total_cost, 4))
-                if best is None or score_tuple < best[:3]:
-                    best = (score_tuple[0], score_tuple[1], score_tuple[2], [dict(row) for row in current])
+                score_tuple = (round(overage, 4), click_count, -round(avg_value_score, 4), round(total_cost, 4))
+                if best is None or score_tuple < best[:4]:
+                    best = (score_tuple[0], score_tuple[1], score_tuple[2], score_tuple[3], [dict(row) for row in current])
             return
         if index >= len(top_allowed):
             return
@@ -390,7 +390,7 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
             "risk_flags": ["overage_out_of_policy"],
         }
 
-    selection = best[3]
+    selection = best[4]
     planned = sum(row["pack_quantity"] * row["count"] for row in selection)
     return {
         "status": "ready",
@@ -398,7 +398,7 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
         "selection": selection,
         "planned_quantity": planned,
         "overage": planned - requested,
-        "estimated_cost": round(best[2], 2),
+        "estimated_cost": round(best[3], 2),
         "risk_flags": [],
     }
 

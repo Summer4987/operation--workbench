@@ -198,6 +198,51 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         self.assertEqual(decision["safe_candidate_count"], 0)
         self.assertIn("canteen_dish_keyword_seen", decision["top_candidates"][0]["risk_flags"])
 
+    def test_equal_value_combination_prefers_fewer_clicks(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "CARROT-001",
+                    "name": "胡萝卜",
+                    "quantity": 10,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "胡萝卜": [
+                {
+                    "title": "断节胡萝卜",
+                    "spec": "5斤",
+                    "unit_price": 0.31,
+                    "monthly_sales": 16000,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                },
+                {
+                    "title": "断节胡萝卜",
+                    "spec": "10斤",
+                    "unit_price": 0.31,
+                    "monthly_sales": 16000,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                },
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "ready")
+        self.assertEqual(decision["selection"][0]["spec"], "10斤")
+        self.assertEqual(decision["selection"][0]["count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
