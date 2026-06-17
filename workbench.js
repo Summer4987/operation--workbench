@@ -369,6 +369,11 @@ function financeFlowPriceFor(productName, destination) {
   return Number(row?.prices?.[cleanDestination] || 0);
 }
 
+function financeFlowPricingDestination(eventType, destination) {
+  if (eventType === "生产" && destination === "工厂暂存") return "北京直营店";
+  return destination;
+}
+
 function updateFinanceFlowDatalists(payload = financeFlowState.payload || {}) {
   const productList = document.querySelector("#financeFlowProductOptions");
   if (productList) {
@@ -407,7 +412,8 @@ function updateFinanceFlowCalculatedAmounts(form) {
   const destination = form.querySelector('[name="to_location"]')?.value || "";
   const quantity = Number(form.querySelector('[name="quantity"]')?.value || 0);
   const paymentStatus = form.querySelector('[name="payment_status"]')?.value || "应付";
-  const unitPrice = financeFlowPriceFor(productName, destination);
+  const pricingDestination = financeFlowPricingDestination(eventType, destination);
+  const unitPrice = financeFlowPriceFor(productName, pricingDestination);
   const amount = unitPrice && quantity > 0 ? Number((quantity * unitPrice).toFixed(2)) : 0;
   const payableField = form.querySelector('[name="payable_amount"]');
   const paidField = form.querySelector('[name="paid_amount"]');
