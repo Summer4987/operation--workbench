@@ -2490,7 +2490,8 @@ def run_adb_search(
             "after_back": after_back,
             "back_results": back_results,
         }
-    if analysis.get("product_detail_page"):
+    current_snapshot = after_back if after_back and after_back.get("captured") else before
+    if analysis.get("product_detail_page") and not is_search_overlay_snapshot(current_snapshot):
         return {
             "status": "blocked",
             "message": "当前像商品详情页，未点击搜索框；如需返回列表/搜索页，请明确增加 --search-pre-back-count。",
