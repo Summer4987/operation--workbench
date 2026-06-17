@@ -908,8 +908,8 @@ def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str,
     bank_income = sum(item.amount for item in transactions if item.source == "bank" and item.amount > 0)
     bank_expense = sum(abs(item.amount) for item in transactions if item.source == "bank" and item.amount < 0)
     return {
-        "status": "preview_only_waiting_store_and_platform_income",
-        "message": "已可汇总支付流水，但缺少门店基础表、外卖平台收入账单和订单主账明细，暂不生成正式门店损益表。",
+        "status": "pending_income_and_month_end_adjustments",
+        "message": "已可汇总当前流水；收入账单、待确认流水和月末调整完成后生成门店总账/供应链账损益表。",
         "preliminary_totals": {
             "payment_statement_income": round(payment_income, 2),
             "payment_statement_expense": round(payment_expense, 2),
@@ -922,9 +922,9 @@ def build_profit_preview(transactions: list[NormalizedTransaction]) -> dict[str,
         "ledger_assignment_policy": ledger_rules.get("ledger_assignment_policy") or {},
         "monthly_ledger_preview": build_monthly_ledger_preview(transactions, ledger_rules),
         "needed_for_store_pnl": [
-            "门店基础表：用于把收货地址、店铺名、供应商规则归到门店。",
-            "外卖平台收入账单：用于确认每家门店收入、佣金、配送费、退款、补贴。",
-            "订货订单主账：用于把微信/支付宝/银行卡支出对应到快驴、淘宝、拼多多、微信群订单。",
+            "平台收入账单：由 Mac mini 自动下载美团、饿了么、京东等收入后入账。",
+            "待确认流水：把系统无法归类的支出确认到门店总账或供应链账。",
+            "月末调整：登记应收、应付和库存盘点金额后生成正式损益表。",
         ],
     }
 
@@ -1152,7 +1152,7 @@ def build_payload() -> dict[str, Any]:
             "自动提交正式财务结果",
             "上传真实流水到 GitHub",
         ],
-        "message": "三方支付流水核对预览已生成，等待门店基础表、平台收入账单和订单主账后生成门店损益表。",
+        "message": "三方支付流水核对预览已生成，等待平台收入、待确认流水和月末调整后生成门店总账/供应链账损益表。",
     }
 
 

@@ -23,6 +23,8 @@ if [[ ! -x "$PYTHON" ]]; then
 fi
 
 "$PYTHON" scripts/sync_promo_budget_overrides.py
+"$PYTHON" scripts/build_finance_reconciliation_preview.py
+"$PYTHON" scripts/build_finance_center_status.py
 "$PYTHON" scripts/build_workbench_data.py
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
