@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "kuailv_purchase_decision"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 DEFAULT_MAX_SEARCH_PAGE = 2
+DEFAULT_SORT_MODES = ["price_asc", "sales_desc"]
 
 
 UNIT_ALIASES = {
@@ -130,6 +131,7 @@ class CandidateScore:
     unit_price: float
     sales: float
     page: int
+    sort_mode: str
     value_score: float
     reasons: list[str]
     risk_flags: list[str]
@@ -138,6 +140,19 @@ class CandidateScore:
 def candidate_search_page(candidate: dict[str, Any]) -> int:
     page = int(safe_float(candidate.get("search_page") or candidate.get("page"), 1))
     return max(1, page)
+
+
+def candidate_sort_mode(candidate: dict[str, Any]) -> str:
+    return normalize_text(candidate.get("sort_mode") or candidate.get("ranking") or candidate.get("ranking_mode") or "")
+
+
+def allowed_sort_modes(line: dict[str, Any]) -> list[str]:
+    modes = line.get("allowed_sort_modes")
+    if isinstance(modes, str):
+        modes = [item.strip() for item in modes.split(",")]
+    if not modes:
+        modes = DEFAULT_SORT_MODES
+    return [normalize_text(mode) for mode in modes if normalize_text(mode)]
 
 
 def candidate_sales(candidate: dict[str, Any]) -> float:
@@ -175,6 +190,7 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
     pack_quantity = candidate_pack_quantity(candidate, requested_unit)
     unit_price = candidate_unit_price(candidate, requested_unit, pack_quantity)
     page = candidate_search_page(candidate)
+    sort_mode = candidate_sort_mode(candidate)
     sales = candidate_sales(candidate)
     value_score = candidate_value_score(unit_price, sales)
     stock = safe_float(candidate.get("stock"), math.inf)
@@ -187,10 +203,15 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
     score = value_score
 
     max_page = int(safe_float(line.get("max_search_page"), DEFAULT_MAX_SEARCH_PAGE))
+    allowed_modes = allowed_sort_modes(line)
     if page > max_page:
         allowed = False
-        risk_flags.append("outside_first_two_pages")
-        reasons.append(f"不在搜索前 {max_page} 页：第 {page} 页")
+        risk_flags.append("outside_ranked_first_pages")
+        reasons.append(f"不在排序后前 {max_page} 页：第 {page} 页")
+    if sort_mode not in allowed_modes:
+        allowed = False
+        risk_flags.append("unsupported_sort_mode")
+        reasons.append(f"不是允许的排序来源：{sort_mode or '未标注'}")
 
     if required_hits:
         score += 70 + 12 * len(required_hits)
@@ -236,9 +257,9 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
         risk_flags.append("missing_price")
         reasons.append("缺少价格，需人工复核")
 
-    reasons.append(f"销量 {sales:g}，性价比分 {value_score:.2f}")
+    reasons.append(f"排序 {sort_mode or '未标注'} 第 {page} 页，销量 {sales:g}，性价比分 {value_score:.2f}")
 
-    return CandidateScore(candidate, allowed, round(score, 3), pack_quantity, round(unit_price, 4), round(sales, 2), page, round(value_score, 3), reasons, risk_flags)
+    return CandidateScore(candidate, allowed, round(score, 3), pack_quantity, round(unit_price, 4), round(sales, 2), page, sort_mode, round(value_score, 3), reasons, risk_flags)
 
 
 def candidate_id(candidate: dict[str, Any]) -> str:
@@ -299,6 +320,7 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
                         "score": option.score,
                         "sales": option.sales,
                         "search_page": option.page,
+                        "sort_mode": option.sort_mode,
                         "value_score": option.value_score,
                     }
                 )
@@ -319,6 +341,7 @@ def choose_combination(scores: list[CandidateScore], line: dict[str, Any]) -> di
                 "score": cheapest.score,
                 "sales": cheapest.sales,
                 "search_page": cheapest.page,
+                "sort_mode": cheapest.sort_mode,
                 "value_score": cheapest.value_score,
             }
         ]
@@ -359,9 +382,10 @@ def candidates_for_line(candidates: dict[str, Any], line: dict[str, Any]) -> lis
     return []
 
 
-def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]], max_search_page: int) -> dict[str, Any]:
+def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]], max_search_page: int, sort_modes: list[str]) -> dict[str, Any]:
     line = dict(line)
     line["max_search_page"] = max_search_page
+    line["allowed_sort_modes"] = sort_modes
     if not raw_candidates:
         return {
             "name": line.get("name"),
@@ -371,11 +395,16 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
             "required_keywords": line.get("required_keywords") or [],
             "excluded_keywords": line.get("excluded_keywords") or [],
             "pack_strategy": line.get("pack_strategy") or [],
-            "candidate_collection_policy": f"每天实时搜索，只采集搜索结果前 {max_search_page} 页，不复用前一天供应商。",
+            "candidate_collection_policy": f"每天实时搜索，先切换排序 {', '.join(sort_modes)}，各采集前 {max_search_page} 页，不复用前一天供应商。",
             "candidates": [],
         }
 
-    filtered_candidates = [candidate for candidate in raw_candidates if candidate_search_page(candidate) <= max_search_page]
+    normalized_modes = [normalize_text(mode) for mode in sort_modes]
+    filtered_candidates = [
+        candidate
+        for candidate in raw_candidates
+        if candidate_search_page(candidate) <= max_search_page and candidate_sort_mode(candidate) in normalized_modes
+    ]
     scores = [score_candidate(candidate, line) for candidate in raw_candidates]
     scores.sort(key=lambda item: (item.allowed, item.score), reverse=True)
     combination = choose_combination(scores, line)
@@ -393,6 +422,7 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
         "risk_flags": combination.get("risk_flags") or [],
         "candidate_count": len(raw_candidates),
         "eligible_first_pages_candidate_count": len(filtered_candidates),
+        "allowed_sort_modes": sort_modes,
         "safe_candidate_count": sum(1 for score in scores if score.allowed),
         "top_candidates": [
             {
@@ -404,6 +434,7 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
                 "unit_price": score.unit_price,
                 "sales": score.sales,
                 "search_page": score.page,
+                "sort_mode": score.sort_mode,
                 "value_score": score.value_score,
                 "allowed": score.allowed,
                 "score": score.score,
@@ -415,7 +446,13 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
     }
 
 
-def build_payload(order: dict[str, Any], candidate_payload: dict[str, Any], max_search_page: int = DEFAULT_MAX_SEARCH_PAGE) -> dict[str, Any]:
+def build_payload(
+    order: dict[str, Any],
+    candidate_payload: dict[str, Any],
+    max_search_page: int = DEFAULT_MAX_SEARCH_PAGE,
+    sort_modes: list[str] | None = None,
+) -> dict[str, Any]:
+    sort_modes = sort_modes or DEFAULT_SORT_MODES
     lines = []
     for item in kuailv_items(order):
         line = build_line_plan(item)
@@ -423,7 +460,7 @@ def build_payload(order: dict[str, Any], candidate_payload: dict[str, Any], max_
         line["allowed_overage"] = safe_float(rule.get("allowed_overage"), 0)
         line["prefer_single_pack"] = safe_float(rule.get("prefer_single_pack"), 0)
         lines.append(line)
-    decisions = [decision_for_line(line, candidates_for_line(candidate_payload, line), max_search_page) for line in lines]
+    decisions = [decision_for_line(line, candidates_for_line(candidate_payload, line), max_search_page, sort_modes) for line in lines]
     blocking = [row for row in decisions if row["status"] in {"blocked", "needs_candidates"}]
     review = [row for row in decisions if row["status"] == "needs_review"]
     status = "ready" if not blocking and not review else "needs_review" if not blocking else "needs_candidates"
@@ -448,7 +485,7 @@ def build_payload(order: dict[str, Any], candidate_payload: dict[str, Any], max_
         "safety": {
             "dry_run": True,
             "forbidden_actions": ["提交订单", "付款", "切换地址"],
-            "supplier_policy": "每天供应商不固定；必须当天实时搜索并只在搜索结果前两页内按价格和销量择优。",
+            "supplier_policy": f"每天供应商不固定；必须当天实时搜索，按 {', '.join(sort_modes)} 排序后分别采集前 {max_search_page} 页，再按价格和销量择优。",
             "sku_cache_policy": "SKU 只能作为当天候选标识；不得复用前一天供应商/SKU 直接加购。",
         },
         "message": "快驴采购决策已生成；只做择优计划，不执行加购。",
@@ -487,12 +524,14 @@ def main() -> int:
     parser.add_argument("--order-id", default="")
     parser.add_argument("--candidates", default="", help="候选商品 JSON；为空时输出需要采集的搜索规格计划")
     parser.add_argument("--max-search-page", type=int, default=DEFAULT_MAX_SEARCH_PAGE, help="只允许使用搜索结果前 N 页候选，默认 2")
+    parser.add_argument("--sort-modes", default=",".join(DEFAULT_SORT_MODES), help="候选必须来自这些排序模式，逗号分隔；默认 price_asc,sales_desc")
     parser.add_argument("--timeout", type=int, default=20)
     args = parser.parse_args()
 
     try:
         order = load_order(args.server, args.token, args.date, args.order_id, args.timeout)
-        payload = build_payload(order, read_candidates(args.candidates), max(1, args.max_search_page))
+        sort_modes = [item.strip() for item in args.sort_modes.split(",") if item.strip()]
+        payload = build_payload(order, read_candidates(args.candidates), max(1, args.max_search_page), sort_modes or DEFAULT_SORT_MODES)
         write_latest(payload)
         print_summary(payload)
         return 0 if payload["status"] in {"ready", "needs_candidates", "needs_review"} else 1
