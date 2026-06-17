@@ -358,6 +358,7 @@ function financeFlowLocationEvents(events, location) {
 }
 
 const financeFlowSettlementPrices = [
+  { sku: "板腱原料", spec: "原料，按吨/公斤手填总金额", prices: {} },
   { sku: "牛五花牛排", spec: "20kg/箱", prices: { 北京直营店: 1316.51, 成都直营店: 1316.51, 北京仓: 1500 } },
   { sku: "嫩肩牛肉", spec: "27.5kg/箱", prices: { 北京直营店: 2255, 成都直营店: 2255, 北京仓: 2420 } },
   { sku: "藤椒牛肉", spec: "28kg/箱", prices: { 北京直营店: 2016, 成都直营店: 2016, 北京仓: 2100 } },
@@ -424,7 +425,7 @@ function generateFinanceFlowLotId(form) {
   const dateValue = form?.querySelector('[name="date"]')?.value || "";
   const productName = form?.querySelector('[name="product_name"]')?.value || "";
   const lotField = form?.querySelector('[name="lot_id"]');
-  if (!lotField || eventType !== "生产" || !dateValue || !productName) return;
+  if (!lotField || !["生产", "采购"].includes(eventType) || !dateValue || !productName) return;
   lotField.value = `${dateValue.replaceAll("-", "")}-${productName}`;
 }
 
@@ -434,10 +435,12 @@ function updateFinanceFlowCalculatedAmounts(form) {
   const productName = form.querySelector('[name="product_name"]')?.value || "";
   const destination = form.querySelector('[name="to_location"]')?.value || "";
   const quantity = Number(form.querySelector('[name="quantity"]')?.value || 0);
+  const manualAmount = Number(form.querySelector('[name="total_amount"]')?.value || 0);
   const paymentStatus = form.querySelector('[name="payment_status"]')?.value || "应付";
   const pricingDestination = financeFlowPricingDestination(eventType, destination);
   const unitPrice = financeFlowPriceFor(productName, pricingDestination);
-  const amount = unitPrice && quantity > 0 ? Number((quantity * unitPrice).toFixed(2)) : 0;
+  const amount = manualAmount > 0 ? Number(manualAmount.toFixed(2)) : unitPrice && quantity > 0 ? Number((quantity * unitPrice).toFixed(2)) : 0;
+  const effectiveUnitPrice = manualAmount > 0 && quantity > 0 ? Number((manualAmount / quantity).toFixed(4)) : unitPrice;
   const payableField = form.querySelector('[name="payable_amount"]');
   const paidField = form.querySelector('[name="paid_amount"]');
   const receivableField = form.querySelector('[name="receivable_amount"]');
@@ -449,7 +452,7 @@ function updateFinanceFlowCalculatedAmounts(form) {
   if (paidField) paidField.value = "0";
   if (receivableField) receivableField.value = "0";
   if (receivedField) receivedField.value = "0";
-  if (unitPriceField) unitPriceField.value = String(unitPrice || 0);
+  if (unitPriceField) unitPriceField.value = String(effectiveUnitPrice || 0);
   if (settlementField) {
     settlementField.value = paymentStatus === "已付工厂" || paymentStatus === "北京仓已收" ? "部分已结算" : "批次用完结算";
   }
@@ -457,16 +460,31 @@ function updateFinanceFlowCalculatedAmounts(form) {
     if (receivableField) receivableField.value = String(amount);
     if (paymentStatus === "北京仓已收" && receivedField) receivedField.value = String(amount);
   } else if (paymentStatus === "已付工厂") {
+    if (payableField) payableField.value = String(amount);
     if (paidField) paidField.value = String(amount);
   } else {
     if (payableField) payableField.value = String(amount);
   }
-  return { amount, unitPrice };
+  return { amount, unitPrice: effectiveUnitPrice };
 }
 
 const financeFlowPresets = {
+  purchase_paid: {
+    event_type: "采购",
+    item_type: "原料",
+    product_name: "板腱原料",
+    quantity: "1",
+    unit: "吨",
+    total_amount: "86530",
+    from_location: "",
+    to_location: "工厂暂存",
+    payment_status: "已付工厂",
+    counterparty: "",
+    note: "购买 1 吨板腱原料，已付工厂 86,530 元。",
+  },
   production: {
     event_type: "生产",
+    item_type: "成品",
     product_name: "牛五花牛排",
     unit: "件",
     from_location: "",
@@ -477,6 +495,7 @@ const financeFlowPresets = {
   },
   warehouse_sale: {
     event_type: "销售",
+    item_type: "成品",
     product_name: "牛五花牛排",
     unit: "件",
     from_location: "工厂暂存",
@@ -487,6 +506,7 @@ const financeFlowPresets = {
   },
   direct_store: {
     event_type: "销售",
+    item_type: "成品",
     product_name: "牛五花牛排",
     unit: "件",
     from_location: "工厂暂存",
@@ -504,7 +524,7 @@ function applyFinanceFlowPreset(form, presetKey) {
     const field = form.querySelector(`[name="${name}"]`);
     if (field) field.value = value;
   });
-  if (presetKey === "production") generateFinanceFlowLotId(form);
+  if (["purchase_paid", "production"].includes(presetKey)) generateFinanceFlowLotId(form);
   updateFinanceFlowCalculatedAmounts(form);
 }
 
@@ -552,7 +572,7 @@ function renderFinanceFlow() {
       const money = `工厂应付 ${yuan(item.payable_amount)} / 已付工厂 ${yuan(item.paid_amount)} / 应收 ${yuan(item.receivable_amount)} / 北京仓已收 ${yuan(item.received_amount)}`;
       return `
         <div class="${rowClass}">
-          <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
+          <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
           <strong>购 ${num(purchased, 2)} / 出 ${num(outbound, 2)} / 余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
           <em>${escapeHtml(locations)}${item.factory ? ` · ${escapeHtml(item.factory)}` : ""} · ${escapeHtml(money)}</em>
         </div>
@@ -582,7 +602,7 @@ function renderFinanceFlow() {
     selectedItems,
     (item) => `
       <div class="${Number(item.selected_location_quantity || 0) < 0 ? "warn-row" : "good-row"}">
-        <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")}</span>
+        <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
         <strong>${num(item.selected_location_quantity, 2)}${escapeHtml(item.unit || "")}</strong>
         <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · 工厂应付 ${yuan(item.payable_amount)} · 应收 ${yuan(item.receivable_amount)}</em>
       </div>
@@ -595,7 +615,7 @@ function renderFinanceFlow() {
       <div class="${["生产", "采购", "调拨"].includes(item.event_type) ? "good-row" : "warn-row"}">
         <span>${escapeHtml(item.date || "-")} · ${escapeHtml(item.event_type || "-")} · ${escapeHtml(item.lot_id || "-")}</span>
         <strong>${escapeHtml(item.product_name || "-")} ${num(item.quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.received_amount ? ` · 北京仓已收 ${yuan(item.received_amount)}` : ""}${item.payable_amount ? ` · 工厂应付 ${yuan(item.payable_amount)}` : ""}${item.paid_amount ? ` · 已付工厂 ${yuan(item.paid_amount)}` : ""}</em>
+        <em>${escapeHtml([item.from_location, item.to_location].filter(Boolean).join(" -> ") || item.counterparty || item.note || "")}${item.item_type ? ` · ${escapeHtml(item.item_type)}` : ""}${item.total_amount ? ` · 总额 ${yuan(item.total_amount)}` : ""}${item.receivable_amount ? ` · 应收 ${yuan(item.receivable_amount)}` : ""}${item.received_amount ? ` · 北京仓已收 ${yuan(item.received_amount)}` : ""}${item.payable_amount ? ` · 工厂应付 ${yuan(item.payable_amount)}` : ""}${item.paid_amount ? ` · 已付工厂 ${yuan(item.paid_amount)}` : ""}</em>
       </div>
     `
   );
@@ -639,7 +659,7 @@ function initializeFinanceFlowControls() {
     form?.querySelectorAll("[data-flow-preset]").forEach((button) => {
       button.addEventListener("click", () => applyFinanceFlowPreset(form, button.dataset.flowPreset));
     });
-    form?.querySelectorAll('[name="date"], [name="event_type"], [name="product_name"], [name="quantity"], [name="to_location"], [name="payment_status"]').forEach((field) => {
+    form?.querySelectorAll('[name="date"], [name="event_type"], [name="product_name"], [name="quantity"], [name="total_amount"], [name="to_location"], [name="payment_status"]').forEach((field) => {
       field.addEventListener("input", () => {
         generateFinanceFlowLotId(form);
         updateFinanceFlowCalculatedAmounts(form);
@@ -658,11 +678,13 @@ function initializeFinanceFlowControls() {
         id: `${Date.now()}`,
         date: formData.get("date") || "",
         event_type: formData.get("event_type") || "",
+        item_type: formData.get("item_type") || "",
         lot_id: formData.get("lot_id") || "",
         product_name: formData.get("product_name") || "",
-        factory: "",
+        factory: formData.get("factory") || "",
         quantity: Number(formData.get("quantity") || 0),
         unit: formData.get("unit") || "",
+        total_amount: Number(formData.get("total_amount") || 0),
         from_location: formData.get("from_location") || "",
         to_location: formData.get("to_location") || "",
         payable_amount: Number(formData.get("payable_amount") || 0),
@@ -693,6 +715,8 @@ function initializeFinanceFlowControls() {
         if (unitInput) unitInput.value = "件";
         const paymentInput = form.querySelector('[name="payment_status"]');
         if (paymentInput) paymentInput.value = "应收";
+        const itemTypeInput = form.querySelector('[name="item_type"]');
+        if (itemTypeInput) itemTypeInput.value = "原料";
         updateFinanceFlowDatalists(financeFlowState.payload);
         updateFinanceFlowCalculatedAmounts(form);
         renderFinanceFlow();

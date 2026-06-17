@@ -741,9 +741,11 @@ def _supply_chain_flow_summary() -> dict:
             {
                 "lot_id": lot_id,
                 "product_name": entry.get("product_name") or "",
+                "item_type": entry.get("item_type") or "",
                 "factory": entry.get("factory") or "",
                 "unit": entry.get("unit") or "",
                 "unit_cost": entry.get("unit_cost") or 0,
+                "total_amount": 0.0,
                 "purchase_quantity": 0.0,
                 "out_quantity": 0.0,
                 "payable_amount": 0.0,
@@ -758,6 +760,8 @@ def _supply_chain_flow_summary() -> dict:
         )
         if entry.get("product_name"):
             lot["product_name"] = entry["product_name"]
+        if entry.get("item_type"):
+            lot["item_type"] = entry["item_type"]
         if entry.get("factory"):
             lot["factory"] = entry["factory"]
         if entry.get("unit"):
@@ -766,6 +770,7 @@ def _supply_chain_flow_summary() -> dict:
             lot["unit_cost"] = entry["unit_cost"]
 
         from_location = entry.get("from_location") or ""
+        total_amount = float(entry.get("total_amount") or 0)
         payable_amount = float(entry.get("payable_amount") or 0)
         receivable_amount = float(entry.get("receivable_amount") or 0)
         payable_total += payable_amount
@@ -784,6 +789,7 @@ def _supply_chain_flow_summary() -> dict:
         lot["paid_amount"] += paid_amount
         lot["receivable_amount"] += receivable_amount
         lot["received_amount"] += received_amount
+        lot["total_amount"] += total_amount
 
         if event_type in {"生产", "采购"}:
             lot["purchase_quantity"] += quantity
@@ -889,6 +895,7 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail="批次号和货品名称不能为空")
     try:
         unit_cost = float(payload.get("unit_cost") or 0)
+        total_amount = float(payload.get("total_amount") or 0)
         payable_amount = float(payload.get("payable_amount") or 0)
         paid_amount = float(payload.get("paid_amount") or 0)
         receivable_amount = float(payload.get("receivable_amount") or 0)
@@ -902,10 +909,12 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         "event_type": event_type,
         "lot_id": lot_id,
         "product_name": product_name,
+        "item_type": str(payload.get("item_type") or "")[:40],
         "factory": str(payload.get("factory") or "")[:120],
         "quantity": quantity,
         "unit": str(payload.get("unit") or "")[:20],
         "unit_cost": max(unit_cost, 0),
+        "total_amount": max(total_amount, 0),
         "payable_amount": max(payable_amount, 0),
         "paid_amount": max(paid_amount, 0),
         "receivable_amount": max(receivable_amount, 0),

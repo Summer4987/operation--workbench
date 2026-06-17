@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI管理系统</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260617-beijing-received-label" />
+    <link rel="stylesheet" href="./workbench.css?v=20260617-supply-chain-purchase-form" />
   </head>
   <body>
     <main class="app">
@@ -342,6 +342,7 @@
                   <button type="submit">保存流向</button>
                 </div>
                 <div class="finance-flow-presets" aria-label="货权流向常用动作">
+                  <button type="button" data-flow-preset="purchase_paid">采购付款</button>
                   <button type="button" data-flow-preset="production">生产暂存</button>
                   <button type="button" data-flow-preset="warehouse_sale">发北京仓</button>
                   <button type="button" data-flow-preset="direct_store">发直营店</button>
@@ -355,6 +356,7 @@
                     <span>动作</span>
                     <select name="event_type" required>
                       <option value="生产">生产</option>
+                      <option value="采购">采购</option>
                       <option value="调拨">调拨</option>
                       <option value="销售">销售</option>
                       <option value="领用">领用</option>
@@ -362,12 +364,21 @@
                     </select>
                   </label>
                   <label>
+                    <span>货品类型</span>
+                    <select name="item_type">
+                      <option value="原料">原料</option>
+                      <option value="成品">成品</option>
+                      <option value="包材">包材</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </label>
+                  <label>
                     <span>批次号</span>
-                    <input name="lot_id" type="text" list="financeFlowLotOptions" placeholder="例如 20260610-牛五花牛排" required />
+                    <input name="lot_id" type="text" list="financeFlowLotOptions" placeholder="例如 20260617-板腱原料" required />
                   </label>
                   <label>
                     <span>货品</span>
-                    <input name="product_name" type="text" list="financeFlowProductOptions" placeholder="例如 牛五花牛排" required />
+                    <input name="product_name" type="text" list="financeFlowProductOptions" placeholder="例如 板腱原料" required />
                   </label>
                   <label>
                     <span>数量</span>
@@ -375,7 +386,11 @@
                   </label>
                   <label>
                     <span>单位</span>
-                    <input name="unit" type="text" value="件" />
+                    <input name="unit" type="text" list="financeFlowUnitOptions" value="件" />
+                  </label>
+                  <label>
+                    <span>总金额</span>
+                    <input name="total_amount" type="number" min="0" step="0.01" placeholder="手填优先，例如 86530" />
                   </label>
                   <label>
                     <span>来源位置</span>
@@ -410,8 +425,12 @@
                     </select>
                   </label>
                   <label>
+                    <span>厂家/供应商</span>
+                    <input name="factory" type="text" placeholder="例如 板腱厂家" />
+                  </label>
+                  <label>
                     <span>客户/去向</span>
-                    <input name="counterparty" type="text" placeholder="客户、门店或收货方" />
+                    <input name="counterparty" type="text" placeholder="北京仓、门店或收货方" />
                   </label>
                   <input name="payable_amount" type="hidden" value="0" />
                   <input name="paid_amount" type="hidden" value="0" />
@@ -426,7 +445,14 @@
                 </div>
                 <datalist id="financeFlowLotOptions"></datalist>
                 <datalist id="financeFlowProductOptions"></datalist>
-                <div class="finance-form-message" id="financeFlowEntryMessage">输入件数并选择去向后，金额会按结算价自动计算；这里只管理公司货权，不等同于成都仓库存。</div>
+                <datalist id="financeFlowUnitOptions">
+                  <option value="件"></option>
+                  <option value="公斤"></option>
+                  <option value="吨"></option>
+                  <option value="箱"></option>
+                  <option value="袋"></option>
+                </datalist>
+                <div class="finance-form-message" id="financeFlowEntryMessage">采购原料请手填总金额；销售成品可按结算价自动计算。这里管理公司货权，不等同于成都仓库存。</div>
               </form>
               <div class="finance-flow-toolbar">
                 <label>
@@ -834,6 +860,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260617-beijing-received-label"></script>
+    <script src="./workbench.js?v=20260617-supply-chain-purchase-form"></script>
   </body>
 </html>
