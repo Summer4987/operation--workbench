@@ -1234,6 +1234,8 @@ h2 {
 }
 
 .finance-entry-form,
+.finance-opening-form,
+.finance-opening-summary,
 .finance-recent-panel,
 .finance-upload-panel,
 .finance-review-panel {
@@ -1330,6 +1332,50 @@ h2 {
 }
 
 .finance-form-note {
+  grid-column: span 2;
+}
+
+.finance-opening-module {
+  min-height: 0;
+}
+
+.finance-opening-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finance-opening-grid label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.finance-opening-grid label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-opening-grid input,
+.finance-opening-grid textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #fbfcfe;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+}
+
+.finance-opening-grid textarea {
+  resize: vertical;
+}
+
+.finance-opening-note {
   grid-column: span 2;
 }
 
@@ -2667,6 +2713,7 @@ h2 {
   .finance-entry-grid,
   .finance-form-head,
   .finance-form-grid,
+  .finance-opening-grid,
   .finance-upload-controls,
   .finance-review-controls,
   .finance-report-kpis,
@@ -2691,7 +2738,8 @@ h2 {
     width: 100%;
   }
 
-  .finance-form-note {
+  .finance-form-note,
+  .finance-opening-note {
     grid-column: auto;
   }
 

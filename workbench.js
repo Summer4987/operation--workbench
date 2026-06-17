@@ -2,6 +2,7 @@ const data = window.WORKBENCH_DATA || {};
 const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
 const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
 const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
+const FINANCE_OPENING_URL = "/api/finance/opening?token=xiongxiaoxiao-order";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
@@ -183,6 +184,7 @@ function rows(id, items, render) {
 const FINANCE_LOCAL_ENTRIES_KEY = "xiong_finance_manual_entries_v1";
 const FINANCE_PENDING_UPLOADS_KEY = "xiong_finance_pending_uploads_v1";
 const FINANCE_ARAP_ENTRIES_KEY = "xiong_finance_arap_entries_v1";
+const FINANCE_OPENING_ENTRIES_KEY = "xiong_finance_opening_entries_v1";
 
 function readLocalList(key) {
   try {
@@ -199,6 +201,124 @@ function writeLocalList(key, value) {
 
 function financeFileSummary(files) {
   return [...(files || [])].map((file) => `${file.name} ${(file.size / 1024 / 1024).toFixed(1)}MB`).join("、");
+}
+
+function financeOpeningTotal(entry) {
+  return (
+    Number(entry.bank_balance || 0)
+    + Number(entry.wechat_balance || 0)
+    + Number(entry.alipay_balance || 0)
+    + Number(entry.inventory_amount || 0)
+    + Number(entry.receivable_amount || 0)
+    - Number(entry.payable_amount || 0)
+    - Number(entry.third_party_payable_amount || 0)
+  );
+}
+
+function renderFinanceOpeningEntries(entries = readLocalList(FINANCE_OPENING_ENTRIES_KEY)) {
+  rows(
+    "financeOpeningRows",
+    entries.slice(0, 6),
+    (entry) => `
+      <div class="good-row">
+        <span>${escapeHtml(entry.month || "-")} · 起账 ${escapeHtml(entry.start_date || "-")}</span>
+        <strong>${yuan(financeOpeningTotal(entry))}</strong>
+        <em>资金 ${yuan(Number(entry.bank_balance || 0) + Number(entry.wechat_balance || 0) + Number(entry.alipay_balance || 0))} · 库存 ${yuan(entry.inventory_amount)} · 应收 ${yuan(entry.receivable_amount)} · 应付 ${yuan(Number(entry.payable_amount || 0) + Number(entry.third_party_payable_amount || 0))}</em>
+      </div>
+    `
+  );
+}
+
+async function loadFinanceOpeningEntries() {
+  try {
+    const response = await fetch(FINANCE_OPENING_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const items = Array.isArray(result.items) ? result.items : [];
+    if (items.length) {
+      writeLocalList(FINANCE_OPENING_ENTRIES_KEY, items);
+      renderFinanceOpeningEntries(items);
+      text("financeOpeningStatus", "已保存");
+      text("financeOpeningMessage", "已读取云端最近保存的期初建账记录。");
+    } else {
+      renderFinanceOpeningEntries();
+    }
+  } catch {
+    renderFinanceOpeningEntries();
+  }
+}
+
+function initializeFinanceOpeningControls() {
+  const form = document.querySelector("#financeOpeningForm");
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = "true";
+    const monthInput = form.querySelector('[name="month"]');
+    const startDateInput = form.querySelector('[name="start_date"]');
+    if (monthInput && !monthInput.value) monthInput.value = "2026-07";
+    if (startDateInput && !startDateInput.value) startDateInput.value = "2026-07-01";
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const opening = {
+        id: `${Date.now()}`,
+        created_at: new Date().toISOString(),
+        month: formData.get("month") || "",
+        start_date: formData.get("start_date") || "",
+        bank_balance: Number(formData.get("bank_balance") || 0),
+        wechat_balance: Number(formData.get("wechat_balance") || 0),
+        alipay_balance: Number(formData.get("alipay_balance") || 0),
+        inventory_amount: Number(formData.get("inventory_amount") || 0),
+        receivable_amount: Number(formData.get("receivable_amount") || 0),
+        payable_amount: Number(formData.get("payable_amount") || 0),
+        third_party_payable_amount: Number(formData.get("third_party_payable_amount") || 0),
+        note: formData.get("note") || "",
+        sync_status: "local_pending",
+      };
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      const entries = readLocalList(FINANCE_OPENING_ENTRIES_KEY);
+      try {
+        const response = await fetch(FINANCE_OPENING_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(opening),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const saved = result.opening || { ...opening, sync_status: "cloud_saved" };
+        writeLocalList(FINANCE_OPENING_ENTRIES_KEY, [saved, ...entries]);
+        text("financeOpeningStatus", "已保存");
+        text("financeOpeningMessage", "期初建账已保存到云端。下一步从起账日期开始导入银行流水。");
+        renderFinanceOpeningEntries();
+      } catch {
+        writeLocalList(FINANCE_OPENING_ENTRIES_KEY, [opening, ...entries]);
+        text("financeOpeningStatus", "本页暂存");
+        text("financeOpeningMessage", "云端保存暂时失败，已先保存在本页。");
+        renderFinanceOpeningEntries();
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+  }
+
+  const clearButton = document.querySelector("#financeClearOpeningLocal");
+  if (clearButton && !clearButton.dataset.bound) {
+    clearButton.dataset.bound = "true";
+    clearButton.addEventListener("click", () => {
+      localStorage.removeItem(FINANCE_OPENING_ENTRIES_KEY);
+      text("financeOpeningStatus", "待保存");
+      text("financeOpeningMessage", "本页期初记录已清空；云端已保存记录不会被删除。");
+      renderFinanceOpeningEntries([]);
+    });
+  }
+
+  const openingCard = document.querySelector("#finance-opening-card");
+  if (openingCard && !openingCard.dataset.loaded) {
+    openingCard.dataset.loaded = "true";
+    loadFinanceOpeningEntries();
+  } else {
+    renderFinanceOpeningEntries();
+  }
 }
 
 function renderFinanceRecentEntries() {
@@ -2016,6 +2136,7 @@ function renderFinance() {
   const bankSources = sources.filter((source) => source.id === "bank");
   const bankUploadSources = bankSources.length ? bankSources : sources.slice(0, 1);
   const bankReady = bankUploadSources.some((source) => Number(source.file_count || 0) > 0);
+  initializeFinanceOpeningControls();
   const intakeRows = bankUploadSources.map((source) => {
     const fileCount = Number(source.file_count || 0);
     const fields = (source.required_fields || []).slice(0, 4).join("、");

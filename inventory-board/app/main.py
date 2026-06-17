@@ -51,6 +51,7 @@ PROMO_BUDGET_PATH = BASE_DIR / "data" / "promo_budget_overrides.json"
 FINANCE_UPLOAD_DIR = BASE_DIR / "data" / "finance-uploads"
 FINANCE_UPLOAD_MANIFEST = FINANCE_UPLOAD_DIR / "manifest.jsonl"
 FINANCE_ENTRY_MANIFEST = FINANCE_UPLOAD_DIR / "manual_entries.jsonl"
+FINANCE_OPENING_MANIFEST = FINANCE_UPLOAD_DIR / "opening_balances.jsonl"
 FINANCE_SOURCE_IDS = {
     "bank",
     "wechat_pay",
@@ -373,6 +374,29 @@ def finance_entries(request: Request):
     return {"items": list(reversed(items))}
 
 
+@app.post("/api/finance/opening")
+async def finance_opening(request: Request, payload: dict):
+    _require_public_order_token(request)
+    opening = _validate_finance_opening(payload)
+    FINANCE_OPENING_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    with FINANCE_OPENING_MANIFEST.open("a", encoding="utf-8") as target:
+        target.write(json.dumps(opening, ensure_ascii=False) + "\n")
+    return {"status": "success", "opening": opening}
+
+
+@app.get("/api/finance/opening")
+def finance_opening_entries(request: Request):
+    _require_public_order_token(request)
+    items = []
+    if FINANCE_OPENING_MANIFEST.exists():
+        for line in FINANCE_OPENING_MANIFEST.read_text(encoding="utf-8").splitlines()[-40:]:
+            try:
+                items.append(json.loads(line))
+            except Exception:
+                continue
+    return {"items": list(reversed(items))}
+
+
 @app.patch("/api/products/{sku}/warning")
 async def update_warning(sku: str, payload: dict):
     try:
@@ -568,6 +592,49 @@ def _validate_finance_entry(payload: dict) -> dict:
     if not entry["date"] or not entry["ledger"] or not entry["direction"] or not entry["channel"]:
         raise HTTPException(status_code=400, detail="日期、账本、收支和渠道不能为空")
     return entry
+
+
+def _finance_non_negative_amount(payload: dict, key: str) -> float:
+    try:
+        value = float(payload.get(key) or 0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"{key} 必须是数字") from exc
+    if value < 0:
+        raise HTTPException(status_code=400, detail=f"{key} 不能小于 0")
+    return value
+
+
+def _validate_finance_opening(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="期初建账数据格式不正确")
+    month = str(payload.get("month") or "")[:20]
+    start_date = str(payload.get("start_date") or "")[:20]
+    if not month or not start_date:
+        raise HTTPException(status_code=400, detail="起账月份和起账日期不能为空")
+    opening = {
+        "id": str(payload.get("id") or now_iso()),
+        "created_at": now_iso(),
+        "month": month,
+        "start_date": start_date,
+        "bank_balance": _finance_non_negative_amount(payload, "bank_balance"),
+        "wechat_balance": _finance_non_negative_amount(payload, "wechat_balance"),
+        "alipay_balance": _finance_non_negative_amount(payload, "alipay_balance"),
+        "inventory_amount": _finance_non_negative_amount(payload, "inventory_amount"),
+        "receivable_amount": _finance_non_negative_amount(payload, "receivable_amount"),
+        "payable_amount": _finance_non_negative_amount(payload, "payable_amount"),
+        "third_party_payable_amount": _finance_non_negative_amount(payload, "third_party_payable_amount"),
+        "note": str(payload.get("note") or "")[:500],
+        "sync_status": "cloud_saved",
+    }
+    opening["cash_balance"] = opening["bank_balance"] + opening["wechat_balance"] + opening["alipay_balance"]
+    opening["net_working_position"] = (
+        opening["cash_balance"]
+        + opening["inventory_amount"]
+        + opening["receivable_amount"]
+        - opening["payable_amount"]
+        - opening["third_party_payable_amount"]
+    )
+    return opening
 
 
 def _inbound_template_path() -> Path | None:

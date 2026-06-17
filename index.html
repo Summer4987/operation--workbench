@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI业务中心</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260617-finance-report-vertical" />
+    <link rel="stylesheet" href="./workbench.css?v=20260617-finance-opening" />
   </head>
   <body>
     <main class="app">
@@ -47,6 +47,7 @@
           <section class="nav-section" aria-labelledby="nav-finance">
             <h2 id="nav-finance">财务中心</h2>
             <div class="nav-subgroup">
+              <a href="#finance-opening">期初建账</a>
               <a href="#finance">财务录入</a>
               <a href="#finance-report">财务报表</a>
               <a href="#finance-arap">应收应付</a>
@@ -318,6 +319,86 @@
           ></iframe>
         </section>
 
+        <section class="center-section" id="finance-opening">
+          <div class="section-head">
+            <p>财务中心</p>
+            <h2>期初建账</h2>
+          </div>
+          <article class="module finance-opening-module" id="finance-opening-card">
+            <div class="module-head">
+              <div>
+                <p>起账设置</p>
+                <h2>先确认自然月期初余额</h2>
+              </div>
+              <span class="tag planning" id="financeOpeningStatus">待保存</span>
+            </div>
+            <div class="module-body">
+              <form class="finance-opening-form" id="financeOpeningForm">
+                <div class="finance-form-head">
+                  <div>
+                    <span>2026-07 起账</span>
+                    <strong>资金、库存、应收、应付一次录入</strong>
+                  </div>
+                  <button type="submit">保存期初</button>
+                </div>
+                <div class="finance-opening-grid">
+                  <label>
+                    <span>启用月份</span>
+                    <input name="month" type="month" value="2026-07" required />
+                  </label>
+                  <label>
+                    <span>起账日期</span>
+                    <input name="start_date" type="date" value="2026-07-01" required />
+                  </label>
+                  <label>
+                    <span>银行卡余额</span>
+                    <input name="bank_balance" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>微信余额</span>
+                    <input name="wechat_balance" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>支付宝余额</span>
+                    <input name="alipay_balance" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>库存金额</span>
+                    <input name="inventory_amount" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>应收余额</span>
+                    <input name="receivable_amount" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>应付余额</span>
+                    <input name="payable_amount" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>
+                    <span>代付未结算</span>
+                    <input name="third_party_payable_amount" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label class="finance-opening-note">
+                    <span>备注</span>
+                    <textarea name="note" rows="2" placeholder="例如：库存按 6 月 30 日盘点，应收应付按客户/供应商明细另行登记"></textarea>
+                  </label>
+                </div>
+                <div class="finance-form-message" id="financeOpeningMessage">先建期初，再从 7 月 1 日开始导入流水和确认账目。</div>
+              </form>
+              <div class="finance-opening-summary">
+                <div class="module-head">
+                  <div>
+                    <p>最近期初</p>
+                    <h2>云端保存后这里会保留记录</h2>
+                  </div>
+                  <button class="ghost-action" type="button" id="financeClearOpeningLocal">清空本页记录</button>
+                </div>
+                <div class="mini-table" id="financeOpeningRows"></div>
+              </div>
+            </div>
+          </article>
+        </section>
+
         <section class="center-section" id="finance">
           <div class="section-head">
             <p>财务中心</p>
@@ -464,7 +545,7 @@
               <div class="module-head">
                 <div>
                   <p>报表</p>
-                  <h2>6 月损益表</h2>
+                  <h2>7 月损益表</h2>
                 </div>
                 <span class="tag planning" id="financeReportStatus">建设中</span>
               </div>
@@ -534,7 +615,7 @@
               </div>
               <div class="module-body">
                 <div class="finance-stock-form">
-                  <label><span>月份</span><input type="month" value="2026-06" /></label>
+                  <label><span>月份</span><input type="month" value="2026-07" /></label>
                   <label><span>月初库存金额</span><input type="number" min="0" step="0.01" placeholder="0.00" /></label>
                   <label><span>本月采购金额</span><input type="number" min="0" step="0.01" placeholder="0.00" /></label>
                   <label><span>月末库存金额</span><input type="number" min="0" step="0.01" placeholder="0.00" /></label>
@@ -602,6 +683,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260617-finance-report-vertical"></script>
+    <script src="./workbench.js?v=20260617-finance-opening"></script>
   </body>
 </html>
