@@ -1476,12 +1476,17 @@ def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any]
             ),
             "",
         )
-        quantities = [
-            node_text(node)
+        quantity_nodes = [
+            node
             for node in row_nodes
             if 730 <= node["bounds"][0] <= 980 and re.fullmatch(r"\d+", node_text(node))
         ]
-        quantity = quantities[-1] if quantities else ""
+        quantity_node = quantity_nodes[-1] if quantity_nodes else None
+        quantity = node_text(quantity_node) if quantity_node else ""
+        quantity_bounds = quantity_node["bounds"] if quantity_node else []
+        minus_center = []
+        if len(quantity_bounds) == 4:
+            minus_center = [max(0, int(quantity_bounds[0]) - 31), int((int(quantity_bounds[1]) + int(quantity_bounds[3])) / 2)]
         expected_hits = [term for term in expected_terms if term and term in title_text]
         items.append(
             {
@@ -1489,6 +1494,8 @@ def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any]
                 "spec": spec,
                 "price": price,
                 "quantity": quantity,
+                "quantity_bounds": quantity_bounds,
+                "minus_center": minus_center,
                 "bounds": title["bounds"],
                 "row_texts": texts[:24],
                 "expected_hits": expected_hits,
@@ -1524,6 +1531,8 @@ def merge_visible_cart_item_fragments(items: list[dict[str, Any]]) -> list[dict[
                 continue
             if not current.get("quantity") and other.get("quantity"):
                 current["quantity"] = other.get("quantity")
+                current["quantity_bounds"] = other.get("quantity_bounds")
+                current["minus_center"] = other.get("minus_center")
             if not current.get("spec") and other.get("spec"):
                 current["spec"] = other.get("spec")
             if not current.get("price") and other.get("price"):
@@ -2250,6 +2259,120 @@ def run_adb_cart_open(
     }
 
 
+def cart_clear_tap_plan(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    details = snapshot.get("cart_review_details") or {}
+    items = details.get("visible_cart_items") or []
+    if not details.get("reached_cart") or not items:
+        return []
+    rows = []
+    for item in items:
+        title_bounds = item.get("bounds") or []
+        minus_center = item.get("minus_center") or []
+        if len(title_bounds) != 4:
+            continue
+        try:
+            quantity = int(str(item.get("quantity") or "0"))
+        except ValueError:
+            quantity = 0
+        if quantity <= 0:
+            continue
+        if len(minus_center) == 2:
+            tap_center = [int(minus_center[0]), int(minus_center[1])]
+        else:
+            title_y = (int(title_bounds[1]) + int(title_bounds[3])) / 2
+            tap_center = [824, int(round(title_y + 188))]
+        rows.append(
+            {
+                "title": item.get("title"),
+                "spec": item.get("spec"),
+                "quantity": quantity,
+                "minus_center": tap_center,
+                "title_bounds": title_bounds,
+                "unexpected": item.get("unexpected"),
+            }
+        )
+    rows.sort(key=lambda row: row["minus_center"][1], reverse=True)
+    return rows
+
+
+def run_adb_cart_clear(plan: dict[str, Any], serial: str, timeout: int) -> dict[str, Any]:
+    serial, blocked = resolve_adb_serial(serial, timeout)
+    if blocked:
+        return blocked
+
+    session = datetime.now().strftime("%Y%m%d-%H%M%S-cart-clear")
+    session_dir = OUTPUT_DIR / session
+    before = save_adb_snapshot(serial, session_dir / "before", timeout, plan)
+    if not before.get("captured"):
+        return {"status": "blocked", "message": "cart-clear 前截图/控件树采集失败，未点击。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+
+    analysis = before.get("ui_analysis") or {}
+    details = before.get("cart_review_details") or {}
+    if not analysis.get("delivery_store_match"):
+        return {"status": "blocked", "message": "收货门店未匹配订单门店，未清理购物车。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+    if not details.get("reached_cart"):
+        return {"status": "blocked", "message": "当前未识别为购物车检查页，未清理购物车。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+    if any(node.get("text") == "提交订单" or node.get("text") == "付款" for node in details.get("checkout_nodes") or []):
+        return {"status": "blocked", "message": "检测到提交/付款文案，未清理购物车。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
+
+    tap_plan = cart_clear_tap_plan(before)
+    if not tap_plan:
+        return {
+            "status": "cart_already_empty",
+            "message": "购物车页未识别到可见商品行，无需清理。",
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "before": before,
+            "tap_plan": tap_plan,
+        }
+
+    taps = []
+    for row in tap_plan:
+        x, y = row["minus_center"]
+        for count in range(int(row.get("quantity") or 0)):
+            result = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
+            taps.append(
+                {
+                    "title": row.get("title"),
+                    "spec": row.get("spec"),
+                    "quantity_index": count + 1,
+                    "x": x,
+                    "y": y,
+                    "returncode": result.returncode,
+                    "stderr": result.stderr.strip(),
+                    "stdout": result.stdout.strip(),
+                }
+            )
+            time.sleep(0.55)
+    time.sleep(1.2)
+    after = save_adb_snapshot(serial, session_dir / "after", timeout, plan)
+    after_details = after.get("cart_review_details") or {}
+    remaining = after_details.get("visible_cart_items") or []
+    status = "cart_cleared_for_manual_review" if after.get("captured") and not remaining else "cart_clear_unproven"
+    return {
+        "status": status,
+        "message": "已执行受保护购物车清理；未提交订单，未付款，未切换地址。",
+        "device_serial": serial,
+        "session_dir": str(session_dir),
+        "before": before,
+        "tap_plan": tap_plan,
+        "taps": taps,
+        "after": after,
+        "cart_review": {
+            "before_items": details.get("visible_cart_items") or [],
+            "after_items": remaining,
+            "unexpected_before": details.get("unexpected_visible_cart_items") or [],
+            "reached_cart_after": after_details.get("reached_cart"),
+        },
+        "safety": {
+            "delivery_store_match_required": True,
+            "cart_review_page_required": True,
+            "only_minus_controls": True,
+            "forbidden_actions": ["切换收货地址", "提交订单", "付款"],
+        },
+    }
+
+
 def adb_clear_focused_text(serial: str, timeout: int, max_delete: int = 28) -> list[dict[str, Any]]:
     results = []
     commands = [
@@ -2628,9 +2751,9 @@ def main() -> int:
     parser.add_argument("--seed", default="", help="随机种子；为空时按日期稳定随机")
     parser.add_argument(
         "--mode",
-        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open", "adb-search"],
+        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open", "adb-cart-clear", "adb-search"],
         default="plan-only",
-        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap；adb-search 只允许一次受保护搜索输入",
+        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap；adb-cart-clear 受保护清理购物车；adb-search 只允许一次受保护搜索输入",
     )
     parser.add_argument("--adb-serial", default=os.environ.get("ANDROID_ADB_SERIAL", ""), help="ADB 设备号")
     parser.add_argument("--tap-item", default="", help="adb-safe-tap 的目标品项名，例如：豆腐")
@@ -2672,6 +2795,8 @@ def main() -> int:
                 args.cart_pre_nav_tap_x,
                 args.cart_pre_nav_tap_y,
             )
+        elif args.mode == "adb-cart-clear":
+            adb_result = run_adb_cart_clear(plan, args.adb_serial.strip(), args.timeout)
         elif args.mode == "adb-search":
             adb_result = run_adb_search(
                 plan,
@@ -2688,7 +2813,7 @@ def main() -> int:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
             "generated_at": started_at,
-            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review"} else "blocked",
+            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review", "cart_cleared_for_manual_review", "cart_already_empty"} else "blocked",
             "mode": args.mode,
             "source": admin_summary_url(args.server, "***"),
             "message": "快驴订货计划已生成；未提交订单，未付款。",
