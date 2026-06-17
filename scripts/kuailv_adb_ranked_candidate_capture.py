@@ -138,6 +138,10 @@ def visible_nodes(xml_text: str) -> list[dict[str, Any]]:
     return rows
 
 
+def display_text(node: dict[str, Any]) -> str:
+    return str(node.get("text") or node.get("content-desc") or "").strip()
+
+
 def looks_like_title(text: str, bounds: list[int]) -> bool:
     x1, y1, x2, y2 = bounds
     if not (40 <= x1 <= 650 and 250 <= y1 <= 2120 and x2 - x1 >= 90):
@@ -164,6 +168,165 @@ def row_texts(nodes: list[dict[str, Any]], y1: int, y2: int) -> list[dict[str, A
             rows.append({"text": node_text(node), "bounds": bounds})
     rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
     return rows
+
+
+def clean_card_texts(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for node in nodes:
+        text = display_text(node)
+        bounds = node.get("bounds") or []
+        if not text or len(bounds) != 4:
+            continue
+        if bounds == [0, 0, 0, 0] or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        if re.fullmatch(r"[\ue000-\uf8ff]+", text):
+            continue
+        rows.append({"text": text, "bounds": bounds})
+    rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return rows
+
+
+def card_texts_in_bounds(nodes: list[dict[str, Any]], card_bounds: list[int]) -> list[dict[str, Any]]:
+    rows = clean_card_texts(nodes)
+    if len(card_bounds) != 4:
+        return rows
+    x1, y1, x2, y2 = card_bounds
+    bounded = []
+    for row in rows:
+        cx, cy = bounds_center(tuple(row["bounds"]))
+        if x1 <= cx <= x2 and y1 <= cy <= y2:
+            bounded.append(row)
+    return bounded
+
+
+def looks_like_card_title(text: str, bounds: list[int]) -> bool:
+    x1, _y1, x2, _y2 = bounds
+    if not (240 <= x1 <= 760 and x2 - x1 >= 90):
+        return False
+    if not re.search(r"[\u4e00-\u9fff]", text):
+        return False
+    if any(word in text for word in EXCLUDED_TITLE_WORDS):
+        return False
+    if any(word in text for word in ["进店", "同品", "回购率第", "销量第", "低价", "客诉", "口碑"]):
+        return False
+    if "¥" in text or "￥" in text or re.fullmatch(r"\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?", text):
+        return False
+    if re.fullmatch(r"[\d.]+(?:斤|kg|g|克|袋|盒|箱|桶|瓶|个).*", normalize_text(text)):
+        return False
+    return True
+
+
+def numeric_price_value(text: str) -> float:
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?", text.strip())
+    if not match:
+        return 0.0
+    return float(match.group(1))
+
+
+def parse_card_best_offer(rows: list[dict[str, Any]]) -> tuple[str, float]:
+    offers: list[dict[str, Any]] = []
+    for row in rows:
+        price = numeric_price_value(row["text"])
+        if price <= 0:
+            continue
+        _cx, cy = bounds_center(tuple(row["bounds"]))
+        same_line = [candidate for candidate in rows if abs(bounds_center(tuple(candidate["bounds"]))[1] - cy) <= 42]
+        if not any("/" in candidate["text"] for candidate in same_line):
+            continue
+        if not any(candidate["text"] in {"¥", "￥"} or "¥" in candidate["text"] or "￥" in candidate["text"] for candidate in same_line):
+            continue
+        spec = ""
+        for candidate in same_line:
+            if re.fullmatch(r"\d+(?:\.\d+)?(?:斤|kg|g|克|袋|盒|箱|桶|瓶|个)", normalize_text(candidate["text"])):
+                spec = candidate["text"]
+                break
+        offers.append({"spec": spec, "price": price})
+    if not offers:
+        return "", parse_price([row["text"] for row in rows])
+    best = min(offers, key=lambda item: item["price"])
+    return str(best.get("spec") or ""), float(best.get("price") or 0)
+
+
+def product_card_groups(xml_text: str) -> list[dict[str, Any]]:
+    nodes = parse_ui_nodes(xml_text)
+    cards: list[tuple[int, dict[str, Any]]] = []
+    for index, node in enumerate(nodes):
+        text = node_text(node)
+        bounds = node.get("bounds") or []
+        if "complex-card-goods" not in text:
+            continue
+        if len(bounds) != 4 or bounds == [0, 0, 0, 0] or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+            continue
+        if bounds[3] < 260 or bounds[1] > 2200:
+            continue
+        cards.append((index, node))
+    groups = []
+    for card_index, (start, card) in enumerate(cards):
+        end = cards[card_index + 1][0] if card_index + 1 < len(cards) else len(nodes)
+        groups.append({"card": card, "nodes": nodes[start + 1 : end]})
+    return groups
+
+
+def extract_card_candidates(
+    xml_text: str,
+    query: str,
+    sort_mode: str,
+    search_page: int,
+    order: dict[str, Any] | None,
+    line_name: str,
+) -> list[dict[str, Any]]:
+    title_terms = allowed_title_terms(query, order, line_name)
+    candidates: list[dict[str, Any]] = []
+    seen_titles: set[tuple[str, int]] = set()
+    for group in product_card_groups(xml_text):
+        card_bounds = group["card"].get("bounds") or []
+        texts = card_texts_in_bounds(group["nodes"], card_bounds)
+        title_rows = [
+            row
+            for row in texts
+            if looks_like_card_title(row["text"], row["bounds"])
+            and not row["text"].startswith(("同品", "查看剩余"))
+        ]
+        title_rows.sort(key=lambda row: (row["bounds"][1], row["bounds"][0]))
+        title_row = None
+        for row in title_rows:
+            compact = normalize_text(row["text"])
+            if not title_terms or any(term and term in compact for term in title_terms):
+                title_row = row
+                break
+        if not title_row:
+            continue
+        title = title_row["text"]
+        key = (title, int((card_bounds[1] if len(card_bounds) == 4 else title_row["bounds"][1]) / 30))
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        row_values = [row["text"] for row in texts]
+        spec, price = parse_card_best_offer(texts)
+        if not spec:
+            spec = parse_spec(title, row_values)
+        sales = parse_sales(row_values)
+        inferred_line = infer_line_name(title, query, order, line_name)
+        if not inferred_line and order:
+            continue
+        candidates.append(
+            {
+                "line_name": inferred_line,
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "title": title,
+                "spec": spec,
+                "price": price,
+                "monthly_sales": sales,
+                "available": True,
+                "source": "adb_xml_product_card",
+                "bounds": title_row["bounds"],
+                "card_bounds": card_bounds,
+                "row_texts": row_values[:36],
+            }
+        )
+    return candidates[:30]
 
 
 def parse_price(texts: list[str]) -> float:
@@ -319,6 +482,9 @@ def extract_candidates(
     order: dict[str, Any] | None,
     line_name: str,
 ) -> list[dict[str, Any]]:
+    card_candidates = extract_card_candidates(xml_text, query, sort_mode, search_page, order, line_name)
+    if card_candidates:
+        return card_candidates
     nodes = visible_nodes(xml_text)
     title_terms = allowed_title_terms(query, order, line_name)
     titles = [node for node in nodes if looks_like_title(node_text(node), node["bounds"])]
