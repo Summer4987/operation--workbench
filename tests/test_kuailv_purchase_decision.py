@@ -271,6 +271,43 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         self.assertEqual(decision["status"], "ready")
         self.assertNotIn("canteen_dish_keyword_seen", decision["top_candidates"][0]["risk_flags"])
 
+    def test_unavailable_time_window_candidate_is_rejected(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "MUSHROOM-001",
+                    "name": "白玉菇",
+                    "quantity": 15,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "白玉菇": [
+                {
+                    "title": "白玉菇散菇",
+                    "spec": "4斤",
+                    "unit_price": 2.88,
+                    "monthly_sales": 1142,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                    "row_texts": ["白玉菇散菇", "即将开售", "仓非可售时间", "休息中", "4斤"],
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "blocked")
+        self.assertEqual(decision["safe_candidate_count"], 0)
+        self.assertIn("unavailable_time_window_seen", decision["top_candidates"][0]["risk_flags"])
+
     def test_equal_value_combination_prefers_fewer_clicks(self) -> None:
         order = {
             "order_id": "DO-TEST",

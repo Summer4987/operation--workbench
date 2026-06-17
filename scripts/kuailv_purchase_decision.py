@@ -24,6 +24,7 @@ MAX_COMBINATION_OPTIONS = 6
 MAX_COMBINATION_STATES = 5000
 MAX_AUTO_CLICK_COUNT = 12
 GLOBAL_REJECT_KEYWORDS = ["食堂菜"]
+UNAVAILABLE_KEYWORDS = ["即将开售", "仓非可售时间", "休息中", "失效", "停售", "暂停售卖"]
 
 
 UNIT_ALIASES = {
@@ -83,6 +84,23 @@ def item_identity_text(item: dict[str, Any]) -> str:
     return normalize_text(" ".join(str(item.get(key) or "") for key in ["title", "name", "spec", "subtitle", "description"]))
 
 
+def candidate_full_text(candidate: dict[str, Any]) -> str:
+    row_texts = candidate.get("row_texts") or []
+    if isinstance(row_texts, list):
+        row_blob = " ".join(str(row) for row in row_texts)
+    else:
+        row_blob = str(row_texts or "")
+    return normalize_text(
+        " ".join(
+            [
+                str(candidate.get(key) or "")
+                for key in ["title", "name", "spec", "subtitle", "description"]
+            ]
+            + [row_blob]
+        )
+    )
+
+
 def global_reject_hits(candidate: dict[str, Any]) -> list[str]:
     hits: list[str] = []
     identity = item_identity_text(candidate)
@@ -98,6 +116,11 @@ def global_reject_hits(candidate: dict[str, Any]) -> list[str]:
             if compact and any(row == compact for row in normalized_rows):
                 hits.append(compact)
     return list(dict.fromkeys(hits))
+
+
+def unavailable_hits(candidate: dict[str, Any]) -> list[str]:
+    text = candidate_full_text(candidate)
+    return [word for word in [normalize_text(item) for item in UNAVAILABLE_KEYWORDS] if word and word in text]
 
 
 def pack_label_to_quantity(label: str, unit: str) -> float | None:
@@ -261,6 +284,13 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
         score -= 240
         risk_flags.append("canteen_dish_keyword_seen")
         reasons.append("命中全局禁用词：食堂菜")
+
+    unavailable = unavailable_hits(candidate)
+    if unavailable:
+        allowed = False
+        score -= 220
+        risk_flags.append("unavailable_time_window_seen")
+        reasons.append(f"命中不可售状态：{', '.join(unavailable)}")
 
     if preferred_hits:
         score += 8 * len(preferred_hits)
