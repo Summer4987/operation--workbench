@@ -59,6 +59,9 @@ EXCLUDED_TITLE_WORDS = [
     "肉禽水产蛋",
 ]
 
+SPEC_CONTROL_WORDS = ["选规格", "全部规格", "更多规格"]
+SPEC_MODAL_BLOCK_WORDS = ["提交订单", "立即支付", "确认支付", "去支付", "切换地址", "收货地址"]
+
 
 def now_text() -> str:
     return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S%z")
@@ -248,6 +251,14 @@ def parse_card_best_offer(rows: list[dict[str, Any]]) -> tuple[str, float]:
     return str(best.get("spec") or ""), float(best.get("price") or 0)
 
 
+def has_explicit_pack_text(text: str) -> bool:
+    return bool(re.search(r"\d+(?:\.\d+)?\s*(?:斤|kg|g|克|袋|盒|箱|桶|瓶|个)", normalize_text(text)))
+
+
+def row_text(row: dict[str, Any]) -> str:
+    return str(row.get("text") or "")
+
+
 def product_card_groups(xml_text: str) -> list[dict[str, Any]]:
     nodes = parse_ui_nodes(xml_text)
     cards: list[tuple[int, dict[str, Any]]] = []
@@ -329,6 +340,143 @@ def extract_card_candidates(
                 "row_texts": row_values[:36],
             }
         )
+    return candidates[:30]
+
+
+def find_spec_control_target(
+    xml_text: str,
+    query: str,
+    order: dict[str, Any] | None,
+    line_name: str,
+    candidate_index: int,
+) -> dict[str, Any]:
+    title_terms = allowed_title_terms(query, order, line_name)
+    matches: list[dict[str, Any]] = []
+    for group in product_card_groups(xml_text):
+        card_bounds = group["card"].get("bounds") or []
+        texts = card_texts_in_bounds(group["nodes"], card_bounds)
+        title_rows = [
+            row
+            for row in texts
+            if looks_like_card_title(row["text"], row["bounds"])
+            and not row["text"].startswith(("同品", "查看剩余"))
+        ]
+        title_rows.sort(key=lambda row: (row["bounds"][1], row["bounds"][0]))
+        title_row = None
+        for row in title_rows:
+            compact = normalize_text(row["text"])
+            if not title_terms or any(term and term in compact for term in title_terms):
+                title_row = row
+                break
+        if not title_row:
+            continue
+        controls = [
+            row
+            for row in texts
+            if any(word in row["text"] for word in SPEC_CONTROL_WORDS)
+            and len(row.get("bounds") or []) == 4
+        ]
+        if not controls:
+            continue
+        controls.sort(key=lambda row: (row["bounds"][1], row["bounds"][0]))
+        control = controls[-1]
+        cx, cy = bounds_center(tuple(control["bounds"]))
+        matches.append(
+            {
+                "title": title_row["text"],
+                "title_bounds": title_row["bounds"],
+                "control_text": control["text"],
+                "control_bounds": control["bounds"],
+                "card_bounds": card_bounds,
+                "center": [cx, cy],
+            }
+        )
+    if not matches:
+        return {"status": "blocked", "message": "未找到匹配候选的规格控件。"}
+    index = max(0, min(candidate_index, len(matches) - 1))
+    return {"status": "ready", "index": index, "match_count": len(matches), "target": matches[index]}
+
+
+def spec_modal_is_safe_to_read(xml_text: str) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    cart_details = analyze_cart_review_xml(xml_text, None)
+    if cart_details.get("reached_cart"):
+        reasons.append("识别到购物车/结算页")
+    visible = [node_text(node) for node in parse_ui_nodes(xml_text)]
+    joined = " ".join(visible)
+    for word in SPEC_MODAL_BLOCK_WORDS:
+        if word in joined:
+            reasons.append(f"识别到高风险页面文本：{word}")
+    return not reasons, reasons
+
+
+def extract_spec_modal_candidates(
+    xml_text: str,
+    query: str,
+    sort_mode: str,
+    search_page: int,
+    order: dict[str, Any] | None,
+    line_name: str,
+    parent_title: str,
+    parent_bounds: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    nodes = visible_nodes(xml_text)
+    rows = [{"text": node_text(node), "bounds": node["bounds"]} for node in nodes]
+    rows = [
+        row
+        for row in rows
+        if row["text"]
+        and len(row["bounds"]) == 4
+        and row["bounds"][1] >= 360
+        and not re.fullmatch(r"[\ue000-\uf8ff]+", row["text"])
+    ]
+    global_sales = parse_sales([row_text(row) for row in rows])
+    inferred_line = infer_line_name(parent_title or query, query, order, line_name)
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[str, float, int]] = set()
+    for row in rows:
+        price = numeric_price_value(row["text"])
+        if price <= 0:
+            continue
+        _cx, cy = bounds_center(tuple(row["bounds"]))
+        same_line = [candidate for candidate in rows if abs(bounds_center(tuple(candidate["bounds"]))[1] - cy) <= 48]
+        near_above = [candidate for candidate in rows if 0 <= cy - bounds_center(tuple(candidate["bounds"]))[1] <= 110]
+        near_below = [candidate for candidate in rows if 0 <= bounds_center(tuple(candidate["bounds"]))[1] - cy <= 80]
+        price_marked = any(candidate["text"] in {"¥", "￥"} or "¥" in candidate["text"] or "￥" in candidate["text"] for candidate in same_line + near_above)
+        if not price_marked:
+            continue
+        spec = ""
+        for candidate in same_line + near_above + near_below:
+            text = candidate["text"]
+            if text == row["text"] or text in {"¥", "￥"}:
+                continue
+            if has_explicit_pack_text(text):
+                spec = text
+                break
+        if not spec:
+            continue
+        key = (spec, price, int(cy / 20))
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(
+            {
+                "line_name": inferred_line,
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "title": parent_title or query,
+                "spec": spec,
+                "price": price,
+                "monthly_sales": global_sales,
+                "available": True,
+                "source": "adb_xml_spec_modal",
+                "bounds": row["bounds"],
+                "parent_bounds": parent_bounds or [],
+                "row_texts": [item["text"] for item in same_line + near_above + near_below][:28],
+            }
+        )
+    candidates.sort(key=lambda item: (item["price"], item["spec"]))
     return candidates[:30]
 
 
@@ -593,6 +741,89 @@ def tap_sort_control(serial: str, xml_text: str, sort_mode: str, tap_count: int,
     return {"status": "tapped" if ok else "blocked", "target": target, "commands": commands}
 
 
+def tap_spec_control(
+    serial: str,
+    xml_text: str,
+    query: str,
+    order: dict[str, Any] | None,
+    line_name: str,
+    candidate_index: int,
+    timeout: int,
+) -> dict[str, Any]:
+    target = find_spec_control_target(xml_text, query, order, line_name, candidate_index)
+    if target.get("status") != "ready":
+        return target
+    x, y = target["target"]["center"]
+    command = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
+    status = "tapped" if command.get("returncode") == 0 else "blocked"
+    return {"status": status, "target": target["target"], "match_count": target.get("match_count"), "command": command}
+
+
+def close_current_overlay(serial: str, timeout: int) -> dict[str, Any]:
+    command = run_command(adb_base(serial) + ["shell", "input", "keyevent", "4"], timeout)
+    return {"status": "closed" if command.get("returncode") == 0 else "blocked", "command": command}
+
+
+def build_spec_modal_payload(
+    xml_text: str,
+    query: str,
+    sort_mode: str,
+    search_page: int,
+    order: dict[str, Any] | None,
+    line_name: str,
+    snapshot: dict[str, Any] | None,
+    tap_result: dict[str, Any],
+) -> dict[str, Any]:
+    safe, reasons = spec_modal_is_safe_to_read(xml_text)
+    target = tap_result.get("target") or {}
+    if not safe:
+        return {
+            "generated_at": now_text(),
+            "status": "blocked",
+            "message": "规格弹窗采集被安全 guard 阻断；未加购、未提交、未付款。",
+            "capture": {
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "line_name": line_name,
+                "source": "adb_xml_spec_modal",
+                "snapshot_dir": (snapshot or {}).get("session_dir", ""),
+                "screen": (snapshot or {}).get("screen_path", ""),
+                "spec_tap": tap_result,
+            },
+            "summary": {"candidate_count": 0},
+            "blocking_reasons": reasons,
+            "items": [],
+        }
+    candidates = extract_spec_modal_candidates(
+        xml_text,
+        query,
+        sort_mode,
+        search_page,
+        order,
+        line_name,
+        str(target.get("title") or ""),
+        target.get("card_bounds") or [],
+    )
+    return {
+        "generated_at": now_text(),
+        "status": "ready" if candidates else "needs_review",
+        "message": "已只读采集规格弹窗候选；未加购、未提交、未付款。",
+        "capture": {
+            "query": query,
+            "sort_mode": sort_mode,
+            "search_page": search_page,
+            "line_name": line_name,
+            "source": "adb_xml_spec_modal",
+            "snapshot_dir": (snapshot or {}).get("session_dir", ""),
+            "screen": (snapshot or {}).get("screen_path", ""),
+            "spec_tap": tap_result,
+        },
+        "summary": {"candidate_count": len(candidates)},
+        "items": candidates,
+    }
+
+
 def scroll_results(serial: str, scroll_count: int, timeout: int) -> dict[str, Any]:
     base = adb_base(serial)
     commands = []
@@ -752,6 +983,10 @@ def main() -> int:
     parser.add_argument("--sort-tap-count", type=int, default=1, help="排序控件点击次数，用于价格升降序切换")
     parser.add_argument("--scroll-count", type=int, default=0, help="采集前向下滚动结果列表次数；只滚动，不加购")
     parser.add_argument("--scroll-wait", type=float, default=1.0, help="滚动后等待刷新秒数")
+    parser.add_argument("--tap-spec-modal", action="store_true", help="采集后点开一个候选的规格弹窗并只读抽取规格/价格")
+    parser.add_argument("--spec-candidate-index", type=int, default=0, help="点开第 N 个匹配候选的规格控件，从 0 开始")
+    parser.add_argument("--spec-wait", type=float, default=1.0, help="点开规格弹窗后等待秒数")
+    parser.add_argument("--leave-spec-modal", action="store_true", help="调试用：采集后不按返回关闭规格弹窗")
     args = parser.parse_args()
 
     try:
@@ -780,6 +1015,46 @@ def main() -> int:
                 }
             xml_text = snapshot.get("xml_text") or ""
         payload = build_payload(xml_text, args.query.strip(), args.sort_mode, max(1, args.search_page), order, args.line_name.strip(), snapshot)
+        if args.tap_spec_modal:
+            if args.xml_file:
+                raise RuntimeError("离线 XML 模式不能点击规格弹窗。")
+            spec_tap = tap_spec_control(
+                args.adb_serial.strip(),
+                xml_text,
+                args.query.strip(),
+                order,
+                args.line_name.strip(),
+                max(0, args.spec_candidate_index),
+                args.timeout,
+            )
+            payload["spec_modal_tap"] = spec_tap
+            if spec_tap.get("status") != "tapped":
+                payload["status"] = "needs_review"
+                payload["message"] = f"{payload['message']} 规格弹窗未打开：{spec_tap.get('message') or spec_tap.get('status')}"
+            else:
+                time.sleep(max(0.0, args.spec_wait))
+                spec_snapshot = capture_snapshot(args.adb_serial.strip(), args.timeout)
+                spec_payload = build_spec_modal_payload(
+                    spec_snapshot.get("xml_text") or "",
+                    args.query.strip(),
+                    args.sort_mode,
+                    max(1, args.search_page),
+                    order,
+                    args.line_name.strip(),
+                    spec_snapshot,
+                    spec_tap,
+                )
+                payload["spec_modal_capture"] = spec_payload
+                payload["items"].extend(spec_payload.get("items") or [])
+                payload["summary"]["candidate_count"] = len(payload["items"])
+                if spec_payload.get("status") == "blocked":
+                    payload["status"] = "blocked"
+                    payload["message"] = spec_payload.get("message") or payload["message"]
+                elif spec_payload.get("items"):
+                    payload["status"] = "ready"
+                    payload["message"] = "已从当前搜索结果页和规格弹窗抽取候选；未加购、未提交、未付款。"
+                if not args.leave_spec_modal:
+                    payload["spec_modal_close"] = close_current_overlay(args.adb_serial.strip(), args.timeout)
         write_latest(payload)
         print_summary(payload)
         return 0 if payload["status"] in {"ready", "needs_review"} else 1
