@@ -17,18 +17,17 @@
           </div>
         </div>
         <nav class="nav" aria-label="业务中心导航">
-          <a class="nav-home active" href="#overview">首屏看板</a>
-
           <section class="nav-section" aria-labelledby="nav-ops">
-            <h2 id="nav-ops">运营数据中心</h2>
+            <h2 id="nav-ops">加盟店运营数据中心</h2>
             <div class="nav-subgroup">
-              <a href="#daily">日报看板</a>
-              <a href="#reviews">评价看板</a>
+              <a class="nav-home active" href="#overview">加盟店实时数据看板</a>
+              <a href="#daily">加盟店日报看板</a>
+              <a href="#reviews">加盟店评价看板</a>
             </div>
           </section>
 
           <section class="nav-section" aria-labelledby="nav-growth">
-            <h2 id="nav-growth">商业化推广中心</h2>
+            <h2 id="nav-growth">全品牌推广中心</h2>
             <div class="nav-subgroup">
               <a href="#budget">推广预算全自动设置</a>
               <a href="#bidding">推广出价调整</a>
@@ -37,15 +36,15 @@
           </section>
 
           <section class="nav-section" aria-labelledby="nav-flow">
-            <h2 id="nav-flow">货流中心</h2>
+            <h2 id="nav-flow">直营店货流中心</h2>
             <div class="nav-subgroup">
-              <a href="#ordering">订货管理</a>
-              <a href="#inventory">库存管理</a>
+              <a href="#ordering">直营店订货管理</a>
+              <a href="#inventory">成都库存管理</a>
             </div>
           </section>
 
           <section class="nav-section" aria-labelledby="nav-finance">
-            <h2 id="nav-finance">财务中心</h2>
+            <h2 id="nav-finance">品牌财务中心</h2>
             <div class="nav-subgroup">
               <a href="#finance-flow">货款货流</a>
               <a href="#finance-opening">期初建账</a>
@@ -77,15 +76,15 @@
         <header class="topbar" id="overview">
           <div>
             <p class="kicker" id="generatedAt">等待数据</p>
-            <h1>熊小小AI业务中心</h1>
+            <h1>加盟店实时数据看板</h1>
           </div>
         </header>
 
-        <section class="command-board" aria-label="首屏重点看板">
+        <section class="command-board" aria-label="加盟店实时数据看板">
           <article class="hero-card hero-realtime" id="realtime">
             <div class="module-head">
               <div>
-                <p>实时订单量</p>
+                <p>加盟店实时订单量</p>
                 <h2>半小时/一小时采集快照</h2>
               </div>
               <span class="tag testing" id="realtimeStatus">待采集</span>
@@ -142,7 +141,7 @@
 
         <section class="center-section" id="ops-health">
           <div class="section-head">
-            <p>运营数据中心</p>
+            <p>加盟店运营数据中心</p>
             <h2>自动化任务健康报告</h2>
           </div>
           <div class="center-grid health-grid">
@@ -169,21 +168,21 @@
 
         <section class="center-section report-section" id="daily">
           <div class="section-head">
-            <p>运营数据中心</p>
-            <h2>日报看板</h2>
+            <p>加盟店运营数据中心</p>
+            <h2>加盟店日报看板</h2>
           </div>
           <iframe
             class="daily-report-frame"
             data-report-src="/business-report-dashboard/"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            title="经营日报看板"
+            title="加盟店日报看板"
           ></iframe>
         </section>
 
         <section class="center-section" id="reviews">
           <div class="section-head">
-            <p>运营数据中心</p>
-            <h2>评价看板</h2>
+            <p>加盟店运营数据中心</p>
+            <h2>加盟店评价看板</h2>
           </div>
           <article class="module module-review wide-module">
             <div class="module-head">
@@ -208,7 +207,7 @@
 
         <section class="center-section" id="budget">
           <div class="section-head">
-            <p>商业化推广中心</p>
+            <p>全品牌推广中心</p>
             <h2>推广预算全自动设置</h2>
           </div>
           <div class="center-grid">
@@ -243,7 +242,7 @@
 
         <section class="center-section" id="bidding">
           <div class="section-head">
-            <p>商业化推广中心</p>
+            <p>全品牌推广中心</p>
             <h2>推广出价调整</h2>
           </div>
           <article class="module wide-module">
@@ -264,7 +263,7 @@
 
         <section class="center-section" id="balances">
           <div class="section-head">
-            <p>商业化推广中心</p>
+            <p>全品牌推广中心</p>
             <h2>推广余额不足预警</h2>
           </div>
           <article class="module module-balance wide-module">
@@ -288,8 +287,8 @@
 
         <section class="center-section" id="ordering">
           <div class="section-head">
-            <p>货流中心</p>
-            <h2>订货管理</h2>
+            <p>直营店货流中心</p>
+            <h2>直营店订货管理</h2>
           </div>
           <div class="embedded-board-shell ordering-admin-shell">
             <div class="embedded-board-bar">
@@ -309,20 +308,20 @@
 
         <section class="center-section inventory-section" id="inventory">
           <div class="section-head">
-            <p>货流中心</p>
-            <h2>库存管理</h2>
+            <p>直营店货流中心</p>
+            <h2>成都库存管理</h2>
           </div>
           <iframe
             class="inventory-board-frame"
             data-inventory-src="/"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            title="库存管理"
+            title="成都库存管理"
           ></iframe>
         </section>
 
         <section class="center-section" id="finance-flow">
           <div class="section-head">
-            <p>财务中心</p>
+            <p>品牌财务中心</p>
             <h2>货款货流</h2>
           </div>
           <article class="module finance-flow-module" id="finance-flow-card">
@@ -460,7 +459,7 @@
 
         <section class="center-section" id="finance-opening">
           <div class="section-head">
-            <p>财务中心</p>
+            <p>品牌财务中心</p>
             <h2>期初建账</h2>
           </div>
           <article class="module finance-opening-module" id="finance-opening-card">
@@ -540,7 +539,7 @@
 
         <section class="center-section" id="finance">
           <div class="section-head">
-            <p>财务中心</p>
+            <p>品牌财务中心</p>
             <h2>财务录入</h2>
           </div>
           <article class="module finance-intake-module" id="finance-intake">
@@ -557,7 +556,7 @@
                   <div>
                     <span>银行流水导入</span>
                     <strong id="financeInputCount">-</strong>
-                    <p id="financeInputSummary">等待财务中心状态。</p>
+                    <p id="financeInputSummary">等待品牌财务中心状态。</p>
                   </div>
                   <div class="finance-intake-next" id="financeInputNext">等待缺口检查。</div>
                 </div>
@@ -676,7 +675,7 @@
 
         <section class="center-section" id="finance-report">
           <div class="section-head">
-            <p>财务中心</p>
+            <p>品牌财务中心</p>
             <h2>财务报表</h2>
           </div>
           <div class="center-grid">
@@ -699,7 +698,7 @@
 
         <section class="center-section" id="finance-arap">
           <div class="section-head">
-            <p>财务中心</p>
+            <p>品牌财务中心</p>
             <h2>应收应付</h2>
           </div>
           <div class="center-grid two">
@@ -740,7 +739,7 @@
 
         <section class="center-section" id="finance-stock">
           <div class="section-head">
-            <p>财务中心</p>
+            <p>品牌财务中心</p>
             <h2>库存</h2>
           </div>
           <div class="center-grid">

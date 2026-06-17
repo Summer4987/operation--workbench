@@ -2638,7 +2638,7 @@ async function loadInventoryBoardFrame() {
   const frame = document.querySelector(".inventory-board-frame");
   if (!frame) return;
   const inventorySrc = frame.dataset.inventorySrc || "/";
-  await loadEmbeddedFrame(frame, inventorySrc, "正在加载库存管理...", "库存管理加载失败", "打开库存管理");
+  await loadEmbeddedFrame(frame, inventorySrc, "正在加载成都库存管理...", "成都库存管理加载失败", "打开成都库存管理");
 }
 
 async function loadEmbeddedFrame(frame, source, loadingText, failureTitle, linkText) {

@@ -133,7 +133,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="flow.android_config",
                 title="远控安卓真实设备配置待补齐",
-                center="货流中心",
+                center="直营店货流中心",
                 priority="high",
                 reason=f"订货自动化真实执行前缺少：{missing}。",
                 action=android_action,
@@ -158,7 +158,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="flow.order_confirmation",
                 title="订货建议待人工确认",
-                center="货流中心",
+                center="直营店货流中心",
                 priority="medium",
                 reason=f"当前有 {suggestion_count} 项订货建议，分布在 {order_summary.get('channel_count', 0)} 个供应渠道，预估 {float(order_summary.get('estimated_cost') or 0):.2f} 元。",
                 action=f"{checklist or '先核对品项、数量和供应渠道。'} 确认后运行 `{command}`。",
@@ -174,7 +174,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="growth.promo_balance_recharge",
                 title="推广余额充值待处理",
-                center="商业化推广中心",
+                center="全品牌推广中心",
                 priority="medium",
                 reason=recharge_plan.get("message") or f"当前有 {recharge_count} 个推广余额低于阈值。",
                 action=recharge_plan.get("next_action") or "先充值低余额门店，再执行预算或出价自动化。",
@@ -190,7 +190,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_reply",
                 title="评价差评待回复",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=review_actions.get("message") or f"当前有 {reply_count} 家门店评价待回复。",
                 action=reply_plan.get("next_action") or review_actions.get("human_action") or "先在对应平台查看评价和订单，再回复顾客。",
@@ -206,7 +206,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_reply_evidence",
                 title="评价回复证据待补",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=evidence_plan.get("message") or f"已回复评价中有 {missing_evidence_count} 条缺平台截图或链接证据。",
                 action=evidence_plan.get("next_action") or "补录平台回复截图、评价链接或工单链接。",
@@ -222,7 +222,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_recap",
                 title="评价复盘结果待记录",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=recap_plan.get("message") or f"当前有 {recap_pending_count} 条评价复盘建议待记录结果。",
                 action=recap_plan.get("next_action") or "记录门店复盘结论和 7 天观察安排。",
@@ -238,7 +238,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_followup_recurred",
                 title="评价复盘后同类差评复发",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=followup_plan.get("message") or f"当前有 {recurred_count} 条评价复盘后出现同类差评复发。",
                 action=followup_plan.get("next_action") or "复查门店 SOP、出品和打包流程，必要时升级为专项整改。",
@@ -255,7 +255,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_sop",
                 title="评价复发 SOP 整改待推进",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=sop_plan.get("message") or "评价复盘复发项需要 SOP 整改。",
                 action=sop_plan.get("next_action") or "开 SOP 整改记录并跟踪复查结果。",
@@ -271,7 +271,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_sop_reopen",
                 title="已关闭评价 SOP 整改复发",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=sop_closure_plan.get("message") or f"当前有 {sop_reopen_count} 条已关闭 SOP 整改后再次复发。",
                 action=sop_closure_plan.get("next_action") or "重新打开 SOP 整改并升级门店检查。",
@@ -288,7 +288,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="ops.review_weekly",
                 title="评价周复盘待查看",
-                center="运营数据中心",
+                center="加盟店运营数据中心",
                 priority="medium",
                 reason=weekly_recap.get("message") or f"评价周复盘发现 {weekly_action_required_count} 个待处理动作。",
                 action=weekly_recap.get("next_action") or "查看本周评价复盘，先处理高频问题门店。",
@@ -308,7 +308,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="finance.samples",
                 title="财务账单样例待提供",
-                center="财务中心",
+                center="品牌财务中心",
                 priority="medium",
                 reason=f"财务字段字典已建立，当前缺少：{missing}。",
                 action="；".join(intake_messages) or "提供银行账单、美团账单、饿了么账单样例后，再进入字段映射和利润表生成。",
@@ -357,7 +357,7 @@ def build_payload() -> dict[str, Any]:
             action_item(
                 item_id="growth.promo_bid_approval",
                 title="推广出价审批队列待确认",
-                center="商业化推广中心",
+                center="全品牌推广中心",
                 priority="medium",
                 reason=f"当前有 {queue_count} 项出价建议等待确认，确认前系统不会自动提交。",
                 action=bid_action,

@@ -1153,7 +1153,7 @@ def build_payload() -> dict[str, Any]:
     ready_sources = sum(1 for item in source_status if item["status"] == "ready")
     status = "ready_for_manual_review" if ready_sources >= 3 else "waiting_statements"
     message = (
-        "财务中心已清账，当前自然月账期等待重新导入银行流水、平台收入、期初数据和月末调整。"
+        "品牌财务中心已清账，当前自然月账期等待重新导入银行流水、平台收入、期初数据和月末调整。"
         if not all_transactions
         else "三方支付流水核对预览已生成，等待平台收入、待确认流水和月末调整后生成门店总账/供应链账损益表。"
     )

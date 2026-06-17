@@ -24,7 +24,7 @@
     {
       "id": "ops.morning_collection",
       "name": "上午运营一键采集",
-      "center": "运营数据中心",
+      "center": "加盟店运营数据中心",
       "module": "自动化任务健康报告",
       "status": "running",
       "risk": "high",
@@ -62,8 +62,8 @@
     {
       "id": "ops.realtime_order_income",
       "name": "实时单量和营业额采集",
-      "center": "运营数据中心",
-      "module": "首屏看板",
+      "center": "加盟店运营数据中心",
+      "module": "加盟店实时数据看板",
       "status": "running",
       "risk": "low",
       "schedule": "10:30-20:00，午晚高峰每半小时，其余每小时",
@@ -94,9 +94,9 @@
     },
     {
       "id": "ops.daily_report",
-      "name": "日报看板",
-      "center": "运营数据中心",
-      "module": "日报看板",
+      "name": "加盟店日报看板",
+      "center": "加盟店运营数据中心",
+      "module": "加盟店日报看板",
       "status": "running",
       "risk": "medium",
       "schedule": "上午一键采集触发",
@@ -131,7 +131,7 @@
     {
       "id": "growth.promo_budget",
       "name": "推广预算设置全自动",
-      "center": "商业化推广中心",
+      "center": "全品牌推广中心",
       "module": "推广预算全自动",
       "status": "running_unstable",
       "risk": "high",
@@ -173,7 +173,7 @@
     {
       "id": "growth.promo_balance",
       "name": "推广余额巡检",
-      "center": "商业化推广中心",
+      "center": "全品牌推广中心",
       "module": "推广余额预警",
       "status": "running",
       "risk": "low",
@@ -219,7 +219,7 @@
     {
       "id": "growth.promo_bid",
       "name": "推广出价调整全自动",
-      "center": "商业化推广中心",
+      "center": "全品牌推广中心",
       "module": "推广出价调整",
       "status": "running_unstable",
       "risk": "high",
@@ -268,8 +268,8 @@
     {
       "id": "flow.inventory",
       "name": "库存全自动",
-      "center": "货流中心",
-      "module": "库存全自动",
+      "center": "直营店货流中心",
+      "module": "成都库存管理",
       "status": "running",
       "risk": "medium",
       "schedule": "云端库存服务持续运行",
@@ -314,8 +314,8 @@
     {
       "id": "flow.auto_ordering",
       "name": "订货全自动",
-      "center": "货流中心",
-      "module": "订货全自动",
+      "center": "直营店货流中心",
+      "module": "直营店订货管理",
       "status": "running_unstable",
       "risk": "high",
       "schedule": "待定，先建议后下单",
@@ -357,7 +357,7 @@
     {
       "id": "finance.bill_analysis",
       "name": "自动分析账单",
-      "center": "财务中心",
+      "center": "品牌财务中心",
       "module": "自动分析账单",
       "status": "running_unstable",
       "risk": "medium",
@@ -400,7 +400,7 @@
     {
       "id": "finance.report_generation",
       "name": "生成财务报表和数据",
-      "center": "财务中心",
+      "center": "品牌财务中心",
       "module": "财务报表",
       "status": "planned",
       "risk": "medium",

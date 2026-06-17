@@ -737,7 +737,7 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             ]
             row.update(
                 status="warn",
-                reason=payload.get("message") or "财务中心等待账单样例。",
+                reason=payload.get("message") or "品牌财务中心等待账单样例。",
                 evidence="outputs/finance_center_status/latest.json",
                 human_action="；".join(intake_messages) or "提供银行账单和美团/饿了么平台账单样例。",
             )

@@ -199,7 +199,7 @@ def build_ledger_design(schema: dict[str, Any], order_feed: dict[str, Any], sour
             {
                 "id": "store_monthly_profit",
                 "name": "门店月度利润表",
-                "owner": "财务中心生成",
+                "owner": "品牌财务中心生成",
                 "purpose": "按月合并收入、成本、费用和利润。",
                 "ready": can_start_matching and income_ready,
             },
@@ -365,7 +365,7 @@ def build_payload() -> dict[str, Any]:
 
 
 def main() -> int:
-    record_task_event(TASK_ID, "running", message="财务中心状态检查开始。", step="finance-center-status")
+    record_task_event(TASK_ID, "running", message="品牌财务中心状态检查开始。", step="finance-center-status")
     try:
         payload = build_payload()
         write_latest(payload)
@@ -385,7 +385,7 @@ def main() -> int:
         print(payload["message"])
         return 0
     except Exception as exc:
-        message = f"财务中心状态检查失败：{exc}"
+        message = f"品牌财务中心状态检查失败：{exc}"
         record_task_event(
             TASK_ID,
             "failed",
