@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import html
+import hmac
 import json
 import os
 import secrets
 import shutil
+import time
 from urllib import request as url_request
 from urllib.parse import quote
 from decimal import Decimal
@@ -79,9 +81,11 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.middleware("http")
 async def password_gate(request: Request, call_next):
     password = os.environ.get("INVENTORY_PASSWORD", "")
-    if _is_public_order_request(request):
+    if _is_public_request(request):
         return await call_next(request)
     if not password:
+        return await call_next(request)
+    if _operation_session_valid(request):
         return await call_next(request)
 
     authorization = request.headers.get("Authorization", "")
@@ -91,17 +95,13 @@ async def password_gate(request: Request, call_next):
 
         try:
             decoded = base64.b64decode(authorization[len(prefix) :]).decode("utf-8")
-            _, supplied_password = decoded.split(":", 1)
-            if secrets.compare_digest(supplied_password, password):
+            supplied_username, supplied_password = decoded.split(":", 1)
+            if secrets.compare_digest(supplied_username, _operation_auth_username()) and secrets.compare_digest(supplied_password, password):
                 return await call_next(request)
         except Exception:
             pass
 
-    return Response(
-        status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="Inventory Board"'},
-        content="需要密码",
-    )
+    return Response(status_code=401, content="需要登录")
 
 
 @app.on_event("startup")
@@ -119,6 +119,38 @@ def index():
 def public_order_submit(request: Request):
     _require_public_order_token(request)
     return FileResponse(STATIC_DIR / "order-submit.html")
+
+
+@app.get("/login")
+def operation_login_page(next: str = "/operation-workbench/"):
+    return Response(content=_login_page_html(next), media_type="text/html; charset=utf-8")
+
+
+@app.post("/api/auth/login")
+async def operation_login(payload: dict):
+    username = str(payload.get("username") or "")
+    password = str(payload.get("password") or "")
+    if not secrets.compare_digest(username, _operation_auth_username()) or not secrets.compare_digest(password, os.environ.get("INVENTORY_PASSWORD", "")):
+        raise HTTPException(status_code=401, detail="用户名或密码不正确")
+    response = {"status": "success"}
+    cookie = _sign_operation_session(username)
+    result = Response(content=json.dumps(response, ensure_ascii=False), media_type="application/json")
+    result.set_cookie(
+        "operation_session",
+        cookie,
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
+    return result
+
+
+@app.get("/api/auth/check")
+def operation_auth_check(request: Request):
+    if _operation_session_valid(request):
+        return Response(status_code=204)
+    raise HTTPException(status_code=401, detail="需要登录")
 
 
 @app.get("/api/summary")
@@ -873,11 +905,107 @@ def _request_token(request: Request) -> str:
     return request.query_params.get("token", "")
 
 
-def _is_public_order_request(request: Request) -> bool:
+def _is_public_request(request: Request) -> bool:
     path = request.url.path
+    if path == "/login" or path == "/api/auth/login" or path == "/api/auth/check":
+        return True
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())
     return False
+
+
+def _operation_auth_username() -> str:
+    return os.environ.get("OPERATION_AUTH_USERNAME", "summer")
+
+
+def _operation_auth_secret() -> str:
+    return os.environ.get("OPERATION_AUTH_SECRET", os.environ.get("INVENTORY_PASSWORD", ""))
+
+
+def _sign_operation_session(username: str) -> str:
+    expires = int(time.time()) + 30 * 24 * 60 * 60
+    payload = f"{username}:{expires}"
+    signature = hmac.new(_operation_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}:{signature}"
+
+
+def _operation_session_valid(request: Request) -> bool:
+    cookie = request.cookies.get("operation_session", "")
+    if not cookie:
+        return False
+    try:
+        username, expires_text, signature = cookie.rsplit(":", 2)
+        expires = int(expires_text)
+    except Exception:
+        return False
+    if username != _operation_auth_username() or expires < int(time.time()):
+        return False
+    payload = f"{username}:{expires}"
+    expected = hmac.new(_operation_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return secrets.compare_digest(signature, expected)
+
+
+def _login_page_html(next_path: str) -> str:
+    safe_next = html.escape(next_path or "/operation-workbench/", quote=True)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>熊小小业务中心登录</title>
+    <style>
+      :root {{ color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+      body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f7fb; color: #111827; }}
+      main {{ width: min(420px, calc(100vw - 32px)); padding: 26px; border: 1px solid #dbe3ee; border-radius: 8px; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12); }}
+      h1 {{ margin: 0 0 8px; font-size: 24px; line-height: 1.2; }}
+      p {{ margin: 0 0 20px; color: #64748b; font-size: 14px; line-height: 1.5; }}
+      form {{ display: grid; gap: 14px; }}
+      label {{ display: grid; gap: 6px; color: #475569; font-size: 13px; font-weight: 800; }}
+      input {{ min-height: 44px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 16px; }}
+      button {{ min-height: 44px; border: 0; border-radius: 8px; background: #0f766e; color: #fff; font: inherit; font-weight: 900; cursor: pointer; }}
+      button:disabled {{ cursor: not-allowed; opacity: .65; }}
+      .message {{ min-height: 20px; color: #b91c1c; font-size: 13px; font-weight: 800; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>熊小小业务中心</h1>
+      <p>请输入账号密码。登录后，本设备 30 天内保持有效。</p>
+      <form id="loginForm">
+        <label>用户名<input name="username" autocomplete="username" required /></label>
+        <label>密码<input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">登录</button>
+        <div class="message" id="message"></div>
+      </form>
+    </main>
+    <script>
+      const nextPath = "{safe_next}";
+      const form = document.querySelector("#loginForm");
+      const message = document.querySelector("#message");
+      form.addEventListener("submit", async (event) => {{
+        event.preventDefault();
+        const button = form.querySelector("button");
+        button.disabled = true;
+        message.textContent = "正在登录...";
+        const data = Object.fromEntries(new FormData(form).entries());
+        try {{
+          const response = await fetch("/api/auth/login", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify(data),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok) throw new Error(payload.detail || "登录失败");
+          window.location.href = nextPath || "/operation-workbench/";
+        }} catch (error) {{
+          message.textContent = error.message || "登录失败";
+        }} finally {{
+          button.disabled = false;
+        }}
+      }});
+    </script>
+  </body>
+</html>"""
 
 
 def _require_public_order_token(request: Request) -> None:

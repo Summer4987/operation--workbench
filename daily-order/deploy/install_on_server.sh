@@ -27,8 +27,8 @@ import sys
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 location = """    location = /daily-order/admin {
-        auth_basic "Xiong Operation";
-        auth_basic_user_file /etc/nginx/.operation_workbench_htpasswd;
+        auth_request /_operation_auth;
+        error_page 401 = @operation_login_redirect;
         proxy_pass http://127.0.0.1:8010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -38,8 +38,7 @@ location = """    location = /daily-order/admin {
     }
 
     location /daily-order/api/admin/ {
-        auth_basic "Xiong Operation";
-        auth_basic_user_file /etc/nginx/.operation_workbench_htpasswd;
+        auth_request /_operation_auth;
         proxy_pass http://127.0.0.1:8010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
