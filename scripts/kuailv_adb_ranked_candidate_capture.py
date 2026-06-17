@@ -228,6 +228,22 @@ def allowed_title_terms(query: str, order: dict[str, Any] | None, line_name: str
     return list(dict.fromkeys(normalize_text(term) for term in terms if normalize_text(term)))
 
 
+def query_visible_in_search_header(xml_text: str, query: str) -> bool:
+    compact_query = normalize_text(query)
+    if not compact_query:
+        return True
+    for node in parse_ui_nodes(xml_text):
+        text = normalize_text(node_text(node))
+        bounds = node.get("bounds") or []
+        if len(bounds) != 4 or bounds == [0, 0, 0, 0]:
+            continue
+        if bounds[1] > 420:
+            continue
+        if compact_query in text or text in compact_query:
+            return True
+    return False
+
+
 def extract_candidates(
     xml_text: str,
     query: str,
@@ -339,6 +355,23 @@ def build_payload(
             "generated_at": now_text(),
             "status": "blocked",
             "message": "当前识别为商品详情页，拒绝抽取搜索候选；请先返回搜索结果页并切换排序。",
+            "capture": {
+                "query": query,
+                "sort_mode": sort_mode,
+                "search_page": search_page,
+                "line_name": line_name,
+                "source": "adb_xml",
+                "snapshot_dir": (snapshot or {}).get("session_dir", ""),
+                "screen": (snapshot or {}).get("screen_path", ""),
+            },
+            "summary": {"candidate_count": 0},
+            "items": [],
+        }
+    if not query_visible_in_search_header(xml_text, query):
+        return {
+            "generated_at": now_text(),
+            "status": "blocked",
+            "message": "顶部搜索区未识别到当前搜索词，拒绝抽取候选；请确认已进入该关键词的搜索结果页。",
             "capture": {
                 "query": query,
                 "sort_mode": sort_mode,
