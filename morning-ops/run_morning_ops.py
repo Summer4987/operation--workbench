@@ -23,6 +23,9 @@ REPORT_PROCESSOR = REPORT_DIR / "process_reports.py"
 BALANCE_RUNNER = WORKSPACE / "store-inspection" / "run_all_balances.py"
 EVIDENCE_MANIFEST_RUNNER = WORKSPACE / "scripts" / "build_store_inspection_evidence_manifest.py"
 EVIDENCE_UPLOAD_RUNNER = WORKSPACE / "scripts" / "upload_store_inspection_evidence.zsh"
+DAILY_FOCUS_STATUS_RUNNER = WORKSPACE / "scripts" / "build_daily_focus_status.py"
+REVIEW_ACTION_STATUS_RUNNER = WORKSPACE / "scripts" / "build_review_action_status.py"
+PROMO_BALANCE_STATUS_RUNNER = WORKSPACE / "scripts" / "build_promo_balance_status.py"
 ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
 PROMO_PREVIEW_RUNNER = WORKSPACE / "scripts" / "build_promo_budget_preview.mjs"
 PROMO_BUDGET_SYNC_RUNNER = WORKSPACE / "scripts" / "sync_promo_budget_overrides.py"
@@ -284,6 +287,10 @@ def main() -> int:
                 ensure_backend_chrome(report_python)
                 if run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720).returncode != 0:
                     failures.append("门店日报")
+                if run_step("日报重点状态更新", [sys.executable, str(DAILY_FOCUS_STATUS_RUNNER)], required=False, timeout_seconds=120).returncode != 0:
+                    failures.append("日报重点状态")
+                if run_step("评价待办状态更新", [sys.executable, str(REVIEW_ACTION_STATUS_RUNNER)], required=False, timeout_seconds=120).returncode != 0:
+                    failures.append("评价待办状态")
                 balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
                 if balance_result.returncode != 0:
                     if args.source == "scheduled":
@@ -291,6 +298,8 @@ def main() -> int:
                     else:
                         failures.append("推广余额总巡检")
                 run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
+                if run_step("推广余额状态更新", [sys.executable, str(PROMO_BALANCE_STATUS_RUNNER)], required=False, timeout_seconds=120).returncode != 0:
+                    failures.append("推广余额状态")
                 if is_production_environment():
                     run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
                 else:

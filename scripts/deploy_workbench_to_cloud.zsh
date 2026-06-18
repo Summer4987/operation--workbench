@@ -22,9 +22,20 @@ if [[ ! -x "$PYTHON" ]]; then
   PYTHON="python3"
 fi
 
+run_optional() {
+  local label="$1"
+  shift
+  if ! "$@"; then
+    echo "警告：${label}失败，继续发布其它已生成数据。" >&2
+  fi
+}
+
 "$PYTHON" scripts/sync_promo_budget_overrides.py
-"$PYTHON" scripts/build_finance_reconciliation_preview.py
-"$PYTHON" scripts/build_finance_center_status.py
+run_optional "日报重点状态更新" "$PYTHON" scripts/build_daily_focus_status.py
+run_optional "评价待办状态更新" "$PYTHON" scripts/build_review_action_status.py
+run_optional "推广余额状态更新" "$PYTHON" scripts/build_promo_balance_status.py
+run_optional "财务三方流水核对预览" "$PYTHON" scripts/build_finance_reconciliation_preview.py
+run_optional "品牌财务中心状态" "$PYTHON" scripts/build_finance_center_status.py
 "$PYTHON" scripts/build_workbench_data.py
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
@@ -63,7 +74,7 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     "$SERVER:$REMOTE_DIR/data/"
   echo "已按 data-only 模式发布，仅更新 workbench-data.js 和 data/realtime-history.json，未同步页面布局文件。"
 else
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/store-inspection'"
   rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     index.html workbench.css workbench.js workbench-data.js \
@@ -72,7 +83,15 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     data/realtime-history.json \
     "$SERVER:$REMOTE_DIR/data/"
-  echo "已按 ui-data 模式发布，更新首页 UI、workbench-data.js 和 data/realtime-history.json。"
+  rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv \
+    "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    store-inspection/latest.json store-inspection/latest-data.js \
+    "$SERVER:$REMOTE_DIR/store-inspection/"
+  echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、日报数据和余额巡检数据。"
 fi
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
