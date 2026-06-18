@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from atomic_io import atomic_write_text
 from task_run_state import classify_failure_text, record_task_event
 
 
@@ -29,9 +30,7 @@ def read_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_latest(payload: dict[str, Any]) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    LATEST_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    LATEST_PATH.chmod(0o644)
+    atomic_write_text(LATEST_PATH, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
 def sample_files(path_text: str, accepted_extensions: set[str]) -> list[dict[str, Any]]:
