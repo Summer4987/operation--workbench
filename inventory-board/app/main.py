@@ -916,8 +916,9 @@ def _supply_chain_flow_summary() -> dict:
             beijing_warehouse_received_total += received_amount
             lot["beijing_warehouse_receivable_amount"] += receivable_amount
             lot["beijing_warehouse_received_amount"] += received_amount
-            if receivable_amount:
-                payment_lines["beijing_warehouse_receivable"].append({**line_base, "amount": receivable_amount})
+            open_receivable_amount = max(receivable_amount - received_amount, 0)
+            if open_receivable_amount:
+                payment_lines["beijing_warehouse_receivable"].append({**line_base, "amount": open_receivable_amount})
             if received_amount:
                 payment_lines["beijing_warehouse_received"].append({**line_base, "amount": received_amount})
         elif receivable_bucket == "direct_store":
@@ -925,8 +926,9 @@ def _supply_chain_flow_summary() -> dict:
             direct_store_received_total += received_amount
             lot["direct_store_receivable_amount"] += receivable_amount
             lot["direct_store_received_amount"] += received_amount
-            if receivable_amount:
-                payment_lines["direct_store_receivable"].append({**line_base, "amount": receivable_amount})
+            open_receivable_amount = max(receivable_amount - received_amount, 0)
+            if open_receivable_amount:
+                payment_lines["direct_store_receivable"].append({**line_base, "amount": open_receivable_amount})
             if received_amount:
                 payment_lines["direct_store_received"].append({**line_base, "amount": received_amount})
         lot["payable_amount"] += payable_amount
