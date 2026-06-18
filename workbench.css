@@ -1384,6 +1384,15 @@ h2 {
   min-height: 0;
 }
 
+.finance-flow-scope-note {
+  display: inline-block;
+  margin-left: 8px;
+  color: #5f6f86;
+  font-size: 16px;
+  line-height: 1.45;
+  vertical-align: baseline;
+}
+
 .finance-flow-entry-panel {
   padding: 16px;
   border: 1px solid #cfd8e3;
