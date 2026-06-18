@@ -85,6 +85,17 @@ INCOME_KEYS = [
     "收入",
     "营收",
 ]
+MEITUAN_API_INCOME_KEYS = [
+    "营业收入",
+    "收入",
+    "营收",
+    "businessIncome",
+    "business_income",
+    "bizIncome",
+    "biz_income",
+    "revenue",
+    "income",
+]
 
 
 def now_text() -> str:
@@ -148,18 +159,24 @@ def target_store_from_record(item: dict[str, Any]) -> tuple[str | None, str]:
     return target_store(text), raw_name
 
 
-def has_metric_key(item: dict[str, Any], keys: list[str]) -> bool:
+def has_metric_key(item: dict[str, Any], keys: list[str], *, partial: bool = True) -> bool:
     lowered = {str(key).lower() for key in item}
     for key in keys:
         key_lower = key.lower()
         if key in item or key_lower in lowered:
             return True
-        if any(key_lower in item_key for item_key in lowered):
+        if partial and any(key_lower in item_key for item_key in lowered):
             return True
     return False
 
 
-def looks_like_store_metric_row(item: dict[str, Any]) -> bool:
+def api_income_keys(platform: str) -> list[str]:
+    if platform == "美团":
+        return MEITUAN_API_INCOME_KEYS
+    return INCOME_KEYS
+
+
+def looks_like_store_metric_row(item: dict[str, Any], platform: str) -> bool:
     if not isinstance(item, dict):
         return False
     store, raw_name = target_store_from_record(item)
@@ -167,7 +184,7 @@ def looks_like_store_metric_row(item: dict[str, Any]) -> bool:
         return False
     has_store_key = bool(raw_name) or has_metric_key(item, STORE_NAME_KEYS)
     has_order = has_metric_key(item, ORDER_KEYS)
-    has_income = has_metric_key(item, INCOME_KEYS)
+    has_income = has_metric_key(item, api_income_keys(platform), partial=platform != "美团")
     return has_store_key and (has_order or has_income)
 
 
@@ -180,7 +197,7 @@ def build_api_record(item: dict[str, Any], platform: str, url: str) -> dict[str,
     if not store:
         return None
     orders = value_by_keys(item, ORDER_KEYS)
-    income = value_by_keys(item, INCOME_KEYS)
+    income = value_by_keys(item, api_income_keys(platform), partial=platform != "美团")
     if orders is None and income is None:
         return None
     return {
@@ -189,6 +206,7 @@ def build_api_record(item: dict[str, Any], platform: str, url: str) -> dict[str,
         "source_store": raw_name or store,
         "orders": int(round(orders or 0)),
         "income": round(float(income or 0), 2),
+        "income_status": "trusted" if income is not None else "missing",
         "source": "api",
         "source_url": url,
     }
@@ -212,6 +230,7 @@ def build_dom_record(row: str, platform: str) -> dict[str, Any] | None:
         "source_store": source_name or row[:80],
         "orders": int(round(orders or 0)),
         "income": round(float(income or 0), 2),
+        "income_status": "trusted" if income is not None else "missing",
         "source": "page",
         "raw": row[:280],
     }
@@ -234,7 +253,7 @@ def to_number(value: Any) -> float | None:
         return None
 
 
-def value_by_keys(item: dict[str, Any], keys: list[str]) -> float | None:
+def value_by_keys(item: dict[str, Any], keys: list[str], *, partial: bool = True) -> float | None:
     lowered = {str(key).lower(): value for key, value in item.items()}
     for key in keys:
         if key in item:
@@ -248,7 +267,7 @@ def value_by_keys(item: dict[str, Any], keys: list[str]) -> float | None:
                 return parsed
     for key, value in item.items():
         key_text = str(key).lower()
-        if any(candidate.lower() in key_text for candidate in keys):
+        if partial and any(candidate.lower() in key_text for candidate in keys):
             parsed = to_number(value)
             if parsed is not None:
                 return parsed
@@ -317,7 +336,7 @@ def walk_json_records(payload: Any, platform: str, url: str) -> list[dict[str, A
 
     def visit(node: Any) -> None:
         if isinstance(node, dict):
-            if looks_like_store_metric_row(node):
+            if looks_like_store_metric_row(node, platform):
                 record = build_api_record(node, platform, url)
                 if record:
                     found.append(record)
@@ -393,16 +412,18 @@ def merge_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             merged[key] = record
             continue
         current_score = (
-            1 if current.get("source") == "api" else 0,
+            1 if current.get("income_status", "trusted") == "trusted" else 0,
             1 if int(current.get("orders") or 0) > 0 else 0,
             1 if float(current.get("income") or 0) > 0 else 0,
+            1 if current.get("source") == "api" else 0,
             1 if current.get("source_store") else 0,
             float(current.get("income") or 0),
         )
         new_score = (
-            1 if record.get("source") == "api" else 0,
+            1 if record.get("income_status", "trusted") == "trusted" else 0,
             1 if int(record.get("orders") or 0) > 0 else 0,
             1 if float(record.get("income") or 0) > 0 else 0,
+            1 if record.get("source") == "api" else 0,
             1 if record.get("source_store") else 0,
             float(record.get("income") or 0),
         )
@@ -786,6 +807,7 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
                 item["platform"]: {
                     "orders": int(item.get("orders") or 0),
                     "income": round(float(item.get("income") or 0), 2),
+                    "income_status": item.get("income_status") or "trusted",
                     "source": item.get("source"),
                     "source_store": item.get("source_store"),
                 }
@@ -798,9 +820,14 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
         for platform in ["饿了么", "美团"]
         if not any(item.get("store") == store and item.get("platform") == platform for item in items)
     ]
+    income_missing = [
+        {"platform": item.get("platform"), "store": item.get("store"), "source": item.get("source")}
+        for item in items
+        if item.get("income_status", "trusted") != "trusted"
+    ]
     payload = {
         "generated_at": now_text(),
-        "status": "ok" if not errors and not missing else "partial",
+        "status": "ok" if not errors and not missing and not income_missing else "partial",
         "source_urls": {"饿了么": ELEME_URL, "美团": MEITUAN_URL},
         "target_stores": list(TARGET_STORES),
         "summary": {
@@ -809,10 +836,12 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
             "total_orders": sum(item["orders"] for item in by_store.values()),
             "total_income": round(sum(item["income"] for item in by_store.values()), 2),
             "missing_count": len(missing),
+            "income_missing_count": len(income_missing),
         },
         "stores": list(by_store.values()),
         "items": items,
         "missing": missing,
+        "income_missing": income_missing,
         "errors": errors,
     }
     return payload
@@ -821,13 +850,18 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
 def save_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, Any]:
     payload = build_payload(items, errors)
     summary = payload["summary"]
-    if errors or summary["missing_count"] > 0 or summary["platform_store_count"] < len(TARGET_STORES) * 2:
+    if (
+        errors
+        or summary["missing_count"] > 0
+        or summary.get("income_missing_count", 0) > 0
+        or summary["platform_store_count"] < len(TARGET_STORES) * 2
+    ):
         payload["status"] = "failed"
         FAILED_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         history_path = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.failed.jsonl"
         with history_path.open("a", encoding="utf-8") as history:
             history.write(json.dumps(payload, ensure_ascii=False) + "\n")
-        raise RuntimeError("未采集齐全部真实平台门店数据，已拒绝覆盖 latest.json")
+        raise RuntimeError("未采集齐全部真实平台门店数据或可信收入，已拒绝覆盖 latest.json")
 
     LATEST_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     history_path = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.jsonl"
