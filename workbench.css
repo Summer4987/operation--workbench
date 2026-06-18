@@ -1420,6 +1420,12 @@ h2 {
   gap: 10px;
 }
 
+.finance-flow-update-grid {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.65fr) minmax(220px, 1.1fr) minmax(150px, 0.85fr) minmax(140px, 0.8fr) minmax(150px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 10px;
+}
+
 .finance-flow-presets {
   display: flex;
   flex-wrap: wrap;
@@ -1445,13 +1451,15 @@ h2 {
   color: #1d4ed8;
 }
 
-.finance-flow-entry-grid label {
+.finance-flow-entry-grid label,
+.finance-flow-update-grid label {
   min-width: 0;
   display: grid;
   gap: 5px;
 }
 
-.finance-flow-entry-grid span {
+.finance-flow-entry-grid span,
+.finance-flow-update-grid span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
@@ -1459,7 +1467,9 @@ h2 {
 
 .finance-flow-entry-grid input,
 .finance-flow-entry-grid select,
-.finance-flow-entry-grid textarea {
+.finance-flow-entry-grid textarea,
+.finance-flow-update-grid input,
+.finance-flow-update-grid select {
   width: 100%;
   min-width: 0;
   min-height: 38px;
@@ -1478,6 +1488,10 @@ h2 {
 
 .finance-flow-entry-note {
   grid-column: span 2;
+}
+
+.finance-flow-update-note {
+  min-width: 0;
 }
 
 .finance-flow-toolbar label {
@@ -3174,6 +3188,7 @@ h2 {
   .finance-form-head,
   .finance-form-grid,
   .finance-flow-entry-grid,
+  .finance-flow-update-grid,
   .finance-flow-toolbar,
   .finance-flow-kpis,
   .finance-flow-payment-grid,

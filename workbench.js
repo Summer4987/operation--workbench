@@ -4,6 +4,7 @@ const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
 const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
 const FINANCE_OPENING_URL = "/api/finance/opening?token=xiongxiaoxiao-order";
 const SUPPLY_CHAIN_FLOW_URL = "/api/supply-chain/flow?token=xiongxiaoxiao-order";
+const SUPPLY_CHAIN_LOT_UPDATE_URL = "/api/supply-chain/lot-update?token=xiongxiaoxiao-order";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");
@@ -750,8 +751,11 @@ function initializeFinanceFlowControls() {
       renderFinanceFlow();
     });
     const form = document.querySelector("#financeFlowEntryForm");
+    const updateForm = document.querySelector("#financeFlowLotUpdateForm");
     const dateInput = form?.querySelector('[name="date"]');
     if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+    const updateDateInput = updateForm?.querySelector('[name="date"]');
+    if (updateDateInput && !updateDateInput.value) updateDateInput.value = new Date().toISOString().slice(0, 10);
     updateFinanceFlowDatalists();
     updateFinanceFlowCalculatedAmounts(form);
     form?.querySelectorAll("[data-flow-preset]").forEach((button) => {
@@ -824,6 +828,41 @@ function initializeFinanceFlowControls() {
         renderFinanceFlow();
       } catch (error) {
         text("financeFlowEntryMessage", error.message || "云端保存失败，请稍后重试。");
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+    updateForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(updateForm);
+      const entry = {
+        id: `${Date.now()}`,
+        date: formData.get("date") || "",
+        lot_id: formData.get("lot_id") || "",
+        production_status: formData.get("production_status") || "",
+        payment_status: formData.get("payment_status") || "",
+        payment_amount: Number(formData.get("payment_amount") || 0),
+        note: formData.get("note") || "",
+      };
+      const submitButton = updateForm.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      text("financeFlowLotUpdateMessage", "正在更新批次状态...");
+      try {
+        const response = await fetch(SUPPLY_CHAIN_LOT_UPDATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+        financeFlowState.payload = result.summary || financeFlowState.payload;
+        text("financeFlowLotUpdateMessage", "已更新批次状态，并刷新货权看板。");
+        updateForm.reset();
+        if (updateDateInput) updateDateInput.value = new Date().toISOString().slice(0, 10);
+        updateFinanceFlowDatalists(financeFlowState.payload);
+        renderFinanceFlow();
+      } catch (error) {
+        text("financeFlowLotUpdateMessage", error.message || "批次更新失败，请稍后重试。");
       } finally {
         if (submitButton) submitButton.disabled = false;
       }

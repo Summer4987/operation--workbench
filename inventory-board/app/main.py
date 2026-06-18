@@ -212,6 +212,13 @@ def supply_chain_flow(request: Request):
     return _supply_chain_flow_summary()
 
 
+@app.post("/api/supply-chain/lot-update")
+async def supply_chain_lot_update(request: Request, payload: dict):
+    _require_public_order_token(request)
+    result = _update_supply_chain_lot(payload)
+    return {"status": "success", **result, "summary": _supply_chain_flow_summary()}
+
+
 @app.get("/api/inbound-template")
 def inbound_template():
     path = _inbound_template_path()
@@ -703,6 +710,99 @@ def _read_supply_chain_flow_entries() -> list[dict]:
             except Exception:
                 continue
     return items
+
+
+def _write_supply_chain_flow_entries(entries: list[dict]) -> None:
+    SUPPLY_CHAIN_FLOW_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    payload = "\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries)
+    SUPPLY_CHAIN_FLOW_MANIFEST.write_text((payload + "\n") if payload else "", encoding="utf-8")
+
+
+def _update_supply_chain_lot(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="批次更新数据格式不正确")
+    lot_id = str(payload.get("lot_id") or "")[:80].strip()
+    if not lot_id:
+        raise HTTPException(status_code=400, detail="请选择要更新的批次")
+    production_status = str(payload.get("production_status") or "")[:40].strip()
+    if production_status and production_status not in {"工厂在生产", "工厂已生产完成"}:
+        raise HTTPException(status_code=400, detail="工厂进度只能选择在生产或已生产完成")
+    payment_status = str(payload.get("payment_status") or "")[:40].strip()
+    if payment_status and payment_status not in {"工厂应付", "已付给工厂"}:
+        raise HTTPException(status_code=400, detail="付款状态只能选择工厂应付或已付给工厂")
+    try:
+        payment_amount = float(payload.get("payment_amount") or 0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="本次付款金额必须是数字") from exc
+    if payment_amount < 0:
+        raise HTTPException(status_code=400, detail="本次付款金额不能小于 0")
+    entries = _read_supply_chain_flow_entries()
+    matched = [entry for entry in entries if entry.get("lot_id") == lot_id]
+    if not matched:
+        raise HTTPException(status_code=404, detail="没有找到这个批次")
+    if not production_status and payment_amount <= 0 and payment_status != "已付给工厂":
+        raise HTTPException(status_code=400, detail="请至少更新工厂进度或填写本次付款金额")
+
+    payable_amount = sum(float(entry.get("payable_amount") or 0) for entry in matched)
+    paid_amount = sum(float(entry.get("paid_amount") or 0) for entry in matched)
+    open_payable_amount = max(payable_amount - paid_amount, 0)
+    if payment_status == "已付给工厂" and payment_amount <= 0:
+        payment_amount = open_payable_amount
+    if payment_amount > open_payable_amount + 0.000001:
+        raise HTTPException(status_code=400, detail=f"本次付款不能超过待付金额 {open_payable_amount:.2f}")
+
+    updated_ids: list[str] = []
+    is_fully_paid = payment_status == "已付给工厂" and payment_amount >= open_payable_amount - 0.000001
+    for entry in entries:
+        if entry.get("lot_id") != lot_id:
+            continue
+        if production_status:
+            entry["production_status"] = production_status
+        if is_fully_paid and float(entry.get("payable_amount") or 0) > 0:
+            entry["payment_status"] = "已付给工厂"
+        elif payment_status == "工厂应付" and float(entry.get("payable_amount") or 0) > 0:
+            entry["payment_status"] = "工厂应付"
+        updated_ids.append(str(entry.get("id") or ""))
+
+    settlement_entry = None
+    if payment_amount > 0:
+        base = next((entry for entry in reversed(matched) if entry.get("product_name")), matched[-1])
+        settlement_entry = {
+            "id": str(payload.get("id") or now_iso()),
+            "created_at": now_iso(),
+            "date": str(payload.get("date") or "")[:20] or now_iso()[:10],
+            "event_type": "结算",
+            "lot_id": lot_id,
+            "product_name": base.get("product_name") or "",
+            "item_type": base.get("item_type") or "",
+            "factory": base.get("factory") or "",
+            "quantity": 0,
+            "unit": base.get("unit") or "",
+            "unit_cost": float(base.get("unit_cost") or 0),
+            "total_amount": 0,
+            "payable_amount": 0,
+            "paid_amount": round(payment_amount, 2),
+            "receivable_amount": 0,
+            "received_amount": 0,
+            "settlement_status": "已结算付款",
+            "payment_status": "已付给工厂",
+            "production_status": production_status or base.get("production_status") or "",
+            "from_location": "",
+            "to_location": base.get("to_location") or "",
+            "counterparty": base.get("factory") or "",
+            "note": str(payload.get("note") or "批次状态更新：工厂付款")[:500],
+            "sync_status": "cloud_saved",
+        }
+        entries.append(settlement_entry)
+
+    _write_supply_chain_flow_entries(entries)
+    return {
+        "updated_ids": updated_ids,
+        "settlement_entry": settlement_entry,
+        "lot_id": lot_id,
+        "production_status": production_status,
+        "payment_amount": round(payment_amount, 2),
+    }
 
 
 def _supply_chain_flow_summary() -> dict:

@@ -465,6 +465,50 @@
                 </datalist>
                 <div class="finance-form-message" id="financeFlowEntryMessage">采购原料请手填总金额；原料留在工厂加工时也要选择工厂进度。销售成品可按结算价自动计算。</div>
               </form>
+              <form class="finance-flow-update-form finance-flow-entry-panel" id="financeFlowLotUpdateForm">
+                <div class="finance-form-head">
+                  <div>
+                    <span>批次状态更新</span>
+                    <strong>生产完成、付款结算、批次备注从这里更新</strong>
+                  </div>
+                  <button type="submit">更新批次</button>
+                </div>
+                <div class="finance-flow-update-grid">
+                  <label>
+                    <span>日期</span>
+                    <input name="date" type="date" required />
+                  </label>
+                  <label>
+                    <span>已有批次</span>
+                    <input name="lot_id" type="text" list="financeFlowLotOptions" placeholder="例如 20260618-调理鸡胸肉" required />
+                  </label>
+                  <label>
+                    <span>工厂进度</span>
+                    <select name="production_status">
+                      <option value="">不改</option>
+                      <option value="工厂在生产">工厂在生产</option>
+                      <option value="工厂已生产完成">工厂已生产完成</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>付款状态</span>
+                    <select name="payment_status">
+                      <option value="">不改</option>
+                      <option value="工厂应付">工厂应付</option>
+                      <option value="已付给工厂">已付给工厂</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>本次付款金额</span>
+                    <input name="payment_amount" type="number" min="0" step="0.01" placeholder="留空则按待付全额" />
+                  </label>
+                  <label class="finance-flow-update-note">
+                    <span>备注</span>
+                    <input name="note" type="text" placeholder="例如：生产完成并付清工厂款" />
+                  </label>
+                </div>
+                <div class="finance-form-message" id="financeFlowLotUpdateMessage">选择已有批次后更新状态；付款会生成结算记录，不会重复增加库存数量。</div>
+              </form>
               <div class="finance-flow-dashboard">
                 <div class="finance-flow-toolbar">
                   <label>
@@ -939,6 +983,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260618-flow-layout"></script>
+    <script src="./workbench.js?v=20260618-lot-update"></script>
   </body>
 </html>
