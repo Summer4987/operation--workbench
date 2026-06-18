@@ -29,7 +29,44 @@ def normalize_store_names(data: dict) -> dict:
     return {**data, "stores": normalized}
 
 
+def merge_missing_defaults(data: dict, defaults: dict) -> dict:
+    merged = dict(data)
+    if "weekendPreset" not in merged and isinstance(defaults.get("weekendPreset"), dict):
+        merged["weekendPreset"] = defaults["weekendPreset"]
+    for key in ["chinaHolidays", "chinaAdjustedWorkdays"]:
+        if key not in merged and isinstance(defaults.get(key), dict):
+            merged[key] = defaults[key]
+
+    stores = merged.setdefault("stores", {})
+    default_stores = defaults.get("stores") if isinstance(defaults.get("stores"), dict) else {}
+    if not isinstance(stores, dict):
+        merged["stores"] = {}
+        stores = merged["stores"]
+    for store, default_config in default_stores.items():
+        if not isinstance(default_config, dict):
+            continue
+        store_config = stores.setdefault(store, {})
+        if not isinstance(store_config, dict):
+            stores[store] = {}
+            store_config = stores[store]
+        for platform, platform_defaults in default_config.items():
+            if not isinstance(platform_defaults, dict):
+                continue
+            platform_config = store_config.setdefault(platform, {})
+            if not isinstance(platform_config, dict):
+                store_config[platform] = {}
+                platform_config = store_config[platform]
+            for field in ["weekendLunchBudget", "weekendDinnerBudget"]:
+                if field not in platform_config and field in platform_defaults:
+                    platform_config[field] = platform_defaults[field]
+    return merged
+
+
 def main() -> int:
+    try:
+        defaults = normalize_store_names(json.loads(TARGET.read_text(encoding="utf-8")))
+    except Exception:
+        defaults = {"stores": {}}
     try:
         with urlopen(URL, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -37,7 +74,8 @@ def main() -> int:
         print(f"云端预算配置读取失败，继续使用本地配置：{exc}")
         return 0
     TARGET.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(normalize_store_names(data), ensure_ascii=False, indent=2) + "\n"
+    data = merge_missing_defaults(normalize_store_names(data), defaults)
+    text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     TARGET.write_text(text, encoding="utf-8")
     if COPY_PATH:
         copy_target = Path(COPY_PATH)
