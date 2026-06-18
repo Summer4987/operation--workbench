@@ -466,7 +466,52 @@ function updateFinanceFlowCalculatedAmounts(form) {
   } else {
     if (payableField) payableField.value = String(amount);
   }
-  return { amount, unitPrice: effectiveUnitPrice };
+  return {
+    amount,
+    unitPrice: effectiveUnitPrice,
+    payableAmount: Number(payableField?.value || 0),
+    paidAmount: Number(paidField?.value || 0),
+    receivableAmount: Number(receivableField?.value || 0),
+    receivedAmount: Number(receivedField?.value || 0),
+    paymentStatus,
+    eventType,
+    destination,
+    manualAmount,
+  };
+}
+
+function renderFinanceFlowAmountPreview(form) {
+  const preview = document.querySelector("#financeFlowAmountPreview");
+  if (!preview || !form) return;
+  const calculated = updateFinanceFlowCalculatedAmounts(form);
+  const paymentParts = [];
+  if (calculated.payableAmount || calculated.paidAmount) {
+    paymentParts.push(`工厂应付 ${yuan(calculated.payableAmount)}`);
+    paymentParts.push(`已付给工厂 ${yuan(calculated.paidAmount)}`);
+    paymentParts.push(`待付 ${yuan(Math.max(calculated.payableAmount - calculated.paidAmount, 0))}`);
+  }
+  if (calculated.receivableAmount || calculated.receivedAmount) {
+    const bucketLabel = financeFlowReceivableBucket(calculated.destination) === "direct_store" ? "直营店" : "北京仓";
+    paymentParts.push(`${bucketLabel}应收 ${yuan(calculated.receivableAmount)}`);
+    paymentParts.push(`${bucketLabel}已收 ${yuan(calculated.receivedAmount)}`);
+    paymentParts.push(`待收 ${yuan(Math.max(calculated.receivableAmount - calculated.receivedAmount, 0))}`);
+  }
+  const amountSource = calculated.manualAmount > 0 ? "手填总金额优先" : calculated.unitPrice > 0 ? "按结算价自动计算" : "缺少单价或数量";
+  const unitPriceText = calculated.unitPrice > 0 ? yuan(calculated.unitPrice) : "¥0";
+  html(
+    "financeFlowAmountPreview",
+    [
+      { label: "总金额", value: yuan(calculated.amount), detail: amountSource },
+      { label: "单价", value: unitPriceText, detail: calculated.destination ? `按 ${calculated.destination} 口径` : "等待去向位置" },
+      { label: "款项落点", value: calculated.paymentStatus || "暂无", detail: paymentParts.join(" / ") || "不会形成金额" },
+    ].map((item) => `
+      <article>
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        <em>${escapeHtml(item.detail)}</em>
+      </article>
+    `).join("")
+  );
 }
 
 function financeFlowMoneyText(item) {
@@ -562,7 +607,7 @@ function applyFinanceFlowPreset(form, presetKey) {
     if (field) field.value = value;
   });
   if (["purchase_paid", "production", "production_done"].includes(presetKey)) generateFinanceFlowLotId(form);
-  updateFinanceFlowCalculatedAmounts(form);
+  renderFinanceFlowAmountPreview(form);
 }
 
 function financeFlowPaymentLineText(item) {
@@ -757,24 +802,24 @@ function initializeFinanceFlowControls() {
     const updateDateInput = updateForm?.querySelector('[name="date"]');
     if (updateDateInput && !updateDateInput.value) updateDateInput.value = new Date().toISOString().slice(0, 10);
     updateFinanceFlowDatalists();
-    updateFinanceFlowCalculatedAmounts(form);
+    renderFinanceFlowAmountPreview(form);
     form?.querySelectorAll("[data-flow-preset]").forEach((button) => {
       button.addEventListener("click", () => applyFinanceFlowPreset(form, button.dataset.flowPreset));
     });
     form?.querySelectorAll('[name="date"], [name="event_type"], [name="product_name"], [name="quantity"], [name="total_amount"], [name="to_location"], [name="payment_status"], [name="production_status"]').forEach((field) => {
       field.addEventListener("input", () => {
         generateFinanceFlowLotId(form);
-        updateFinanceFlowCalculatedAmounts(form);
+        renderFinanceFlowAmountPreview(form);
       });
       field.addEventListener("change", () => {
         generateFinanceFlowLotId(form);
-        updateFinanceFlowCalculatedAmounts(form);
+        renderFinanceFlowAmountPreview(form);
       });
     });
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
       generateFinanceFlowLotId(form);
-      updateFinanceFlowCalculatedAmounts(form);
+      renderFinanceFlowAmountPreview(form);
       const formData = new FormData(form);
       const entry = {
         id: `${Date.now()}`,
@@ -824,7 +869,7 @@ function initializeFinanceFlowControls() {
         const itemTypeInput = form.querySelector('[name="item_type"]');
         if (itemTypeInput) itemTypeInput.value = "原料";
         updateFinanceFlowDatalists(financeFlowState.payload);
-        updateFinanceFlowCalculatedAmounts(form);
+        renderFinanceFlowAmountPreview(form);
         renderFinanceFlow();
       } catch (error) {
         text("financeFlowEntryMessage", error.message || "云端保存失败，请稍后重试。");

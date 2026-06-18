@@ -1490,6 +1490,44 @@ h2 {
   grid-column: span 2;
 }
 
+.finance-flow-amount-preview {
+  grid-column: span 4;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d4dde9;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.finance-flow-amount-preview article {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.finance-flow-amount-preview span,
+.finance-flow-amount-preview em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.finance-flow-amount-preview strong {
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
 .finance-flow-update-note {
   min-width: 0;
 }
@@ -3189,6 +3227,7 @@ h2 {
   .finance-form-grid,
   .finance-flow-entry-grid,
   .finance-flow-update-grid,
+  .finance-flow-amount-preview,
   .finance-flow-toolbar,
   .finance-flow-kpis,
   .finance-flow-payment-grid,

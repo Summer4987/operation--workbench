@@ -449,6 +449,23 @@
                   <input name="received_amount" type="hidden" value="0" />
                   <input name="settlement_status" type="hidden" value="批次用完结算" />
                   <input name="unit_price" type="hidden" value="0" />
+                  <div class="finance-flow-amount-preview" id="financeFlowAmountPreview">
+                    <article>
+                      <span>总金额</span>
+                      <strong>¥0</strong>
+                      <em>等待货品和数量</em>
+                    </article>
+                    <article>
+                      <span>单价</span>
+                      <strong>¥0</strong>
+                      <em>自动或手填</em>
+                    </article>
+                    <article>
+                      <span>款项落点</span>
+                      <strong>暂无</strong>
+                      <em>保存前确认</em>
+                    </article>
+                  </div>
                   <label class="finance-flow-entry-note">
                     <span>备注</span>
                     <textarea name="note" rows="2" placeholder="例如：生产后仍在工厂，或从工厂发到北京仓"></textarea>
@@ -983,6 +1000,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260618-lot-update"></script>
+    <script src="./workbench.js?v=20260618-amount-preview"></script>
   </body>
 </html>
