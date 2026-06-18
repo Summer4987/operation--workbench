@@ -91,6 +91,15 @@ function normalizeRealtimeForToday(payload) {
   };
 }
 
+let realtimeRenderDate = localDateText();
+setInterval(() => {
+  const currentDate = localDateText();
+  if (currentDate === realtimeRenderDate) return;
+  realtimeRenderDate = currentDate;
+  normalizeRealtimeForToday(data);
+  renderDaily();
+}, 60 * 1000);
+
 function sameTimeYesterday(daily) {
   return (
     daily.same_time_yesterday ||
@@ -2141,7 +2150,47 @@ function renderAnomalies() {
 }
 
 function renderReviews() {
-  const daily = data.daily || {};
+  renderReviewPanel({
+    daily: data.daily || {},
+    reviewActions: data.review_actions || {},
+    sectionId: "reviews",
+    statusId: "reviewStatus",
+    countId: "reviewCount",
+    summaryId: "reviewSummary",
+    commandRowsId: "reviewCommandRows",
+    weeklyRowsId: "reviewWeeklyRows",
+    rowsId: "reviewRows",
+    emptyText: "等待评价数据。",
+  });
+}
+
+function renderDirectReviews() {
+  renderReviewPanel({
+    daily: data.direct_daily || {},
+    reviewActions: {},
+    sectionId: "direct-reviews",
+    statusId: "directReviewStatus",
+    countId: "directReviewCount",
+    summaryId: "directReviewSummary",
+    commandRowsId: "directReviewCommandRows",
+    weeklyRowsId: "",
+    rowsId: "directReviewRows",
+    emptyText: "等待直营店评价数据。",
+  });
+}
+
+function renderReviewPanel({
+  daily,
+  reviewActions,
+  sectionId,
+  statusId,
+  countId,
+  summaryId,
+  commandRowsId,
+  weeklyRowsId,
+  rowsId,
+  emptyText,
+}) {
   const review = daily.review_summary || {};
   const reviewActions = data.review_actions || {};
   const actionSummary = reviewActions.summary || {};
@@ -2167,16 +2216,18 @@ function renderReviews() {
         ? "旧数据"
         : "待同步";
 
-  text("reviewStatus", statusText);
-  text("reviewCount", `${num(totalIssues)} / ${num(totalReviews)} 条`);
+  text(statusId, statusText);
+  text(countId, `${num(totalIssues)} / ${num(totalReviews)} 条`);
   text(
-    "reviewSummary",
-    `${review.used_date || review.target_date || "昨日"}：差评 ${num(totalIssues)} 条 / 总评价 ${num(totalReviews)} 条，覆盖 ${stores.length} 家门店。`
+    summaryId,
+    stores.length
+      ? `${review.used_date || review.target_date || "昨日"}：差评 ${num(totalIssues)} 条 / 总评价 ${num(totalReviews)} 条，覆盖 ${stores.length} 家门店。`
+      : emptyText
   );
-  document.querySelector("#reviews")?.classList.toggle("alert", pendingNegative > 0);
+  document.querySelector(`#${sectionId}`)?.classList.toggle("alert", pendingNegative > 0);
 
   rows(
-    "reviewCommandRows",
+    commandRowsId,
     [
       {
         label: "昨日总评价",
@@ -2206,29 +2257,31 @@ function renderReviews() {
     (item) => `<div class="${item.tone === "warn" ? "warn-row" : item.tone === "good" ? "good-row" : ""}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 
-  const weeklyStores = (weeklyRecap.stores || []).slice(0, 3);
-  const weeklyIssues = (weeklyRecap.issue_types || []).slice(0, 3);
-  rows(
-    "reviewWeeklyRows",
-    [
-      {
-        label: "重点门店",
-        value: weeklyStores.length ? weeklyStores.map((item) => `${item.store} ${num(item.negative_count)} 条`).join(" / ") : "暂无",
-        detail: weeklyStores.length ? weeklyStores.map((item) => `${item.store} 问题率 ${(Number(item.negative_rate || 0) * 100).toFixed(1)}%，均分 ${Number(item.avg_rating || 0).toFixed(2)}`).join("；") : "本周暂无明显差评集中门店。",
-        className: weeklyStores.some((item) => Number(item.negative_count || 0)) ? "warn-row" : "good-row",
-      },
-      {
-        label: "高频问题",
-        value: weeklyIssues.length ? weeklyIssues.map((item) => `${item.issue_type} ${num(item.count)}`).join(" / ") : "暂无",
-        detail: (weeklyRecap.actions || []).slice(0, 2).join("；") || weeklyRecap.next_action || "继续观察差评、评分和同类问题复发。",
-        className: weeklyIssues.length ? "warn-row" : "good-row",
-      },
-    ],
-    (item) => `<div class="${item.className}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
-  );
+  if (weeklyRowsId) {
+    const weeklyStores = (weeklyRecap.stores || []).slice(0, 3);
+    const weeklyIssues = (weeklyRecap.issue_types || []).slice(0, 3);
+    rows(
+      weeklyRowsId,
+      [
+        {
+          label: "重点门店",
+          value: weeklyStores.length ? weeklyStores.map((item) => `${item.store} ${num(item.negative_count)} 条`).join(" / ") : "暂无",
+          detail: weeklyStores.length ? weeklyStores.map((item) => `${item.store} 问题率 ${(Number(item.negative_rate || 0) * 100).toFixed(1)}%，均分 ${Number(item.avg_rating || 0).toFixed(2)}`).join("；") : "本周暂无明显差评集中门店。",
+          className: weeklyStores.some((item) => Number(item.negative_count || 0)) ? "warn-row" : "good-row",
+        },
+        {
+          label: "高频问题",
+          value: weeklyIssues.length ? weeklyIssues.map((item) => `${item.issue_type} ${num(item.count)}`).join(" / ") : "暂无",
+          detail: (weeklyRecap.actions || []).slice(0, 2).join("；") || weeklyRecap.next_action || "继续观察差评、评分和同类问题复发。",
+          className: weeklyIssues.length ? "warn-row" : "good-row",
+        },
+      ],
+      (item) => `<div class="${item.className}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
+    );
+  }
 
   rows(
-    "reviewRows",
+    rowsId,
     stores
       .slice()
       .sort((a, b) => Number(b.negative_count || 0) - Number(a.negative_count || 0) || Number(b.review_count || 0) - Number(a.review_count || 0)),
