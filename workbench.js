@@ -572,6 +572,10 @@ function financeFlowPaymentLineText(item) {
   return `${quantityText} · ${unitPriceText}${counterparty ? ` · ${counterparty}` : ""}`;
 }
 
+function financeFlowItemLabel(item) {
+  return item.sku || item.product_name || "-";
+}
+
 function renderFinanceFlowPaymentRows(rowId, metaId, items, amountKey = "amount") {
   const list = items || [];
   const total = list.reduce((sum, item) => sum + Number(item[amountKey] || 0), 0);
@@ -580,10 +584,13 @@ function renderFinanceFlowPaymentRows(rowId, metaId, items, amountKey = "amount"
     rowId,
     list,
     (item) => `
-      <div class="${Number(item[amountKey] || 0) > 0 ? "good-row" : "warn-row"}">
-        <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.sku || item.product_name || "-")}</span>
-        <strong>${yuan(item[amountKey])}</strong>
-        <em>${escapeHtml(financeFlowPaymentLineText(item))}</em>
+      <div class="${Number(item[amountKey] || 0) > 0 ? "good-row" : "warn-row"} finance-flow-money-row">
+        <span>批次 ${escapeHtml(item.lot_id || "-")}</span>
+        <strong>${escapeHtml(financeFlowItemLabel(item))}</strong>
+        <em>
+          <b>${yuan(item[amountKey])}</b>
+          <small>${escapeHtml(financeFlowPaymentLineText(item))}</small>
+        </em>
       </div>
     `
   );
@@ -597,10 +604,13 @@ function renderFinanceFlowFactoryRows(rowId, metaId, items) {
     rowId,
     list,
     (item) => `
-      <div class="good-row">
-        <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
-        <strong>${num(item.factory_quantity || 0, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>${escapeHtml(item.factory || "工厂暂存")} · ${escapeHtml(financeFlowMoneyText(item))}</em>
+      <div class="good-row finance-flow-factory-row">
+        <span>${escapeHtml(item.item_type || "原料")} · 批次 ${escapeHtml(item.lot_id || "-")}</span>
+        <strong>${escapeHtml(item.product_name || "-")}</strong>
+        <em>
+          <b>${num(item.factory_quantity || 0, 2)}${escapeHtml(item.unit || "")}</b>
+          <small>${escapeHtml(item.factory || "工厂暂存")} · ${escapeHtml(financeFlowMoneyText(item))}</small>
+        </em>
       </div>
     `
   );
@@ -624,7 +634,6 @@ function renderFinanceFlow() {
   html(
     "financeFlowKpis",
     [
-      { label: "采购批次", value: `${Number(totals.lot_count || 0)} 批`, detail: "按采购批次或采购单号追踪", tone: "neutral" },
       { label: "工厂应付", value: yuan(totals.payable_amount), detail: `待付工厂 ${yuan(totals.open_payable_amount)}`, tone: "factory-payable" },
       { label: "已付给工厂", value: yuan(totals.paid_amount), detail: "已实际支付给厂家或供应商", tone: "factory-paid" },
       { label: "北京仓应收", value: yuan(totals.beijing_warehouse_receivable_amount), detail: `未收 ${yuan(totals.open_beijing_warehouse_receivable_amount)}`, tone: "beijing-receivable" },

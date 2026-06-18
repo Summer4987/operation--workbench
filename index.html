@@ -333,7 +333,7 @@
               <span class="tag planning" id="financeFlowStatus">读取中</span>
             </div>
             <div class="module-body">
-              <form class="finance-flow-entry-form" id="financeFlowEntryForm">
+              <form class="finance-flow-entry-form finance-flow-entry-panel" id="financeFlowEntryForm">
                 <div class="finance-form-head">
                   <div>
                     <span>货权流向录入</span>
@@ -465,104 +465,112 @@
                 </datalist>
                 <div class="finance-form-message" id="financeFlowEntryMessage">采购原料请手填总金额；原料留在工厂加工时也要选择工厂进度。销售成品可按结算价自动计算。</div>
               </form>
-              <div class="finance-flow-toolbar">
-                <label>
-                  <span>查看月份</span>
-                  <input id="financeFlowMonth" type="month" value="2026-06" />
-                </label>
-                <label>
-                  <span>搜索货品</span>
-                  <input id="financeFlowSearch" type="search" placeholder="SKU、货品名、门店或客户" />
-                </label>
-                <button type="button" id="financeFlowRefresh">刷新</button>
+              <div class="finance-flow-dashboard">
+                <div class="finance-flow-toolbar">
+                  <label>
+                    <span>查看月份</span>
+                    <input id="financeFlowMonth" type="month" value="2026-06" />
+                  </label>
+                  <label>
+                    <span>搜索货品</span>
+                    <input id="financeFlowSearch" type="search" placeholder="SKU、货品名、门店或客户" />
+                  </label>
+                  <button type="button" id="financeFlowRefresh">刷新</button>
+                </div>
+                <div class="finance-flow-factory-grid">
+                  <section class="finance-flow-tone factory-producing">
+                    <div class="finance-flow-title">
+                      <strong>工厂在生产</strong>
+                      <span id="financeFlowFactoryProducingMeta">重点看原料和数量</span>
+                    </div>
+                    <div class="mini-table finance-flow-factory-list" id="financeFlowFactoryProducingRows"></div>
+                  </section>
+                  <section class="finance-flow-tone factory-completed">
+                    <div class="finance-flow-title">
+                      <strong>工厂已生产完成</strong>
+                      <span id="financeFlowFactoryCompletedMeta">可安排发货或入仓</span>
+                    </div>
+                    <div class="mini-table finance-flow-factory-list" id="financeFlowFactoryCompletedRows"></div>
+                  </section>
+                </div>
+                <div class="finance-flow-kpis" id="financeFlowKpis"></div>
+                <div class="finance-flow-payment-grid">
+                  <section class="finance-flow-tone factory-payable">
+                    <div class="finance-flow-title">
+                      <strong>工厂应付</strong>
+                      <span id="financeFlowFactoryPayableMeta">对应批次和SKU</span>
+                    </div>
+                    <div class="mini-table finance-flow-money-list" id="financeFlowFactoryPayableRows"></div>
+                  </section>
+                  <section class="finance-flow-tone factory-paid">
+                    <div class="finance-flow-title">
+                      <strong>已付给工厂</strong>
+                      <span id="financeFlowFactoryPaidMeta">对应批次和SKU</span>
+                    </div>
+                    <div class="mini-table finance-flow-money-list" id="financeFlowFactoryPaidRows"></div>
+                  </section>
+                  <section class="finance-flow-tone beijing-receivable">
+                    <div class="finance-flow-title">
+                      <strong>北京仓应收</strong>
+                      <span id="financeFlowBeijingReceivableMeta">对应批次和SKU</span>
+                    </div>
+                    <div class="mini-table finance-flow-money-list" id="financeFlowBeijingReceivableRows"></div>
+                  </section>
+                  <section class="finance-flow-tone beijing-received">
+                    <div class="finance-flow-title">
+                      <strong>北京仓已收</strong>
+                      <span id="financeFlowBeijingReceivedMeta">对应批次和SKU</span>
+                    </div>
+                    <div class="mini-table finance-flow-money-list" id="financeFlowBeijingReceivedRows"></div>
+                  </section>
+                  <section class="finance-flow-tone direct-receivable">
+                    <div class="finance-flow-title">
+                      <strong>直营店应收</strong>
+                      <span id="financeFlowDirectReceivableMeta">对应批次和SKU</span>
+                    </div>
+                    <div class="mini-table finance-flow-money-list" id="financeFlowDirectReceivableRows"></div>
+                  </section>
+                  <section class="finance-flow-tone direct-received">
+                    <div class="finance-flow-title">
+                      <strong>直营店已收</strong>
+                      <span id="financeFlowDirectReceivedMeta">对应批次和SKU</span>
+                    </div>
+                    <div class="mini-table finance-flow-money-list" id="financeFlowDirectReceivedRows"></div>
+                  </section>
+                </div>
+                <div class="finance-flow-divider">
+                  <div class="finance-flow-workspace">
+                    <section class="finance-flow-location-panel">
+                      <div class="finance-flow-title">
+                        <strong>位置汇总</strong>
+                        <span>点击位置查看批次</span>
+                      </div>
+                      <div class="finance-flow-location-grid" id="financeFlowLocationRows"></div>
+                    </section>
+                    <section class="finance-flow-selected-panel">
+                      <div class="finance-flow-title">
+                        <strong id="financeFlowSelectedTitle">位置明细</strong>
+                        <span id="financeFlowSelectedMeta">选择左侧位置后查看</span>
+                      </div>
+                      <div class="mini-table finance-flow-selected-list" id="financeFlowSelectedRows"></div>
+                    </section>
+                  </div>
+                </div>
+                <div class="finance-flow-divider">
+                  <div class="finance-flow-title">
+                    <strong>采购批次余额</strong>
+                    <span>按批次追踪总量、出库和余额</span>
+                  </div>
+                  <div class="mini-table finance-flow-list" id="financeFlowRows"></div>
+                </div>
+                <div class="finance-flow-divider">
+                  <div class="finance-flow-title">
+                    <strong>最近货权动作</strong>
+                    <span>采购、调拨、销售、耗用记录</span>
+                  </div>
+                  <div class="mini-table" id="financeFlowMovementRows"></div>
+                </div>
               </div>
-              <div class="finance-flow-kpis" id="financeFlowKpis"></div>
-              <div class="finance-flow-payment-grid">
-                <section class="finance-flow-tone factory-payable">
-                  <div class="finance-flow-title">
-                    <strong>工厂应付</strong>
-                    <span id="financeFlowFactoryPayableMeta">对应批次和SKU</span>
-                  </div>
-                  <div class="mini-table finance-flow-money-list" id="financeFlowFactoryPayableRows"></div>
-                </section>
-                <section class="finance-flow-tone factory-paid">
-                  <div class="finance-flow-title">
-                    <strong>已付给工厂</strong>
-                    <span id="financeFlowFactoryPaidMeta">对应批次和SKU</span>
-                  </div>
-                  <div class="mini-table finance-flow-money-list" id="financeFlowFactoryPaidRows"></div>
-                </section>
-                <section class="finance-flow-tone beijing-receivable">
-                  <div class="finance-flow-title">
-                    <strong>北京仓应收</strong>
-                    <span id="financeFlowBeijingReceivableMeta">对应批次和SKU</span>
-                  </div>
-                  <div class="mini-table finance-flow-money-list" id="financeFlowBeijingReceivableRows"></div>
-                </section>
-                <section class="finance-flow-tone beijing-received">
-                  <div class="finance-flow-title">
-                    <strong>北京仓已收</strong>
-                    <span id="financeFlowBeijingReceivedMeta">对应批次和SKU</span>
-                  </div>
-                  <div class="mini-table finance-flow-money-list" id="financeFlowBeijingReceivedRows"></div>
-                </section>
-                <section class="finance-flow-tone direct-receivable">
-                  <div class="finance-flow-title">
-                    <strong>直营店应收</strong>
-                    <span id="financeFlowDirectReceivableMeta">对应批次和SKU</span>
-                  </div>
-                  <div class="mini-table finance-flow-money-list" id="financeFlowDirectReceivableRows"></div>
-                </section>
-                <section class="finance-flow-tone direct-received">
-                  <div class="finance-flow-title">
-                    <strong>直营店已收</strong>
-                    <span id="financeFlowDirectReceivedMeta">对应批次和SKU</span>
-                  </div>
-                  <div class="mini-table finance-flow-money-list" id="financeFlowDirectReceivedRows"></div>
-                </section>
-              </div>
-              <div class="finance-flow-factory-grid">
-                <section class="finance-flow-tone factory-producing">
-                  <div class="finance-flow-title">
-                    <strong>工厂在生产</strong>
-                    <span id="financeFlowFactoryProducingMeta">待跟进生产进度</span>
-                  </div>
-                  <div class="mini-table" id="financeFlowFactoryProducingRows"></div>
-                </section>
-                <section class="finance-flow-tone factory-completed">
-                  <div class="finance-flow-title">
-                    <strong>工厂已生产完成</strong>
-                    <span id="financeFlowFactoryCompletedMeta">可安排发货或入仓</span>
-                  </div>
-                  <div class="mini-table" id="financeFlowFactoryCompletedRows"></div>
-                </section>
-              </div>
-              <div class="finance-flow-workspace">
-                <section class="finance-flow-location-panel">
-                  <div class="finance-flow-title">
-                    <strong>位置汇总</strong>
-                    <span>点击位置查看批次</span>
-                  </div>
-                  <div class="finance-flow-location-grid" id="financeFlowLocationRows"></div>
-                </section>
-                <section class="finance-flow-selected-panel">
-                  <div class="finance-flow-title">
-                    <strong id="financeFlowSelectedTitle">位置明细</strong>
-                    <span id="financeFlowSelectedMeta">选择左侧位置后查看</span>
-                  </div>
-                  <div class="mini-table finance-flow-selected-list" id="financeFlowSelectedRows"></div>
-                </section>
-              </div>
-              <div class="finance-flow-title">
-                <strong>采购批次余额</strong>
-                <span>按批次追踪总量、出库和余额</span>
-              </div>
-              <div class="mini-table finance-flow-list" id="financeFlowRows"></div>
-              <div class="finance-flow-title">
-                <strong>最近货权动作</strong>
-                <span>采购、调拨、销售、耗用记录</span>
-              </div>
-              <div class="mini-table" id="financeFlowMovementRows"></div>
             </div>
           </article>
         </section>
@@ -931,6 +939,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260617-card-colors"></script>
+    <script src="./workbench.js?v=20260618-flow-layout"></script>
   </body>
 </html>
