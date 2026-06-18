@@ -6,7 +6,7 @@
       "enabled": true,
       "stores": ["朝阳门店"],
       "profile_dir": "~/Library/Application Support/XiongOps/meituan-direct-chaoyangmen",
-      "debug_port": 9223,
+      "debug_port": 19223,
       "pages": {
         "home": "https://e.waimai.meituan.com/",
         "daily_report": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
