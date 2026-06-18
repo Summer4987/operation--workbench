@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>经营日报看板</title>
+  <style>
+    :root {
+      --bg: #f3f6f8;
+      --panel: #ffffff;
+      --line: #dfe5ee;
+      --text: #172033;
+      --muted: #667085;
+      --accent: #0f766e;
+      --accent-2: #2563eb;
+      --soft: #e0f2fe;
+      --warn: #b45309;
+      --good: #0f766e;
+      --bad: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      background:
+        linear-gradient(180deg, #e8f1f0 0, rgba(232, 241, 240, 0) 260px),
+        var(--bg);
+      color: var(--text);
+    }
+    main { max-width: 1320px; margin: 0 auto; padding: 22px 26px 26px; }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-end; margin-bottom: 14px; }
+    h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 0; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .toolbar { display: flex; align-items: center; gap: 10px; }
+    .toolbar label { color: var(--muted); font-size: 13px; }
+    .toolbar select { height: 36px; min-width: 150px; padding: 0 34px 0 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: var(--text); font-size: 14px; }
+    .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .ai-week-panel { margin-bottom: 12px; }
+    .week-analysis-body { display: grid; gap: 12px; }
+    .week-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .week-summary-card { min-width: 0; min-height: 78px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; display: grid; gap: 7px; }
+    .week-summary-card span { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .week-summary-card strong { font-size: 20px; line-height: 1; }
+    .week-summary-card:first-child strong { font-size: 14px; line-height: 1.35; }
+    .week-summary-card em { color: var(--muted); font-size: 12px; font-style: normal; }
+    .week-store-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .week-store-card { min-width: 0; min-height: 128px; padding: 13px 14px; border: 1px solid var(--line); border-left: 4px solid #98a2b3; border-radius: 8px; background: #fff; display: grid; gap: 7px; }
+    .week-store-card.up { border-left-color: var(--bad); background: #fff8f7; }
+    .week-store-card.down { border-left-color: var(--good); background: #f0fdf4; }
+    .week-store-card b { font-size: 15px; }
+    .week-store-card strong { font-size: 14px; }
+    .week-store-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .week-store-card em { color: var(--text); font-size: 12px; font-style: normal; font-weight: 650; line-height: 1.45; }
+    .focus-panel { margin-bottom: 12px; }
+    .focus-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .focus-item { display: grid; gap: 5px; min-height: 74px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid #98a2b3; border-radius: 8px; background: #fff; color: inherit; text-decoration: none; }
+    .focus-item.high { border-left-color: var(--bad); background: #fff8f7; }
+    .focus-item.medium { border-left-color: var(--warn); background: #fffbeb; }
+    .focus-item.good { border-left-color: var(--good); background: #f0fdfa; }
+    .focus-item b { font-size: 14px; }
+    .focus-item span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .card, .panel, .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    }
+    .card { padding: 12px 14px; min-height: 82px; display: grid; gap: 8px; }
+    .label { color: var(--muted); font-size: 13px; }
+    .value { font-size: 24px; font-weight: 780; line-height: 1; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .delta { display: inline-flex; align-items: center; width: fit-content; padding: 3px 7px; border-radius: 999px; font-size: 12px; font-weight: 650; background: #eef2f6; color: #475467; }
+    .delta.up { background: #fee4e2; color: #b42318; }
+    .delta.down { background: #dcfae6; color: #067647; }
+    .panel { padding: 18px; }
+    .compare-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+    .chart-box { min-height: 318px; padding: 18px; }
+    .wide { grid-column: 1 / -1; }
+    h2 { font-size: 18px; margin: 0 0 12px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1460px; }
+    th, td { padding: 12px 11px; border-bottom: 1px solid #edf1f6; text-align: right; white-space: nowrap; }
+    th { color: var(--muted); font-size: 13px; background: #fbfcfe; font-weight: 650; }
+    td.store, th:first-child { text-align: left; font-weight: 650; }
+    td.store a { color: var(--text); text-decoration: none; }
+    td.store a:hover { color: var(--accent-2); text-decoration: underline; }
+    tbody tr:hover td { background: #f8fafc; }
+    .strong { font-weight: 760; }
+    .money { font-weight: 650; }
+    .eleme-text { color: var(--accent); }
+    .meituan-text { color: var(--accent-2); }
+    .status { display: inline-block; min-width: 58px; margin-right: 8px; padding: 3px 7px; border-radius: 999px; font-size: 12px; text-align: center; font-weight: 650; }
+    .status.good { color: #067647; background: #dcfae6; }
+    .status.ok { color: #344054; background: #eef2f6; }
+    .status.warn { color: #b54708; background: #fef0c7; }
+    .status.bad { color: #b42318; background: #fee4e2; }
+    .metric-row {
+      display: grid;
+      grid-template-columns: 88px 1fr 108px;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .metric-row b { text-align: right; }
+    .metric-track {
+      height: 16px;
+      background: #edf2f7;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .metric-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .metric-track i.up { background: linear-gradient(90deg, #fda29b, #d92d20); }
+    .metric-track i.down { margin-left: auto; background: linear-gradient(90deg, #12b76a, #067647); }
+    .customer-chart { display: grid; grid-template-columns: repeat(8, minmax(90px, 1fr)); gap: 14px; align-items: end; min-height: 250px; }
+    .customer-col { display: grid; grid-template-rows: 190px auto; gap: 8px; justify-items: center; min-width: 0; }
+    .stack-bar { width: 44px; height: 190px; display: flex; flex-direction: column-reverse; overflow: hidden; border-radius: 7px; background: #eef2f6; border: 1px solid #d0d5dd; }
+    .stack-new { display: grid; place-items: center; min-height: 20px; background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; }
+    .stack-old { display: grid; place-items: center; min-height: 20px; background: #cbd5e1; color: #344054; font-size: 11px; font-weight: 700; }
+    .customer-name { font-size: 12px; color: var(--muted); text-align: center; white-space: nowrap; }
+    .legend { display: flex; gap: 14px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    .legend .new { background: #2563eb; }
+    .legend .old { background: #cbd5e1; }
+    .section-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 14px; }
+    .section-title h2 { margin: 0; }
+    .section-title span { color: var(--muted); font-size: 12px; }
+    .analysis-panel { margin-bottom: 14px; }
+    .analysis-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .diagnosis-card { display: grid; gap: 8px; min-height: 178px; padding: 14px; border: 1px solid var(--line); border-left: 4px solid #98a2b3; border-radius: 8px; background: #fff; color: inherit; text-decoration: none; }
+    .diagnosis-card.high { border-left-color: var(--bad); background: #fff8f7; }
+    .diagnosis-card.medium { border-left-color: var(--warn); background: #fffbeb; }
+    .diagnosis-card.good { border-left-color: var(--good); background: #f0fdfa; }
+    .diagnosis-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .diagnosis-head b { font-size: 15px; }
+    .diagnosis-head span { padding: 3px 7px; border-radius: 999px; background: #eef2f6; color: #475467; font-size: 12px; font-weight: 650; }
+    .diagnosis-card strong { font-size: 14px; }
+    .diagnosis-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .diagnosis-card em { font-style: normal; color: var(--text); font-size: 13px; font-weight: 650; line-height: 1.45; }
+    .diagnosis-card small { color: #7a5b13; font-size: 12px; line-height: 1.45; }
+    .empty { padding: 28px; color: var(--muted); text-align: center; }
+    @media (max-width: 900px) {
+      main { padding: 18px; }
+      header { display: block; }
+      .toolbar { margin-top: 12px; }
+      .kpis, .compare-grid { grid-template-columns: 1fr; }
+      .focus-list, .analysis-grid, .week-summary-grid, .week-store-grid { grid-template-columns: 1fr; }
+      .chart-box { height: 280px; }
+      .customer-chart { overflow-x: auto; grid-template-columns: repeat(8, 92px); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>经营日报看板</h1>
+        <div class="muted">生成时间：2026-06-18 23:38:32</div>
+      </div>
+      <div class="toolbar">
+        <label for="dateSelect">数据日期</label>
+        <select id="dateSelect"></select>
+      </div>
+    </header>
+
+    <section class="kpis">
+      <div class="card"><div class="label">总收入</div><div class="value" id="kpiIncome"></div><div class="delta" id="incomeDelta"></div></div>
+      <div class="card"><div class="label">总单量</div><div class="value" id="kpiOrders"></div><div class="delta" id="ordersDelta"></div></div>
+      <div class="card"><div class="label">总曝光</div><div class="value" id="kpiImpressions"></div><div class="delta" id="impressionsDelta"></div></div>
+      <div class="card"><div class="label">平均客单价</div><div class="value" id="kpiTicket"></div><div class="hint" id="kpiTicketHint"></div></div>
+    </section>
+
+    <section class="panel ai-week-panel">
+      <div class="section-title"><h2>AI周分析</h2><span>近 7 个数据日对比前 7 个数据日，涨红跌绿</span></div>
+      <div class="week-analysis-body" id="aiWeekAnalysis"></div>
+    </section>
+
+    <section class="panel focus-panel">
+      <div class="section-title"><h2>重点关注</h2><span>点击门店进入单店日报</span></div>
+      <div class="focus-list">
+        <a class="focus-item high" href="stores/wanxiangcheng.html">
+          <b>万象城店：下单转化低于门店均值，当前 25.2%</b>
+          <span>建议检查菜品排序、优惠力度、配送费、起送价和差评影响。</span>
+        </a>
+<a class="focus-item high" href="stores/jinrongcheng.html">
+          <b>金融城店：下单转化低于门店均值，当前 22.0%</b>
+          <span>建议检查菜品排序、优惠力度、配送费、起送价和差评影响。</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="panel analysis-panel">
+      <div class="section-title"><h2>所有门店数据分析</h2><span>按昨日经营表现自动诊断，已接入 2026-06-17 评价导出</span></div>
+      <div class="analysis-grid">
+        <a class="diagnosis-card high" href="stores/wanxiangcheng.html">
+          <div class="diagnosis-head"><b>万象城店</b><span>重点</span></div>
+          <strong>下单转化低于门店均值 7.1 个百分点</strong>
+          <p>收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。</p>
+          <p>收入 2,211.23，单量 77，曝光 3,983，进店 7.6%，下单 25.2%。</p>
+          <em>检查菜品排序、主推品、优惠力度、配送费、起送价和差评影响。</em>
+          <small>昨日评价 3 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 3 条/差评 0/评价均分 5.00。</small>
+        </a>
+<a class="diagnosis-card high" href="stores/jinrongcheng.html">
+          <div class="diagnosis-head"><b>金融城店</b><span>重点</span></div>
+          <strong>下单转化低于门店均值 10.3 个百分点</strong>
+          <p>收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。</p>
+          <p>收入 1,636.53，单量 57，曝光 3,852，进店 6.6%，下单 22.0%。</p>
+          <em>检查菜品排序、主推品、优惠力度、配送费、起送价和差评影响。</em>
+          <small>昨日评价 1 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 1 条/差评 0/评价均分 5.00。</small>
+        </a>
+<a class="diagnosis-card good" href="stores/chaoyangmen.html">
+          <div class="diagnosis-head"><b>朝阳门店</b><span>正常</span></div>
+          <strong>今日未发现明显经营异常</strong>
+          <p>主要拖累：曝光下降 13.1%。</p>
+          <p>收入 5,129.13，单量 184，曝光 6,003，进店 8.1%，下单 37.8%。</p>
+          <em>保持当前节奏，继续观察收入排名、转化率和新客占比。</em>
+          <small>昨日评价 5 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 5 条/差评 0/评价均分 5.00。</small>
+        </a>
+<a class="diagnosis-card good" href="stores/yintaicheng.html">
+          <div class="diagnosis-head"><b>银泰城店</b><span>正常</span></div>
+          <strong>今日未发现明显经营异常</strong>
+          <p>收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。</p>
+          <p>收入 3,636.15，单量 124，曝光 3,948，进店 9.2%，下单 33.2%。</p>
+          <em>保持当前节奏，继续观察收入排名、转化率和新客占比。</em>
+          <small>昨日评价 8 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 8 条/差评 0/评价均分 5.00。</small>
+        </a>
+      </div>
+    </section>
+
+    <section class="compare-grid">
+      <div class="panel chart-box">
+        <div class="section-title"><h2>门店收入横向对比</h2><span>用于判断今日资源重点</span></div>
+        <div id="incomeBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>门店单量横向对比</h2><span>收入之外看实际订单贡献</span></div>
+        <div id="orderCountBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>门店曝光横向对比</h2><span>观察流量入口是否偏弱</span></div>
+        <div id="impressionBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>客单价横向对比</h2><span>识别高客单与低客单门店</span></div>
+        <div id="ticketBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>顾客实付单均价横向对比</h2><span>按顾客实付 / 有效订单计算</span></div>
+        <div id="customerPaidTicketBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>进店转化率横向对比</h2><span>曝光到进店</span></div>
+        <div id="visitBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>下单转化率横向对比</h2><span>进店到下单</span></div>
+        <div id="orderBars"></div>
+      </div>
+      <div class="panel chart-box wide">
+        <div class="section-title"><h2>新老客占比横向对比</h2><span>蓝色为新客，灰色为老客</span></div>
+        <div class="customer-chart" id="customerBars"></div>
+        <div class="legend"><span><i class="new"></i>新客</span><span><i class="old"></i>老客</span></div>
+      </div>
+      <div class="panel chart-box wide">
+        <div class="section-title"><h2>门店收入较前一日变化</h2><span id="previousDateLabel"></span></div>
+        <div id="incomeChangeBars"></div>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>门店</th>
+            <th>收入</th>
+            <th>收入较前日</th>
+            <th>单量</th>
+            <th>单量较前日</th>
+            <th>客单价</th>
+            <th>饿了么客单价</th>
+            <th>美团客单价</th>
+            <th>顾客实付单均价</th>
+            <th>曝光量</th>
+            <th>曝光较前日</th>
+            <th>进店转化率</th>
+            <th>进店较前日</th>
+            <th>下单转化率</th>
+            <th>下单较前日</th>
+            <th>新客占比</th>
+            <th>饿了么收入</th>
+            <th>美团收入</th>
+          </tr>
+        </thead>
+        <tbody id="storeRows"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="application/json" id="dashboard-data">{"generated_at": "2026-06-18 23:38:32", "group": {"name": "直营店", "key": "direct"}, "source_dates": ["2026-05-29", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-08", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14", "2026-06-15", "2026-06-16", "2026-06-17"], "target_stores": ["朝阳门店", "银泰城店", "万象城店", "金融城店"], "store_summary": [{"store": "朝阳门店", "eleme_income": 76304.68, "eleme_customer_paid": 81554.69, "eleme_customer_paid_orders": 2355, "eleme_orders": 2775, "eleme_impressions": 119500, "meituan_income": 0.0, "meituan_customer_paid": 0.0, "meituan_customer_paid_orders": 0, "meituan_orders": 0, "meituan_impressions": 0, "total_income": 76304.68, "total_customer_paid": 81554.69, "total_customer_paid_orders": 2355, "customer_paid_available": true, "customer_paid_ticket": 34.63, "total_orders": 2775, "total_impressions": 119500, "visit_conversion": 0.071, "order_conversion": 0.3305, "old_customer_orders": 1960, "new_customer_orders": 797}, {"store": "银泰城店", "eleme_income": 46796.66, "eleme_customer_paid": 47091.62, "eleme_customer_paid_orders": 1399, "eleme_orders": 1583, "eleme_impressions": 63901, "meituan_income": 0.0, "meituan_customer_paid": 0.0, "meituan_customer_paid_orders": 0, "meituan_orders": 0, "meituan_impressions": 0, "total_income": 46796.66, "total_customer_paid": 47091.62, "total_customer_paid_orders": 1399, "customer_paid_available": true, "customer_paid_ticket": 33.66, "total_orders": 1583, "total_impressions": 63901, "visit_conversion": 0.0808, "order_conversion": 0.3047, "old_customer_orders": 1154, "new_customer_orders": 405}, {"store": "万象城店", "eleme_income": 34003.6, "eleme_customer_paid": 38972.81, "eleme_customer_paid_orders": 1091, "eleme_orders": 1202, "eleme_impressions": 64731, "meituan_income": 0.0, "meituan_customer_paid": 0.0, "meituan_customer_paid_orders": 0, "meituan_orders": 0, "meituan_impressions": 0, "total_income": 34003.6, "total_customer_paid": 38972.81, "total_customer_paid_orders": 1091, "customer_paid_available": true, "customer_paid_ticket": 35.72, "total_orders": 1202, "total_impressions": 64731, "visit_conversion": 0.076, "order_conversion": 0.2464, "old_customer_orders": 802, "new_customer_orders": 382}, {"store": "金融城店", "eleme_income": 29578.45, "eleme_customer_paid": 32021.27, "eleme_customer_paid_orders": 886, "eleme_orders": 1023, "eleme_impressions": 64168, "meituan_income": 0.0, "meituan_customer_paid": 0.0, "meituan_customer_paid_orders": 0, "meituan_orders": 0, "meituan_impressions": 0, "total_income": 29578.45, "total_customer_paid": 32021.27, "total_customer_paid_orders": 886, "customer_paid_available": true, "customer_paid_ticket": 36.14, "total_orders": 1023, "total_impressions": 64168, "visit_conversion": 0.0634, "order_conversion": 0.2572, "old_customer_orders": 641, "new_customer_orders": 371}], "platform_summary": [{"platform": "饿了么", "income": 186683.39, "customer_paid": 199640.39, "customer_paid_orders": 5731, "orders": 6583, "impressions": 312300, "visit_conversion": 0.0725, "order_conversion": 0.2975, "old_customer_orders": 4557, "new_customer_orders": 1955}, {"platform": "美团", "income": 0.0, "customer_paid": 0.0, "customer_paid_orders": 0, "orders": 0, "impressions": 0, "visit_conversion": 0, "order_conversion": 0, "old_customer_orders": 0, "new_customer_orders": 0}], "warnings": [], "records": [{"date": "2026-05-29", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 42, "income": 1084.43, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 3935, "visit_conversion": 0.064, "order_conversion": 0.166, "old_customer_order_conversion": 0.314, "new_customer_order_conversion": 0.066, "old_customer_orders": 32, "new_customer_orders": 10}, {"date": "2026-05-29", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 189, "income": 5217.36, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 8046, "visit_conversion": 0.069, "order_conversion": 0.34, "old_customer_order_conversion": 0.554, "new_customer_order_conversion": 0.164, "old_customer_orders": 138, "new_customer_orders": 50}, {"date": "2026-05-29", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 70, "income": 1947.14, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 3706, "visit_conversion": 0.069, "order_conversion": 0.265, "old_customer_order_conversion": 0.482, "new_customer_order_conversion": 0.157, "old_customer_orders": 41, "new_customer_orders": 27}, {"date": "2026-05-29", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 83, "income": 2455.12, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 4394, "visit_conversion": 0.073, "order_conversion": 0.258, "old_customer_order_conversion": 0.429, "new_customer_order_conversion": 0.082, "old_customer_orders": 70, "new_customer_orders": 13}, {"date": "2026-06-01", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 69, "income": 1904.13, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 3550, "visit_conversion": 0.081, "order_conversion": 0.238, "old_customer_order_conversion": 0.385, "new_customer_order_conversion": 0.136, "old_customer_orders": 45, "new_customer_orders": 23}, {"date": "2026-06-01", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 231, "income": 6224.12, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 7808, "visit_conversion": 0.076, "order_conversion": 0.389, "old_customer_order_conversion": 0.604, "new_customer_order_conversion": 0.199, "old_customer_orders": 168, "new_customer_orders": 63}, {"date": "2026-06-01", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 67, "income": 1894.96, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 3756, "visit_conversion": 0.075, "order_conversion": 0.238, "old_customer_order_conversion": 0.449, "new_customer_order_conversion": 0.125, "old_customer_orders": 44, "new_customer_orders": 23}, {"date": "2026-06-01", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 101, "income": 3092.05, "customer_paid": 0.0, "customer_paid_available": false, "customer_paid_orders": 0, "impressions": 4094, "visit_conversion": 0.077, "order_conversion": 0.314, "old_customer_order_conversion": 0.461, "new_customer_order_conversion": 0.149, "old_customer_orders": 77, "new_customer_orders": 22}, {"date": "2026-06-02", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 92, "income": 2562.41, "customer_paid": 3181.23, "customer_paid_available": true, "customer_paid_orders": 92, "impressions": 4000, "visit_conversion": 0.078, "order_conversion": 0.277, "old_customer_order_conversion": 0.431, "new_customer_order_conversion": 0.176, "old_customer_orders": 53, "new_customer_orders": 33}, {"date": "2026-06-02", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 222, "income": 6040.61, "customer_paid": 7437.47, "customer_paid_available": true, "customer_paid_orders": 222, "impressions": 8109, "visit_conversion": 0.077, "order_conversion": 0.353, "old_customer_order_conversion": 0.549, "new_customer_order_conversion": 0.185, "old_customer_orders": 158, "new_customer_orders": 62}, {"date": "2026-06-02", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 89, "income": 2434.64, "customer_paid": 3041.3, "customer_paid_available": true, "customer_paid_orders": 89, "impressions": 3212, "visit_conversion": 0.08, "order_conversion": 0.341, "old_customer_order_conversion": 0.549, "new_customer_order_conversion": 0.205, "old_customer_orders": 56, "new_customer_orders": 32}, {"date": "2026-06-02", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 95, "income": 2988.66, "customer_paid": 3316.06, "customer_paid_available": true, "customer_paid_orders": 95, "impressions": 4282, "visit_conversion": 0.078, "order_conversion": 0.277, "old_customer_order_conversion": 0.41, "new_customer_order_conversion": 0.152, "old_customer_orders": 66, "new_customer_orders": 26}, {"date": "2026-06-03", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 88, "income": 2417.28, "customer_paid": 3114.06, "customer_paid_available": true, "customer_paid_orders": 88, "impressions": 4269, "visit_conversion": 0.076, "order_conversion": 0.265, "old_customer_order_conversion": 0.481, "new_customer_order_conversion": 0.115, "old_customer_orders": 64, "new_customer_orders": 22}, {"date": "2026-06-03", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 186, "income": 4893.6, "customer_paid": 6056.96, "customer_paid_available": true, "customer_paid_orders": 186, "impressions": 8483, "visit_conversion": 0.07, "order_conversion": 0.314, "old_customer_order_conversion": 0.482, "new_customer_order_conversion": 0.172, "old_customer_orders": 131, "new_customer_orders": 55}, {"date": "2026-06-03", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 76, "income": 2123.41, "customer_paid": 2609.47, "customer_paid_available": true, "customer_paid_orders": 76, "impressions": 4145, "visit_conversion": 0.065, "order_conversion": 0.279, "old_customer_order_conversion": 0.469, "new_customer_order_conversion": 0.17, "old_customer_orders": 46, "new_customer_orders": 29}, {"date": "2026-06-03", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 125, "income": 3633.83, "customer_paid": 4022.5, "customer_paid_available": true, "customer_paid_orders": 125, "impressions": 4250, "visit_conversion": 0.083, "order_conversion": 0.348, "old_customer_order_conversion": 0.497, "new_customer_order_conversion": 0.188, "old_customer_orders": 90, "new_customer_orders": 32}, {"date": "2026-06-04", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 97, "income": 2846.78, "customer_paid": 3498.04, "customer_paid_available": true, "customer_paid_orders": 97, "impressions": 4144, "visit_conversion": 0.078, "order_conversion": 0.298, "old_customer_order_conversion": 0.428, "new_customer_order_conversion": 0.182, "old_customer_orders": 65, "new_customer_orders": 31}, {"date": "2026-06-04", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 194, "income": 5283.92, "customer_paid": 6533.72, "customer_paid_available": true, "customer_paid_orders": 194, "impressions": 9256, "visit_conversion": 0.068, "order_conversion": 0.306, "old_customer_order_conversion": 0.532, "new_customer_order_conversion": 0.122, "old_customer_orders": 149, "new_customer_orders": 42}, {"date": "2026-06-04", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 71, "income": 2005.41, "customer_paid": 2453.72, "customer_paid_available": true, "customer_paid_orders": 71, "impressions": 3892, "visit_conversion": 0.069, "order_conversion": 0.259, "old_customer_order_conversion": 0.47, "new_customer_order_conversion": 0.135, "old_customer_orders": 47, "new_customer_orders": 23}, {"date": "2026-06-04", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 107, "income": 2961.93, "customer_paid": 3354.25, "customer_paid_available": true, "customer_paid_orders": 107, "impressions": 4201, "visit_conversion": 0.08, "order_conversion": 0.316, "old_customer_order_conversion": 0.461, "new_customer_order_conversion": 0.211, "old_customer_orders": 65, "new_customer_orders": 41}, {"date": "2026-06-05", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 72, "income": 2088.24, "customer_paid": 2525.88, "customer_paid_available": true, "customer_paid_orders": 72, "impressions": 3792, "visit_conversion": 0.087, "order_conversion": 0.219, "old_customer_order_conversion": 0.377, "new_customer_order_conversion": 0.116, "old_customer_orders": 49, "new_customer_orders": 23}, {"date": "2026-06-05", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 174, "income": 4896.53, "customer_paid": 6066.24, "customer_paid_available": true, "customer_paid_orders": 174, "impressions": 7375, "visit_conversion": 0.069, "order_conversion": 0.336, "old_customer_order_conversion": 0.5, "new_customer_order_conversion": 0.191, "old_customer_orders": 120, "new_customer_orders": 52}, {"date": "2026-06-05", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 79, "income": 2110.52, "customer_paid": 2558.44, "customer_paid_available": true, "customer_paid_orders": 79, "impressions": 4231, "visit_conversion": 0.063, "order_conversion": 0.302, "old_customer_order_conversion": 0.443, "new_customer_order_conversion": 0.208, "old_customer_orders": 47, "new_customer_orders": 33}, {"date": "2026-06-05", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 100, "income": 3039.61, "customer_paid": 3281.62, "customer_paid_available": true, "customer_paid_orders": 100, "impressions": 4074, "visit_conversion": 0.075, "order_conversion": 0.326, "old_customer_order_conversion": 0.521, "new_customer_order_conversion": 0.149, "old_customer_orders": 76, "new_customer_orders": 24}, {"date": "2026-06-06", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 88, "income": 2629.59, "customer_paid": 3254.39, "customer_paid_available": true, "customer_paid_orders": 88, "impressions": 4393, "visit_conversion": 0.076, "order_conversion": 0.259, "old_customer_order_conversion": 0.439, "new_customer_order_conversion": 0.132, "old_customer_orders": 61, "new_customer_orders": 26}, {"date": "2026-06-06", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 65, "income": 1913.03, "customer_paid": 2466.95, "customer_paid_available": true, "customer_paid_orders": 65, "impressions": 4356, "visit_conversion": 0.058, "order_conversion": 0.256, "old_customer_order_conversion": 0.469, "new_customer_order_conversion": 0.127, "old_customer_orders": 45, "new_customer_orders": 20}, {"date": "2026-06-06", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 31, "income": 918.88, "customer_paid": 1172.62, "customer_paid_available": true, "customer_paid_orders": 31, "impressions": 3004, "visit_conversion": 0.053, "order_conversion": 0.194, "old_customer_order_conversion": 0.372, "new_customer_order_conversion": 0.128, "old_customer_orders": 16, "new_customer_orders": 15}, {"date": "2026-06-06", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 63, "income": 1822.54, "customer_paid": 2062.6, "customer_paid_available": true, "customer_paid_orders": 63, "impressions": 3233, "visit_conversion": 0.071, "order_conversion": 0.264, "old_customer_order_conversion": 0.373, "new_customer_order_conversion": 0.165, "old_customer_orders": 41, "new_customer_orders": 20}, {"date": "2026-06-07", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 45, "income": 1243.19, "customer_paid": 1528.4, "customer_paid_available": true, "customer_paid_orders": 45, "impressions": 4531, "visit_conversion": 0.062, "order_conversion": 0.157, "old_customer_order_conversion": 0.269, "new_customer_order_conversion": 0.091, "old_customer_orders": 28, "new_customer_orders": 16}, {"date": "2026-06-07", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 80, "income": 2118.18, "customer_paid": 2842.44, "customer_paid_available": true, "customer_paid_orders": 80, "impressions": 4578, "visit_conversion": 0.064, "order_conversion": 0.27, "old_customer_order_conversion": 0.458, "new_customer_order_conversion": 0.178, "old_customer_orders": 44, "new_customer_orders": 35}, {"date": "2026-06-07", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 36, "income": 1134.88, "customer_paid": 1392.76, "customer_paid_available": true, "customer_paid_orders": 36, "impressions": 3343, "visit_conversion": 0.056, "order_conversion": 0.194, "old_customer_order_conversion": 0.411, "new_customer_order_conversion": 0.1, "old_customer_orders": 23, "new_customer_orders": 13}, {"date": "2026-06-07", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 60, "income": 1708.46, "customer_paid": 1980.44, "customer_paid_available": true, "customer_paid_orders": 60, "impressions": 3647, "visit_conversion": 0.07, "order_conversion": 0.236, "old_customer_order_conversion": 0.369, "new_customer_order_conversion": 0.133, "old_customer_orders": 41, "new_customer_orders": 19}, {"date": "2026-06-08", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 64, "income": 1711.18, "customer_paid": 2300.0, "customer_paid_available": true, "customer_paid_orders": 64, "impressions": 3595, "visit_conversion": 0.08, "order_conversion": 0.224, "old_customer_order_conversion": 0.4, "new_customer_order_conversion": 0.105, "old_customer_orders": 46, "new_customer_orders": 18}, {"date": "2026-06-08", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 197, "income": 5164.36, "customer_paid": 6651.93, "customer_paid_available": true, "customer_paid_orders": 197, "impressions": 7049, "visit_conversion": 0.083, "order_conversion": 0.336, "old_customer_order_conversion": 0.509, "new_customer_order_conversion": 0.173, "old_customer_orders": 144, "new_customer_orders": 52}, {"date": "2026-06-08", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 70, "income": 1906.54, "customer_paid": 2421.43, "customer_paid_available": true, "customer_paid_orders": 70, "impressions": 3165, "visit_conversion": 0.071, "order_conversion": 0.308, "old_customer_order_conversion": 0.448, "new_customer_order_conversion": 0.219, "old_customer_orders": 39, "new_customer_orders": 30}, {"date": "2026-06-08", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 98, "income": 2894.06, "customer_paid": 3223.36, "customer_paid_available": true, "customer_paid_orders": 98, "impressions": 3327, "visit_conversion": 0.088, "order_conversion": 0.328, "old_customer_order_conversion": 0.471, "new_customer_order_conversion": 0.118, "old_customer_orders": 82, "new_customer_orders": 14}, {"date": "2026-06-10", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 66, "income": 1813.42, "customer_paid": 2311.99, "customer_paid_available": true, "customer_paid_orders": 66, "impressions": 3309, "visit_conversion": 0.08, "order_conversion": 0.248, "old_customer_order_conversion": 0.384, "new_customer_order_conversion": 0.149, "old_customer_orders": 43, "new_customer_orders": 23}, {"date": "2026-06-10", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 169, "income": 4784.91, "customer_paid": 6053.4, "customer_paid_available": true, "customer_paid_orders": 169, "impressions": 6580, "visit_conversion": 0.079, "order_conversion": 0.321, "old_customer_order_conversion": 0.519, "new_customer_order_conversion": 0.148, "old_customer_orders": 126, "new_customer_orders": 41}, {"date": "2026-06-10", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 73, "income": 2457.15, "customer_paid": 3032.7, "customer_paid_available": true, "customer_paid_orders": 73, "impressions": 4200, "visit_conversion": 0.061, "order_conversion": 0.286, "old_customer_order_conversion": 0.534, "new_customer_order_conversion": 0.156, "old_customer_orders": 47, "new_customer_orders": 26}, {"date": "2026-06-10", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 95, "income": 2680.86, "customer_paid": 3262.39, "customer_paid_available": true, "customer_paid_orders": 95, "impressions": 3492, "visit_conversion": 0.092, "order_conversion": 0.287, "old_customer_order_conversion": 0.432, "new_customer_order_conversion": 0.11, "old_customer_orders": 76, "new_customer_orders": 16}, {"date": "2026-06-11", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 67, "income": 1914.49, "customer_paid": 2362.32, "customer_paid_available": true, "customer_paid_orders": 67, "impressions": 3666, "visit_conversion": 0.077, "order_conversion": 0.238, "old_customer_order_conversion": 0.443, "new_customer_order_conversion": 0.096, "old_customer_orders": 51, "new_customer_orders": 16}, {"date": "2026-06-11", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 187, "income": 5040.98, "customer_paid": 6496.56, "customer_paid_available": true, "customer_paid_orders": 187, "impressions": 8236, "visit_conversion": 0.069, "order_conversion": 0.325, "old_customer_order_conversion": 0.556, "new_customer_order_conversion": 0.173, "old_customer_orders": 125, "new_customer_orders": 59}, {"date": "2026-06-11", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 73, "income": 2126.43, "customer_paid": 2671.8, "customer_paid_available": true, "customer_paid_orders": 73, "impressions": 4302, "visit_conversion": 0.064, "order_conversion": 0.264, "old_customer_order_conversion": 0.515, "new_customer_order_conversion": 0.116, "old_customer_orders": 53, "new_customer_orders": 20}, {"date": "2026-06-11", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 93, "income": 2767.71, "customer_paid": 3113.37, "customer_paid_available": true, "customer_paid_orders": 93, "impressions": 3413, "visit_conversion": 0.094, "order_conversion": 0.283, "old_customer_order_conversion": 0.403, "new_customer_order_conversion": 0.138, "old_customer_orders": 71, "new_customer_orders": 20}, {"date": "2026-06-12", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 73, "income": 1913.93, "customer_paid": 2544.08, "customer_paid_available": true, "customer_paid_orders": 73, "impressions": 3492, "visit_conversion": 0.086, "order_conversion": 0.238, "old_customer_order_conversion": 0.389, "new_customer_order_conversion": 0.131, "old_customer_orders": 49, "new_customer_orders": 23}, {"date": "2026-06-12", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 165, "income": 4558.14, "customer_paid": 5699.42, "customer_paid_available": true, "customer_paid_orders": 165, "impressions": 7992, "visit_conversion": 0.069, "order_conversion": 0.299, "old_customer_order_conversion": 0.551, "new_customer_order_conversion": 0.15, "old_customer_orders": 113, "new_customer_orders": 52}, {"date": "2026-06-12", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 47, "income": 1321.56, "customer_paid": 1604.38, "customer_paid_available": true, "customer_paid_orders": 47, "impressions": 4617, "visit_conversion": 0.058, "order_conversion": 0.177, "old_customer_order_conversion": 0.326, "new_customer_order_conversion": 0.106, "old_customer_orders": 28, "new_customer_orders": 19}, {"date": "2026-06-12", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 94, "income": 2507.3, "customer_paid": 3038.7, "customer_paid_available": true, "customer_paid_orders": 94, "impressions": 3965, "visit_conversion": 0.079, "order_conversion": 0.295, "old_customer_order_conversion": 0.442, "new_customer_order_conversion": 0.155, "old_customer_orders": 68, "new_customer_orders": 25}, {"date": "2026-06-13", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 75, "income": 2109.41, "customer_paid": 2723.84, "customer_paid_available": true, "customer_paid_orders": 75, "impressions": 3706, "visit_conversion": 0.075, "order_conversion": 0.271, "old_customer_order_conversion": 0.426, "new_customer_order_conversion": 0.172, "old_customer_orders": 46, "new_customer_orders": 29}, {"date": "2026-06-13", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 65, "income": 1989.68, "customer_paid": 2583.98, "customer_paid_available": true, "customer_paid_orders": 65, "impressions": 5501, "visit_conversion": 0.053, "order_conversion": 0.218, "old_customer_order_conversion": 0.462, "new_customer_order_conversion": 0.104, "old_customer_orders": 43, "new_customer_orders": 21}, {"date": "2026-06-13", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 39, "income": 1194.23, "customer_paid": 1540.98, "customer_paid_available": true, "customer_paid_orders": 39, "impressions": 3949, "visit_conversion": 0.047, "order_conversion": 0.205, "old_customer_order_conversion": 0.391, "new_customer_order_conversion": 0.144, "old_customer_orders": 18, "new_customer_orders": 20}, {"date": "2026-06-13", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 70, "income": 2203.13, "customer_paid": 2731.94, "customer_paid_available": true, "customer_paid_orders": 70, "impressions": 3088, "visit_conversion": 0.075, "order_conversion": 0.3, "old_customer_order_conversion": 0.406, "new_customer_order_conversion": 0.22, "old_customer_orders": 41, "new_customer_orders": 29}, {"date": "2026-06-14", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 68, "income": 2119.75, "customer_paid": 2535.22, "customer_paid_available": true, "customer_paid_orders": 68, "impressions": 3162, "visit_conversion": 0.073, "order_conversion": 0.284, "old_customer_order_conversion": 0.4, "new_customer_order_conversion": 0.189, "old_customer_orders": 42, "new_customer_orders": 24}, {"date": "2026-06-14", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 74, "income": 2066.21, "customer_paid": 2697.13, "customer_paid_available": true, "customer_paid_orders": 74, "impressions": 5160, "visit_conversion": 0.06, "order_conversion": 0.236, "old_customer_order_conversion": 0.5, "new_customer_order_conversion": 0.141, "old_customer_orders": 41, "new_customer_orders": 32}, {"date": "2026-06-14", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 30, "income": 892.37, "customer_paid": 1238.56, "customer_paid_available": true, "customer_paid_orders": 30, "impressions": 3535, "visit_conversion": 0.045, "order_conversion": 0.189, "old_customer_order_conversion": 0.419, "new_customer_order_conversion": 0.103, "old_customer_orders": 18, "new_customer_orders": 12}, {"date": "2026-06-14", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 63, "income": 2021.78, "customer_paid": 2399.32, "customer_paid_available": true, "customer_paid_orders": 63, "impressions": 3404, "visit_conversion": 0.062, "order_conversion": 0.299, "old_customer_order_conversion": 0.484, "new_customer_order_conversion": 0.147, "old_customer_orders": 46, "new_customer_orders": 17}, {"date": "2026-06-15", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 56, "income": 1671.35, "customer_paid": 2115.93, "customer_paid_available": true, "customer_paid_orders": 56, "impressions": 3043, "visit_conversion": 0.08, "order_conversion": 0.231, "old_customer_order_conversion": 0.333, "new_customer_order_conversion": 0.161, "old_customer_orders": 33, "new_customer_orders": 23}, {"date": "2026-06-15", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 189, "income": 5035.08, "customer_paid": 6307.57, "customer_paid_available": true, "customer_paid_orders": 189, "impressions": 8058, "visit_conversion": 0.071, "order_conversion": 0.33, "old_customer_order_conversion": 0.541, "new_customer_order_conversion": 0.161, "old_customer_orders": 138, "new_customer_orders": 51}, {"date": "2026-06-15", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 56, "income": 1777.47, "customer_paid": 2172.83, "customer_paid_available": true, "customer_paid_orders": 56, "impressions": 3548, "visit_conversion": 0.07, "order_conversion": 0.213, "old_customer_order_conversion": 0.442, "new_customer_order_conversion": 0.092, "old_customer_orders": 38, "new_customer_orders": 15}, {"date": "2026-06-15", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 95, "income": 2817.11, "customer_paid": 3097.77, "customer_paid_available": true, "customer_paid_orders": 95, "impressions": 3521, "visit_conversion": 0.092, "order_conversion": 0.294, "old_customer_order_conversion": 0.462, "new_customer_order_conversion": 0.105, "old_customer_orders": 79, "new_customer_orders": 16}, {"date": "2026-06-16", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 63, "income": 1762.79, "customer_paid": 2223.57, "customer_paid_available": true, "customer_paid_orders": 63, "impressions": 4161, "visit_conversion": 0.069, "order_conversion": 0.213, "old_customer_order_conversion": 0.434, "new_customer_order_conversion": 0.096, "old_customer_orders": 43, "new_customer_orders": 18}, {"date": "2026-06-16", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 204, "income": 5948.84, "customer_paid": 7234.84, "customer_paid_available": true, "customer_paid_orders": 204, "impressions": 6910, "visit_conversion": 0.079, "order_conversion": 0.373, "old_customer_order_conversion": 0.534, "new_customer_order_conversion": 0.223, "old_customer_orders": 140, "new_customer_orders": 63}, {"date": "2026-06-16", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 59, "income": 1696.33, "customer_paid": 2115.98, "customer_paid_available": true, "customer_paid_orders": 59, "impressions": 3711, "visit_conversion": 0.067, "order_conversion": 0.232, "old_customer_order_conversion": 0.449, "new_customer_order_conversion": 0.112, "old_customer_orders": 40, "new_customer_orders": 18}, {"date": "2026-06-16", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 117, "income": 3566.36, "customer_paid": 4082.97, "customer_paid_available": true, "customer_paid_orders": 117, "impressions": 3568, "visit_conversion": 0.095, "order_conversion": 0.34, "old_customer_order_conversion": 0.482, "new_customer_order_conversion": 0.196, "old_customer_orders": 82, "new_customer_orders": 33}, {"date": "2026-06-17", "platform": "饿了么", "store": "万象城店", "store_raw": "熊小小牛排饭POKEBEAR(万象城店)", "orders": 77, "income": 2211.23, "customer_paid": 2753.86, "customer_paid_available": true, "customer_paid_orders": 77, "impressions": 3983, "visit_conversion": 0.076, "order_conversion": 0.252, "old_customer_order_conversion": 0.397, "new_customer_order_conversion": 0.141, "old_customer_orders": 52, "new_customer_orders": 24}, {"date": "2026-06-17", "platform": "饿了么", "store": "朝阳门店", "store_raw": "熊小小牛排饭POKEBEAR(朝阳门店)", "orders": 184, "income": 5129.13, "customer_paid": 6426.08, "customer_paid_available": true, "customer_paid_orders": 184, "impressions": 6003, "visit_conversion": 0.081, "order_conversion": 0.378, "old_customer_order_conversion": 0.527, "new_customer_order_conversion": 0.207, "old_customer_orders": 137, "new_customer_orders": 47}, {"date": "2026-06-17", "platform": "饿了么", "store": "金融城店", "store_raw": "熊小小牛排饭POKEBEAR(金融城店)", "orders": 57, "income": 1636.53, "customer_paid": 1994.3, "customer_paid_available": true, "customer_paid_orders": 57, "impressions": 3852, "visit_conversion": 0.066, "order_conversion": 0.22, "old_customer_order_conversion": 0.412, "new_customer_order_conversion": 0.102, "old_customer_orders": 40, "new_customer_orders": 16}, {"date": "2026-06-17", "platform": "饿了么", "store": "银泰城店", "store_raw": "熊小小牛排饭POKEBEAR(银泰城店)", "orders": 124, "income": 3636.15, "customer_paid": 4124.33, "customer_paid_available": true, "customer_paid_orders": 124, "impressions": 3948, "visit_conversion": 0.092, "order_conversion": 0.332, "old_customer_order_conversion": 0.439, "new_customer_order_conversion": 0.217, "old_customer_orders": 83, "new_customer_orders": 38}], "store_report_files": {"朝阳门店": "stores/chaoyangmen.html", "银泰城店": "stores/yintaicheng.html", "万象城店": "stores/wanxiangcheng.html", "金融城店": "stores/jinrongcheng.html"}, "review_summary": {"status": "ready", "target_date": "2026-06-17", "used_date": "2026-06-17", "message": "已接入 2026-06-17 评价导出", "stores": {"朝阳门店": {"date": "2026-06-17", "review_count": 5, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0, "platforms": {"美团": {"review_count": 0, "negative_count": 0, "review_avg_rating": 0, "avg_rating": 0}, "饿了么": {"review_count": 5, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0}}, "top_keywords": [], "examples": [], "bad_review_examples": []}, "银泰城店": {"date": "2026-06-17", "review_count": 8, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0, "platforms": {"美团": {"review_count": 0, "negative_count": 0, "review_avg_rating": 0, "avg_rating": 0}, "饿了么": {"review_count": 8, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0}}, "top_keywords": [], "examples": [], "bad_review_examples": []}, "万象城店": {"date": "2026-06-17", "review_count": 3, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0, "platforms": {"美团": {"review_count": 0, "negative_count": 0, "review_avg_rating": 0, "avg_rating": 0}, "饿了么": {"review_count": 3, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0}}, "top_keywords": [], "examples": [], "bad_review_examples": []}, "金融城店": {"date": "2026-06-17", "review_count": 1, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0, "platforms": {"美团": {"review_count": 0, "negative_count": 0, "review_avg_rating": 0, "avg_rating": 0}, "饿了么": {"review_count": 1, "negative_count": 0, "review_avg_rating": 5.0, "avg_rating": 5.0}}, "top_keywords": [], "examples": [], "bad_review_examples": []}}}, "focus_items": [{"store": "万象城店", "level": "high", "title": "下单转化低于门店均值，当前 25.2%", "body": "建议检查菜品排序、优惠力度、配送费、起送价和差评影响。"}, {"store": "金融城店", "level": "high", "title": "下单转化低于门店均值，当前 22.0%", "body": "建议检查菜品排序、优惠力度、配送费、起送价和差评影响。"}], "all_store_diagnoses": [{"store": "万象城店", "level": "high", "headline": "下单转化低于门店均值 7.1 个百分点", "driver": "收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。", "evidence": "收入 2,211.23，单量 77，曝光 3,983，进店 7.6%，下单 25.2%。", "platform_note": "平台贡献：饿了么 2,211.23/77单", "action": "检查菜品排序、主推品、优惠力度、配送费、起送价和差评影响。", "review_note": "昨日评价 3 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 3 条/差评 0/评价均分 5.00。", "previous_date": "2026-06-16"}, {"store": "金融城店", "level": "high", "headline": "下单转化低于门店均值 10.3 个百分点", "driver": "收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。", "evidence": "收入 1,636.53，单量 57，曝光 3,852，进店 6.6%，下单 22.0%。", "platform_note": "平台贡献：饿了么 1,636.53/57单", "action": "检查菜品排序、主推品、优惠力度、配送费、起送价和差评影响。", "review_note": "昨日评价 1 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 1 条/差评 0/评价均分 5.00。", "previous_date": "2026-06-16"}, {"store": "朝阳门店", "level": "good", "headline": "今日未发现明显经营异常", "driver": "主要拖累：曝光下降 13.1%。", "evidence": "收入 5,129.13，单量 184，曝光 6,003，进店 8.1%，下单 37.8%。", "platform_note": "平台贡献：饿了么 5,129.13/184单", "action": "保持当前节奏，继续观察收入排名、转化率和新客占比。", "review_note": "昨日评价 5 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 5 条/差评 0/评价均分 5.00。", "previous_date": "2026-06-16"}, {"store": "银泰城店", "level": "good", "headline": "今日未发现明显经营异常", "driver": "收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。", "evidence": "收入 3,636.15，单量 124，曝光 3,948，进店 9.2%，下单 33.2%。", "platform_note": "平台贡献：饿了么 3,636.15/124单", "action": "保持当前节奏，继续观察收入排名、转化率和新客占比。", "review_note": "昨日评价 8 条，疑似差评/问题评价 0 条，评价明细均分 5.00，关键词：未集中出现明确差评关键词。 平台拆分：美团 0 条；饿了么 8 条/差评 0/评价均分 5.00。", "previous_date": "2026-06-16"}]}</script>
+  <script>
+    const payload = JSON.parse(document.getElementById('dashboard-data').textContent);
+    const records = payload.records || [];
+    const targetStores = payload.target_stores || [...new Set(records.map((item) => item.store))];
+    const storeReportFiles = payload.store_report_files || {};
+    const dates = [...new Set(records.map((item) => item.date).filter(Boolean))].sort().reverse();
+    const datesAsc = [...dates].reverse();
+    const dateSelect = document.getElementById('dateSelect');
+
+    const fmtMoney = (value) => Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtInt = (value) => Math.round(Number(value || 0)).toLocaleString('zh-CN');
+    const fmtRate = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`;
+    const fmtCustomerPaidTicket = (row) => row.customer_paid_available && row.customer_paid_orders ? fmtMoney(row.customer_paid_ticket) : '待新报表';
+    const safeDiv = (a, b) => b ? a / b : 0;
+    const pctChange = (current, previous) => previous ? (current - previous) / previous : null;
+    const deltaClass = (change) => change === null ? '' : change >= 0 ? 'up' : 'down';
+    const deltaText = (change, scope = '较前日') => change === null ? '前日无数据' : `${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}% ${scope}`;
+    const ratePointChange = (current, previous, hasPrevious) => hasPrevious ? Number(current || 0) - Number(previous || 0) : null;
+    const rateDeltaText = (change) => change === null ? '前日无数据' : `${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}个百分点`;
+    const weightedRate = (rows, column, weightColumn) => {
+      const weightSum = rows.reduce((sum, row) => sum + Number(row[weightColumn] || 0), 0);
+      if (weightSum <= 0) return rows.length ? rows.reduce((sum, row) => sum + Number(row[column] || 0), 0) / rows.length : 0;
+      return rows.reduce((sum, row) => sum + Number(row[column] || 0) * Number(row[weightColumn] || 0), 0) / weightSum;
+    };
+
+    function platformSummary(dayRecords) {
+      return ['饿了么', '美团'].map((platform) => {
+        const rows = dayRecords.filter((row) => row.platform === platform);
+        return {
+          platform,
+          income: rows.reduce((sum, row) => sum + Number(row.income || 0), 0),
+          customer_paid: rows.reduce((sum, row) => sum + Number(row.customer_paid || 0), 0),
+          customer_paid_orders: rows.reduce((sum, row) => sum + Number(row.customer_paid_orders || 0), 0),
+          orders: rows.reduce((sum, row) => sum + Number(row.orders || 0), 0),
+          impressions: rows.reduce((sum, row) => sum + Number(row.impressions || 0), 0),
+          visit_conversion: weightedRate(rows, 'visit_conversion', 'impressions'),
+          order_conversion: weightedRate(rows, 'order_conversion', 'orders'),
+          old_customer_orders: rows.reduce((sum, row) => sum + Number(row.old_customer_orders || 0), 0),
+          new_customer_orders: rows.reduce((sum, row) => sum + Number(row.new_customer_orders || 0), 0),
+        };
+      });
+    }
+
+    function storeSummary(dayRecords) {
+      return targetStores.map((store) => {
+        const rows = dayRecords.filter((row) => row.store === store);
+        const eleme = rows.filter((row) => row.platform === '饿了么');
+        const meituan = rows.filter((row) => row.platform === '美团');
+        const sum = (list, key) => list.reduce((total, row) => total + Number(row[key] || 0), 0);
+        return {
+          store,
+          eleme_income: sum(eleme, 'income'),
+          meituan_income: sum(meituan, 'income'),
+          eleme_customer_paid: sum(eleme, 'customer_paid'),
+          meituan_customer_paid: sum(meituan, 'customer_paid'),
+          eleme_customer_paid_orders: sum(eleme, 'customer_paid_orders'),
+          meituan_customer_paid_orders: sum(meituan, 'customer_paid_orders'),
+          eleme_orders: sum(eleme, 'orders'),
+          meituan_orders: sum(meituan, 'orders'),
+          total_income: sum(rows, 'income'),
+          total_customer_paid: sum(rows, 'customer_paid'),
+          total_customer_paid_orders: sum(rows, 'customer_paid_orders'),
+          customer_paid_available: sum(rows, 'customer_paid_orders') > 0,
+          total_orders: sum(rows, 'orders'),
+          total_impressions: sum(rows, 'impressions'),
+          ticket: safeDiv(sum(rows, 'income'), sum(rows, 'orders')),
+          customer_paid_orders: sum(rows, 'customer_paid_orders'),
+          customer_paid_ticket: safeDiv(sum(rows, 'customer_paid'), sum(rows, 'customer_paid_orders')),
+          visit_conversion: weightedRate(rows, 'visit_conversion', 'impressions'),
+	          order_conversion: weightedRate(rows, 'order_conversion', 'orders'),
+	          old_customer_orders: sum(rows, 'old_customer_orders'),
+          new_customer_orders: sum(rows, 'new_customer_orders'),
+	        };
+	      });
+	    }
+
+    function previousDate(date) {
+      const index = datesAsc.indexOf(date);
+      return index > 0 ? datesAsc[index - 1] : null;
+    }
+
+    function totalsFromStores(stores) {
+      const totalIncome = stores.reduce((sum, row) => sum + row.total_income, 0);
+      const totalCustomerPaid = stores.reduce((sum, row) => sum + row.total_customer_paid, 0);
+      const totalCustomerPaidOrders = stores.reduce((sum, row) => sum + Number(row.total_customer_paid_orders || row.customer_paid_orders || 0), 0);
+      const totalOrders = stores.reduce((sum, row) => sum + row.total_orders, 0);
+      const totalImpressions = stores.reduce((sum, row) => sum + row.total_impressions, 0);
+      return { totalIncome, totalCustomerPaid, totalCustomerPaidOrders, totalOrders, totalImpressions, ticket: safeDiv(totalIncome, totalOrders), customerPaidTicket: safeDiv(totalCustomerPaid, totalCustomerPaidOrders) };
+    }
+
+    function attachPrevious(stores, currentCompareStores, previousCompareStores) {
+      const currentByStore = new Map(currentCompareStores.map((row) => [row.store, row]));
+      const previousByStore = new Map(previousCompareStores.map((row) => [row.store, row]));
+      return stores.map((row) => {
+        const current = currentByStore.get(row.store) || {};
+        const prev = previousByStore.get(row.store) || {};
+        const hasPrevious = previousByStore.has(row.store);
+        return {
+          ...row,
+          income_change: pctChange(Number(current.total_income || 0), Number(prev.total_income || 0)),
+          orders_change: pctChange(Number(current.total_orders || 0), Number(prev.total_orders || 0)),
+          impressions_change: pctChange(Number(current.total_impressions || 0), Number(prev.total_impressions || 0)),
+          visit_conversion_change: ratePointChange(current.visit_conversion, prev.visit_conversion, hasPrevious),
+          order_conversion_change: ratePointChange(current.order_conversion, prev.order_conversion, hasPrevious),
+        };
+      });
+    }
+
+    function platformNames(dayRecords) {
+      return [...new Set(dayRecords.map((row) => row.platform).filter(Boolean))];
+    }
+
+    function commonPlatforms(currentRecords, previousRecords) {
+      const previous = new Set(platformNames(previousRecords));
+      return platformNames(currentRecords).filter((platform) => previous.has(platform));
+    }
+
+    function filterPlatforms(dayRecords, platforms) {
+      const allowed = new Set(platforms);
+      return dayRecords.filter((row) => allowed.has(row.platform));
+    }
+
+    function health(row, avgOrderConversion) {
+      if (row.total_orders === 0) return ['停业/无单', 'bad'];
+      if (row.order_conversion < avgOrderConversion * 0.75) return ['转化偏弱', 'warn'];
+      if (row.total_income >= 5000 && row.order_conversion >= avgOrderConversion) return ['高贡献', 'good'];
+      return ['正常', 'ok'];
+    }
+
+	    function renderBars(id, rows, metric, formatter) {
+	      const ranked = [...rows].sort((a, b) => Number(b[metric] || 0) - Number(a[metric] || 0));
+	      const max = Math.max(1, ...ranked.map((row) => Number(row[metric] || 0)));
+	      document.getElementById(id).innerHTML = ranked.map((row) => `
+        <div class="metric-row">
+          <span>${row.store}</span>
+          <div class="metric-track"><i style="width:${(Number(row[metric] || 0) / max) * 100}%"></i></div>
+          <b>${formatter(row[metric])}</b>
+        </div>
+	      `).join('');
+	    }
+
+    function renderChangeBars(id, rows, metric) {
+      const ranked = [...rows].filter((row) => row[metric] !== null).sort((a, b) => Number(b[metric] || 0) - Number(a[metric] || 0));
+      if (!ranked.length) {
+        document.getElementById(id).innerHTML = '<div class="empty">没有前一日数据可对比。</div>';
+        return;
+      }
+      const max = Math.max(0.01, ...ranked.map((row) => Math.abs(Number(row[metric] || 0))));
+      document.getElementById(id).innerHTML = ranked.map((row) => {
+        const value = Number(row[metric] || 0);
+        return `
+          <div class="metric-row">
+            <span>${row.store}</span>
+            <div class="metric-track"><i class="${value < 0 ? 'down' : 'up'}" style="width:${Math.abs(value) / max * 100}%"></i></div>
+            <b class="${value >= 0 ? 'meituan-text' : 'eleme-text'}">${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%</b>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function recordsForDates(dateList) {
+      const allowed = new Set(dateList);
+      return records.filter((row) => allowed.has(row.date));
+    }
+
+    function weekPeriod(date) {
+      const selectedIndex = datesAsc.indexOf(date);
+      if (selectedIndex < 0) return { currentDates: [], previousDates: [] };
+      const currentStart = Math.max(0, selectedIndex - 6);
+      const previousStart = Math.max(0, currentStart - 7);
+      return {
+        currentDates: datesAsc.slice(currentStart, selectedIndex + 1),
+        previousDates: datesAsc.slice(previousStart, currentStart),
+      };
+    }
+
+    function dailyAverage(value, dayCount) {
+      return dayCount ? Number(value || 0) / dayCount : 0;
+    }
+
+    function weekDeltaText(delta, unit, formatter = fmtInt) {
+      const absText = formatter(Math.abs(delta));
+      return `${delta >= 0 ? '涨 +' : '跌 -'}${absText}${unit}`;
+    }
+
+    function weekReason(current, previous, orderDelta, incomeDelta) {
+      const impressionDelta = Number(current.total_impressions || 0) - Number(previous.total_impressions || 0);
+      const orderConversionDelta = Number(current.order_conversion || 0) - Number(previous.order_conversion || 0);
+      const ticketDelta = Number(current.ticket || 0) - Number(previous.ticket || 0);
+      if (orderDelta < 0 && impressionDelta < 0) return '主要原因偏向流量减少，优先检查曝光入口、活动资源和推广状态。';
+      if (orderDelta < 0 && orderConversionDelta < 0) return '主要原因偏向下单转化走弱，优先检查价格、主推品、配送费和差评影响。';
+      if (incomeDelta < 0 && ticketDelta < 0) return '收入下降同时客单走低，优先复看套餐结构、满减力度和平台补贴。';
+      if (orderDelta > 0 && incomeDelta > 0) return '单量和营业额同步提升，建议保留有效动作并确认是否能复制到同类门店。';
+      if (orderDelta > 0) return '单量提升但收入未完全同步，继续观察客单价和优惠成本。';
+      return '变化不集中在单一指标，建议结合平台拆分、营业时长和活动记录复核。';
+    }
+
+    function renderWeeklyAnalysis(date) {
+      const container = document.getElementById('aiWeekAnalysis');
+      const { currentDates, previousDates } = weekPeriod(date);
+      if (!container) return;
+      if (!currentDates.length || !previousDates.length) {
+        container.innerHTML = '<div class="empty">历史数据不足，暂时无法生成 7 日环比周分析。</div>';
+        return;
+      }
+
+      const currentStores = storeSummary(recordsForDates(currentDates));
+      const previousStores = storeSummary(recordsForDates(previousDates));
+      const previousByStore = new Map(previousStores.map((row) => [row.store, row]));
+      const currentTotals = totalsFromStores(currentStores);
+      const previousTotals = totalsFromStores(previousStores);
+      const currentDays = currentDates.length;
+      const previousDays = previousDates.length;
+      const orderDelta = dailyAverage(currentTotals.totalOrders, currentDays) - dailyAverage(previousTotals.totalOrders, previousDays);
+      const incomeDelta = dailyAverage(currentTotals.totalIncome, currentDays) - dailyAverage(previousTotals.totalIncome, previousDays);
+      const ticketDelta = Number(currentTotals.ticket || 0) - Number(previousTotals.ticket || 0);
+      const periodText = `${currentDates[0]} 至 ${currentDates[currentDates.length - 1]} 对比 ${previousDates[0]} 至 ${previousDates[previousDates.length - 1]}`;
+
+      const movers = currentStores.map((row) => {
+        const previous = previousByStore.get(row.store) || {};
+        const storeOrderDelta = dailyAverage(row.total_orders, currentDays) - dailyAverage(previous.total_orders, previousDays);
+        const storeIncomeDelta = dailyAverage(row.total_income, currentDays) - dailyAverage(previous.total_income, previousDays);
+        return {
+          ...row,
+          previous,
+          storeOrderDelta,
+          storeIncomeDelta,
+          score: Math.abs(storeOrderDelta) + Math.abs(storeIncomeDelta / 120),
+        };
+      }).sort((a, b) => b.score - a.score).slice(0, 8);
+
+      container.innerHTML = `
+        <div class="week-summary-grid">
+          <div class="week-summary-card">
+            <span>分析区间</span>
+            <strong>${periodText}</strong>
+            <em>按已有日报数据日计算，不强行补空日期</em>
+          </div>
+          <div class="week-summary-card">
+            <span>单量日均环比</span>
+            <strong class="delta ${deltaClass(orderDelta)}">${weekDeltaText(orderDelta, ' 单/日')}</strong>
+            <em>本期日均 ${fmtInt(dailyAverage(currentTotals.totalOrders, currentDays))} 单</em>
+          </div>
+          <div class="week-summary-card">
+            <span>营业额日均环比</span>
+            <strong class="delta ${deltaClass(incomeDelta)}">${weekDeltaText(incomeDelta, ' 元/日', fmtMoney)}</strong>
+            <em>客单价 ${weekDeltaText(ticketDelta, ' 元', fmtMoney)}</em>
+          </div>
+        </div>
+        <div class="week-store-grid">
+          ${movers.map((row) => {
+            const tone = row.storeOrderDelta >= 0 ? 'up' : 'down';
+            return `
+              <div class="week-store-card ${tone}">
+                <b>${row.store}</b>
+                <strong class="delta ${tone}">${weekDeltaText(row.storeOrderDelta, ' 单/日')}</strong>
+                <p>营业额日均 ${weekDeltaText(row.storeIncomeDelta, ' 元/日', fmtMoney)}，下单转化 ${fmtRate(row.order_conversion)}。</p>
+                <em>${weekReason(row, row.previous, row.storeOrderDelta, row.storeIncomeDelta)}</em>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderCustomerBars(stores) {
+      const ranked = [...stores].sort((a, b) => safeDiv(b.new_customer_orders, b.new_customer_orders + b.old_customer_orders) - safeDiv(a.new_customer_orders, a.new_customer_orders + a.old_customer_orders));
+      document.getElementById('customerBars').innerHTML = ranked.map((row) => {
+        const total = row.new_customer_orders + row.old_customer_orders;
+        const newRatio = safeDiv(row.new_customer_orders, total);
+        const oldRatio = total ? 1 - newRatio : 0;
+        return `
+          <div class="customer-col">
+            <div class="stack-bar" title="${row.store} 新客 ${fmtRate(newRatio)} / 老客 ${fmtRate(oldRatio)}">
+              <div class="stack-new" style="height:${Math.max(0, newRatio * 100)}%">${newRatio >= 0.16 ? fmtRate(newRatio) : ''}</div>
+              <div class="stack-old" style="height:${Math.max(0, oldRatio * 100)}%">${oldRatio >= 0.16 ? fmtRate(oldRatio) : ''}</div>
+            </div>
+            <div class="customer-name">${row.store}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function render(date) {
+      const dayRecords = records.filter((row) => row.date === date);
+      if (!dayRecords.length) return;
+      const prevDate = previousDate(date);
+      const prevRecords = prevDate ? records.filter((row) => row.date === prevDate) : [];
+      const sharedPlatforms = commonPlatforms(dayRecords, prevRecords);
+      const currentCompareRecords = filterPlatforms(dayRecords, sharedPlatforms);
+      const previousCompareRecords = filterPlatforms(prevRecords, sharedPlatforms);
+      const compareScope = sharedPlatforms.length ? `较前日（${sharedPlatforms.join('、')}）` : '较前日';
+      const stores = attachPrevious(storeSummary(dayRecords), storeSummary(currentCompareRecords), storeSummary(previousCompareRecords));
+      const totals = totalsFromStores(stores);
+      const compareTotals = totalsFromStores(storeSummary(currentCompareRecords));
+      const prevTotals = totalsFromStores(storeSummary(previousCompareRecords));
+      const avgVisit = weightedRate(stores, 'visit_conversion', 'total_impressions');
+      const avgOrder = weightedRate(stores, 'order_conversion', 'total_orders');
+
+      document.getElementById('kpiIncome').textContent = fmtMoney(totals.totalIncome);
+      document.getElementById('kpiOrders').textContent = fmtInt(totals.totalOrders);
+      document.getElementById('kpiImpressions').textContent = fmtInt(totals.totalImpressions);
+      document.getElementById('kpiTicket').textContent = fmtMoney(totals.ticket);
+      document.getElementById('kpiTicketHint').textContent = `进店转化 ${fmtRate(avgVisit)} · 下单转化 ${fmtRate(avgOrder)}`;
+
+      [
+        ['incomeDelta', pctChange(compareTotals.totalIncome, prevTotals.totalIncome)],
+        ['ordersDelta', pctChange(compareTotals.totalOrders, prevTotals.totalOrders)],
+        ['impressionsDelta', pctChange(compareTotals.totalImpressions, prevTotals.totalImpressions)],
+      ].forEach(([id, change]) => {
+        const el = document.getElementById(id);
+        el.textContent = deltaText(change, compareScope);
+        el.className = `delta ${deltaClass(change)}`;
+      });
+
+      renderBars('incomeBars', stores, 'total_income', fmtMoney);
+      renderBars('orderCountBars', stores, 'total_orders', fmtInt);
+      renderBars('impressionBars', stores, 'total_impressions', fmtInt);
+      renderBars('ticketBars', stores, 'ticket', fmtMoney);
+      const customerPaidStores = stores.filter((row) => row.customer_paid_available);
+      if (customerPaidStores.length) {
+        renderBars('customerPaidTicketBars', customerPaidStores, 'customer_paid_ticket', fmtMoney);
+      } else {
+        document.getElementById('customerPaidTicketBars').innerHTML = '<div class="empty">当前历史报表未包含顾客实付字段；下一次一键下载后显示。</div>';
+      }
+      renderBars('visitBars', stores, 'visit_conversion', fmtRate);
+      renderBars('orderBars', stores, 'order_conversion', fmtRate);
+      renderCustomerBars(stores);
+      document.getElementById('previousDateLabel').textContent = prevDate && sharedPlatforms.length ? `对比 ${prevDate}，共同平台：${sharedPlatforms.join('、')}` : '无可比前一日平台数据';
+      renderChangeBars('incomeChangeBars', stores, 'income_change');
+      renderWeeklyAnalysis(date);
+
+      document.getElementById('storeRows').innerHTML = stores
+        .sort((a, b) => b.total_income - a.total_income)
+        .map((row) => {
+          const [statusText, statusClass] = health(row, avgOrder);
+          const newRatio = safeDiv(row.new_customer_orders, row.new_customer_orders + row.old_customer_orders);
+          return `
+            <tr>
+              <td class="store"><span class="status ${statusClass}">${statusText}</span><a href="${storeReportFiles[row.store] || '#'}">${row.store}</a></td>
+              <td class="strong">${fmtMoney(row.total_income)}</td>
+              <td><span class="delta ${deltaClass(row.income_change)}">${deltaText(row.income_change, '').trim()}</span></td>
+              <td>${fmtInt(row.total_orders)}</td>
+              <td><span class="delta ${deltaClass(row.orders_change)}">${deltaText(row.orders_change, '').trim()}</span></td>
+              <td>${fmtMoney(row.ticket)}</td>
+              <td>${fmtMoney(safeDiv(row.eleme_income, row.eleme_orders))}</td>
+              <td>${fmtMoney(safeDiv(row.meituan_income, row.meituan_orders))}</td>
+              <td>${fmtCustomerPaidTicket(row)}</td>
+              <td>${fmtInt(row.total_impressions)}</td>
+              <td><span class="delta ${deltaClass(row.impressions_change)}">${deltaText(row.impressions_change, '').trim()}</span></td>
+              <td>${fmtRate(row.visit_conversion)}</td>
+              <td><span class="delta ${deltaClass(row.visit_conversion_change)}">${rateDeltaText(row.visit_conversion_change)}</span></td>
+              <td>${fmtRate(row.order_conversion)}</td>
+              <td><span class="delta ${deltaClass(row.order_conversion_change)}">${rateDeltaText(row.order_conversion_change)}</span></td>
+              <td>${fmtRate(newRatio)}</td>
+              <td><span class="money eleme-text">${fmtMoney(row.eleme_income)}</span></td>
+              <td><span class="money meituan-text">${fmtMoney(row.meituan_income)}</span></td>
+            </tr>
+          `;
+        }).join('');
+    }
+
+    if (!dates.length) {
+      document.querySelector('main').insertAdjacentHTML('beforeend', '<div class="empty">还没有可展示的数据。</div>');
+    } else {
+      dateSelect.innerHTML = dates.map((date) => `<option value="${date}">${date}</option>`).join('');
+      dateSelect.addEventListener('change', () => render(dateSelect.value));
+      render(dates[0]);
+    }
+  </script>
+</body>
+</html>

@@ -2192,9 +2192,9 @@ function renderReviewPanel({
   emptyText,
 }) {
   const review = daily.review_summary || {};
-  const reviewActions = data.review_actions || {};
-  const actionSummary = reviewActions.summary || {};
-  const weeklyRecap = reviewActions.weekly_recap || {};
+  const reviewActionPayload = reviewActions || {};
+  const actionSummary = reviewActionPayload.summary || {};
+  const weeklyRecap = reviewActionPayload.weekly_recap || {};
   const weeklySummary = weeklyRecap.summary || {};
   const stores = Object.entries(review.stores || {}).map(([store, item]) => ({
     store,
@@ -3242,10 +3242,11 @@ async function loadDailyOrderAdminFrame() {
 }
 
 async function loadDailyReportFrame() {
-  const frame = document.querySelector(".daily-report-frame");
-  if (!frame) return;
-  const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
-  await loadEmbeddedFrame(frame, reportSrc, "正在加载经营日报...", "经营日报加载失败", "打开经营日报");
+  const frames = [...document.querySelectorAll(".daily-report-frame")];
+  await Promise.all(frames.map((frame) => {
+    const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
+    return loadEmbeddedFrame(frame, reportSrc, "正在加载经营日报...", "经营日报加载失败", "打开经营日报");
+  }));
 }
 
 async function loadInventoryBoardFrame() {
@@ -3293,6 +3294,7 @@ renderDaily();
 renderPriority();
 renderHealth();
 renderReviews();
+renderDirectReviews();
 renderBalances();
 renderBudget();
 renderBidding();

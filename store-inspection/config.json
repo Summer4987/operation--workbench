@@ -25,6 +25,46 @@
     "description": "低于阈值时只在工作台显示，不推送外部消息"
   },
   "scope": {
-    "stores": "总账号内所有门店"
-  }
+    "stores": "总账号内加盟店 + 饿了么总账号直营店 + 美团直营临时独立账号",
+    "store_groups": {
+      "franchise": ["安贞", "中关村", "清河", "金融街", "丽泽", "双井", "光谷", "五一广场"],
+      "direct": ["朝阳门店", "银泰城店", "万象城店", "金融城店"]
+    }
+  },
+  "meituan_direct_accounts": [
+    {
+      "id": "direct_chaoyangmen",
+      "name": "美团直营临时账号-朝阳门店",
+      "enabled": true,
+      "stores": ["朝阳门店"],
+      "profile_dir": "../business-report-dashboard/local-profiles/meituan-direct-chaoyangmen",
+      "balance_url": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc",
+      "budget_url": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc",
+      "mode": "manual_login_then_collect"
+    },
+    {
+      "id": "direct_yintaicheng",
+      "name": "美团直营临时账号-银泰城店",
+      "enabled": false,
+      "stores": ["银泰城店"],
+      "profile_dir": "../business-report-dashboard/local-profiles/meituan-direct-yintaicheng",
+      "mode": "pending_login"
+    },
+    {
+      "id": "direct_wanxiangcheng",
+      "name": "美团直营临时账号-万象城店",
+      "enabled": false,
+      "stores": ["万象城店"],
+      "profile_dir": "../business-report-dashboard/local-profiles/meituan-direct-wanxiangcheng",
+      "mode": "pending_login"
+    },
+    {
+      "id": "direct_jinrongcheng",
+      "name": "美团直营临时账号-金融城店",
+      "enabled": false,
+      "stores": ["金融城店"],
+      "profile_dir": "../business-report-dashboard/local-profiles/meituan-direct-jinrongcheng",
+      "mode": "pending_login"
+    }
+  ]
 }

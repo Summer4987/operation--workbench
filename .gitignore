@@ -8,6 +8,7 @@ node_modules/
 
 # Browser profiles and local automation state
 business-report-dashboard/chrome-profile/
+business-report-dashboard/local-profiles/
 *.sqlite3
 *.sqlite3-*
 

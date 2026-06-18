@@ -9,6 +9,38 @@
     "光谷",
     "五一广场"
   ],
+  "store_groups": {
+    "franchise": {
+      "name": "加盟店",
+      "target_stores": [
+        "安贞",
+        "中关村",
+        "清河",
+        "金融街",
+        "丽泽",
+        "双井",
+        "光谷",
+        "五一广场"
+      ],
+      "dashboard_dir": "dashboard",
+      "latest_json": "latest.json",
+      "unified_csv": "unified_daily.csv",
+      "reviews_csv": "unified_reviews.csv"
+    },
+    "direct": {
+      "name": "直营店",
+      "target_stores": [
+        "朝阳门店",
+        "银泰城店",
+        "万象城店",
+        "金融城店"
+      ],
+      "dashboard_dir": "dashboard/direct",
+      "latest_json": "direct-latest.json",
+      "unified_csv": "direct_unified_daily.csv",
+      "reviews_csv": "direct_unified_reviews.csv"
+    }
+  },
   "store_aliases": [
     {
       "platform": "饿了么",
@@ -51,6 +83,26 @@
       "aliases": ["五一广场店"]
     },
     {
+      "platform": "饿了么",
+      "short_name": "朝阳门店",
+      "aliases": ["B2档口雅宝食堂美食城", "雅宝食堂美食城", "朝阳门店"]
+    },
+    {
+      "platform": "饿了么",
+      "short_name": "银泰城店",
+      "aliases": ["银泰城店"]
+    },
+    {
+      "platform": "饿了么",
+      "short_name": "万象城店",
+      "aliases": ["万象城店"]
+    },
+    {
+      "platform": "饿了么",
+      "short_name": "金融城店",
+      "aliases": ["金融城店"]
+    },
+    {
       "platform": "美团",
       "short_name": "安贞",
       "aliases": ["安贞店"]
@@ -89,6 +141,26 @@
       "platform": "美团",
       "short_name": "五一广场",
       "aliases": ["五一广场店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "朝阳门店",
+      "aliases": ["B2档口雅宝食堂美食城", "雅宝食堂美食城", "朝阳门店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "银泰城店",
+      "aliases": ["银泰城店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "万象城店",
+      "aliases": ["万象城店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "金融城店",
+      "aliases": ["金融城店"]
     }
   ],
   "eleme": {

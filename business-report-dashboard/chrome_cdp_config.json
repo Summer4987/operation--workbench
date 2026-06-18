@@ -28,5 +28,58 @@
         "美团外卖"
       ]
     }
-  }
+  },
+  "meituan_accounts": [
+    {
+      "id": "chain_main",
+      "name": "美团连锁总账号",
+      "store_group": "franchise",
+      "enabled": true,
+      "user_data_dir": "/Users/summer/Documents/New project/business-report-dashboard/chrome-profile",
+      "debug_port": 9222,
+      "stores": ["安贞", "中关村", "清河", "金融街", "丽泽", "双井", "光谷", "五一广场"]
+    },
+    {
+      "id": "direct_chaoyangmen",
+      "name": "美团直营临时账号-朝阳门店",
+      "store_group": "direct",
+      "enabled": true,
+      "user_data_dir": "/Users/summer/Documents/New project/business-report-dashboard/local-profiles/meituan-direct-chaoyangmen",
+      "debug_port": 9231,
+      "login_url": "https://e.waimai.meituan.com/",
+      "download_url": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
+      "review_url": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw",
+      "budget_url": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc",
+      "balance_url": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc",
+      "stores": ["朝阳门店"],
+      "notes": "试点账号。首次在 Mac mini 手动验证码登录后，登录态只保存在本地 local-profiles。"
+    },
+    {
+      "id": "direct_yintaicheng",
+      "name": "美团直营临时账号-银泰城店",
+      "store_group": "direct",
+      "enabled": false,
+      "user_data_dir": "/Users/summer/Documents/New project/business-report-dashboard/local-profiles/meituan-direct-yintaicheng",
+      "debug_port": 9232,
+      "stores": ["银泰城店"]
+    },
+    {
+      "id": "direct_wanxiangcheng",
+      "name": "美团直营临时账号-万象城店",
+      "store_group": "direct",
+      "enabled": false,
+      "user_data_dir": "/Users/summer/Documents/New project/business-report-dashboard/local-profiles/meituan-direct-wanxiangcheng",
+      "debug_port": 9233,
+      "stores": ["万象城店"]
+    },
+    {
+      "id": "direct_jinrongcheng",
+      "name": "美团直营临时账号-金融城店",
+      "store_group": "direct",
+      "enabled": false,
+      "user_data_dir": "/Users/summer/Documents/New project/business-report-dashboard/local-profiles/meituan-direct-jinrongcheng",
+      "debug_port": 9234,
+      "stores": ["金融城店"]
+    }
+  ]
 }
