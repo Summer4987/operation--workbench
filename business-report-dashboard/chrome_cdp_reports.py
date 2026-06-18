@@ -43,41 +43,6 @@ def debug_url(config: dict) -> str:
     return f"http://127.0.0.1:{int(config['chrome']['debug_port'])}"
 
 
-def meituan_account(config: dict, account_id: str) -> dict:
-    for account in config.get("meituan_accounts", []):
-        if account.get("id") == account_id:
-            return account
-    known = ", ".join(account.get("id", "") for account in config.get("meituan_accounts", []))
-    raise RuntimeError(f"没有找到美团账号配置：{account_id}。已配置：{known}")
-
-
-def open_meituan_account_login(account_id: str) -> None:
-    config = load_config()
-    account = meituan_account(config, account_id)
-    sync_playwright = require_playwright()
-    user_data_dir = Path(account["user_data_dir"]).expanduser()
-    user_data_dir.mkdir(parents=True, exist_ok=True)
-    with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(user_data_dir),
-            headless=False,
-            accept_downloads=True,
-            downloads_path=str(downloads_dir()),
-            slow_mo=250,
-            viewport={"width": 1440, "height": 950},
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(account.get("login_url") or config["platforms"]["meituan"]["entry_url"], wait_until="domcontentloaded", timeout=90_000)
-        print(f"已打开 {account.get('name', account_id)} 登录窗口。")
-        print(f"本地登录态目录：{user_data_dir}")
-        print("请在浏览器里完成手机号验证码或账号密码登录；确认能进入美团商家后台后，回到终端按 Ctrl+C 结束。")
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            context.close()
-
-
 def cdp_available(config: dict) -> bool:
     try:
         with urlopen(f"{debug_url(config)}/json/version", timeout=2) as response:
@@ -1427,8 +1392,6 @@ def main() -> None:
     subparsers.add_parser("status", help="查看 Chrome 调试端口状态")
     subparsers.add_parser("start-chrome", help="启动带调试端口的常用 Chrome")
     subparsers.add_parser("open-pages", help="打开两个后台入口，确认登录状态")
-    login_parser = subparsers.add_parser("open-meituan-account-login", help="打开指定美团账号的独立登录窗口")
-    login_parser.add_argument("--account", required=True, help="账号 ID，例如 direct_chaoyangmen")
     subparsers.add_parser("probe-pages", help="打开配置的下载页并识别页面")
     subparsers.add_parser("download-eleme", help="进入饿了么下载列表并下载最新报表")
     subparsers.add_parser("download-eleme-and-process", help="下载饿了么最新报表并重新生成看板")
@@ -1446,8 +1409,6 @@ def main() -> None:
         start_chrome()
     elif args.command == "open-pages":
         open_pages()
-    elif args.command == "open-meituan-account-login":
-        open_meituan_account_login(args.account)
     elif args.command == "probe-pages":
         probe_pages()
     elif args.command == "download-eleme":

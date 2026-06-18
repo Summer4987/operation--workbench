@@ -1300,7 +1300,6 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
 def main() -> None:
     daily = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
-    direct_daily = read_json(ROOT / "business-report-dashboard" / "data" / "direct-latest.json", {})
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})
@@ -1328,7 +1327,6 @@ def main() -> None:
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
     daily_trends = build_daily_trends(daily, balances, review_actions, inventory)
-    direct_daily_trends = build_daily_trends(direct_daily, balances, {}, inventory)
     task_health = build_task_health(runtime={"inventory": inventory})
     write_task_health(task_health)
     user_action_queue = build_user_action_queue_payload()
@@ -1343,11 +1341,9 @@ def main() -> None:
         "realtime_history": realtime_history,
         "realtime_comparison": realtime_comparison,
         "daily_trends": daily_trends,
-        "direct_daily_trends": direct_daily_trends,
         "morning_collection": morning_collection,
         "realtime_collection": realtime_collection,
         "daily": daily,
-        "direct_daily": direct_daily,
         "daily_focus": daily_focus,
         "review_actions": review_actions,
         "balances": balances,

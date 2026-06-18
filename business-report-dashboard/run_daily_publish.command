@@ -58,9 +58,6 @@ test -f "$PROJECT_DIR/dashboard/index.html"
 test -f "$PROJECT_DIR/data/latest.json"
 test -f "$PROJECT_DIR/data/unified_daily.csv"
 test -f "$PROJECT_DIR/data/unified_reviews.csv"
-test -f "$PROJECT_DIR/dashboard/direct/index.html"
-test -f "$PROJECT_DIR/data/direct-latest.json"
-test -f "$PROJECT_DIR/data/direct_unified_daily.csv"
 
 echo ""
 echo "正在准备云服务器目录..."
@@ -68,17 +65,7 @@ retry_command "准备云服务器目录" ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mk
 
 echo "正在上传最新看板到云服务器..."
 retry_command "上传日报页面" rsync -az --delete -e "ssh ${SSH_OPTS[*]}" "$PROJECT_DIR/dashboard/" "$SERVER:$REMOTE_DIR/"
-DATA_FILES=(
-  "$PROJECT_DIR/data/latest.json"
-  "$PROJECT_DIR/data/unified_daily.csv"
-  "$PROJECT_DIR/data/unified_reviews.csv"
-  "$PROJECT_DIR/data/direct-latest.json"
-  "$PROJECT_DIR/data/direct_unified_daily.csv"
-)
-if [[ -f "$PROJECT_DIR/data/direct_unified_reviews.csv" ]]; then
-  DATA_FILES+=("$PROJECT_DIR/data/direct_unified_reviews.csv")
-fi
-retry_command "上传日报数据" rsync -az -e "ssh ${SSH_OPTS[*]}" "${DATA_FILES[@]}" "$SERVER:$REMOTE_DIR/data/"
+retry_command "上传日报数据" rsync -az -e "ssh ${SSH_OPTS[*]}" "$PROJECT_DIR/data/latest.json" "$PROJECT_DIR/data/unified_daily.csv" "$PROJECT_DIR/data/unified_reviews.csv" "$SERVER:$REMOTE_DIR/data/"
 retry_command "修正云端权限" ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
 
 echo ""

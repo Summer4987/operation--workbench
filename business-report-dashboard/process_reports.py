@@ -503,10 +503,6 @@ STORE_SLUGS = {
     "双井": "shuangjing",
     "光谷": "guanggu",
     "五一广场": "wuyiguangchang",
-    "朝阳门店": "chaoyangmen",
-    "银泰城店": "yintaicheng",
-    "万象城店": "wanxiangcheng",
-    "金融城店": "jinrongcheng",
 }
 
 
@@ -815,9 +811,9 @@ def json_script(data: object) -> str:
     return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
 
 
-def write_dashboard(payload: dict, dashboard_dir: Path = DASHBOARD_DIR) -> Path:
-    dashboard_dir.mkdir(parents=True, exist_ok=True)
-    output = dashboard_dir / "index.html"
+def write_dashboard(payload: dict) -> Path:
+    DASHBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    output = DASHBOARD_DIR / "index.html"
     generated_at = payload["generated_at"]
     focus_items = payload.get("focus_items", [])
     diagnoses = payload.get("all_store_diagnoses", [])
@@ -1487,8 +1483,8 @@ def level_label(level: str) -> str:
     return {"high": "重点", "medium": "留意", "good": "正常"}.get(level, "提示")
 
 
-def write_store_reports(payload: dict, dashboard_dir: Path = DASHBOARD_DIR) -> list[Path]:
-    stores_dir = dashboard_dir / "stores"
+def write_store_reports(payload: dict) -> list[Path]:
+    stores_dir = DASHBOARD_DIR / "stores"
     stores_dir.mkdir(parents=True, exist_ok=True)
     report_date = latest_report_date(payload)
     previous_date = previous_report_date(payload, report_date)
@@ -1727,80 +1723,9 @@ def write_store_reports(payload: dict, dashboard_dir: Path = DASHBOARD_DIR) -> l
     return paths
 
 
-def unique_list(items: list[str]) -> list[str]:
-    seen = set()
-    result = []
-    for item in items:
-        if item in seen:
-            continue
-        seen.add(item)
-        result.append(item)
-    return result
-
-
-def configured_store_groups(config: dict) -> dict[str, dict]:
-    groups = config.get("store_groups") or {}
-    if not groups:
-        return {
-            "franchise": {
-                "name": "加盟店",
-                "target_stores": config["target_stores"],
-                "dashboard_dir": "dashboard",
-                "latest_json": "latest.json",
-                "unified_csv": "unified_daily.csv",
-                "reviews_csv": "unified_reviews.csv",
-            }
-        }
-    return groups
-
-
-def group_path(base: Path, value: str) -> Path:
-    path = Path(value)
-    return path if path.is_absolute() else base / path
-
-
-def build_group_payload(
-    unified_all: pd.DataFrame,
-    review_df: pd.DataFrame,
-    config: dict,
-    group: dict,
-    warnings: list[dict],
-) -> dict:
-    target_stores = group["target_stores"]
-    unified = unified_all[unified_all["store"].isin(target_stores)].copy()
-    if not unified.empty:
-        unified.sort_values(["date", "store", "platform"], inplace=True)
-    payload = {
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "group": {
-            "name": group.get("name", ""),
-            "key": group.get("key", ""),
-        },
-        "source_dates": sorted([date for date in unified["date"].dropna().unique().tolist() if date]) if not unified.empty else [],
-        "target_stores": target_stores,
-        "store_summary": build_store_summary(unified, target_stores),
-        "platform_summary": build_platform_summary(unified),
-        "warnings": [item for item in warnings if item.get("store") in target_stores or match_store(item.get("platform", ""), item.get("store_raw", ""), build_alias_lookup(config)) in target_stores],
-        "records": unified.to_dict(orient="records"),
-    }
-    payload["store_report_files"] = {store: f"stores/{store_slug(store)}.html" for store in target_stores}
-    latest_date = latest_report_date(payload)
-    payload["review_summary"] = summarize_reviews(review_df, target_stores, latest_date) if latest_date else {}
-    payload["focus_items"] = build_all_focus_items(payload, latest_date) if latest_date else []
-    payload["all_store_diagnoses"] = build_all_store_diagnoses(payload, latest_date) if latest_date else []
-    return payload
-
-
 def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
     config = load_config()
     alias_lookup = build_alias_lookup(config)
-    groups = configured_store_groups(config)
-    for key, group in groups.items():
-        group.setdefault("key", key)
-    all_target_stores = unique_list(
-        [store for group in groups.values() for store in group.get("target_stores", [])]
-        or config["target_stores"]
-    )
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -1841,40 +1766,40 @@ def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
         frames.append(frame)
         warnings.extend(frame_warnings)
 
-    unified = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["date", "platform", "store", "store_raw"])
-    unified = unified[unified["store"].isin(all_target_stores)].copy()
-    if not unified.empty:
-        unified.sort_values(["date", "store", "platform"], inplace=True)
-        unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
+    unified = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    unified = unified[unified["store"].isin(config["target_stores"])].copy()
+    unified.sort_values(["date", "store", "platform"], inplace=True)
+    unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
 
+    unified_path = DATA_DIR / "unified_daily.csv"
+    unified.to_csv(unified_path, index=False, encoding="utf-8-sig")
+
+    payload = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "source_dates": sorted([date for date in unified["date"].dropna().unique().tolist() if date]),
+        "target_stores": config["target_stores"],
+        "store_summary": build_store_summary(unified, config["target_stores"]),
+        "platform_summary": build_platform_summary(unified),
+        "warnings": warnings,
+        "records": unified.to_dict(orient="records"),
+    }
+    payload["store_report_files"] = {store: f"stores/{store_slug(store)}.html" for store in config["target_stores"]}
+    latest_date = latest_report_date(payload)
     review_df = read_review_files(alias_lookup)
-    group_results = {}
-    primary_key = "franchise" if "franchise" in groups else next(iter(groups))
-    for key, group in groups.items():
-        payload = build_group_payload(unified, review_df, config, group, warnings)
-        dashboard_dir = group_path(ROOT, group.get("dashboard_dir", "dashboard"))
-        unified_path = DATA_DIR / group.get("unified_csv", f"{key}_unified_daily.csv")
-        reviews_path = DATA_DIR / group.get("reviews_csv", f"{key}_unified_reviews.csv")
-        latest_path = DATA_DIR / group.get("latest_json", f"{key}-latest.json")
-        pd.DataFrame(payload["records"]).to_csv(unified_path, index=False, encoding="utf-8-sig")
-        if not review_df.empty:
-            filtered_reviews = review_df[review_df["store"].isin(group["target_stores"])].copy()
-            filtered_reviews.to_csv(reviews_path, index=False, encoding="utf-8-sig")
-        latest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        dashboard_path = write_dashboard(payload, dashboard_dir)
-        store_report_paths = write_store_reports(payload, dashboard_dir)
-        group_results[key] = {
-            "unified_path": str(unified_path),
-            "reviews_path": str(reviews_path),
-            "latest_path": str(latest_path),
-            "dashboard_path": str(dashboard_path),
-            "store_report_paths": [str(path) for path in store_report_paths],
-            "payload": payload,
-        }
-    primary = group_results[primary_key]
+    if not review_df.empty:
+        review_df.to_csv(DATA_DIR / "unified_reviews.csv", index=False, encoding="utf-8-sig")
+    payload["review_summary"] = summarize_reviews(review_df, config["target_stores"], latest_date) if latest_date else {}
+    payload["focus_items"] = build_all_focus_items(payload, latest_date) if latest_date else []
+    payload["all_store_diagnoses"] = build_all_store_diagnoses(payload, latest_date) if latest_date else []
+
+    (DATA_DIR / "latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    dashboard_path = write_dashboard(payload)
+    store_report_paths = write_store_reports(payload)
     return {
-        **primary,
-        "groups": group_results,
+        "unified_path": str(unified_path),
+        "dashboard_path": str(dashboard_path),
+        "store_report_paths": [str(path) for path in store_report_paths],
+        "payload": payload,
     }
 
 
