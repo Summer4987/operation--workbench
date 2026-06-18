@@ -865,6 +865,7 @@ def _supply_chain_flow_summary() -> dict:
                 "direct_store_receivable_amount": 0.0,
                 "direct_store_received_amount": 0.0,
                 "production_status": "",
+                "payment_line_base": None,
                 "locations": {},
                 "recent_events": [],
             },
@@ -906,9 +907,6 @@ def _supply_chain_flow_summary() -> dict:
         paid_total += paid_amount
         receivable_total += receivable_amount
         received_total += received_amount
-        open_payable_amount = max(payable_amount - paid_amount, 0)
-        if open_payable_amount:
-            payment_lines["factory_payable"].append({**line_base, "amount": open_payable_amount})
         if paid_amount:
             payment_lines["factory_paid"].append({**line_base, "amount": paid_amount})
         if receivable_bucket == "beijing_warehouse":
@@ -934,6 +932,8 @@ def _supply_chain_flow_summary() -> dict:
         lot["receivable_amount"] += receivable_amount
         lot["received_amount"] += received_amount
         lot["total_amount"] += total_amount
+        if payable_amount:
+            lot["payment_line_base"] = line_base
 
         if event_type in {"生产", "采购"}:
             lot["purchase_quantity"] += quantity
@@ -967,6 +967,17 @@ def _supply_chain_flow_summary() -> dict:
             if abs(quantity) > 0.000001
         ]
         lot["recent_events"] = list(reversed(lot["recent_events"][-8:]))
+        open_lot_payable_amount = max(float(lot.get("payable_amount") or 0) - float(lot.get("paid_amount") or 0), 0)
+        if open_lot_payable_amount and lot.get("payment_line_base"):
+            payment_lines["factory_payable"].append(
+                {
+                    **lot["payment_line_base"],
+                    "amount": open_lot_payable_amount,
+                    "quantity": lot.get("purchase_quantity") or lot["payment_line_base"].get("quantity"),
+                    "unit": lot.get("unit") or lot["payment_line_base"].get("unit"),
+                }
+            )
+        lot.pop("payment_line_base", None)
         for item in lot["locations"]:
             location_totals[item["location"]] = location_totals.get(item["location"], 0.0) + float(item["quantity"] or 0)
 
