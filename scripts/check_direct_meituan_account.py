@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ PAGE_CHECKS = {
     "promo_balance": ["推广", "余额", "账户", "点金"],
 }
 BLOCKING_TEXTS = ["登录", "验证码", "安全验证", "请输入验证码", "手机验证码", "扫码登录"]
+MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 
 def require_playwright():
@@ -78,7 +80,18 @@ def check_page(page, page_key: str, url: str, wait_ms: int) -> dict:
     }
 
 
-def run_check(account_id: str, visible: bool, wait_ms: int) -> dict:
+def resolve_browser_executable(browser_executable: str | None) -> str | None:
+    if browser_executable:
+        path = Path(browser_executable).expanduser()
+        if not path.exists():
+            raise SystemExit(f"浏览器不存在：{path}")
+        return str(path)
+    if sys.platform == "darwin" and MAC_CHROME.exists():
+        return str(MAC_CHROME)
+    return None
+
+
+def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: str | None) -> dict:
     account = load_account(account_id)
     profile_dir = Path(account["profile_dir"]).expanduser()
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -91,14 +104,18 @@ def run_check(account_id: str, visible: bool, wait_ms: int) -> dict:
     ]
 
     sync_playwright = require_playwright()
+    executable_path = resolve_browser_executable(browser_executable)
     results = []
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(profile_dir),
-            headless=not visible,
-            accept_downloads=False,
-            viewport={"width": 1440, "height": 950},
-        )
+        launch_options = {
+            "user_data_dir": str(profile_dir),
+            "headless": not visible,
+            "accept_downloads": False,
+            "viewport": {"width": 1440, "height": 950},
+        }
+        if executable_path:
+            launch_options["executable_path"] = executable_path
+        context = p.chromium.launch_persistent_context(**launch_options)
         try:
             page = context.pages[0] if context.pages else context.new_page()
             for page_key, url in ordered_pages:
@@ -115,6 +132,7 @@ def run_check(account_id: str, visible: bool, wait_ms: int) -> dict:
         "account_name": account.get("name", account_id),
         "stores": account.get("stores") or [],
         "profile_dir": str(profile_dir),
+        "browser_executable": executable_path or "playwright-default-chromium",
         "mode": "visible" if visible else "headless",
         "status": "ok" if not failed else "needs_manual",
         "summary": {
@@ -138,9 +156,10 @@ def main() -> None:
     parser.add_argument("--account", default="direct_chaoyangmen", help="账号 ID。")
     parser.add_argument("--visible", action="store_true", help="显示浏览器窗口；默认 headless。")
     parser.add_argument("--wait-ms", type=int, default=5000, help="每个页面打开后的等待毫秒数。")
+    parser.add_argument("--browser-executable", help="可选：指定 Chrome/Chromium 可执行文件。macOS 默认优先使用系统 Chrome。")
     args = parser.parse_args()
 
-    payload = run_check(args.account, args.visible, args.wait_ms)
+    payload = run_check(args.account, args.visible, args.wait_ms, args.browser_executable)
     output = write_result(payload)
     print(f"直营美团账号只读检查：{payload['status']}，结果：{output}")
     for item in payload["pages"]:
