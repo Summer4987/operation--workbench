@@ -1599,6 +1599,70 @@ h2 {
   line-height: 1.15;
 }
 
+.finance-flow-sku-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.finance-flow-sku-card {
+  --sku-accent: #2563eb;
+  --sku-bg: #eff6ff;
+  --sku-border: #bfdbfe;
+  min-width: 0;
+  min-height: 148px;
+  padding: 12px;
+  border: 1px solid var(--sku-border);
+  border-top: 5px solid var(--sku-accent);
+  border-radius: 8px;
+  background: var(--sku-bg);
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.finance-flow-sku-card.tone-1 { --sku-accent: #2563eb; --sku-bg: #eff6ff; --sku-border: #bfdbfe; }
+.finance-flow-sku-card.tone-2 { --sku-accent: #059669; --sku-bg: #ecfdf5; --sku-border: #a7f3d0; }
+.finance-flow-sku-card.tone-3 { --sku-accent: #d97706; --sku-bg: #fffbeb; --sku-border: #fde68a; }
+.finance-flow-sku-card.tone-4 { --sku-accent: #7c3aed; --sku-bg: #f5f3ff; --sku-border: #ddd6fe; }
+.finance-flow-sku-card.tone-5 { --sku-accent: #db2777; --sku-bg: #fdf2f8; --sku-border: #fbcfe8; }
+.finance-flow-sku-card.tone-6 { --sku-accent: #0891b2; --sku-bg: #ecfeff; --sku-border: #a5f3fc; }
+.finance-flow-sku-card.tone-7 { --sku-accent: #4f46e5; --sku-bg: #eef2ff; --sku-border: #c7d2fe; }
+.finance-flow-sku-card.tone-8 { --sku-accent: #16a34a; --sku-bg: #f0fdf4; --sku-border: #bbf7d0; }
+
+.finance-flow-sku-card span,
+.finance-flow-sku-card em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.finance-flow-sku-card strong {
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.finance-flow-sku-card div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.finance-flow-sku-card b {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 70%);
+  color: var(--sku-accent);
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .finance-flow-tone {
   --tone-accent: #64748b;
   --tone-border: #dbe3ee;
@@ -3229,6 +3293,7 @@ h2 {
   .finance-flow-update-grid,
   .finance-flow-amount-preview,
   .finance-flow-toolbar,
+  .finance-flow-sku-grid,
   .finance-flow-kpis,
   .finance-flow-payment-grid,
   .finance-flow-factory-grid,

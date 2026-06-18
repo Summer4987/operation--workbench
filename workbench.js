@@ -662,6 +662,60 @@ function renderFinanceFlowFactoryRows(rowId, metaId, items) {
   );
 }
 
+function financeFlowSkuProductionCards(items) {
+  const skuMap = new Map();
+  (items || []).forEach((item) => {
+    const sku = item.product_name || item.lot_id || "未命名SKU";
+    const current = skuMap.get(sku) || {
+      sku,
+      itemTypes: new Set(),
+      units: new Set(),
+      lotCount: 0,
+      producingQuantity: 0,
+      completedQuantity: 0,
+      factoryQuantity: 0,
+      payableAmount: 0,
+      paidAmount: 0,
+    };
+    current.lotCount += 1;
+    if (item.item_type) current.itemTypes.add(item.item_type);
+    if (item.unit) current.units.add(item.unit);
+    const factoryQuantity = Number(item.factory_quantity || 0);
+    current.factoryQuantity += factoryQuantity;
+    if (item.production_status === "工厂在生产") current.producingQuantity += factoryQuantity;
+    if (item.production_status === "工厂已生产完成") current.completedQuantity += factoryQuantity;
+    current.payableAmount += Number(item.payable_amount || 0);
+    current.paidAmount += Number(item.paid_amount || 0);
+    skuMap.set(sku, current);
+  });
+  return [...skuMap.values()]
+    .sort((a, b) => (b.producingQuantity + b.completedQuantity) - (a.producingQuantity + a.completedQuantity) || a.sku.localeCompare(b.sku, "zh-Hans-CN"));
+}
+
+function renderFinanceFlowSkuCards(items) {
+  const cards = financeFlowSkuProductionCards(items);
+  rows(
+    "financeFlowSkuCards",
+    cards,
+    (item, index) => {
+      const units = [...item.units].join("/") || "";
+      const itemTypes = [...item.itemTypes].join("/") || "货品";
+      const openPayable = Math.max(item.payableAmount - item.paidAmount, 0);
+      return `
+        <article class="finance-flow-sku-card tone-${(index % 8) + 1}">
+          <span>${escapeHtml(itemTypes)} · ${item.lotCount} 批</span>
+          <strong>${escapeHtml(item.sku)}</strong>
+          <div>
+            <b>在产 ${num(item.producingQuantity, 2)}${escapeHtml(units)}</b>
+            <b>已完成 ${num(item.completedQuantity, 2)}${escapeHtml(units)}</b>
+          </div>
+          <em>工厂余 ${num(item.factoryQuantity, 2)}${escapeHtml(units)} · 待付 ${yuan(openPayable)} · 已付 ${yuan(item.paidAmount)}</em>
+        </article>
+      `;
+    }
+  );
+}
+
 function renderFinanceFlow() {
   const payload = financeFlowState.payload || {};
   updateFinanceFlowDatalists(payload);
@@ -677,6 +731,7 @@ function renderFinanceFlow() {
   const selectedItems = financeFlowLocationItems(items, selectedLocation);
   const selectedEvents = financeFlowLocationEvents(payload.recent_events || [], selectedLocation);
   text("financeFlowStatus", payload.items ? `${items.length} 个批次` : "待读取");
+  renderFinanceFlowSkuCards(items);
   html(
     "financeFlowKpis",
     [
