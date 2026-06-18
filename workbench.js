@@ -360,30 +360,35 @@ function financeFlowLocationEvents(events, location) {
 
 const financeFlowSettlementPrices = [
   { sku: "板腱原料", spec: "原料，按吨/公斤手填总金额", prices: {} },
-  { sku: "牛五花牛排", spec: "20kg/箱", prices: { 北京直营店: 1316.51, 成都直营店: 1316.51, 北京仓: 1500 } },
-  { sku: "嫩肩牛肉", spec: "27.5kg/箱", prices: { 北京直营店: 2255, 成都直营店: 2255, 北京仓: 2420 } },
-  { sku: "藤椒牛肉", spec: "28kg/箱", prices: { 北京直营店: 2016, 成都直营店: 2016, 北京仓: 2100 } },
-  { sku: "眼肉牛排", spec: "10kg/箱", prices: { 北京直营店: 844.79, 成都直营店: 844.79, 北京仓: 940 } },
-  { sku: "板腱牛排", spec: "10kg/箱", prices: { 北京直营店: 923.62, 成都直营店: 923.62, 北京仓: 1040 } },
-  { sku: "菲力牛排", spec: "10kg/箱", prices: { 北京直营店: 912.98, 成都直营店: 912.98, 北京仓: 1030 } },
-  { sku: "三文鱼块", spec: "10kg/箱", prices: { 北京直营店: 700, 成都直营店: 700, 北京仓: 1060 } },
-  { sku: "调理鸡胸肉", spec: "14.4kg/箱", prices: { 北京直营店: 249.12, 成都直营店: 249.12, 北京仓: 288 } },
-  { sku: "调理手枪腿", spec: "15kg/箱", prices: { 北京直营店: 253.5, 成都直营店: 253.5, 北京仓: 300 } },
-  { sku: "冷冻虾仁", spec: "10kg/箱", prices: { 北京直营店: 515, 成都直营店: 515, 北京仓: 610 } },
-  { sku: "拌鱼酱", spec: "10kg/箱", prices: { 北京直营店: 175, 成都直营店: 175, 北京仓: 240 } },
-  { sku: "藤椒酱", spec: "10kg/箱", prices: { 北京直营店: 240, 成都直营店: 240, 北京仓: 320 } },
-  { sku: "拌饭汁", spec: "10kg/箱", prices: { 北京直营店: 327, 成都直营店: 327, 北京仓: 435 } },
-  { sku: "双椒酱", spec: "12kg/箱", prices: { 北京直营店: 276, 成都直营店: 276, 北京仓: 330 } },
-  { sku: "寿司调味汁", spec: "10kg/箱", prices: { 北京直营店: 255, 成都直营店: 255, 北京仓: 320 } },
-  { sku: "白卡定制餐盒", spec: "300个/箱", prices: { 北京直营店: 108, 成都直营店: 108, 北京仓: 116 } },
-  { sku: "玉米淀粉餐盒", spec: "300个/箱", prices: { 北京直营店: 227, 成都直营店: 227, 北京仓: 234 } },
-  { sku: "四件套餐具", spec: "800个/袋", prices: { 北京直营店: 158, 成都直营店: 158, 北京仓: 168 } },
-  { sku: "无纺布打包袋", spec: "1000个/袋", prices: { 北京直营店: 440, 成都直营店: 440, 北京仓: 460 } },
+  { sku: "牛五花牛排", spec: "20kg/箱", prices: { 北京直营店: 1316.51, 成都仓: 1316.51, 北京仓: 1500 } },
+  { sku: "嫩肩牛肉", spec: "27.5kg/箱", prices: { 北京直营店: 2255, 成都仓: 2255, 北京仓: 2420 } },
+  { sku: "藤椒牛肉", spec: "28kg/箱", prices: { 北京直营店: 2016, 成都仓: 2016, 北京仓: 2100 } },
+  { sku: "眼肉牛排", spec: "10kg/箱", prices: { 北京直营店: 844.79, 成都仓: 844.79, 北京仓: 940 } },
+  { sku: "板腱牛排", spec: "10kg/箱", prices: { 北京直营店: 923.62, 成都仓: 923.62, 北京仓: 1040 } },
+  { sku: "菲力牛排", spec: "10kg/箱", prices: { 北京直营店: 912.98, 成都仓: 912.98, 北京仓: 1030 } },
+  { sku: "三文鱼块", spec: "10kg/箱", prices: { 北京直营店: 700, 成都仓: 700, 北京仓: 1060 } },
+  { sku: "调理鸡胸肉", spec: "14.4kg/箱", prices: { 北京直营店: 249.12, 成都仓: 249.12, 北京仓: 288 } },
+  { sku: "调理手枪腿", spec: "15kg/箱", prices: { 北京直营店: 253.5, 成都仓: 253.5, 北京仓: 300 } },
+  { sku: "冷冻虾仁", spec: "10kg/箱", prices: { 北京直营店: 515, 成都仓: 515, 北京仓: 610 } },
+  { sku: "拌鱼酱", spec: "10kg/箱", prices: { 北京直营店: 175, 成都仓: 175, 北京仓: 240 } },
+  { sku: "藤椒酱", spec: "10kg/箱", prices: { 北京直营店: 240, 成都仓: 240, 北京仓: 320 } },
+  { sku: "拌饭汁", spec: "10kg/箱", prices: { 北京直营店: 327, 成都仓: 327, 北京仓: 435 } },
+  { sku: "双椒酱", spec: "12kg/箱", prices: { 北京直营店: 276, 成都仓: 276, 北京仓: 330 } },
+  { sku: "寿司调味汁", spec: "10kg/箱", prices: { 北京直营店: 255, 成都仓: 255, 北京仓: 320 } },
+  { sku: "白卡定制餐盒", spec: "300个/箱", prices: { 北京直营店: 108, 成都仓: 108, 北京仓: 116 } },
+  { sku: "玉米淀粉餐盒", spec: "300个/箱", prices: { 北京直营店: 227, 成都仓: 227, 北京仓: 234 } },
+  { sku: "四件套餐具", spec: "800个/袋", prices: { 北京直营店: 158, 成都仓: 158, 北京仓: 168 } },
+  { sku: "无纺布打包袋", spec: "1000个/袋", prices: { 北京直营店: 440, 成都仓: 440, 北京仓: 460 } },
 ];
+
+function normalizeFinanceFlowLocation(location) {
+  const cleanLocation = String(location || "").trim();
+  return cleanLocation === "成都直营店" ? "成都仓" : cleanLocation;
+}
 
 function financeFlowPriceFor(productName, destination) {
   const cleanProduct = String(productName || "").trim();
-  const cleanDestination = String(destination || "").trim();
+  const cleanDestination = normalizeFinanceFlowLocation(destination);
   const row = financeFlowSettlementPrices.find((item) => item.sku === cleanProduct);
   return Number(row?.prices?.[cleanDestination] || 0);
 }
@@ -394,8 +399,9 @@ function financeFlowPricingDestination(eventType, destination) {
 }
 
 function financeFlowReceivableBucket(destination) {
-  if (destination === "北京仓") return "beijing_warehouse";
-  if (["北京直营店", "成都仓", "成都直营店"].includes(destination)) return "direct_store";
+  const cleanDestination = normalizeFinanceFlowLocation(destination);
+  if (cleanDestination === "北京仓") return "beijing_warehouse";
+  if (["北京直营店", "成都仓"].includes(cleanDestination)) return "direct_store";
   return "";
 }
 

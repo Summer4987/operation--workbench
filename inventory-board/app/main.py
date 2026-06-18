@@ -830,7 +830,7 @@ def _supply_chain_flow_summary() -> dict:
         lot_id = entry["lot_id"]
         quantity = float(entry.get("quantity") or 0)
         event_type = entry.get("event_type") or ""
-        to_location = entry.get("to_location") or ""
+        to_location = _normalize_supply_chain_location(entry.get("to_location") or "")
         receivable_bucket = _supply_chain_receivable_bucket(to_location)
         is_receivable_event = event_type in {"销售", "领用"} and bool(receivable_bucket)
         raw_paid_amount = float(entry.get("paid_amount") or 0)
@@ -841,6 +841,7 @@ def _supply_chain_flow_summary() -> dict:
             received_amount = raw_paid_amount
             paid_amount = 0.0
         normalized_entry = dict(entry)
+        normalized_entry["to_location"] = to_location
         normalized_entry["paid_amount"] = paid_amount
         normalized_entry["received_amount"] = received_amount
         normalized_entry["receivable_bucket"] = receivable_bucket
@@ -883,7 +884,8 @@ def _supply_chain_flow_summary() -> dict:
         if entry.get("production_status"):
             lot["production_status"] = entry["production_status"]
 
-        from_location = entry.get("from_location") or ""
+        from_location = _normalize_supply_chain_location(entry.get("from_location") or "")
+        normalized_entry["from_location"] = from_location
         total_amount = float(entry.get("total_amount") or 0)
         payable_amount = float(entry.get("payable_amount") or 0)
         receivable_amount = float(entry.get("receivable_amount") or 0)
@@ -1021,17 +1023,26 @@ def _supply_chain_flow_summary() -> dict:
 
 
 def _supply_chain_receivable_bucket(location: str) -> str:
-    clean_location = (location or "").strip()
+    clean_location = _normalize_supply_chain_location(location)
     if clean_location == "北京仓":
         return "beijing_warehouse"
-    if clean_location in {"北京直营店", "成都仓", "成都直营店"}:
+    if clean_location in {"北京直营店", "成都仓"}:
         return "direct_store"
     return ""
 
 
+def _normalize_supply_chain_location(location: str) -> str:
+    clean_location = (location or "").strip()
+    if clean_location == "成都直营店":
+        return "成都仓"
+    return clean_location
+
+
 def _normalize_supply_chain_flow_entry_for_summary(entry: dict) -> dict:
     event_type = entry.get("event_type") or ""
-    receivable_bucket = _supply_chain_receivable_bucket(entry.get("to_location") or "")
+    from_location = _normalize_supply_chain_location(entry.get("from_location") or "")
+    to_location = _normalize_supply_chain_location(entry.get("to_location") or "")
+    receivable_bucket = _supply_chain_receivable_bucket(to_location)
     raw_paid_amount = float(entry.get("paid_amount") or 0)
     raw_received_amount = float(entry.get("received_amount") or 0)
     paid_amount = raw_paid_amount
@@ -1040,6 +1051,8 @@ def _normalize_supply_chain_flow_entry_for_summary(entry: dict) -> dict:
         received_amount = raw_paid_amount
         paid_amount = 0.0
     normalized = dict(entry)
+    normalized["from_location"] = from_location
+    normalized["to_location"] = to_location
     normalized["paid_amount"] = paid_amount
     normalized["received_amount"] = received_amount
     normalized["receivable_bucket"] = receivable_bucket
@@ -1047,7 +1060,7 @@ def _normalize_supply_chain_flow_entry_for_summary(entry: dict) -> dict:
 
 
 def _add_location_balance(locations: dict[str, float], location: str, quantity: float) -> None:
-    clean_location = (location or "未指定位置").strip()
+    clean_location = _normalize_supply_chain_location(location) or "未指定位置"
     locations[clean_location] = locations.get(clean_location, 0.0) + float(quantity or 0)
 
 
@@ -1115,8 +1128,8 @@ def _validate_supply_chain_flow_entry(payload: dict) -> dict:
         "settlement_status": str(payload.get("settlement_status") or "")[:40],
         "payment_status": payment_status,
         "production_status": str(payload.get("production_status") or "")[:40],
-        "from_location": str(payload.get("from_location") or "")[:80],
-        "to_location": str(payload.get("to_location") or "")[:80],
+        "from_location": _normalize_supply_chain_location(str(payload.get("from_location") or "")[:80]),
+        "to_location": _normalize_supply_chain_location(str(payload.get("to_location") or "")[:80]),
         "counterparty": str(payload.get("counterparty") or "")[:120],
         "note": str(payload.get("note") or "")[:500],
         "sync_status": "cloud_saved",
