@@ -91,6 +91,13 @@ def resolve_browser_executable(browser_executable: str | None) -> str | None:
     return None
 
 
+def get_page_from_attached_chrome(playwright, debug_port: int):
+    browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{debug_port}")
+    context = browser.contexts[0] if browser.contexts else browser.new_context()
+    page = context.pages[0] if context.pages else context.new_page()
+    return browser, context, page
+
+
 def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: str | None) -> dict:
     account = load_account(account_id)
     profile_dir = Path(account["profile_dir"]).expanduser()
@@ -105,25 +112,36 @@ def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: 
 
     sync_playwright = require_playwright()
     executable_path = resolve_browser_executable(browser_executable)
+    debug_port = account.get("debug_port")
+    connection_mode = "launch"
     results = []
     with sync_playwright() as p:
-        launch_options = {
-            "user_data_dir": str(profile_dir),
-            "headless": not visible,
-            "accept_downloads": False,
-            "viewport": {"width": 1440, "height": 950},
-        }
-        if executable_path:
-            launch_options["executable_path"] = executable_path
-        context = p.chromium.launch_persistent_context(**launch_options)
-        try:
+        attached_browser = None
+        if debug_port:
+            try:
+                attached_browser, context, page = get_page_from_attached_chrome(p, int(debug_port))
+                connection_mode = f"cdp:127.0.0.1:{debug_port}"
+            except Exception:
+                attached_browser = None
+        if not attached_browser:
+            launch_options = {
+                "user_data_dir": str(profile_dir),
+                "headless": not visible,
+                "accept_downloads": False,
+                "viewport": {"width": 1440, "height": 950},
+            }
+            if executable_path:
+                launch_options["executable_path"] = executable_path
+            context = p.chromium.launch_persistent_context(**launch_options)
             page = context.pages[0] if context.pages else context.new_page()
+        try:
             for page_key, url in ordered_pages:
                 if not url:
                     continue
                 results.append(check_page(page, page_key, url, wait_ms))
         finally:
-            context.close()
+            if not attached_browser:
+                context.close()
 
     failed = [item for item in results if item["status"] != "ok"]
     return {
@@ -133,6 +151,7 @@ def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: 
         "stores": account.get("stores") or [],
         "profile_dir": str(profile_dir),
         "browser_executable": executable_path or "playwright-default-chromium",
+        "connection_mode": connection_mode,
         "mode": "visible" if visible else "headless",
         "status": "ok" if not failed else "needs_manual",
         "summary": {

@@ -31,6 +31,7 @@ pages = account.get("pages") or {}
 urls = [pages.get(key, "") for key in ["home", "daily_report", "reviews", "promo_balance"]]
 print(account.get("name", account_id))
 print(Path(account.get("profile_dir", "")).expanduser())
+print(account.get("debug_port", ""))
 for url in urls:
     if url:
         print(url)
@@ -40,20 +41,32 @@ PY
 config_lines=("${(@f)$(read_config)}")
 ACCOUNT_NAME="${config_lines[1]}"
 PROFILE_DIR="${config_lines[2]}"
-URLS=("${config_lines[@]:2}")
+DEBUG_PORT="${config_lines[3]}"
+URLS=("${config_lines[@]:3}")
 
 mkdir -p "$PROFILE_DIR"
 
 echo "正在打开直营美团账号：$ACCOUNT_NAME"
 echo "登录态目录：$PROFILE_DIR"
 echo "动作类型：只打开页面，不下载、不采集、不保存预算。"
+if [[ -n "$DEBUG_PORT" ]]; then
+  echo "本地调试端口：$DEBUG_PORT"
+fi
+
+chrome_args=(
+  --user-data-dir="$PROFILE_DIR"
+  --profile-directory=Default
+  --no-first-run
+  --no-default-browser-check
+  --new-window
+)
+
+if [[ -n "$DEBUG_PORT" ]]; then
+  chrome_args+=(--remote-debugging-port="$DEBUG_PORT")
+fi
 
 open -na "Google Chrome" --args \
-  --user-data-dir="$PROFILE_DIR" \
-  --profile-directory=Default \
-  --no-first-run \
-  --no-default-browser-check \
-  --new-window \
+  "${chrome_args[@]}" \
   "${URLS[@]}"
 
 echo ""
