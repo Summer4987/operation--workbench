@@ -222,6 +222,97 @@ def realtime_snapshot(realtime: dict) -> dict | None:
     }
 
 
+def zero_realtime_snapshot(previous: dict, now: datetime | None = None) -> dict:
+    now = now or datetime.now()
+    previous_stores = previous.get("stores") if isinstance(previous.get("stores"), list) else []
+    target_stores = previous.get("target_stores") or [item.get("store") for item in previous_stores if item.get("store")]
+    stores = []
+    for store in target_stores:
+        previous_store = next((item for item in previous_stores if item.get("store") == store), {})
+        previous_platforms = previous_store.get("platforms") if isinstance(previous_store, dict) else {}
+        platforms = {
+            platform: {
+                "orders": 0,
+                "income": 0,
+                "income_status": "reset",
+                "source": "daily_reset",
+                "source_store": (payload or {}).get("source_store") or store,
+            }
+            for platform, payload in (previous_platforms or {}).items()
+        }
+        stores.append({"store": store, "orders": 0, "income": 0, "platforms": platforms})
+    return {
+        "generated_at": now.strftime("%Y-%m-%d 00:00:00"),
+        "status": "reset",
+        "reset_from_generated_at": previous.get("generated_at") or "",
+        "reset_reason": "实时订单量每天 0 点自动清零，等待当天首次采集。",
+        "source_urls": previous.get("source_urls") or {},
+        "target_stores": target_stores,
+        "summary": {
+            "store_count": len(stores),
+            "platform_store_count": sum(len(item.get("platforms") or {}) for item in stores),
+            "total_orders": 0,
+            "total_income": 0,
+            "missing_count": 0,
+            "income_missing_count": 0,
+            "daily_reset": True,
+        },
+        "stores": stores,
+        "items": [],
+        "missing": [],
+        "income_missing": [],
+        "errors": [],
+    }
+
+
+def remove_legacy_untrusted_meituan_income(realtime: dict) -> dict:
+    if not isinstance(realtime, dict) or not realtime.get("stores"):
+        return realtime
+    adjusted = json.loads(json.dumps(realtime, ensure_ascii=False))
+    removed_income = 0.0
+    income_missing = adjusted.setdefault("income_missing", [])
+    for store in adjusted.get("stores") or []:
+        platforms = store.get("platforms") if isinstance(store, dict) else {}
+        meituan = platforms.get("美团") if isinstance(platforms, dict) else None
+        if not isinstance(meituan, dict):
+            continue
+        if meituan.get("income_status") in {"trusted", "missing", "reset"}:
+            continue
+        if meituan.get("source") != "api":
+            continue
+        income = float(meituan.get("income") or 0)
+        if income <= 0:
+            continue
+        meituan["income"] = 0
+        meituan["income_status"] = "missing"
+        meituan["correction_note"] = "旧版美团实时 API 收入字段口径不可信，已从实时营业额中剔除。"
+        store["income"] = round(max(0, float(store.get("income") or 0) - income), 2)
+        marker = {"platform": "美团", "store": store.get("store"), "source": meituan.get("source") or "api"}
+        if marker not in income_missing:
+            income_missing.append(marker)
+        removed_income += income
+    if removed_income:
+        summary = adjusted.setdefault("summary", {})
+        summary["total_income"] = round(max(0, float(summary.get("total_income") or 0) - removed_income), 2)
+        summary["income_missing_count"] = len(income_missing)
+        adjusted["income_correction"] = {
+            "removed_income": round(removed_income, 2),
+            "reason": "旧版美团实时 API 收入字段口径不可信，已从实时营业额中剔除。",
+        }
+    return adjusted
+
+
+def reset_stale_realtime(realtime: dict, now: datetime | None = None) -> dict:
+    if not isinstance(realtime, dict) or not realtime:
+        return realtime
+    realtime = remove_legacy_untrusted_meituan_income(realtime)
+    now = now or datetime.now()
+    generated_at = parse_time(realtime.get("generated_at"))
+    if generated_at and generated_at.date() < now.date():
+        return zero_realtime_snapshot(realtime, now)
+    return realtime
+
+
 def merge_realtime_history(realtime: dict) -> list[dict]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     snapshots = []
@@ -1231,7 +1322,7 @@ def main() -> None:
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
     android_execution_plan = read_json(ANDROID_EXECUTION_PLAN_PATH, {})
     android_config = read_json(ANDROID_CONFIG_HEALTH_PATH, {})
-    realtime = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
+    realtime = reset_stale_realtime(read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {}))
     inventory = inventory_snapshot()
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)

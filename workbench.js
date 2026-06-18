@@ -13,6 +13,8 @@ const overviewAlert = document.querySelector(".overview-alert");
 const pageSections = [...document.querySelectorAll(".center-section")];
 const navLinks = [...document.querySelectorAll(".nav a")];
 
+normalizeRealtimeForToday(data);
+
 const yuan = (value) =>
   `¥${Number(value || 0).toLocaleString("zh-CN", {
     maximumFractionDigits: 0,
@@ -24,6 +26,70 @@ const num = (value, digits = 0) =>
   });
 
 const pct = (value, digits = 1) => `${(Number(value || 0) * 100).toFixed(digits)}%`;
+
+function localDateText(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function realtimeDateText(realtime) {
+  return String(realtime?.generated_at || realtime?.collected_at || "").slice(0, 10);
+}
+
+function zeroRealtimeForToday(realtime) {
+  const previousStores = Array.isArray(realtime?.stores) ? realtime.stores : [];
+  const targetStores = realtime?.target_stores || previousStores.map((item) => item.store).filter(Boolean);
+  const stores = targetStores.map((store) => {
+    const previous = previousStores.find((item) => item.store === store) || {};
+    const platforms = Object.fromEntries(
+      Object.entries(previous.platforms || {}).map(([platform, payload]) => [
+        platform,
+        {
+          orders: 0,
+          income: 0,
+          income_status: "reset",
+          source: "daily_reset",
+          source_store: payload?.source_store || store,
+        },
+      ])
+    );
+    return { store, orders: 0, income: 0, platforms };
+  });
+  return {
+    ...(realtime || {}),
+    generated_at: `${localDateText()} 00:00:00`,
+    status: "reset",
+    reset_from_generated_at: realtime?.generated_at || "",
+    reset_reason: "实时订单量每天 0 点自动清零，等待当天首次采集。",
+    summary: {
+      store_count: stores.length,
+      platform_store_count: stores.reduce((sum, item) => sum + Object.keys(item.platforms || {}).length, 0),
+      total_orders: 0,
+      total_income: 0,
+      missing_count: 0,
+      income_missing_count: 0,
+      daily_reset: true,
+    },
+    stores,
+    items: [],
+    missing: [],
+    income_missing: [],
+    errors: [],
+  };
+}
+
+function normalizeRealtimeForToday(payload) {
+  const realtime = payload.realtime || {};
+  const realtimeDate = realtimeDateText(realtime);
+  if (!realtimeDate || realtimeDate >= localDateText()) return;
+  payload.realtime = zeroRealtimeForToday(realtime);
+  payload.realtime_comparison = {
+    status: "pending",
+    message: "今日实时订单已自动清零，等待当天首次采集。",
+  };
+}
 
 function sameTimeYesterday(daily) {
   return (
