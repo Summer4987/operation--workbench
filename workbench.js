@@ -634,7 +634,7 @@ function renderFinanceFlow() {
   html(
     "financeFlowKpis",
     [
-      { label: "工厂应付", value: yuan(totals.payable_amount), detail: `待付工厂 ${yuan(totals.open_payable_amount)}`, tone: "factory-payable" },
+      { label: "工厂应付", value: yuan(totals.open_payable_amount), detail: `应付总额 ${yuan(totals.payable_amount)}`, tone: "factory-payable" },
       { label: "已付给工厂", value: yuan(totals.paid_amount), detail: "已实际支付给厂家或供应商", tone: "factory-paid" },
       { label: "北京仓应收", value: yuan(totals.beijing_warehouse_receivable_amount), detail: `未收 ${yuan(totals.open_beijing_warehouse_receivable_amount)}`, tone: "beijing-receivable" },
       { label: "北京仓已收", value: yuan(totals.beijing_warehouse_received_amount), detail: "北京仓对应批次已收款", tone: "beijing-received" },

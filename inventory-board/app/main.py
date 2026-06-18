@@ -806,8 +806,9 @@ def _supply_chain_flow_summary() -> dict:
         paid_total += paid_amount
         receivable_total += receivable_amount
         received_total += received_amount
-        if payable_amount:
-            payment_lines["factory_payable"].append({**line_base, "amount": payable_amount})
+        open_payable_amount = max(payable_amount - paid_amount, 0)
+        if open_payable_amount:
+            payment_lines["factory_payable"].append({**line_base, "amount": open_payable_amount})
         if paid_amount:
             payment_lines["factory_paid"].append({**line_base, "amount": paid_amount})
         if receivable_bucket == "beijing_warehouse":
