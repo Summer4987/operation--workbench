@@ -7,17 +7,110 @@ export function dayName(day) {
   return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][day] || "";
 }
 
-export function budgetDateContext(dateValue = process.env.PROMO_BUDGET_DATE || process.env.BUDGET_TARGET_DATE || "") {
+const DEFAULT_CHINA_HOLIDAYS = {
+  "2026-01-01": "元旦",
+  "2026-01-02": "元旦",
+  "2026-01-03": "元旦",
+  "2026-02-15": "春节",
+  "2026-02-16": "春节",
+  "2026-02-17": "春节",
+  "2026-02-18": "春节",
+  "2026-02-19": "春节",
+  "2026-02-20": "春节",
+  "2026-02-21": "春节",
+  "2026-02-22": "春节",
+  "2026-02-23": "春节",
+  "2026-04-04": "清明节",
+  "2026-04-05": "清明节",
+  "2026-04-06": "清明节",
+  "2026-05-01": "劳动节",
+  "2026-05-02": "劳动节",
+  "2026-05-03": "劳动节",
+  "2026-05-04": "劳动节",
+  "2026-05-05": "劳动节",
+  "2026-06-19": "端午节",
+  "2026-06-20": "端午节",
+  "2026-06-21": "端午节",
+  "2026-09-25": "中秋节",
+  "2026-09-26": "中秋节",
+  "2026-09-27": "中秋节",
+  "2026-10-01": "国庆节",
+  "2026-10-02": "国庆节",
+  "2026-10-03": "国庆节",
+  "2026-10-04": "国庆节",
+  "2026-10-05": "国庆节",
+  "2026-10-06": "国庆节",
+  "2026-10-07": "国庆节",
+};
+
+const DEFAULT_CHINA_ADJUSTED_WORKDAYS = {
+  "2026-01-04": "元旦调休上班",
+  "2026-02-14": "春节调休上班",
+  "2026-02-28": "春节调休上班",
+  "2026-05-09": "劳动节调休上班",
+  "2026-09-20": "国庆节调休上班",
+  "2026-10-10": "国庆节调休上班",
+};
+
+export function budgetDateContext(
+  dateValue = process.env.PROMO_BUDGET_DATE || process.env.BUDGET_TARGET_DATE || "",
+  calendarConfig = {},
+) {
   const date = parseBudgetDate(dateValue) || new Date();
+  const dateText = formatDate(date);
   const day = date.getDay();
+  const holidayName = calendarLabel(dateText, calendarConfig, "chinaHolidays", DEFAULT_CHINA_HOLIDAYS);
+  const adjustedWorkdayName = calendarLabel(
+    dateText,
+    calendarConfig,
+    "chinaAdjustedWorkdays",
+    DEFAULT_CHINA_ADJUSTED_WORKDAYS,
+  );
+  const isNaturalWeekend = day === 0 || day === 6;
+  const isHoliday = Boolean(holidayName);
+  const isAdjustedWorkday = Boolean(adjustedWorkdayName);
+  const isWeekendBudgetDay = !isAdjustedWorkday && (isNaturalWeekend || isHoliday);
   return {
-    date: formatDate(date),
+    date: dateText,
     day,
     day_name: dayName(day),
     day_key: ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][day],
-    day_type: day === 0 || day === 6 ? "weekend" : "weekday",
-    day_type_name: day === 0 || day === 6 ? "周末" : "工作日",
+    day_type: isWeekendBudgetDay ? "weekend" : "weekday",
+    day_type_name: isWeekendBudgetDay ? "周末/节假日" : "工作日",
+    is_natural_weekend: isNaturalWeekend,
+    is_china_holiday: isHoliday,
+    china_holiday_name: holidayName || "",
+    is_adjusted_workday: isAdjustedWorkday,
+    adjusted_workday_name: adjustedWorkdayName || "",
+    budget_rule_reason: isAdjustedWorkday
+      ? adjustedWorkdayName
+      : isHoliday
+        ? `${holidayName}，按周末预算执行`
+        : isNaturalWeekend
+          ? "自然周末，按周末预算执行"
+          : "普通工作日，按工作日预算执行",
   };
+}
+
+function calendarLabel(dateText, config, key, defaults) {
+  const merged = {
+    ...defaults,
+    ...normalizeCalendarConfig(config?.[key]),
+  };
+  return merged[dateText] || "";
+}
+
+function normalizeCalendarConfig(value) {
+  if (Array.isArray(value)) {
+    return Object.fromEntries(value.map((date) => [String(date), "中国法定节假日"]));
+  }
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value).map(([date, label]) => [
+      String(date),
+      typeof label === "object" && label ? String(label.name || label.label || "") : String(label || ""),
+    ]),
+  );
 }
 
 function parseBudgetDate(value) {
@@ -94,7 +187,7 @@ function dayKeys(context) {
 
 function dayTypeKeys(context) {
   return context.day_type === "weekend"
-    ? ["weekend", "Weekend", "周末", "holiday", "Holiday"]
+    ? ["weekend", "Weekend", "周末", "holiday", "Holiday", "节假日", "法定节假日"]
     : ["weekday", "Weekday", "workday", "Workday", "工作日"];
 }
 
@@ -141,7 +234,7 @@ export function buildWeekendPreset(config, dateContext = budgetDateContext()) {
   const activeDays = Array.isArray(preset.activeDays) ? preset.activeDays : [0, 6];
   const configured = Object.keys(preset).length > 0;
   const enabledSetting = Boolean(preset.enabled);
-  const isActiveDay = activeDays.includes(dateContext.day);
+  const isActiveDay = dateContext.day_type === "weekend" || activeDays.includes(dateContext.day);
   const enabled = enabledSetting && isActiveDay;
   const name = preset.name || "周末预设方案";
   const status = enabled ? "active" : configured ? "configured_inactive" : "not_configured";

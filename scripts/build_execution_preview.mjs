@@ -56,7 +56,7 @@ globalThis.__files = {
 
 const { rules, logic } = loadRuntime();
 const overrides = await loadOverrides();
-const dateContext = budgetDateContext();
+const dateContext = budgetDateContext(undefined, overrides);
 const weekendPreset = buildWeekendPreset(overrides, dateContext);
 const state = JSON.parse(await fs.readFile(statePath, "utf8"));
 const time = argValue("time", "10:40");

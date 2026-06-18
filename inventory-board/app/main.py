@@ -5,6 +5,7 @@ import html
 import hmac
 import json
 import os
+import re
 import secrets
 import shutil
 import time
@@ -1173,6 +1174,23 @@ def _validate_promo_budget_overrides(payload: dict) -> dict:
     if not isinstance(stores, dict):
         raise HTTPException(status_code=400, detail="预算配置格式不正确")
     clean: dict[str, dict] = {"stores": {}}
+    weekend_preset = payload.get("weekendPreset") if isinstance(payload, dict) else None
+    if isinstance(weekend_preset, dict):
+        clean["weekendPreset"] = _validate_weekend_preset(weekend_preset)
+    for calendar_key in ["chinaHolidays", "chinaAdjustedWorkdays"]:
+        calendar = payload.get(calendar_key) if isinstance(payload, dict) else None
+        if isinstance(calendar, dict):
+            clean[calendar_key] = {
+                str(date): str(label.get("name") if isinstance(label, dict) else label)
+                for date, label in calendar.items()
+                if re.match(r"^\d{4}-\d{2}-\d{2}$", str(date))
+            }
+        elif isinstance(calendar, list):
+            clean[calendar_key] = {
+                str(date): "中国法定节假日"
+                for date in calendar
+                if re.match(r"^\d{4}-\d{2}-\d{2}$", str(date))
+            }
     for store_name, store_payload in stores.items():
         if not isinstance(store_payload, dict):
             continue
@@ -1197,6 +1215,39 @@ def _validate_promo_budget_overrides(payload: dict) -> dict:
                 clean_store[platform_key] = clean_budget
         if clean_store:
             clean["stores"][str(store_name)] = clean_store
+    return clean
+
+
+def _validate_weekend_preset(payload: dict) -> dict:
+    clean: dict[str, object] = {}
+    if "enabled" in payload:
+        clean["enabled"] = bool(payload.get("enabled"))
+    if payload.get("name"):
+        clean["name"] = str(payload.get("name"))
+    if isinstance(payload.get("activeDays"), list):
+        active_days = []
+        for raw in payload.get("activeDays", []):
+            try:
+                day = int(raw)
+            except Exception:
+                continue
+            if 0 <= day <= 6:
+                active_days.append(day)
+        if active_days:
+            clean["activeDays"] = sorted(set(active_days))
+    for key in ["lunchMultiplier", "dinnerMultiplier", "minBudget", "roundTo"]:
+        raw = payload.get(key)
+        if raw in {None, ""}:
+            continue
+        try:
+            value = Decimal(str(raw))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"周末预设 {key} 必须是数字") from exc
+        if value <= 0 or value > 9999:
+            raise HTTPException(status_code=400, detail=f"周末预设 {key} 超出范围")
+        clean[key] = float(value) if value % 1 else int(value)
+    if payload.get("notes"):
+        clean["notes"] = str(payload.get("notes"))
     return clean
 
 

@@ -51,7 +51,7 @@ globalThis.__files = {
 
 const { rules, logic } = loadRuntime();
 const overrides = await loadOverrides();
-const dateContext = budgetDateContext();
+const dateContext = budgetDateContext(undefined, overrides);
 const weekendPreset = buildWeekendPreset(overrides, dateContext);
 const tasks = logic.buildTasks(rules);
 const elemeLunch = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "10:30").map(applyOverride);
