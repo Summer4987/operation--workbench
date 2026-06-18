@@ -662,10 +662,13 @@ function renderFinanceFlowFactoryRows(rowId, metaId, items) {
   );
 }
 
+const financeFlowSkuProductionExcluded = new Set(["拌饭汁", "拌鱼酱", "双椒酱", "寿司调味汁", "藤椒酱"]);
+
 function financeFlowSkuProductionCards(items) {
   const skuMap = new Map();
   (items || []).forEach((item) => {
     const sku = item.product_name || item.lot_id || "未命名SKU";
+    if (financeFlowSkuProductionExcluded.has(sku)) return;
     const current = skuMap.get(sku) || {
       sku,
       itemTypes: new Set(),
