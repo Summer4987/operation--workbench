@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,12 @@ from task_run_state import classify_failure_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
+STORE_INSPECTION_DIR = ROOT / "store-inspection"
+if str(STORE_INSPECTION_DIR) not in sys.path:
+    sys.path.insert(0, str(STORE_INSPECTION_DIR))
+
+from balance_coverage import build_direct_coverage  # noqa: E402
+
 BALANCE_PATH = ROOT / "store-inspection" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_balance_status"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
@@ -257,6 +264,24 @@ def platform_rows(payload: dict, failures: list[dict]) -> list[dict]:
     return rows + extra
 
 
+def direct_coverage_rows(payload: dict) -> list[dict]:
+    coverage = payload.get("direct_coverage") or build_direct_coverage(payload.get("items") or [])
+    rows = []
+    for scope in coverage.get("scopes") or []:
+        if not scope.get("missing_count"):
+            continue
+        rows.append(
+            {
+                "platform": scope.get("platform", ""),
+                "scope": scope.get("label", ""),
+                "missing_stores": scope.get("missing_stores") or [],
+                "message": f"{scope.get('label', '')}缺少余额结果：{', '.join(scope.get('missing_stores') or [])}",
+                "human_action": "先确认这些门店是否已在平台账号里展示；若账号正常，重跑余额巡检并查看平台接口是否分页或筛选。",
+            }
+        )
+    return rows
+
+
 def recharge_plan(warnings: list[dict]) -> dict:
     items = []
     for item in sorted(warnings, key=lambda row: float(row.get("balance") or 0)):
@@ -289,8 +314,11 @@ def build_status(payload: dict) -> dict:
     generated_at = payload.get("generated_at") or ""
     summary = payload.get("summary") or {}
     failures = split_platform_failures(payload.get("message") or "") if payload.get("status") == "failed" else []
+    direct_coverage = payload.get("direct_coverage") or build_direct_coverage(payload.get("items") or [])
+    coverage_rows = direct_coverage_rows(payload)
     warnings = low_balance_items(payload)
     platform_failure_count = len(failures)
+    coverage_missing_count = sum(len(row.get("missing_stores") or []) for row in coverage_rows)
     low_balance_count = len(warnings)
     store_count = int(summary.get("store_count") or len(payload.get("items") or []))
     threshold = float(payload.get("threshold") or 100)
@@ -301,11 +329,13 @@ def build_status(payload: dict) -> dict:
     elif platform_failure_count and not store_count:
         status = "failed"
         message = f"推广余额巡检失败：{platform_failure_count} 个平台需要人工处理。"
-    elif platform_failure_count or low_balance_count:
+    elif platform_failure_count or coverage_missing_count or low_balance_count:
         status = "warning"
         parts = []
         if platform_failure_count:
             parts.append(f"{platform_failure_count} 个平台巡检失败")
+        if coverage_missing_count:
+            parts.append(f"{coverage_missing_count} 个直营门店缺少余额结果")
         if low_balance_count:
             parts.append(f"{low_balance_count} 个低余额预警")
         message = "，".join(parts) + "。"
@@ -316,6 +346,8 @@ def build_status(payload: dict) -> dict:
     human_action = ""
     if failures:
         human_action = failures[0].get("human_action", "")
+    elif coverage_rows:
+        human_action = coverage_rows[0].get("human_action", "")
     elif warnings:
         human_action = "先充值低余额门店，再执行预算或出价自动化。"
 
@@ -336,6 +368,7 @@ def build_status(payload: dict) -> dict:
         "human_action": human_action,
         "summary": {
             "platform_failure_count": platform_failure_count,
+            "direct_coverage_missing_count": coverage_missing_count,
             "low_balance_count": low_balance_count,
             "store_count": store_count,
             "platform_count": int(summary.get("platform_count") or 0),
@@ -353,6 +386,8 @@ def build_status(payload: dict) -> dict:
         },
         "evidence_sync": evidence_sync_status(),
         "platforms": platform_rows_payload,
+        "direct_coverage": direct_coverage,
+        "direct_coverage_issues": coverage_rows,
         "low_balance_items": warnings,
         "recharge_plan": recharge,
     }

@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 import cdp_eleme_balance
+import cdp_direct_meituan_balance
 import cdp_meituan_balance
 from parse_balance_ocr import build_result, write_outputs
+from balance_coverage import apply_direct_coverage
 
 
 ROOT = Path(__file__).resolve().parent
@@ -36,6 +38,21 @@ def collect_meituan() -> tuple[list[dict], str]:
     return ok_items, response_url or (base_url.split("?")[0] if base_url else "")
 
 
+def collect_direct_meituan() -> tuple[list[dict], str]:
+    items: list[dict] = []
+    source_url = ""
+    for account in cdp_direct_meituan_balance.enabled_accounts(None):
+        account_items, meta = cdp_direct_meituan_balance.collect_account(account, visible=False, wait_seconds=25)
+        ok_items = [item for item in account_items if not item.get("error")]
+        if not ok_items:
+            raise RuntimeError(f"{account.get('name') or account.get('id')} 未解析到账户余额。")
+        items.extend(ok_items)
+        source_url = source_url or str(meta.get("url") or "")
+    if not items:
+        raise RuntimeError("没有可读取的直营美团账号。")
+    return items, source_url.split("?")[0] if source_url else ""
+
+
 def write_test_outputs(data: dict) -> None:
     OUTPUT_JSON.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     OUTPUT_DATA_JS.write_text(
@@ -52,6 +69,7 @@ def collect_all_balances() -> tuple[dict, bool]:
     for platform_name, collector in [
         ("饿了么", collect_eleme),
         ("美团", collect_meituan),
+        ("美团直营", collect_direct_meituan),
     ]:
         try:
             platform_items, source_url = collector()
@@ -62,7 +80,7 @@ def collect_all_balances() -> tuple[dict, bool]:
             errors.append(f"{platform_name}：{exc}")
             print(f"{platform_name} CDP 失败：{exc}", flush=True)
 
-    data = build_result(items, THRESHOLD)
+    data = apply_direct_coverage(build_result(items, THRESHOLD))
     data["source"] = "cdp_all_balances"
     data["source_urls"] = source_urls
     data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
