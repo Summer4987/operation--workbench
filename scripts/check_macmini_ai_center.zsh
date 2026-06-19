@@ -69,6 +69,7 @@ echo "== 配置与语法检查 =="
   scripts/build_tool_warehouse_status.py \
   scripts/build_finance_center_status.py \
   scripts/build_task_health.py \
+  scripts/download_direct_meituan_reviews.py \
   scripts/build_workbench_data.py \
   business-report-dashboard/chrome_cdp_reports.py \
   business-report-dashboard/process_reports.py \
