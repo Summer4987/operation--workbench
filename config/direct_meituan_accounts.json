@@ -37,7 +37,7 @@
     {
       "id": "direct_wanxiangcheng",
       "name": "美团直营临时账号-万象城店",
-      "enabled": false,
+      "enabled": true,
       "stores": ["万象城店"],
       "meituan_store_name": "熊小小牛排饭POKEBEAR（万象城店）",
       "keyword": "万象城",
