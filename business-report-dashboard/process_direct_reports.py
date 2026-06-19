@@ -17,6 +17,13 @@ CONFIG_PATH = ROOT / "direct_config.json"
 CHAIN_RAW_DIR = ROOT / "data" / "raw"
 DIRECT_RAW_DIR = ROOT / "data" / "direct" / "raw"
 DATA_DIR = ROOT / "data"
+DIRECT_DASHBOARD_DIR = ROOT / "direct-dashboard"
+DIRECT_STORE_SLUGS = {
+    "朝阳门店": "chaoyangmen",
+    "银泰城店": "yintaicheng",
+    "万象城店": "wanxiangcheng",
+    "金融城店": "jinrongcheng",
+}
 
 sys.path.insert(0, str(ROOT))
 import process_reports as base  # noqa: E402
@@ -74,6 +81,7 @@ def collect_meituan_paths(explicit: Path | None) -> list[Path]:
 def process(eleme_path: Path | None = None, meituan_path: Path | None = None) -> dict:
     config = load_config()
     alias_lookup = base.build_alias_lookup(config)
+    base.STORE_SLUGS.update(DIRECT_STORE_SLUGS)
 
     frames = []
     warnings = []
@@ -117,7 +125,22 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
 
     output = DATA_DIR / "direct-latest.json"
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return {"unified_path": str(unified_path), "output": str(output), "payload": payload}
+
+    original_dashboard_dir = base.DASHBOARD_DIR
+    try:
+        base.DASHBOARD_DIR = DIRECT_DASHBOARD_DIR
+        dashboard_path = base.write_dashboard(payload)
+        store_report_paths = base.write_store_reports(payload)
+    finally:
+        base.DASHBOARD_DIR = original_dashboard_dir
+
+    return {
+        "unified_path": str(unified_path),
+        "output": str(output),
+        "dashboard_path": str(dashboard_path),
+        "store_report_paths": [str(path) for path in store_report_paths],
+        "payload": payload,
+    }
 
 
 def main() -> None:
@@ -130,6 +153,7 @@ def main() -> None:
     payload = result["payload"]
     print(f"已生成直营统一数据：{result['unified_path']}")
     print(f"已生成直营日报数据：{result['output']}")
+    print(f"已生成直营网页看板：{result['dashboard_path']}")
     print(f"门店数：{len(payload['store_summary'])}，明细记录：{len(payload['records'])}，提示：{len(payload['warnings'])}")
 
 

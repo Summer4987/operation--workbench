@@ -3279,10 +3279,13 @@ async function loadDailyOrderAdminFrame() {
 }
 
 async function loadDailyReportFrame() {
-  const frame = document.querySelector(".daily-report-frame");
-  if (!frame) return;
-  const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
-  await loadEmbeddedFrame(frame, reportSrc, "正在加载经营日报...", "经营日报加载失败", "打开经营日报");
+  const frames = [...document.querySelectorAll(".daily-report-frame")];
+  if (!frames.length) return;
+  await Promise.all(frames.map((frame) => {
+    const reportSrc = frame.dataset.reportSrc || "/business-report-dashboard/";
+    const title = frame.getAttribute("title") || "经营日报";
+    return loadEmbeddedFrame(frame, reportSrc, `正在加载${title}...`, `${title}加载失败`, `打开${title}`);
+  }));
 }
 
 async function loadInventoryBoardFrame() {
