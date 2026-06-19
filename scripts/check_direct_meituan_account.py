@@ -98,7 +98,7 @@ def get_page_from_attached_chrome(playwright, debug_port: int):
     return browser, context, page
 
 
-def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: str | None) -> dict:
+def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: str | None, page_keys: list[str] | None) -> dict:
     account = load_account(account_id)
     profile_dir = Path(account["profile_dir"]).expanduser()
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -109,6 +109,12 @@ def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: 
         ("reviews", pages.get("reviews")),
         ("promo_balance", pages.get("promo_balance")),
     ]
+    if page_keys:
+        requested = set(page_keys)
+        unknown = requested - {key for key, _ in ordered_pages}
+        if unknown:
+            raise SystemExit(f"未知页面：{', '.join(sorted(unknown))}")
+        ordered_pages = [(key, url) for key, url in ordered_pages if key in requested]
 
     sync_playwright = require_playwright()
     executable_path = resolve_browser_executable(browser_executable)
@@ -176,9 +182,11 @@ def main() -> None:
     parser.add_argument("--visible", action="store_true", help="显示浏览器窗口；默认 headless。")
     parser.add_argument("--wait-ms", type=int, default=5000, help="每个页面打开后的等待毫秒数。")
     parser.add_argument("--browser-executable", help="可选：指定 Chrome/Chromium 可执行文件。macOS 默认优先使用系统 Chrome。")
+    parser.add_argument("--pages", help="逗号分隔页面 key；默认检查全部。可选：home,daily_report,reviews,promo_balance。")
     args = parser.parse_args()
 
-    payload = run_check(args.account, args.visible, args.wait_ms, args.browser_executable)
+    page_keys = [item.strip() for item in (args.pages or "").split(",") if item.strip()]
+    payload = run_check(args.account, args.visible, args.wait_ms, args.browser_executable, page_keys or None)
     output = write_result(payload)
     print(f"直营美团账号只读检查：{payload['status']}，结果：{output}")
     for item in payload["pages"]:

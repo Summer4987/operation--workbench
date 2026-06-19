@@ -1329,6 +1329,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 
 def main() -> None:
     daily = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
+    direct_daily = read_json(ROOT / "business-report-dashboard" / "data" / "direct-latest.json", {})
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})
@@ -1373,6 +1374,7 @@ def main() -> None:
         "morning_collection": morning_collection,
         "realtime_collection": realtime_collection,
         "daily": daily,
+        "direct_daily": direct_daily,
         "daily_focus": daily_focus,
         "review_actions": review_actions,
         "balances": balances,

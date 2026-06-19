@@ -2166,6 +2166,41 @@ function renderReviews() {
   });
 }
 
+function renderDirectDaily() {
+  const directDaily = data.direct_daily || {};
+  const stores = directDaily.store_summary || [];
+  const records = directDaily.records || [];
+  const latestDate = latestDailyDate(directDaily);
+  const latestRecords = latestDailyRows(directDaily);
+  const totalIncome = latestRecords.reduce((sum, item) => sum + Number(item.income || 0), 0);
+  const totalOrders = latestRecords.reduce((sum, item) => sum + Number(item.orders || 0), 0);
+  const storeRows = storeTotals(latestRecords).length ? storeTotals(latestRecords) : stores;
+
+  text("directDailyStatus", latestRecords.length || stores.length ? "已同步" : "待同步");
+  text("directDailyIncome", yuan(totalIncome || stores.reduce((sum, item) => sum + Number(item.total_income || 0), 0)));
+  text(
+    "directDailySummary",
+    latestRecords.length
+      ? `最新直营日报日期 ${latestDate || "-"}：总收入 ${yuan(totalIncome)}，总单量 ${num(totalOrders)} 单，覆盖 ${storeRows.length} 家门店。`
+      : stores.length
+        ? `直营店累计数据已接入，覆盖 ${stores.length} 家门店。`
+        : "等待直营店日报数据。"
+  );
+  rows(
+    "directDailyRows",
+    storeRows,
+    (item) => {
+      const store = item.store || item.name || "-";
+      const income = Number(item.income ?? item.total_income ?? 0);
+      const orders = Number(item.orders ?? item.total_orders ?? 0);
+      const detailParts = [];
+      if (item.eleme_income || item.eleme_orders) detailParts.push(`饿了么 ${yuan(item.eleme_income || 0)} / ${num(item.eleme_orders || 0)} 单`);
+      if (item.meituan_income || item.meituan_orders) detailParts.push(`美团 ${yuan(item.meituan_income || 0)} / ${num(item.meituan_orders || 0)} 单`);
+      return `<div class="good-row"><span>${escapeHtml(store)}</span><strong>${yuan(income)} / ${num(orders)} 单</strong><em>${escapeHtml(detailParts.join("；") || "等待平台拆分")}</em></div>`;
+    }
+  );
+}
+
 function renderDirectReviews() {
   renderReviewPanel({
     daily: data.direct_daily || {},
@@ -3292,9 +3327,11 @@ function resolveEmbeddedUrl(source) {
 const gitLabel = data.system?.git?.commit ? ` · 版本 ${data.system.git.commit}` : "";
 text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}${gitLabel}`);
 renderDaily();
+renderDirectDaily();
 renderPriority();
 renderHealth();
 renderReviews();
+renderDirectReviews();
 renderBalances();
 renderBudget();
 renderBidding();
