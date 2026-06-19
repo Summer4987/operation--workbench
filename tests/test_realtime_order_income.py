@@ -1,4 +1,11 @@
-from scripts.realtime_order_income import build_api_record, build_dom_record, build_payload, merge_records
+from scripts.realtime_order_income import (
+    apply_closed_store_rules,
+    build_api_record,
+    build_dom_record,
+    build_payload,
+    merge_records,
+    realtime_validation_errors,
+)
 
 
 def test_meituan_api_ignores_valid_order_amount_as_income():
@@ -86,6 +93,51 @@ def test_meituan_realtime_dom_row_handles_zero_middle_metrics():
     assert record["store"] == "五一广场"
     assert record["orders"] == 0
     assert record["income"] == 0
+
+
+def test_closed_store_rule_forces_realtime_zero():
+    record = build_dom_record(
+        "9 熊小小牛排饭POKEBEAR（五一广场店） 0.00 383.42 0.00 764.30 0.00 498.20 0 12 0.00 41.52",
+        "美团",
+    )
+    record["orders"] = 12
+    record["income"] = 383.42
+
+    normalized = apply_closed_store_rules(
+        [record],
+        {
+            "closed_stores": {
+                "五一广场": {
+                    "platforms": ["美团"],
+                    "reason": "门店未开业，实时订单和营业额应为 0。",
+                }
+            }
+        },
+    )
+
+    assert normalized[0]["orders"] == 0
+    assert normalized[0]["income"] == 0
+    assert normalized[0]["original_orders"] == 12
+    assert normalized[0]["original_income"] == 383.42
+
+
+def test_meituan_page_row_validation_flags_bad_ticket():
+    errors = realtime_validation_errors(
+        [
+            {
+                "platform": "美团",
+                "store": "中关村",
+                "orders": 500,
+                "income": 100,
+                "source": "page",
+                "raw": "bad row",
+            }
+        ],
+        {"meituan_page_row_validation": {"min_ticket": 8, "max_ticket": 120}},
+    )
+
+    assert errors
+    assert "客单价异常" in errors[0]
 
 
 def test_payload_marks_missing_income_as_partial():

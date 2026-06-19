@@ -31,6 +31,7 @@ MEITUAN_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igat
 OUTPUT_DIR = ROOT / "outputs" / "realtime_order_income"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 FAILED_PATH = OUTPUT_DIR / "last_failed.json"
+RULES_PATH = ROOT / "config" / "realtime_order_income_rules.json"
 
 TARGET_STORES = {
     "中关村": ["中关村", "中关村店", "第2号档口", "利康金桥", "第3档口", "吉祥美食城"],
@@ -96,6 +97,14 @@ MEITUAN_API_INCOME_KEYS = [
     "revenue",
     "income",
 ]
+
+DEFAULT_RULES = {
+    "closed_stores": {},
+    "meituan_page_row_validation": {
+        "min_ticket": 8,
+        "max_ticket": 120,
+    },
+}
 
 
 def now_text() -> str:
@@ -190,6 +199,21 @@ def looks_like_store_metric_row(item: dict[str, Any], platform: str) -> bool:
 
 def record_sort_key(record: dict[str, Any]) -> tuple[str, str, str]:
     return (str(record.get("store") or ""), str(record.get("platform") or ""), str(record.get("source_store") or ""))
+
+
+def load_realtime_rules() -> dict[str, Any]:
+    rules = json.loads(json.dumps(DEFAULT_RULES, ensure_ascii=False))
+    try:
+        payload = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return rules
+    except Exception as exc:
+        raise RuntimeError(f"实时采集规则配置无法读取：{exc}") from exc
+    if isinstance(payload.get("closed_stores"), dict):
+        rules["closed_stores"] = payload["closed_stores"]
+    if isinstance(payload.get("meituan_page_row_validation"), dict):
+        rules["meituan_page_row_validation"].update(payload["meituan_page_row_validation"])
+    return rules
 
 
 def build_api_record(item: dict[str, Any], platform: str, url: str) -> dict[str, Any] | None:
@@ -430,6 +454,48 @@ def merge_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if new_score >= current_score:
             merged[key] = record
     return sorted(merged.values(), key=record_sort_key)
+
+
+def apply_closed_store_rules(records: list[dict[str, Any]], rules: dict[str, Any]) -> list[dict[str, Any]]:
+    closed_stores = rules.get("closed_stores") or {}
+    normalized = []
+    for record in records:
+        item = dict(record)
+        store_rule = closed_stores.get(item.get("store"))
+        platforms = set((store_rule or {}).get("platforms") or [])
+        if store_rule and (not platforms or item.get("platform") in platforms):
+            original_orders = int(item.get("orders") or 0)
+            original_income = round(float(item.get("income") or 0), 2)
+            if original_orders or original_income:
+                item["original_orders"] = original_orders
+                item["original_income"] = original_income
+            item["orders"] = 0
+            item["income"] = 0
+            item["income_status"] = "trusted"
+            item["validation_note"] = store_rule.get("reason") or "门店配置为闭店，实时订单和营业额强制为 0。"
+        normalized.append(item)
+    return normalized
+
+
+def realtime_validation_errors(records: list[dict[str, Any]], rules: dict[str, Any]) -> list[str]:
+    validation = rules.get("meituan_page_row_validation") or {}
+    min_ticket = float(validation.get("min_ticket") or 0)
+    max_ticket = float(validation.get("max_ticket") or 0)
+    errors = []
+    for item in records:
+        if item.get("platform") != "美团" or item.get("source") != "page":
+            continue
+        orders = int(item.get("orders") or 0)
+        income = float(item.get("income") or 0)
+        if orders == 0 and income == 0:
+            continue
+        if orders == 0 or income == 0:
+            errors.append(f"美团实时行疑似错列：{item.get('store')} 订单 {orders}，收入 {income:.2f}，raw={item.get('raw')}")
+            continue
+        ticket = income / orders
+        if (min_ticket and ticket < min_ticket) or (max_ticket and ticket > max_ticket):
+            errors.append(f"美团实时行客单价异常：{item.get('store')} {ticket:.2f} 元/单，订单 {orders}，收入 {income:.2f}，raw={item.get('raw')}")
+    return errors
 
 
 def page_for_platform(context, url: str, url_markers: list[str]):
@@ -886,6 +952,7 @@ def main() -> int:
     args = parser.parse_args()
 
     config = load_config()
+    rules = load_realtime_rules()
     playwright, browser = connect_browser(config)
     records: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -931,11 +998,12 @@ def main() -> int:
     finally:
         disconnect_browser(playwright, browser)
 
-    merged_records = merge_records(records)
+    merged_records = apply_closed_store_rules(merge_records(records), rules)
     if args.platform != "all":
         existing = read_existing_items()
         other_platform = "美团" if args.platform == "eleme" else "饿了么"
-        merged_records = merge_records([*merged_records, *[item for item in existing if item.get("platform") == other_platform]])
+        merged_records = apply_closed_store_rules(merge_records([*merged_records, *[item for item in existing if item.get("platform") == other_platform]]), rules)
+    errors.extend(realtime_validation_errors(merged_records, rules))
     payload = save_payload(merged_records, errors)
     summary = payload["summary"]
     print(f"实时单量收入已更新：{LATEST_PATH}")
