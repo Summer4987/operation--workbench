@@ -193,7 +193,7 @@ def safe_response_preview(response) -> dict | None:
         return None
     try:
         body = response.text()
-    except Exception:
+    except BaseException:
         return None
     if not body:
         return None
