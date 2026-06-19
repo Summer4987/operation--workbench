@@ -163,11 +163,13 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                 total_count = int(response_payloads[0].get("totalCount") or len(response_payloads[0].get("result") or []))
                 page_size = max(1, len(response_payloads[0].get("result") or []))
                 total_pages = math.ceil(total_count / page_size)
+                page.wait_for_timeout(2500)
                 for page_number in range(2, total_pages + 1):
                     before = len(response_payloads)
                     if not click_page_number(page_number):
                         break
                     wait_for_response_count(before + 1)
+                    page.wait_for_timeout(1000)
         finally:
             page.remove_listener("response", handle_response)
         return merged_payload(), response_url
