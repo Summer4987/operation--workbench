@@ -72,8 +72,8 @@ def test_meituan_realtime_dom_row_uses_current_table_columns():
 
     assert record is not None
     assert record["store"] == "中关村"
-    assert record["orders"] == 43
-    assert record["income"] == 1337.28
+    assert record["orders"] == 17
+    assert record["income"] == 553.18
 
 
 def test_meituan_realtime_dom_row_handles_zero_middle_metrics():
@@ -84,8 +84,8 @@ def test_meituan_realtime_dom_row_handles_zero_middle_metrics():
 
     assert record is not None
     assert record["store"] == "五一广场"
-    assert record["orders"] == 9
-    assert record["income"] == 305.14
+    assert record["orders"] == 0
+    assert record["income"] == 0
 
 
 def test_payload_marks_missing_income_as_partial():

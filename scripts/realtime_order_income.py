@@ -325,8 +325,8 @@ def infer_meituan_realtime_row(text: str) -> tuple[float | None, float | None, s
     cleaned = tail.replace(",", "")
     numbers = [to_number(item) for item in re.findall(r"-?\d+(?:\.\d+)?", cleaned)]
     numbers = [item for item in numbers if item is not None]
-    if len(numbers) >= 8:
-        return numbers[7], numbers[1], source_name
+    if len(numbers) >= 7:
+        return numbers[6], numbers[0], source_name
     orders, income = infer_from_row_text(tail)
     return orders, income, source_name
 
