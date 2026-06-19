@@ -54,7 +54,44 @@ def goto_report_page(page, account: dict):
     url = (account.get("pages") or {}).get("daily_report") or "https://waimaieapp.meituan.com/bizdata_pc/report/download"
     page.goto(url, wait_until="domcontentloaded", timeout=90_000)
     page.wait_for_timeout(9000)
-    return meituan_report_frame(page)
+    frame = meituan_report_frame(page)
+    if not report_params_ready(page, frame):
+        raise RuntimeError(
+            "直营美团日报页缺少 acctId/wmPoiId/token 参数；"
+            "请先在同一 Chrome profile 登录 e.waimai.meituan.com 外层商家后台，"
+            "再从后台进入经营分析/报表下载页。"
+        )
+    return frame
+
+
+def report_params_ready(page, frame) -> bool:
+    return bool(
+        frame.evaluate(
+            """() => {
+              const hasParams = (rawUrl) => {
+                try {
+                  const url = new URL(rawUrl, location.href);
+                  return Boolean(url.searchParams.get('acctId') && url.searchParams.get('wmPoiId') && url.searchParams.get('token'));
+                } catch (_) {
+                  return false;
+                }
+              };
+              if (hasParams(location.href)) return true;
+              return performance.getEntriesByType('resource')
+                .map((entry) => entry.name)
+                .some((url) => url.includes('/gw/bizdata/report/download/tab') && hasParams(url));
+            }"""
+        )
+        or page.evaluate(
+            """() => performance.getEntriesByType('resource')
+              .map((entry) => entry.name)
+              .some((url) => {
+                if (!url.includes('/gw/bizdata/report/download/tab')) return false;
+                const parsed = new URL(url, location.href);
+                return Boolean(parsed.searchParams.get('acctId') && parsed.searchParams.get('wmPoiId') && parsed.searchParams.get('token'));
+              })"""
+        )
+    )
 
 
 def generate_report(page, account: dict, target_date: str) -> None:
