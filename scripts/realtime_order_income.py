@@ -876,6 +876,9 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
                     "income_status": item.get("income_status") or "trusted",
                     "source": item.get("source"),
                     "source_store": item.get("source_store"),
+                    "validation_note": item.get("validation_note"),
+                    "original_orders": item.get("original_orders"),
+                    "original_income": item.get("original_income"),
                 }
                 for item in store_items
             },
