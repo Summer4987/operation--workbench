@@ -2192,9 +2192,9 @@ function renderReviewPanel({
   emptyText,
 }) {
   const review = daily.review_summary || {};
-  const reviewActions = data.review_actions || {};
-  const actionSummary = reviewActions.summary || {};
-  const weeklyRecap = reviewActions.weekly_recap || {};
+  const panelReviewActions = reviewActions || {};
+  const actionSummary = panelReviewActions.summary || {};
+  const weeklyRecap = panelReviewActions.weekly_recap || {};
   const weeklySummary = weeklyRecap.summary || {};
   const stores = Object.entries(review.stores || {}).map(([store, item]) => ({
     store,
