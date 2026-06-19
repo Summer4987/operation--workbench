@@ -1626,7 +1626,9 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
     ? "偏旧"
     : collectionStatus === "failed_after_success"
       ? "最近失败"
-      : collectionStatus === "ok" || realtime.status === "ready" || sourceStores.length
+      : realtime.status === "needs_review"
+        ? "需复查"
+        : collectionStatus === "ok" || realtime.status === "ready" || sourceStores.length
         ? "已同步"
         : "待采集";
 
@@ -1637,8 +1639,8 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   document.querySelector("#realtimeCompare")?.classList.add(trendClass(Number(realtimeComparison?.summary?.orders?.delta || 0)));
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtimeStatusText);
-  text("realtimeMeta", `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${comparisonBaseText}${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
-  document.querySelector("#realtime")?.classList.toggle("alert", ["stale", "failed_after_success", "partial", "missing_latest"].includes(collectionStatus));
+  text("realtimeMeta", realtime.anomaly_reason || `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${comparisonBaseText}${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);
+  document.querySelector("#realtime")?.classList.toggle("alert", realtime.status === "needs_review" || ["stale", "failed_after_success", "partial", "missing_latest"].includes(collectionStatus));
 
   rows(
     "realtimeStoreRows",

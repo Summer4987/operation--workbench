@@ -313,6 +313,35 @@ def reset_stale_realtime(realtime: dict, now: datetime | None = None) -> dict:
     return realtime
 
 
+def suppress_anomalous_realtime(realtime: dict) -> dict:
+    if not isinstance(realtime, dict) or not realtime:
+        return realtime
+    summary = realtime.get("summary") or {}
+    total_orders = float(summary.get("total_orders") or realtime.get("total_orders") or 0)
+    total_income = float(summary.get("total_income") or realtime.get("total_income") or 0)
+    if total_orders < 1000 or total_income <= 0 or total_income / total_orders >= 5:
+        return realtime
+
+    adjusted = json.loads(json.dumps(realtime, ensure_ascii=False))
+    adjusted["status"] = "needs_review"
+    adjusted["anomaly_reason"] = "实时采集结果客单价低于 5 元，疑似平台页面字段解析错位，已暂不展示错误实时数。"
+    adjusted_summary = adjusted.setdefault("summary", {})
+    adjusted_summary["total_orders"] = 0
+    adjusted_summary["total_income"] = 0
+    adjusted_summary["realtime_anomaly"] = True
+    adjusted_summary["raw_total_orders"] = total_orders
+    adjusted_summary["raw_total_income"] = total_income
+    for store in adjusted.get("stores") or []:
+        store["orders"] = 0
+        store["income"] = 0
+        for platform in (store.get("platforms") or {}).values():
+            if isinstance(platform, dict):
+                platform["orders"] = 0
+                platform["income"] = 0
+                platform["income_status"] = "needs_review"
+    return adjusted
+
+
 def merge_realtime_history(realtime: dict) -> list[dict]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     snapshots = []
@@ -1322,7 +1351,7 @@ def main() -> None:
     order_execution_preview = read_json(ORDER_EXECUTION_PREVIEW_PATH, {})
     android_execution_plan = read_json(ANDROID_EXECUTION_PLAN_PATH, {})
     android_config = read_json(ANDROID_CONFIG_HEALTH_PATH, {})
-    realtime = reset_stale_realtime(read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {}))
+    realtime = suppress_anomalous_realtime(reset_stale_realtime(read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})))
     inventory = inventory_snapshot()
     realtime_history = merge_realtime_history(realtime)
     realtime_comparison = build_realtime_comparison(realtime, realtime_history)
