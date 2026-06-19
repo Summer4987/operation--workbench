@@ -125,6 +125,22 @@ def click_review_list_tab(page) -> bool:
         return True
     except Exception:
         pass
+    for frame in page.frames:
+        if "userComment_gw" not in frame.url:
+            continue
+        try:
+            frame.get_by_text("外卖评价列表", exact=True).click(timeout=3000)
+            return True
+        except Exception:
+            pass
+        try:
+            element = frame.frame_element()
+            box = element.bounding_box()
+            if box:
+                page.mouse.click(box["x"] + 462, box["y"] + 244)
+                return True
+        except Exception:
+            pass
     try:
         # The Meituan review page is Flutter/canvas-based in some sessions, so
         # the tab text is not always exposed to the DOM accessibility tree.
