@@ -18,6 +18,7 @@ const outputDir = path.join(repoRoot, "outputs/promo_budget_preview");
 const jsonPath = path.join(outputDir, "latest.json");
 const jsPath = path.join(outputDir, "latest-data.js");
 const overridesPath = path.join(repoRoot, "config/promo_budget_overrides.json");
+const directMeituanAccountsPath = path.join(repoRoot, "config/direct_meituan_accounts.json");
 
 function loadRuntime() {
   const context = { window: {} };
@@ -30,6 +31,8 @@ function loadRuntime() {
 }
 
 function matchMeituanName(storeName) {
+  const directAccount = directMeituanAccountForStore(storeName);
+  if (directAccount) return directAccount.meituan_store_name || directAccount.stores?.[0] || storeName;
   const map = {
     "第2号档口利康金桥美食城": "熊小小牛排饭POKEBEAR（第3档口吉祥美食城店）",
     "第5号档口川湘府美食城店": "熊小小牛排饭POKEBEAR(第5号档口川湘府美食城店)",
@@ -39,7 +42,6 @@ function matchMeituanName(storeName) {
     "双井店": "熊小小牛排饭POKEBEAR（双井店）",
     "保利中心店": "熊小小牛排饭POKEBEAR（保利中心店）",
     "安贞店": "熊小小牛排饭POKEBEAR（安贞店）",
-    "朝阳门店": "熊小小牛排饭POKEEBEAR（第B2档口雅宝食堂美食城店）",
     "五一广场店": "熊小小牛排饭POKEBEAR（五一广场店）",
   };
   return map[storeName] || "";
@@ -52,6 +54,7 @@ globalThis.__files = {
 
 const { rules, logic } = loadRuntime();
 const overrides = await loadOverrides();
+const directMeituanAccounts = await loadDirectMeituanAccounts();
 const dateContext = budgetDateContext(undefined, overrides);
 const weekendPreset = buildWeekendPreset(overrides, dateContext);
 const tasks = logic.buildTasks(rules);
@@ -65,19 +68,21 @@ const meituanDinner = rules.stores
   .filter((row) => row.status !== "unmatched");
 
 function meituanTask(store, period) {
+  const directAccount = directMeituanAccountForStore(store.name);
+  const meituanName = matchMeituanName(store.name);
   const targetBudget = budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
   return {
     platform: "美团",
-    store: matchMeituanName(store.name),
+    store: meituanName,
     sourceStore: store.name,
     keyword: meituanKeyword(store.name),
     period,
     time: period === "午餐" ? "上午运营按钮" : "16:30",
     type: "budget",
     targetBudget,
-    status: matchMeituanName(store.name) ? "auto" : "unmatched",
-    directMeituanAccountId: store.name === "朝阳门店" ? "direct_chaoyangmen" : "",
-    action: matchMeituanName(store.name)
+    status: meituanName ? "auto" : "unmatched",
+    directMeituanAccountId: directAccount?.id || "",
+    action: meituanName
       ? `自动设置${period}预算 ${targetBudget} 元`
       : "未匹配到美团门店，需人工确认",
   };
@@ -138,6 +143,19 @@ async function loadOverrides() {
   }
 }
 
+async function loadDirectMeituanAccounts() {
+  try {
+    const payload = JSON.parse(await fs.readFile(directMeituanAccountsPath, "utf8"));
+    return (payload.accounts || []).filter((account) => account.enabled);
+  } catch {
+    return [];
+  }
+}
+
+function directMeituanAccountForStore(storeName) {
+  return directMeituanAccounts.find((account) => (account.stores || []).includes(storeName));
+}
+
 function budgetFor(platform, storeName, period, fallback) {
   const resolution = resolveBudget({ overrides, platform, storeName, period, fallback, dateContext });
   return applyWeekendPresetIfNeeded(resolution.budget, period, resolution, weekendPreset);
@@ -148,6 +166,8 @@ function applyOverride(task) {
 }
 
 function meituanKeyword(storeName) {
+  const directAccount = directMeituanAccountForStore(storeName);
+  if (directAccount?.keyword) return directAccount.keyword;
   const map = {
     "第2号档口利康金桥美食城": "第3档口",
     "第5号档口川湘府美食城店": "川湘府",
@@ -157,7 +177,6 @@ function meituanKeyword(storeName) {
     "双井店": "双井",
     "保利中心店": "保利中心",
     "安贞店": "安贞",
-    "朝阳门店": "雅宝",
     "五一广场店": "五一广场",
   };
   return map[storeName] || "";

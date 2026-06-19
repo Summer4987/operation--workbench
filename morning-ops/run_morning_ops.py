@@ -20,6 +20,7 @@ DAILY_RUNNER = WORKSPACE / "business-report-dashboard" / "run_daily_publish.comm
 REPORT_DIR = WORKSPACE / "business-report-dashboard"
 REPORT_AUTOMATION = REPORT_DIR / "chrome_cdp_reports.py"
 REPORT_PROCESSOR = REPORT_DIR / "process_reports.py"
+DIRECT_MEITUAN_DAILY_RUNNER = WORKSPACE / "scripts" / "download_direct_meituan_daily.py"
 DIRECT_MEITUAN_REVIEW_RUNNER = WORKSPACE / "scripts" / "download_direct_meituan_reviews.py"
 BALANCE_RUNNER = WORKSPACE / "store-inspection" / "run_all_balances.py"
 EVIDENCE_MANIFEST_RUNNER = WORKSPACE / "scripts" / "build_store_inspection_evidence_manifest.py"
@@ -305,8 +306,10 @@ def main() -> int:
                 ensure_backend_chrome(report_python)
                 if run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240).returncode != 0:
                     failures.append("双平台评价")
-                if run_step_with_pause("直营美团评价下载", [report_python, str(DIRECT_MEITUAN_REVIEW_RUNNER)], required=False, timeout_seconds=180).returncode != 0:
+                if run_step_with_pause("直营美团评价下载", [report_python, str(DIRECT_MEITUAN_REVIEW_RUNNER), "--all"], required=False, timeout_seconds=420).returncode != 0:
                     failures.append("直营美团评价")
+                if run_step_with_pause("直营美团日报下载", [report_python, str(DIRECT_MEITUAN_DAILY_RUNNER), "--all", "--submit"], required=False, timeout_seconds=600).returncode != 0:
+                    failures.append("直营美团日报")
                 ensure_backend_chrome(report_python)
                 if run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720).returncode != 0:
                     failures.append("门店日报")

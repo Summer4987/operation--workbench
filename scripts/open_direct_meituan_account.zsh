@@ -47,8 +47,6 @@ account = next((item for item in accounts if item.get("id") == account_id), None
 if not account:
     known = ", ".join(item.get("id", "") for item in accounts)
     raise SystemExit(f"没有找到账号 {account_id}。已配置：{known}")
-if not account.get("enabled", False):
-    raise SystemExit(f"账号 {account_id} 尚未启用。")
 pages = account.get("pages") or {}
 urls = [pages.get(key, "") for key in ["home", "daily_report", "reviews", "promo_balance"]]
 print(account.get("name", account_id))

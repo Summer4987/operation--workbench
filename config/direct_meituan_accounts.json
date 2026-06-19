@@ -5,6 +5,8 @@
       "name": "美团直营临时账号-朝阳门店",
       "enabled": true,
       "stores": ["朝阳门店"],
+      "meituan_store_name": "熊小小牛排饭POKEEBEAR（第B2档口雅宝食堂美食城店）",
+      "keyword": "雅宝",
       "profile_dir": "~/Library/Application Support/XiongOps/meituan-direct-chaoyangmen",
       "debug_port": 19223,
       "pages": {
@@ -14,6 +16,57 @@
         "promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
       },
       "notes": "临时独立美团账号。登录态只保存在 Mac mini 本地 profile，不上传 GitHub。"
+    },
+    {
+      "id": "direct_yintaicheng",
+      "name": "美团直营临时账号-银泰城店",
+      "enabled": false,
+      "stores": ["银泰城店"],
+      "meituan_store_name": "熊小小牛排饭POKEBEAR（银泰城店）",
+      "keyword": "银泰城",
+      "profile_dir": "~/Library/Application Support/XiongOps/meituan-direct-yintaicheng",
+      "debug_port": 19224,
+      "pages": {
+        "home": "https://e.waimai.meituan.com/",
+        "daily_report": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
+        "reviews": "https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home",
+        "promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
+      },
+      "notes": "待首次登录。启用前不会进入早晨生产任务。登录态只保存在 Mac mini 本地 profile，不上传 GitHub。"
+    },
+    {
+      "id": "direct_wanxiangcheng",
+      "name": "美团直营临时账号-万象城店",
+      "enabled": false,
+      "stores": ["万象城店"],
+      "meituan_store_name": "熊小小牛排饭POKEBEAR（万象城店）",
+      "keyword": "万象城",
+      "profile_dir": "~/Library/Application Support/XiongOps/meituan-direct-wanxiangcheng",
+      "debug_port": 19225,
+      "pages": {
+        "home": "https://e.waimai.meituan.com/",
+        "daily_report": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
+        "reviews": "https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home",
+        "promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
+      },
+      "notes": "待首次登录。启用前不会进入早晨生产任务。登录态只保存在 Mac mini 本地 profile，不上传 GitHub。"
+    },
+    {
+      "id": "direct_jinrongcheng",
+      "name": "美团直营临时账号-金融城店",
+      "enabled": false,
+      "stores": ["金融城店"],
+      "meituan_store_name": "熊小小牛排饭POKEBEAR（金融城店）",
+      "keyword": "金融城",
+      "profile_dir": "~/Library/Application Support/XiongOps/meituan-direct-jinrongcheng",
+      "debug_port": 19226,
+      "pages": {
+        "home": "https://e.waimai.meituan.com/",
+        "daily_report": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
+        "reviews": "https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home",
+        "promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
+      },
+      "notes": "待首次登录。启用前不会进入早晨生产任务。登录态只保存在 Mac mini 本地 profile，不上传 GitHub。"
     }
   ]
 }

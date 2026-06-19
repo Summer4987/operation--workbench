@@ -35,14 +35,14 @@ def require_playwright():
     return sync_playwright
 
 
-def load_account(account_id: str) -> dict:
+def load_account(account_id: str, include_disabled: bool = False) -> dict:
     payload = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     accounts = payload.get("accounts") or []
     account = next((item for item in accounts if item.get("id") == account_id), None)
     if not account:
         known = ", ".join(item.get("id", "") for item in accounts)
         raise SystemExit(f"没有找到账号 {account_id}。已配置：{known}")
-    if not account.get("enabled", False):
+    if not include_disabled and not account.get("enabled", False):
         raise SystemExit(f"账号 {account_id} 尚未启用。")
     return account
 
@@ -98,8 +98,15 @@ def get_page_from_attached_chrome(playwright, debug_port: int):
     return browser, context, page
 
 
-def run_check(account_id: str, visible: bool, wait_ms: int, browser_executable: str | None, page_keys: list[str] | None) -> dict:
-    account = load_account(account_id)
+def run_check(
+    account_id: str,
+    visible: bool,
+    wait_ms: int,
+    browser_executable: str | None,
+    page_keys: list[str] | None,
+    include_disabled: bool = False,
+) -> dict:
+    account = load_account(account_id, include_disabled=include_disabled)
     profile_dir = Path(account["profile_dir"]).expanduser()
     profile_dir.mkdir(parents=True, exist_ok=True)
     pages = account.get("pages") or {}
@@ -183,10 +190,11 @@ def main() -> None:
     parser.add_argument("--wait-ms", type=int, default=5000, help="每个页面打开后的等待毫秒数。")
     parser.add_argument("--browser-executable", help="可选：指定 Chrome/Chromium 可执行文件。macOS 默认优先使用系统 Chrome。")
     parser.add_argument("--pages", help="逗号分隔页面 key；默认检查全部。可选：home,daily_report,reviews,promo_balance。")
+    parser.add_argument("--include-disabled", action="store_true", help="允许检查尚未启用的待登录账号。")
     args = parser.parse_args()
 
     page_keys = [item.strip() for item in (args.pages or "").split(",") if item.strip()]
-    payload = run_check(args.account, args.visible, args.wait_ms, args.browser_executable, page_keys or None)
+    payload = run_check(args.account, args.visible, args.wait_ms, args.browser_executable, page_keys or None, args.include_disabled)
     output = write_result(payload)
     print(f"直营美团账号只读检查：{payload['status']}，结果：{output}")
     for item in payload["pages"]:

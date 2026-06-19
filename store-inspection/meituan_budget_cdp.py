@@ -64,11 +64,27 @@ def resolve_period(period: str) -> str:
 
 
 def wm_poi_id(task: dict) -> str:
+    configured = str(task.get("wmPoiId") or task.get("wm_poi_id") or "").strip()
+    if configured:
+        return configured
     joined = " ".join(str(task.get(key, "")) for key in ["keyword", "store", "sourceStore"])
     for keyword, value in WM_POI_IDS.items():
         if keyword in joined:
             return value
     raise RuntimeError(f"没有门店 wmPoiId：{joined}")
+
+
+def wm_poi_id_from_url(raw_url: str) -> str | None:
+    candidates = [raw_url]
+    fragment = urlsplit(raw_url).fragment
+    if fragment:
+        candidates.append(fragment)
+    for candidate in candidates:
+        query = dict(parse_qsl(urlsplit(candidate).query, keep_blank_values=True))
+        value = query.get("wmPoiId")
+        if value:
+            return value
+    return None
 
 
 def url_for_store(base_url: str, wm_id: str) -> str:
@@ -298,7 +314,14 @@ def open_budget_modal(page) -> None:
 
 def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
     target = float(task["targetBudget"])
-    wm_id = wm_poi_id(task)
+    try:
+        wm_id = wm_poi_id(task)
+    except RuntimeError:
+        if not task.get("directMeituanAccountId"):
+            raise
+        wm_id = wm_poi_id_from_url(base_url)
+        if not wm_id:
+            raise
     target_url = url_for_store(base_url, wm_id)
     page = context.new_page()
     record = {

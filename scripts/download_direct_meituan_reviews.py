@@ -38,6 +38,15 @@ def yesterday_compact() -> str:
     return (date.today() - timedelta(days=1)).strftime("%Y%m%d")
 
 
+def enabled_account_ids() -> list[str]:
+    payload = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return [
+        str(account.get("id"))
+        for account in payload.get("accounts") or []
+        if account.get("id") and account.get("enabled", False)
+    ]
+
+
 def launch_context(playwright, account: dict, visible: bool, browser_executable: str | None):
     debug_port = account.get("debug_port")
     if debug_port and cdp_available(int(debug_port)):
@@ -321,13 +330,23 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description="只读采集直营美团临时账号评价，写入直营/日报看板可识别的 CSV。")
     parser.add_argument("--account", default="direct_chaoyangmen", help="账号 ID。")
+    parser.add_argument("--all", action="store_true", help="采集所有已启用直营美团账号。")
     parser.add_argument("--target-date", default=yesterday_compact(), help="评价日期，格式 YYYYMMDD；默认昨天。")
     parser.add_argument("--visible", action="store_true", help="显示浏览器窗口；默认 headless。")
     parser.add_argument("--wait-seconds", type=int, default=75, help="等待评价接口和翻页的秒数。")
     parser.add_argument("--max-pages", type=int, default=12, help="最多读取的评价分页数。")
     parser.add_argument("--browser-executable", default=str(MAC_CHROME) if MAC_CHROME.exists() else None, help="Chrome/Chromium 可执行文件。")
     args = parser.parse_args()
-    run(args.account, args.target_date, args.visible, args.wait_seconds, args.max_pages, args.browser_executable)
+    account_ids = enabled_account_ids() if args.all else [args.account]
+    failures: list[str] = []
+    for account_id in account_ids:
+        try:
+            run(account_id, args.target_date, args.visible, args.wait_seconds, args.max_pages, args.browser_executable)
+        except Exception as exc:
+            failures.append(f"{account_id}: {exc}")
+            print(f"直营美团评价采集失败：{account_id}: {exc}", file=sys.stderr)
+    if failures:
+        raise SystemExit("；".join(failures))
 
 
 if __name__ == "__main__":

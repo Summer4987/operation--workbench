@@ -50,8 +50,6 @@ def load_direct_ports() -> list[int]:
         return []
     ports = []
     for account in payload.get("accounts") or []:
-        if not account.get("enabled", True):
-            continue
         port = account.get("debug_port")
         try:
             ports.append(int(port))
