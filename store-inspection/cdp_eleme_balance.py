@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import time
@@ -70,14 +71,14 @@ def parse_shop_rows(payload: dict) -> list[dict]:
 def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str]:
     config = cdp.load_config()
     playwright, browser = cdp.connect_browser(config)
-    response_payload: dict | None = None
+    response_payloads: list[dict] = []
     response_url = ""
     try:
         context = cdp.first_context(browser)
         page = cdp.reusable_page(context)
 
         def handle_response(response):
-            nonlocal response_payload, response_url
+            nonlocal response_url
             if BALANCE_API_KEY not in response.url:
                 return
             try:
@@ -85,21 +86,91 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
             except Exception:
                 return
             if isinstance(payload, dict) and isinstance(payload.get("result"), list):
-                response_payload = payload
+                response_payloads.append(payload)
                 response_url = response.url
+
+        def wait_for_response_count(count: int, seconds: int = 20) -> bool:
+            deadline = time.time() + seconds
+            while time.time() < deadline:
+                if len(response_payloads) >= count:
+                    return True
+                page.wait_for_timeout(500)
+            return len(response_payloads) >= count
+
+        def click_page_number(page_number: int) -> bool:
+            return bool(
+                page.evaluate(
+                    """
+                    (pageNumber) => {
+                      const label = String(pageNumber);
+                      const visible = (el) => {
+                        const rect = el.getBoundingClientRect();
+                        const style = window.getComputedStyle(el);
+                        return rect.width > 0 && rect.height > 0
+                          && style.visibility !== "hidden"
+                          && style.display !== "none";
+                      };
+                      const candidates = Array.from(document.querySelectorAll("button,li,a,span,div"))
+                        .filter((el) => visible(el) && (el.innerText || el.textContent || "").trim() === label)
+                        .sort((a, b) => {
+                          const ar = a.getBoundingClientRect();
+                          const br = b.getBoundingClientRect();
+                          return (ar.width * ar.height) - (br.width * br.height);
+                        });
+                      const item = candidates[0];
+                      if (!item) return false;
+                      item.scrollIntoView({ block: "center", inline: "center" });
+                      const target = item.closest("button,li,a") || item;
+                      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+                      target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+                      target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                      return true;
+                    }
+                    """,
+                    page_number,
+                )
+            )
+
+        def merged_payload() -> dict | None:
+            if not response_payloads:
+                return None
+            merged = dict(response_payloads[-1])
+            rows_by_shop: dict[str, dict] = {}
+            for payload in response_payloads:
+                for row in payload.get("result") or []:
+                    if not isinstance(row, dict):
+                        continue
+                    key = str(row.get("shopId") or row.get("shopName") or len(rows_by_shop))
+                    rows_by_shop[key] = row
+            merged["result"] = list(rows_by_shop.values())
+            merged["totalCount"] = max(
+                int(payload.get("totalCount") or 0)
+                for payload in response_payloads
+                if isinstance(payload, dict)
+            )
+            return merged
 
         page.on("response", handle_response)
         try:
             cdp.goto_backend_page(page, ELEME_BALANCE_URL, timeout=90_000)
             deadline = time.time() + timeout_seconds
-            while time.time() < deadline and response_payload is None:
+            while time.time() < deadline and not response_payloads:
                 page.wait_for_timeout(1000)
-                if response_payload is None and BALANCE_API_KEY not in page.url:
+                if not response_payloads and BALANCE_API_KEY not in page.url:
                     # Keep the page active without clicking any business controls.
                     page.evaluate("() => document.body && document.body.innerText")
+            if response_payloads:
+                total_count = int(response_payloads[0].get("totalCount") or len(response_payloads[0].get("result") or []))
+                page_size = max(1, len(response_payloads[0].get("result") or []))
+                total_pages = math.ceil(total_count / page_size)
+                for page_number in range(2, total_pages + 1):
+                    before = len(response_payloads)
+                    if not click_page_number(page_number):
+                        break
+                    wait_for_response_count(before + 1)
         finally:
             page.remove_listener("response", handle_response)
-        return response_payload, response_url
+        return merged_payload(), response_url
     finally:
         cdp.disconnect_browser(playwright, browser)
 
