@@ -7,7 +7,8 @@
     "朝阳门店",
     "银泰城店",
     "万象城店",
-    "金融城店"
+    "金融城店",
+    "保利中心店"
   ],
   "store_aliases": [
     {
@@ -31,6 +32,11 @@
       "aliases": ["金融城店", "熊小小牛排饭POKEBEAR(金融城店)"]
     },
     {
+      "platform": "饿了么",
+      "short_name": "保利中心店",
+      "aliases": ["保利中心店", "熊小小牛排饭POKEBEAR(保利中心店)"]
+    },
+    {
       "platform": "美团",
       "short_name": "朝阳门店",
       "aliases": ["朝阳门店", "B2档口雅宝食堂美食城", "熊小小牛排饭POKEBEAR(朝阳门店)"]
@@ -49,6 +55,11 @@
       "platform": "美团",
       "short_name": "金融城店",
       "aliases": ["金融城店", "熊小小牛排饭POKEBEAR(金融城店)"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "保利中心店",
+      "aliases": ["保利中心店", "保利中心", "熊小小牛排饭POKEBEAR（保利中心店）", "熊小小牛排饭POKEBEAR(保利中心店)"]
     }
   ],
   "eleme": {

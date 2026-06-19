@@ -31,6 +31,7 @@ STORES = [
     {"name": "熊小小牛排饭POKEBEAR（五一广场店）", "keyword": "五一广场"},
     {"name": "熊小小牛排饭POKEBEAR（金融街店）", "keyword": "金融街"},
     {"name": "熊小小牛排饭POKEBEAR（丽泽门店）", "keyword": "丽泽"},
+    {"name": "熊小小牛排饭POKEBEAR（保利中心店）", "keyword": "保利中心"},
 ]
 
 MEITUAN_WM_POI_IDS = {

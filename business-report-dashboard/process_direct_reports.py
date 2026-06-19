@@ -23,6 +23,7 @@ DIRECT_STORE_SLUGS = {
     "银泰城店": "yintaicheng",
     "万象城店": "wanxiangcheng",
     "金融城店": "jinrongcheng",
+    "保利中心店": "baolizhongxin",
 }
 
 sys.path.insert(0, str(ROOT))
@@ -68,14 +69,22 @@ def collect_eleme_paths(explicit: Path | None) -> list[Path]:
 
 def collect_meituan_paths(explicit: Path | None) -> list[Path]:
     copied = copy_to_raw(explicit, DIRECT_RAW_DIR)
-    paths = [copied] if copied else []
-    paths.extend(
+    chain_paths = latest_by_report_date(
+        sorted(
+            (path for path in CHAIN_RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem),
+            key=lambda item: item.stat().st_mtime,
+        ),
+        r"门店_全部门店_(\d{8})_\1",
+    )
+    direct_candidates = [copied] if copied else []
+    direct_candidates.extend(
         sorted(
             (path for path in DIRECT_RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem),
             key=lambda item: item.stat().st_mtime,
         )
     )
-    return latest_by_report_date([path for path in paths if path], r"门店_全部门店_(\d{8})_\1")
+    direct_paths = latest_by_report_date([path for path in direct_candidates if path], r"门店_全部门店_(\d{8})_\1")
+    return chain_paths + direct_paths
 
 
 def process(eleme_path: Path | None = None, meituan_path: Path | None = None) -> dict:

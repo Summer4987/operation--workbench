@@ -11,7 +11,8 @@ WORKSPACE = ROOT.parent
 DIRECT_CONFIG_PATH = WORKSPACE / "business-report-dashboard" / "direct_config.json"
 DIRECT_MEITUAN_CONFIG_PATH = WORKSPACE / "config" / "direct_meituan_accounts.json"
 
-DIRECT_ELEME_STORES = ["朝阳门店", "银泰城店", "万象城店", "金融城店"]
+DIRECT_ELEME_STORES = ["朝阳门店", "银泰城店", "万象城店", "金融城店", "保利中心店"]
+DIRECT_MEITUAN_CHAIN_STORES = ["保利中心店"]
 
 
 def normalized(value: str) -> str:
@@ -53,6 +54,17 @@ def expected_direct_scopes(platforms: set[str] | None = None) -> list[dict[str, 
         scopes = [scope for scope in scopes if scope["platform"] in platforms]
 
     if platforms is None or "美团" in platforms:
+        scopes.append(
+            {
+                "id": "direct_meituan_chain",
+                "platform": "美团",
+                "label": "直营店美团总账号",
+                "stores": [
+                    {"store": store, "aliases": aliases_for_direct_store("meituan", store)}
+                    for store in DIRECT_MEITUAN_CHAIN_STORES
+                ],
+            }
+        )
         payload = read_json(DIRECT_MEITUAN_CONFIG_PATH, {})
         for account in payload.get("accounts") or []:
             if not account.get("enabled"):
