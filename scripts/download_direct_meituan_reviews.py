@@ -230,7 +230,11 @@ def run(
                     body_text = page.locator("body").inner_text(timeout=5000)
                 except Exception:
                     pass
-                blocking = [text for text in ["登录", "验证码", "安全验证", "手机验证码"] if text in body_text or text in page.url]
+                blocking = [
+                    text
+                    for text in ["登录", "验证码", "安全验证", "手机验证码", "验证中心", "身份核实", "拖动滑块", "verify.meituan.com"]
+                    if text in body_text or text in page.title() or text in page.url
+                ]
                 if blocking:
                     raise RuntimeError(f"直营美团评价页需要人工处理：{'、'.join(blocking)}")
                 raise RuntimeError("直营美团评价页未捕获评论列表接口")
@@ -260,7 +264,9 @@ def run(
                     "account_name": account.get("name", account_id),
                     "stores": account.get("stores") or [],
                     "target_date": target_date,
-                    "status": "needs_manual" if any(text in str(exc) for text in ["登录", "验证码", "安全验证"]) else "failed",
+                    "status": "needs_manual"
+                    if any(text in str(exc) for text in ["登录", "验证码", "安全验证", "验证中心", "身份核实", "拖动滑块", "verify.meituan.com"])
+                    else "failed",
                     "review_count": 0,
                     "api_response_count": len(api_urls),
                     "processed_page_count": processed_pages,

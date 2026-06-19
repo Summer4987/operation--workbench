@@ -22,7 +22,7 @@ PAGE_CHECKS = {
     "reviews": ["评价", "评论", "用户", "回复"],
     "promo_balance": ["推广", "余额", "账户", "点金"],
 }
-BLOCKING_TEXTS = ["登录", "验证码", "安全验证", "请输入验证码", "手机验证码", "扫码登录"]
+BLOCKING_TEXTS = ["登录", "验证码", "安全验证", "请输入验证码", "手机验证码", "扫码登录", "验证中心", "身份核实", "拖动滑块"]
 MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 
