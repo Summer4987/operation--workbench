@@ -396,11 +396,54 @@ def context_for_task(playwright, contexts: dict[str, object], task: dict, direct
     return contexts[endpoint]
 
 
-def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[str, dict]) -> str:
+def recent_promo_url_from_context(context) -> str | None:
+    for page in reversed(context.pages):
+        candidates = [page.url]
+        candidates.extend(frame.url for frame in page.frames)
+        for candidate in candidates:
+            if (
+                "waimaieapp.meituan.com/ad/v1/rpc" in candidate
+                and "token=" in candidate
+                and "acctId=" in candidate
+            ):
+                return candidate
+    return None
+
+
+def open_direct_promo_url(context, account: dict) -> str:
+    page = context.new_page()
+    try:
+        home_url = ((account.get("pages") or {}).get("home")) or "https://e.waimai.meituan.com/"
+        page.goto(home_url, wait_until="domcontentloaded", timeout=30000)
+        time.sleep(5)
+        click_visible_text(page, "门店推广")
+        time.sleep(12)
+        promo_url = recent_promo_url_from_context(context)
+        if promo_url:
+            return promo_url
+
+        page_url = ((account.get("pages") or {}).get("promo_balance")) or ""
+        if page_url:
+            page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(10)
+            promo_url = recent_promo_url_from_context(context)
+            if promo_url:
+                return promo_url
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+    raise RuntimeError(f"直营美团账号未能打开点金推广内层页面：{account.get('id')}")
+
+
+def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[str, dict], context=None) -> str:
     account_id = task.get("directMeituanAccountId") or ""
     if not account_id:
         return default_base_url
     account = direct_accounts.get(account_id)
+    if context is not None:
+        return recent_promo_url_from_context(context) or open_direct_promo_url(context, account or {})
     page_url = ((account or {}).get("pages") or {}).get("promo_balance")
     if not page_url:
         raise RuntimeError(f"直营美团账号未配置 promo_balance 页面：{account_id}")
@@ -448,7 +491,7 @@ def main() -> int:
             try:
                 print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode})", flush=True)
                 context = context_for_task(playwright, contexts, task, direct_accounts)
-                task_base_url = base_url_for_task(base_url, task, direct_accounts)
+                task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
                 results.append(execute_task(context, task_base_url, task, commit=commit))
             except Exception as exc:
                 results.append({
