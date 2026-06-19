@@ -20,7 +20,7 @@
     {
       "id": "direct_yintaicheng",
       "name": "美团直营临时账号-银泰城店",
-      "enabled": false,
+      "enabled": true,
       "stores": ["银泰城店"],
       "meituan_store_name": "熊小小牛排饭POKEBEAR（银泰城店）",
       "keyword": "银泰城",
