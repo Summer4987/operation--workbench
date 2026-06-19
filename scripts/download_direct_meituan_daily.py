@@ -8,6 +8,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +37,12 @@ def yesterday_compact() -> str:
 
 
 def launch_context(playwright, account: dict, visible: bool, browser_executable: str | None):
+    debug_port = account.get("debug_port")
+    if debug_port and cdp_available(int(debug_port)):
+        browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{int(debug_port)}")
+        context = browser.contexts[0] if browser.contexts else browser.new_context(accept_downloads=True)
+        return context, False
+
     profile_dir = Path(account["profile_dir"]).expanduser()
     profile_dir.mkdir(parents=True, exist_ok=True)
     executable_path = resolve_browser_executable(browser_executable)
@@ -47,7 +54,15 @@ def launch_context(playwright, account: dict, visible: bool, browser_executable:
     }
     if executable_path:
         options["executable_path"] = executable_path
-    return playwright.chromium.launch_persistent_context(**options)
+    return playwright.chromium.launch_persistent_context(**options), True
+
+
+def cdp_available(debug_port: int) -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{debug_port}/json/version", timeout=2) as response:
+            return response.status == 200
+    except Exception:
+        return False
 
 
 def goto_report_page(page, account: dict):
@@ -240,7 +255,7 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
     account = load_account(account_id)
     sync_playwright = require_playwright()
     with sync_playwright() as p:
-        context = launch_context(p, account, visible, browser_executable)
+        context, should_close_context = launch_context(p, account, visible, browser_executable)
         page = context.pages[0] if context.pages else context.new_page()
         try:
             if submit:
@@ -257,7 +272,8 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
                     time.sleep(10)
             raise TimeoutError(f"等待直营美团报表超时：{last_error}")
         finally:
-            context.close()
+            if should_close_context:
+                context.close()
 
 
 def main() -> None:
