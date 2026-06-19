@@ -1,0 +1,88 @@
+{
+  "group": {
+    "name": "直营店",
+    "key": "direct"
+  },
+  "target_stores": [
+    "朝阳门店",
+    "银泰城店",
+    "万象城店",
+    "金融城店"
+  ],
+  "store_aliases": [
+    {
+      "platform": "饿了么",
+      "short_name": "朝阳门店",
+      "aliases": ["朝阳门店", "B2档口雅宝食堂美食城", "熊小小牛排饭POKEBEAR(朝阳门店)"]
+    },
+    {
+      "platform": "饿了么",
+      "short_name": "银泰城店",
+      "aliases": ["银泰城店", "熊小小牛排饭POKEBEAR(银泰城店)"]
+    },
+    {
+      "platform": "饿了么",
+      "short_name": "万象城店",
+      "aliases": ["万象城店", "熊小小牛排饭POKEBEAR(万象城店)"]
+    },
+    {
+      "platform": "饿了么",
+      "short_name": "金融城店",
+      "aliases": ["金融城店", "熊小小牛排饭POKEBEAR(金融城店)"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "朝阳门店",
+      "aliases": ["朝阳门店", "B2档口雅宝食堂美食城", "熊小小牛排饭POKEBEAR(朝阳门店)"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "银泰城店",
+      "aliases": ["银泰城店", "熊小小牛排饭POKEBEAR(银泰城店)"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "万象城店",
+      "aliases": ["万象城店", "熊小小牛排饭POKEBEAR(万象城店)"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "金融城店",
+      "aliases": ["金融城店", "熊小小牛排饭POKEBEAR(金融城店)"]
+    }
+  ],
+  "eleme": {
+    "sheet_name": "data",
+    "columns": {
+      "date": "日期",
+      "store_raw": "门店名称",
+      "orders": "有效订单",
+      "income": "收入",
+      "customer_paid": ["顾客实付总额", "顾客实付", "顾客实付金额", "顾客实际支付", "顾客支付"],
+      "impressions": "曝光人数",
+      "visit_conversion": "进店转化率",
+      "order_conversion": "下单转化率",
+      "old_customer_order_conversion": "老客下单转化率",
+      "new_customer_order_conversion": "新客下单转化率",
+      "old_customer_orders": "老客下单人数",
+      "new_customer_orders": "新客下单人数"
+    }
+  },
+  "meituan": {
+    "encoding": "gb18030",
+    "columns": {
+      "date": "日期",
+      "store_raw": "门店名称",
+      "orders": "有效订单",
+      "income": "营业收入",
+      "customer_paid": ["顾客实付总额", "顾客实付", "顾客实付金额", "顾客实际支付", "顾客支付"],
+      "impressions": "曝光人数",
+      "visit_conversion": "入店转化率",
+      "order_conversion": "下单转化率",
+      "old_customer_order_conversion": "老客下单转化率",
+      "new_customer_order_conversion": "新客下单转化率",
+      "old_customer_orders": "下单老客",
+      "new_customer_orders": "下单新客"
+    }
+  }
+}
