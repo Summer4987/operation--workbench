@@ -1,4 +1,4 @@
-from scripts.realtime_order_income import build_api_record, build_payload, merge_records
+from scripts.realtime_order_income import build_api_record, build_dom_record, build_payload, merge_records
 
 
 def test_meituan_api_ignores_valid_order_amount_as_income():
@@ -62,6 +62,30 @@ def test_trusted_page_income_wins_over_missing_api_income():
     assert len(merged) == 1
     assert merged[0]["source"] == "page"
     assert merged[0]["income"] == 2820.5
+
+
+def test_meituan_realtime_dom_row_uses_current_table_columns():
+    record = build_dom_record(
+        "1 熊小小牛排饭POKEBEAR（第3档口吉祥美食城店） 553.18 1,337.28 1,022.20 2,496.00 715.20 1,695.50 17 43 42.07 1.89",
+        "美团",
+    )
+
+    assert record is not None
+    assert record["store"] == "中关村"
+    assert record["orders"] == 43
+    assert record["income"] == 1337.28
+
+
+def test_meituan_realtime_dom_row_handles_zero_middle_metrics():
+    record = build_dom_record(
+        "9 熊小小牛排饭POKEBEAR（五一广场店） 0.00 305.14 0.00 603.80 0.00 396.10 0 9 0.00 44.01",
+        "美团",
+    )
+
+    assert record is not None
+    assert record["store"] == "五一广场"
+    assert record["orders"] == 9
+    assert record["income"] == 305.14
 
 
 def test_payload_marks_missing_income_as_partial():
