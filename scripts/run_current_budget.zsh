@@ -5,6 +5,7 @@ ROOT="${OPERATION_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT"
 ELEME_RUNNER="${ELEME_AUTOMATION_RUNNER:-scripts/run_eleme_automation.zsh}"
 DEPLOY_RUNNER="${WORKBENCH_DEPLOY_RUNNER:-scripts/deploy_workbench_to_cloud.zsh}"
+CHROME_CLEANUP_RUNNER="$ROOT/scripts/cleanup_chrome_tabs.py"
 
 PERIOD="auto"
 MODE="commit"
@@ -77,6 +78,17 @@ if [ ! -x "$REPORT_PYTHON" ]; then
   REPORT_PYTHON="$PYTHON"
 fi
 
+cleanup_chrome_sessions() {
+  local label="$1"
+  if [ ! -f "$CHROME_CLEANUP_RUNNER" ]; then
+    return 0
+  fi
+  echo "$label"
+  "$PYTHON" "$CHROME_CLEANUP_RUNNER" || true
+}
+
+trap 'cleanup_chrome_sessions "== 预算任务退出时 Chrome 会话清理 ==" ' EXIT
+
 TASK_ID="growth.promo_budget"
 record_task_run() {
   "$PYTHON" "$ROOT/scripts/record_task_run.py" "$@" || true
@@ -102,6 +114,7 @@ echo "开始：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "模式：$MODE"
 echo "数量：$LIMIT"
 echo "允许窗口：${ALLOWED_WINDOW_LABEL}"
+cleanup_chrome_sessions "== 预算任务开始前 Chrome 会话清理 =="
 record_task_run "$TASK_ID" running --message "${PERIOD}预算执行开始。" --step "${PERIOD}预算初始化" --log-path "$RUN_LOG"
 
 run_with_timeout() {

@@ -33,6 +33,7 @@ PROMO_BUDGET_SYNC_RUNNER = WORKSPACE / "scripts" / "sync_promo_budget_overrides.
 WORKBENCH_DATA_RUNNER = WORKSPACE / "scripts" / "build_workbench_data.py"
 MEITUAN_BUDGET_RUNNER = WORKSPACE / "store-inspection" / "meituan_budget_automation.py"
 MEITUAN_BUDGET_CDP_RUNNER = WORKSPACE / "store-inspection" / "meituan_budget_cdp.py"
+CHROME_CLEANUP_RUNNER = WORKSPACE / "scripts" / "cleanup_chrome_tabs.py"
 WORKBENCH_DEPLOY_RUNNER = WORKSPACE / "scripts" / "deploy_workbench_to_cloud.zsh"
 NOTIFY_RUNNER = WORKSPACE / "scripts" / "ops_notify.py"
 TASK_RUN_RECORDER = WORKSPACE / "scripts" / "record_task_run.py"
@@ -240,6 +241,24 @@ def ensure_backend_chrome(report_python: str) -> None:
     )
 
 
+def cleanup_chrome_sessions(label: str) -> None:
+    if not CHROME_CLEANUP_RUNNER.exists():
+        return
+    try:
+        result = subprocess.run(
+            [sys.executable, str(CHROME_CLEANUP_RUNNER)],
+            cwd=WORKSPACE,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=90,
+        )
+        output = (result.stdout or "").strip()
+        print(f"{label}：{output or '完成'}", flush=True)
+    except Exception as exc:
+        print(f"{label}失败，已跳过：{exc}", file=sys.stderr, flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="运营一键采集")
     parser.add_argument(
@@ -274,6 +293,7 @@ def main() -> int:
             budget_period=budget_period,
         )
         print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}，来源：{args.source}）。", flush=True)
+        cleanup_chrome_sessions("任务开始前 Chrome 会话清理")
         failures = []
         try:
             report_python = str(REPORT_PYTHON if REPORT_PYTHON.exists() else Path(sys.executable))
@@ -330,6 +350,7 @@ def main() -> int:
                 print("预览模式：跳过运营总看板云端发布。", flush=True)
             elif run_step("运营总看板发布腾讯云", ["/bin/zsh", str(WORKBENCH_DEPLOY_RUNNER)], required=False).returncode != 0:
                 failures.append("总看板云端发布")
+            cleanup_chrome_sessions("任务结束后 Chrome 会话清理")
             if failures:
                 print(f"\n运营一键采集完成，但有失败项：{'、'.join(failures)}。", file=sys.stderr, flush=True)
                 record_task_run(
@@ -357,6 +378,7 @@ def main() -> int:
             )
             return 0
         except Exception as exc:
+            cleanup_chrome_sessions("异常后 Chrome 会话清理")
             print(f"\n运营一键采集失败：{exc}", file=sys.stderr, flush=True)
             record_task_run(
                 "failed",
