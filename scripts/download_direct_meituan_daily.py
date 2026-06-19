@@ -251,6 +251,8 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
                 try:
                     return download_latest(page, context, account, target_date)
                 except Exception as exc:
+                    if "缺少 acctId/wmPoiId/token 参数" in str(exc):
+                        raise
                     last_error = exc
                     time.sleep(10)
             raise TimeoutError(f"等待直营美团报表超时：{last_error}")
