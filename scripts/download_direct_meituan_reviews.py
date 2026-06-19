@@ -119,6 +119,21 @@ def click_next_page(page) -> bool:
         return False
 
 
+def click_review_list_tab(page) -> bool:
+    try:
+        page.get_by_text("外卖评价列表", exact=True).click(timeout=3000)
+        return True
+    except Exception:
+        pass
+    try:
+        # The Meituan review page is Flutter/canvas-based in some sessions, so
+        # the tab text is not always exposed to the DOM accessibility tree.
+        page.mouse.click(462, 244)
+        return True
+    except Exception:
+        return False
+
+
 def write_reviews_csv(account: dict, target_compact: str, rows: list[dict]) -> Path:
     REVIEW_DIR.mkdir(parents=True, exist_ok=True)
     target = REVIEW_DIR / (
@@ -196,6 +211,8 @@ def run(
         processed_pages = 0
         try:
             page.goto(page_url, wait_until="domcontentloaded", timeout=90_000)
+            page.wait_for_timeout(8000)
+            click_review_list_tab(page)
             deadline = time.time() + wait_seconds
             while time.time() < deadline and processed_pages < max_pages:
                 while comment_pages:
