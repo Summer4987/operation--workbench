@@ -11,7 +11,7 @@
         "home": "https://e.waimai.meituan.com/",
         "daily_report": "https://waimaieapp.meituan.com/bizdata_pc/report/download",
         "reviews": "https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home",
-        "promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc"
+        "promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
       },
       "notes": "临时独立美团账号。登录态只保存在 Mac mini 本地 profile，不上传 GitHub。"
     }

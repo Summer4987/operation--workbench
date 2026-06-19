@@ -39,6 +39,7 @@ function matchMeituanName(storeName) {
     "双井店": "熊小小牛排饭POKEBEAR（双井店）",
     "保利中心店": "熊小小牛排饭POKEBEAR（保利中心店）",
     "安贞店": "熊小小牛排饭POKEBEAR（安贞店）",
+    "朝阳门店": "熊小小牛排饭POKEEBEAR（第B2档口雅宝食堂美食城店）",
     "五一广场店": "熊小小牛排饭POKEBEAR（五一广场店）",
   };
   return map[storeName] || "";
@@ -75,6 +76,7 @@ function meituanTask(store, period) {
     type: "budget",
     targetBudget,
     status: matchMeituanName(store.name) ? "auto" : "unmatched",
+    directMeituanAccountId: store.name === "朝阳门店" ? "direct_chaoyangmen" : "",
     action: matchMeituanName(store.name)
       ? `自动设置${period}预算 ${targetBudget} 元`
       : "未匹配到美团门店，需人工确认",
@@ -155,6 +157,7 @@ function meituanKeyword(storeName) {
     "双井店": "双井",
     "保利中心店": "保利中心",
     "安贞店": "安贞",
+    "朝阳门店": "雅宝",
     "五一广场店": "五一广场",
   };
   return map[storeName] || "";

@@ -34,6 +34,12 @@
         "dinnerBudget": 120,
         "weekendLunchBudget": 80,
         "weekendDinnerBudget": 120
+      },
+      "美团": {
+        "lunchBudget": 80,
+        "dinnerBudget": 120,
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 120
       }
     },
     "第2号档口利康金桥美食城": {

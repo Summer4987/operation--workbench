@@ -21,6 +21,7 @@ from playwright.sync_api import sync_playwright
 WORKSPACE = ROOT.parent
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
+DIRECT_MEITUAN_CONFIG_PATH = WORKSPACE / "config" / "direct_meituan_accounts.json"
 
 WM_POI_IDS = {
     "第3档口": "30703865",
@@ -33,7 +34,21 @@ WM_POI_IDS = {
     "保利中心": "32022526",
     "安贞": "28944820",
     "五一广场": "32744963",
+    "雅宝": "5650880",
+    "朝阳门": "5650880",
+    "B2档口": "5650880",
 }
+
+
+def load_direct_meituan_accounts() -> dict[str, dict]:
+    if not DIRECT_MEITUAN_CONFIG_PATH.exists():
+        return {}
+    payload = json.loads(DIRECT_MEITUAN_CONFIG_PATH.read_text(encoding="utf-8"))
+    return {
+        str(account.get("id")): account
+        for account in payload.get("accounts", [])
+        if account.get("id") and account.get("enabled", True)
+    }
 
 
 def load_tasks(period: str) -> list[dict]:
@@ -58,6 +73,12 @@ def wm_poi_id(task: dict) -> str:
 
 def url_for_store(base_url: str, wm_id: str) -> str:
     parts = urlsplit(base_url)
+    if "waimaieapp.meituan.com" in parts.fragment:
+        inner = urlsplit(parts.fragment)
+        inner_query = dict(parse_qsl(inner.query, keep_blank_values=True))
+        inner_query["wmPoiId"] = wm_id
+        inner_url = urlunsplit((inner.scheme, inner.netloc, inner.path, urlencode(inner_query), inner.fragment or "/index"))
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, inner_url))
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query["wmPoiId"] = wm_id
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), "/index"))
@@ -284,6 +305,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
         "store": task.get("store"),
         "keyword": task.get("keyword"),
         "wmPoiId": wm_id,
+        "directMeituanAccountId": task.get("directMeituanAccountId") or "",
         "targetBudget": target,
         "ok": False,
     }
@@ -352,6 +374,39 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
     return record
 
 
+def context_for_task(playwright, contexts: dict[str, object], task: dict, direct_accounts: dict[str, dict]):
+    account_id = task.get("directMeituanAccountId") or ""
+    if not account_id:
+        endpoint = "http://127.0.0.1:9222"
+        if endpoint not in contexts:
+            browser = playwright.chromium.connect_over_cdp(endpoint)
+            contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
+        return contexts[endpoint]
+
+    account = direct_accounts.get(account_id)
+    if not account:
+        raise RuntimeError(f"未找到直营美团账号配置：{account_id}")
+    debug_port = account.get("debug_port")
+    if not debug_port:
+        raise RuntimeError(f"直营美团账号未配置 debug_port：{account_id}")
+    endpoint = f"http://127.0.0.1:{int(debug_port)}"
+    if endpoint not in contexts:
+        browser = playwright.chromium.connect_over_cdp(endpoint)
+        contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
+    return contexts[endpoint]
+
+
+def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[str, dict]) -> str:
+    account_id = task.get("directMeituanAccountId") or ""
+    if not account_id:
+        return default_base_url
+    account = direct_accounts.get(account_id)
+    page_url = ((account or {}).get("pages") or {}).get("promo_balance")
+    if not page_url:
+        raise RuntimeError(f"直营美团账号未配置 promo_balance 页面：{account_id}")
+    return page_url
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", default="auto", choices=["auto", "午餐", "晚餐"])
@@ -362,9 +417,7 @@ def main() -> int:
     period = resolve_period(args.period)
     commit = args.mode == "commit"
 
-    base_url = recent_meituan_promo_url()
-    if not base_url:
-        raise RuntimeError("没有找到本地 Chrome 最近的美团推广 URL，请先在本地 Chrome 打开一次美团点金推广页。")
+    direct_accounts = load_direct_meituan_accounts()
 
     tasks = load_tasks(period)
     if args.stores.strip():
@@ -383,19 +436,25 @@ def main() -> int:
         if limit < 1:
             raise RuntimeError("--limit 必须是 all 或正整数")
         tasks = tasks[:limit]
+    base_url = recent_meituan_promo_url()
+    if not base_url and any(not task.get("directMeituanAccountId") for task in tasks):
+        raise RuntimeError("没有找到本地 Chrome 最近的美团推广 URL，请先在本地 Chrome 打开一次美团点金推广页。")
+    base_url = base_url or ""
 
     results = []
     with sync_playwright() as playwright:
-        browser = playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
+        contexts: dict[str, object] = {}
         for task in tasks:
             try:
                 print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode})", flush=True)
-                results.append(execute_task(context, base_url, task, commit=commit))
+                context = context_for_task(playwright, contexts, task, direct_accounts)
+                task_base_url = base_url_for_task(base_url, task, direct_accounts)
+                results.append(execute_task(context, task_base_url, task, commit=commit))
             except Exception as exc:
                 results.append({
                     "store": task.get("store"),
                     "keyword": task.get("keyword"),
+                    "directMeituanAccountId": task.get("directMeituanAccountId") or "",
                     "targetBudget": task.get("targetBudget"),
                     "ok": False,
                     "error": str(exc),
