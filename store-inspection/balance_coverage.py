@@ -37,7 +37,7 @@ def aliases_for_direct_store(platform: str, store: str) -> list[str]:
     return list(dict.fromkeys(alias for alias in aliases if alias))
 
 
-def expected_direct_scopes() -> list[dict[str, Any]]:
+def expected_direct_scopes(platforms: set[str] | None = None) -> list[dict[str, Any]]:
     scopes: list[dict[str, Any]] = [
         {
             "id": "direct_eleme_chain",
@@ -49,23 +49,26 @@ def expected_direct_scopes() -> list[dict[str, Any]]:
             ],
         }
     ]
+    if platforms is not None:
+        scopes = [scope for scope in scopes if scope["platform"] in platforms]
 
-    payload = read_json(DIRECT_MEITUAN_CONFIG_PATH, {})
-    for account in payload.get("accounts") or []:
-        if not account.get("enabled"):
-            continue
-        stores = []
-        for store in account.get("stores") or []:
-            stores.append({"store": store, "aliases": aliases_for_direct_store("meituan", store)})
-        if stores:
-            scopes.append(
-                {
-                    "id": str(account.get("id") or ""),
-                    "platform": "美团",
-                    "label": str(account.get("name") or account.get("id") or "直营美团账号"),
-                    "stores": stores,
-                }
-            )
+    if platforms is None or "美团" in platforms:
+        payload = read_json(DIRECT_MEITUAN_CONFIG_PATH, {})
+        for account in payload.get("accounts") or []:
+            if not account.get("enabled"):
+                continue
+            stores = []
+            for store in account.get("stores") or []:
+                stores.append({"store": store, "aliases": aliases_for_direct_store("meituan", store)})
+            if stores:
+                scopes.append(
+                    {
+                        "id": str(account.get("id") or ""),
+                        "platform": "美团",
+                        "label": str(account.get("name") or account.get("id") or "直营美团账号"),
+                        "stores": stores,
+                    }
+                )
     return scopes
 
 
@@ -76,13 +79,13 @@ def item_matches_store(item: dict[str, Any], platform: str, aliases: list[str]) 
     return any(normalized(alias) and normalized(alias) in haystack for alias in aliases)
 
 
-def build_direct_coverage(items: list[dict[str, Any]]) -> dict[str, Any]:
+def build_direct_coverage(items: list[dict[str, Any]], platforms: set[str] | None = None) -> dict[str, Any]:
     scopes = []
     missing_total = 0
     expected_total = 0
     covered_total = 0
 
-    for scope in expected_direct_scopes():
+    for scope in expected_direct_scopes(platforms):
         expected_items = []
         missing = []
         covered = []
@@ -139,8 +142,8 @@ def build_direct_coverage(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def apply_direct_coverage(data: dict[str, Any]) -> dict[str, Any]:
-    coverage = build_direct_coverage(data.get("items") or [])
+def apply_direct_coverage(data: dict[str, Any], platforms: set[str] | None = None) -> dict[str, Any]:
+    coverage = build_direct_coverage(data.get("items") or [], platforms)
     data["direct_coverage"] = coverage
     if coverage["missing_count"]:
         original_message = str(data.get("message") or "").strip()

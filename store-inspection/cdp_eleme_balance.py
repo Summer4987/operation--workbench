@@ -188,7 +188,10 @@ def write_test_outputs(data: dict) -> None:
 def main() -> int:
     payload, response_url = collect_balance_payload()
     items = parse_shop_rows(payload or {})
-    data = apply_direct_coverage(build_result(items, THRESHOLD, "CDP接口没有读取到饿了么门店余额。"))
+    data = apply_direct_coverage(
+        build_result(items, THRESHOLD, "CDP接口没有读取到饿了么门店余额。"),
+        {"饿了么"},
+    )
     data["source"] = "eleme_cdp_balance"
     data["response_url"] = response_url
     data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

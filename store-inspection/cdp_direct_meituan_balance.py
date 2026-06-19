@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             errors.append(f"{account.get('id')}: {exc}")
 
-    data = apply_direct_coverage(build_result(items, THRESHOLD, "直营美团账号没有读取到账户余额。"))
+    data = apply_direct_coverage(build_result(items, THRESHOLD, "直营美团账号没有读取到账户余额。"), {"美团"})
     data["source"] = "direct_meituan_cdp_balance"
     data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     data["accounts"] = account_results
