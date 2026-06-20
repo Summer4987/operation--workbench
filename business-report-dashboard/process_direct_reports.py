@@ -45,6 +45,17 @@ def latest_by_report_date(paths: list[Path], pattern: str) -> list[Path]:
     return sorted(latest.values(), key=lambda item: item.stat().st_mtime)
 
 
+def latest_direct_meituan_paths(paths: list[Path]) -> list[Path]:
+    latest: dict[tuple[str, str], Path] = {}
+    for path in paths:
+        match = re.search(r"门店_全部门店_(\d{8})_\1_([^_]+)_", path.name)
+        key = (match.group(1), match.group(2)) if match else (path.stem, "")
+        current = latest.get(key)
+        if current is None or path.stat().st_mtime > current.stat().st_mtime:
+            latest[key] = path
+    return sorted(latest.values(), key=lambda item: item.stat().st_mtime)
+
+
 def copy_to_raw(path: Path | None, target_dir: Path) -> Path | None:
     if path is None:
         return None
@@ -83,7 +94,7 @@ def collect_meituan_paths(explicit: Path | None) -> list[Path]:
             key=lambda item: item.stat().st_mtime,
         )
     )
-    direct_paths = latest_by_report_date([path for path in direct_candidates if path], r"门店_全部门店_(\d{8})_\1")
+    direct_paths = latest_direct_meituan_paths([path for path in direct_candidates if path])
     return chain_paths + direct_paths
 
 
