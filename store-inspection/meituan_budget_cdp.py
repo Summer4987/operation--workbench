@@ -101,7 +101,13 @@ def url_for_store(base_url: str, wm_id: str) -> str:
 
 
 def page_text(page) -> str:
-    return page.locator("body").inner_text(timeout=10000)
+    texts: list[str] = []
+    for frame in page.frames:
+        try:
+            texts.append(frame.locator("body").inner_text(timeout=10000))
+        except Exception:
+            pass
+    return "\n".join(text for text in texts if text)
 
 
 def read_budget(page) -> float | None:
