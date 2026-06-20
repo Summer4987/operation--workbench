@@ -188,6 +188,9 @@ def click_visible_text(page, label: str) -> bool:
 
 
 def enter_dianjin(page) -> None:
+    text = page_text(page)
+    if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
+        return
     if not click_visible_text(page, "点金推广"):
         raise RuntimeError("没有可见的点金推广入口")
     for _ in range(15):
