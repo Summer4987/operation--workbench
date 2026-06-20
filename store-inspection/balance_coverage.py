@@ -53,7 +53,7 @@ def expected_direct_scopes(platforms: set[str] | None = None) -> list[dict[str, 
     if platforms is not None:
         scopes = [scope for scope in scopes if scope["platform"] in platforms]
 
-    if platforms is None or "美团" in platforms:
+    if platforms is not None and "美团" in platforms:
         scopes.append(
             {
                 "id": "direct_meituan_chain",

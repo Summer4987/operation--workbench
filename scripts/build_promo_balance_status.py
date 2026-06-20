@@ -14,7 +14,7 @@ STORE_INSPECTION_DIR = ROOT / "store-inspection"
 if str(STORE_INSPECTION_DIR) not in sys.path:
     sys.path.insert(0, str(STORE_INSPECTION_DIR))
 
-from balance_coverage import build_direct_coverage  # noqa: E402
+from balance_coverage import DIRECT_ELEME_STORES, aliases_for_direct_store, build_direct_coverage, item_matches_store  # noqa: E402
 
 BALANCE_PATH = ROOT / "store-inspection" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_balance_status"
@@ -224,10 +224,21 @@ def split_platform_failures(message: str) -> list[dict]:
     return failures
 
 
+def is_direct_meituan_item(item: dict) -> bool:
+    return any(
+        item_matches_store(item, "美团", aliases_for_direct_store("meituan", store))
+        for store in DIRECT_ELEME_STORES
+    )
+
+
+def balance_items(payload: dict) -> list[dict]:
+    return [item for item in payload.get("items") or [] if not is_direct_meituan_item(item)]
+
+
 def low_balance_items(payload: dict) -> list[dict]:
     threshold = float(payload.get("threshold") or 100)
     warnings: list[dict] = []
-    for item in payload.get("items") or []:
+    for item in balance_items(payload):
         balance = float(item.get("balance") or 0)
         if item.get("status") == "warning" or balance <= threshold:
             warnings.append(
@@ -265,7 +276,7 @@ def platform_rows(payload: dict, failures: list[dict]) -> list[dict]:
 
 
 def direct_coverage_rows(payload: dict) -> list[dict]:
-    coverage = payload.get("direct_coverage") or build_direct_coverage(payload.get("items") or [])
+    coverage = build_direct_coverage(balance_items(payload))
     rows = []
     for scope in coverage.get("scopes") or []:
         if not scope.get("missing_count"):
@@ -314,14 +325,18 @@ def build_status(payload: dict) -> dict:
     generated_at = payload.get("generated_at") or ""
     summary = payload.get("summary") or {}
     failures = split_platform_failures(payload.get("message") or "") if payload.get("status") == "failed" else []
-    direct_coverage = payload.get("direct_coverage") or build_direct_coverage(payload.get("items") or [])
+    items = balance_items(payload)
+    direct_coverage = build_direct_coverage(items)
     coverage_rows = direct_coverage_rows(payload)
     warnings = low_balance_items(payload)
     platform_failure_count = len(failures)
     coverage_missing_count = sum(len(row.get("missing_stores") or []) for row in coverage_rows)
     low_balance_count = len(warnings)
-    store_count = int(summary.get("store_count") or len(payload.get("items") or []))
+    store_count = len(items)
     threshold = float(payload.get("threshold") or 100)
+    platform_count = len({item.get("platform") for item in items if item.get("platform")})
+    balances = [float(item.get("balance") or 0) for item in items if item.get("balance") is not None]
+    lowest_balance = min(balances) if balances else 0
 
     if not payload:
         status = "missing"
@@ -371,9 +386,9 @@ def build_status(payload: dict) -> dict:
             "direct_coverage_missing_count": coverage_missing_count,
             "low_balance_count": low_balance_count,
             "store_count": store_count,
-            "platform_count": int(summary.get("platform_count") or 0),
+            "platform_count": platform_count,
             "warning_threshold": threshold,
-            "lowest_balance": float(summary.get("lowest_balance") or 0),
+            "lowest_balance": lowest_balance,
             "evidence_count": len(evidence_items),
         },
         "evidence_index": {

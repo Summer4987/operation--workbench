@@ -6,10 +6,9 @@ from datetime import datetime
 from pathlib import Path
 
 import cdp_eleme_balance
-import cdp_direct_meituan_balance
 import cdp_meituan_balance
 from parse_balance_ocr import build_result, write_outputs
-from balance_coverage import apply_direct_coverage
+from balance_coverage import DIRECT_ELEME_STORES, aliases_for_direct_store, apply_direct_coverage, item_matches_store
 
 
 ROOT = Path(__file__).resolve().parent
@@ -38,28 +37,11 @@ def collect_meituan() -> tuple[list[dict], str]:
     return ok_items, response_url or (base_url.split("?")[0] if base_url else "")
 
 
-def collect_direct_meituan() -> tuple[list[dict], str]:
-    items: list[dict] = []
-    errors: list[str] = []
-    source_url = ""
-    for account in cdp_direct_meituan_balance.enabled_accounts(None):
-        try:
-            account_items, meta = cdp_direct_meituan_balance.collect_account(account, visible=False, wait_seconds=25)
-        except Exception as exc:
-            errors.append(f"{account.get('name') or account.get('id')} {exc}")
-            continue
-        ok_items = [item for item in account_items if not item.get("error")]
-        if not ok_items:
-            errors.append(f"{account.get('name') or account.get('id')} 未解析到账户余额。")
-            continue
-        items.extend(ok_items)
-        source_url = source_url or str(meta.get("url") or "")
-    if not items:
-        detail = "；".join(errors)
-        raise RuntimeError("没有可读取的直营美团账号。" + (f" {detail}" if detail else ""))
-    if errors:
-        print("美团直营部分账号余额读取失败：" + "；".join(errors), flush=True)
-    return items, source_url.split("?")[0] if source_url else ""
+def is_direct_meituan_item(item: dict) -> bool:
+    return any(
+        item_matches_store(item, "美团", aliases_for_direct_store("meituan", store))
+        for store in DIRECT_ELEME_STORES
+    )
 
 
 def write_test_outputs(data: dict) -> None:
@@ -78,10 +60,14 @@ def collect_all_balances() -> tuple[dict, bool]:
     for platform_name, collector in [
         ("饿了么", collect_eleme),
         ("美团", collect_meituan),
-        ("美团直营", collect_direct_meituan),
     ]:
         try:
             platform_items, source_url = collector()
+            if platform_name == "美团":
+                direct_items = [item for item in platform_items if is_direct_meituan_item(item)]
+                if direct_items:
+                    print(f"美团 CDP 跳过直营自动扣款门店：{len(direct_items)} 条。", flush=True)
+                platform_items = [item for item in platform_items if not is_direct_meituan_item(item)]
             items.extend(platform_items)
             source_urls[platform_name] = source_url
             print(f"{platform_name} CDP 完成：{len(platform_items)} 条结果。", flush=True)
