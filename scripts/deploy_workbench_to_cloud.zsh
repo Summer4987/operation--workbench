@@ -48,6 +48,10 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
     "$SERVER:$REMOTE_DIR/"
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/business-report-dashboard/data'"
+  rsync -azc --delete \
+    -e "ssh ${SSH_OPTS[*]}" \
+    business-report-dashboard/dashboard/ \
+    "$SERVER:$REMOTE_DIR/business-report-dashboard/"
   rsync -azc -e "ssh ${SSH_OPTS[*]}" business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   rsync -azc --delete \
     -e "ssh ${SSH_OPTS[*]}" \
@@ -94,13 +98,17 @@ else
     "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   rsync -azc --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
+    business-report-dashboard/dashboard/ \
+    "$SERVER:$REMOTE_DIR/business-report-dashboard/"
+  rsync -azc --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
   rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     store-inspection/latest.json store-inspection/latest-data.js \
     "$SERVER:$REMOTE_DIR/store-inspection/"
-  echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、日报数据和余额巡检数据。"
+  echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、加盟/直营日报和余额巡检数据。"
 fi
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"

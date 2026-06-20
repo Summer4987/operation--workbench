@@ -177,6 +177,10 @@ if [[ "\$DEPLOY_MODE" == "full" ]]; then
     "\$SERVER:\$REMOTE_DIR/"
 
   ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/business-report-dashboard/data'"
+  rsync -az --delete \
+    -e "ssh \${SSH_OPTS[*]}" \
+    business-report-dashboard/dashboard/ \
+    "\$SERVER:\$REMOTE_DIR/business-report-dashboard/"
   rsync -az -e "ssh \${SSH_OPTS[*]}" business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv "\$SERVER:\$REMOTE_DIR/business-report-dashboard/data/"
 
   rsync -az --delete \
@@ -204,7 +208,7 @@ elif [[ "\$DEPLOY_MODE" == "data-only" ]]; then
     "\$SERVER:\$REMOTE_DIR/data/"
   echo "已按 data-only 模式发布，仅更新 workbench-data.js 和 data/realtime-history.json，未同步页面布局文件。"
 else
-  ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/data'"
+  ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/data' '\$REMOTE_DIR/business-report-dashboard/data'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh \${SSH_OPTS[*]}" \
     "\$STAGE_DIR/index.html" \
@@ -216,7 +220,15 @@ else
     -e "ssh \${SSH_OPTS[*]}" \
     "\$STAGE_DIR/data/realtime-history.json" \
     "\$SERVER:\$REMOTE_DIR/data/"
-  echo "已按 ui-data 模式发布，更新首页 UI、workbench-data.js 和 data/realtime-history.json。"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh \${SSH_OPTS[*]}" \
+    business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv \
+    "\$SERVER:\$REMOTE_DIR/business-report-dashboard/data/"
+  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh \${SSH_OPTS[*]}" \
+    business-report-dashboard/dashboard/ \
+    "\$SERVER:\$REMOTE_DIR/business-report-dashboard/"
+  echo "已按 ui-data 模式发布，更新首页 UI、workbench-data.js、实时数据和加盟店日报。"
 fi
 
 ssh "\${SSH_OPTS[@]}" "\$SERVER" "find '\$REMOTE_DIR' -type d -exec chmod 755 {} + && find '\$REMOTE_DIR' -type f -exec chmod 644 {} +"
