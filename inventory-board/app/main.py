@@ -943,10 +943,27 @@ def _supply_chain_flow_summary() -> dict:
         if event_type in {"生产", "采购"}:
             lot["purchase_quantity"] += quantity
             _add_location_balance(lot["locations"], to_location or "工厂暂存", quantity)
+            if event_type == "生产":
+                note_splits = _supply_chain_note_destination_splits(entry.get("note") or "")
+                split_total = sum(float(item.get("quantity") or 0) for item in note_splits)
+                if note_splits and abs(split_total - quantity) <= 0.000001:
+                    source_location = to_location or "工厂暂存"
+                    for split in note_splits:
+                        split_quantity = float(split.get("quantity") or 0)
+                        split_location = _normalize_supply_chain_location(split.get("to_location") or "")
+                        if split_location and split_quantity > 0:
+                            _add_location_balance(lot["locations"], source_location, -split_quantity)
+                            _add_location_balance(lot["locations"], split_location, split_quantity)
+                    lot["out_quantity"] += split_total
         elif event_type == "调拨":
             _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
             _add_location_balance(lot["locations"], to_location or "在途", quantity)
-        elif event_type in {"销售", "领用", "耗用"}:
+        elif event_type in {"销售", "领用"}:
+            lot["out_quantity"] += quantity
+            _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
+            if to_location:
+                _add_location_balance(lot["locations"], to_location, quantity)
+        elif event_type == "耗用":
             lot["out_quantity"] += quantity
             _add_location_balance(lot["locations"], from_location or "未指定来源", -quantity)
         elif event_type == "结算":
@@ -1032,6 +1049,49 @@ def _supply_chain_receivable_bucket(location: str) -> str:
     if clean_location in {"北京直营店", "成都仓"}:
         return "direct_store"
     return ""
+
+
+def _supply_chain_destination_from_text(value: str) -> str:
+    clean_value = str(value or "")
+    if re.search(r"北京.*仓", clean_value):
+        return "北京仓"
+    if re.search(r"北京.*(直营|门店|店)", clean_value):
+        return "北京直营店"
+    if "成都" in clean_value:
+        return "成都仓"
+    if "在途" in clean_value:
+        return "在途"
+    if "工厂" in clean_value or "厂" in clean_value:
+        return "工厂暂存"
+    return ""
+
+
+def _supply_chain_note_destination_splits(note: str) -> list[dict]:
+    clean_note = str(note or "").replace(",", "")
+    rows: list[dict] = []
+    seen: set[tuple[str, float, str]] = set()
+
+    def push_row(location_text: str, quantity_text: str, unit_text: str) -> None:
+        location = _supply_chain_destination_from_text(location_text)
+        try:
+            quantity = float(quantity_text or 0)
+        except Exception:
+            quantity = 0.0
+        unit = {"千克": "公斤", "kg": "公斤", "KG": "公斤"}.get(unit_text, unit_text or "")
+        key = (location, quantity, unit)
+        if not location or quantity <= 0 or key in seen:
+            return
+        seen.add(key)
+        rows.append({"to_location": location, "quantity": quantity, "unit": unit})
+
+    patterns = [
+        re.compile(r"(北京仓|北京直营店|北京门店|直营店|成都仓|成都|工厂|在途)\s*(?:发|出|入|到|送|分|配|留)?\s*(\d+(?:\.\d+)?)\s*(吨|公斤|千克|kg|KG|箱|件|袋|个|份|包)"),
+        re.compile(r"(?:发|发到|发往|发给|送到|入|到)\s*(北京仓|北京直营店|北京门店|直营店|成都仓|成都|工厂|在途)\s*(\d+(?:\.\d+)?)\s*(吨|公斤|千克|kg|KG|箱|件|袋|个|份|包)"),
+    ]
+    for pattern in patterns:
+        for match in pattern.finditer(clean_note):
+            push_row(match.group(1), match.group(2), match.group(3))
+    return rows
 
 
 def _normalize_supply_chain_location(location: str) -> str:

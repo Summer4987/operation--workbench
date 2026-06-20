@@ -1360,6 +1360,36 @@ function initializeFinanceFlowControls() {
     });
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const parsedEntries = financeFlowState.parsedEntries || [];
+      if (parsedEntries.length > 1) {
+        const submitButton = form.querySelector('button[type="submit"]');
+        const saveButton = document.querySelector("#financeFlowSaveParsed");
+        if (submitButton) submitButton.disabled = true;
+        if (saveButton) saveButton.disabled = true;
+        text("financeFlowEntryMessage", `已识别出 ${parsedEntries.length} 条流向，正在批量保存全部记录...`);
+        text("financeFlowParseMessage", `正在批量保存 ${parsedEntries.length} 条货权流向...`);
+        try {
+          for (const parsed of parsedEntries) {
+            applyFinanceFlowParsedText(form, parsed);
+            const parsedEntry = financeFlowFormEntry(form);
+            await saveFinanceFlowEntry(parsedEntry);
+          }
+          text("financeFlowEntryMessage", `已批量保存 ${parsedEntries.length} 条货权流向。`);
+          text("financeFlowParseMessage", `已批量保存 ${parsedEntries.length} 条货权流向，并刷新看板。`);
+          financeFlowState.parsedEntries = [];
+          renderFinanceFlowParsedEntries();
+          updateFinanceFlowDatalists(financeFlowState.payload);
+          renderFinanceFlowAmountPreview(form);
+          renderFinanceFlow();
+        } catch (error) {
+          text("financeFlowEntryMessage", error.message || "批量保存失败，请检查后重试。");
+          text("financeFlowParseMessage", error.message || "批量保存失败，请检查后重试。");
+        } finally {
+          if (submitButton) submitButton.disabled = false;
+          if (saveButton) saveButton.disabled = !(financeFlowState.parsedEntries || []).length;
+        }
+        return;
+      }
       generateFinanceFlowLotId(form);
       renderFinanceFlowAmountPreview(form);
       const formData = new FormData(form);
