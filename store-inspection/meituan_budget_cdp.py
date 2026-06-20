@@ -174,15 +174,16 @@ def wait_setting_ready(page, *, timeout_seconds: int = 35) -> dict:
 
 
 def click_visible_text(page, label: str) -> bool:
-    locator = page.get_by_text(label)
-    for index in range(locator.count()):
-        item = locator.nth(index)
-        try:
-            if item.is_visible():
-                item.click(timeout=5000)
-                return True
-        except Exception:
-            pass
+    for frame in page.frames:
+        locator = frame.get_by_text(label)
+        for index in range(locator.count()):
+            item = locator.nth(index)
+            try:
+                if item.is_visible():
+                    item.click(timeout=5000)
+                    return True
+            except Exception:
+                pass
     return False
 
 
