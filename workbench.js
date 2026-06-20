@@ -480,6 +480,183 @@ function financeFlowReceivableBucket(destination) {
   return "";
 }
 
+function financeFlowCleanParserText(value) {
+  return String(value || "").replace(/[，。；;、]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function financeFlowParseDate(textValue) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const cleanText = String(textValue || "");
+  const isoMatch = cleanText.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+  const shortMatch = cleanText.match(/(?:^|[^\d])(\d{1,2})月(\d{1,2})[日号]?/);
+  const match = isoMatch || shortMatch;
+  if (!match) return localDateText(today);
+  const parsedYear = isoMatch ? Number(match[1]) : year;
+  const month = String(Number(isoMatch ? match[2] : match[1])).padStart(2, "0");
+  const day = String(Number(isoMatch ? match[3] : match[2])).padStart(2, "0");
+  return `${parsedYear}-${month}-${day}`;
+}
+
+function financeFlowParseProductName(textValue) {
+  const cleanText = String(textValue || "");
+  const products = financeFlowSettlementPrices.map((item) => item.sku).sort((a, b) => b.length - a.length);
+  const found = products.find((sku) => cleanText.includes(sku));
+  if (found) return found;
+  const compact = cleanText.replace(/\s+/g, "");
+  const aliasRows = [
+    ["牛五花牛排", ["牛五花"]],
+    ["嫩肩牛肉", ["嫩肩"]],
+    ["板腱牛排", ["板腱牛排", "板腱成品"]],
+    ["板腱原料", ["板腱原料", "板腱"]],
+    ["菲力牛排", ["菲力"]],
+    ["三文鱼块", ["三文鱼"]],
+    ["调理鸡胸肉", ["鸡胸", "鸡胸肉"]],
+    ["调理手枪腿", ["手枪腿"]],
+    ["冷冻虾仁", ["虾仁"]],
+  ];
+  return aliasRows.find(([, aliases]) => aliases.some((alias) => compact.includes(alias)))?.[0] || "";
+}
+
+function financeFlowParseQuantity(textValue) {
+  const cleanText = String(textValue || "").replace(/,/g, "");
+  const match = cleanText.match(/(\d+(?:\.\d+)?)\s*(吨|公斤|千克|kg|KG|箱|件|袋|个|份|包)/);
+  if (!match) return { quantity: "", unit: "" };
+  const unitMap = { 千克: "公斤", kg: "公斤", KG: "公斤" };
+  return { quantity: match[1], unit: unitMap[match[2]] || match[2] };
+}
+
+function financeFlowParseAmount(textValue) {
+  const cleanText = String(textValue || "").replace(/,/g, "");
+  const explicitMatch = cleanText.match(/(?:总金额|金额|货款|付款|付了|已付|应付|应收|收款|收到|合计|¥|￥)\D{0,6}(\d+(?:\.\d+)?)(?:\s*(万|元))?/);
+  const yuanMatch = cleanText.match(/(\d+(?:\.\d+)?)\s*(万)?元/);
+  const match = explicitMatch || yuanMatch;
+  if (!match) return "";
+  const amount = Number(match[1] || 0) * (match[2] === "万" ? 10000 : 1);
+  return amount ? String(Number(amount.toFixed(2))) : "";
+}
+
+function financeFlowParseLotId(textValue) {
+  const cleanText = String(textValue || "");
+  const explicitMatch = cleanText.match(/(?:批次|批次号|lot)[:：]?\s*([A-Za-z0-9_\-\u4e00-\u9fa5]{4,40})/i);
+  const dateLotMatch = cleanText.match(/\b(20\d{6}[-_\u4e00-\u9fa5A-Za-z0-9]{1,30})\b/);
+  return explicitMatch?.[1] || dateLotMatch?.[1] || "";
+}
+
+function financeFlowLocationFromText(textValue, keywordPattern) {
+  const cleanText = String(textValue || "");
+  const match = cleanText.match(keywordPattern);
+  if (!match) return "";
+  const value = match[1] || "";
+  if (/北京.*仓/.test(value)) return "北京仓";
+  if (/北京.*(直营|门店|店)/.test(value)) return "北京直营店";
+  if (/成都/.test(value)) return "成都仓";
+  if (/工厂|厂家|厂/.test(value)) return "工厂暂存";
+  if (/在途/.test(value)) return "在途";
+  return "";
+}
+
+function financeFlowParseLocations(textValue) {
+  const cleanText = String(textValue || "");
+  let fromLocation = financeFlowLocationFromText(cleanText, /从\s*([^，。；;、\s]+?)\s*(?:发|调|到|转|出|去)/);
+  let toLocation = financeFlowLocationFromText(cleanText, /(?:到|发到|发往|发给|送到|入|进|去向|去)\s*([^，。；;、\s]+)/);
+  if (!toLocation && /留厂|工厂暂存|留在工厂|厂里|在厂/.test(cleanText)) toLocation = "工厂暂存";
+  if (!toLocation && /北京仓/.test(cleanText)) toLocation = "北京仓";
+  if (!toLocation && /北京直营|北京门店|直营店/.test(cleanText)) toLocation = "北京直营店";
+  if (!toLocation && /成都仓|成都/.test(cleanText)) toLocation = "成都仓";
+  if (!toLocation && /在途/.test(cleanText)) toLocation = "在途";
+  if (!fromLocation && /从工厂|工厂发|厂里发/.test(cleanText)) fromLocation = "工厂暂存";
+  return { fromLocation, toLocation };
+}
+
+function financeFlowParseEventType(textValue, toLocation) {
+  const cleanText = String(textValue || "");
+  if (/领用|耗用|使用/.test(cleanText)) return "领用";
+  if (/调整|盘盈|盘亏|修正/.test(cleanText)) return "调整";
+  if (/采购|购买|买了|付款|付给工厂/.test(cleanText)) return "采购";
+  if (/生产|在产|完工|完成/.test(cleanText)) return "生产";
+  if (/调拨|转仓|移库|从.+到/.test(cleanText)) return "调拨";
+  if (/销售|发货|发到|发往|发给|应收|收款/.test(cleanText) || ["北京仓", "北京直营店", "成都仓"].includes(toLocation)) return "销售";
+  return "采购";
+}
+
+function financeFlowParsePaymentStatus(textValue, eventType, toLocation) {
+  const cleanText = String(textValue || "");
+  if (/已付|付清|付款完成|付给工厂|已打款/.test(cleanText)) return "已付给工厂";
+  if (/工厂应付|待付|未付|应付/.test(cleanText)) return "工厂应付";
+  if (/北京仓已收|北京.*已收|北京.*收款|已收.*北京/.test(cleanText)) return "北京仓已收";
+  if (/直营店已收|直营.*已收|门店.*已收|已收.*直营|已收.*门店/.test(cleanText)) return "直营店已收";
+  if (/北京仓应收|北京.*应收/.test(cleanText)) return "北京仓应收";
+  if (/直营店应收|直营.*应收|门店.*应收/.test(cleanText)) return "直营店应收";
+  if (eventType === "销售" || eventType === "领用") {
+    return financeFlowReceivableBucket(toLocation) === "direct_store" ? "直营店应收" : "北京仓应收";
+  }
+  return "工厂应付";
+}
+
+function financeFlowParseProductionStatus(textValue, eventType, toLocation) {
+  const cleanText = String(textValue || "");
+  if (/生产完成|已完成|完工|做好|生产好了/.test(cleanText)) return "工厂已生产完成";
+  if (/在产|生产中|正在生产|留厂生产|留在工厂生产/.test(cleanText)) return "工厂在生产";
+  if (eventType === "生产") return "工厂在生产";
+  if (eventType === "采购" && toLocation === "工厂暂存" && /生产|留厂|留在工厂/.test(cleanText)) return "工厂在生产";
+  return "";
+}
+
+function financeFlowParseCounterparty(textValue, toLocation) {
+  const cleanText = String(textValue || "");
+  const factoryMatch = cleanText.match(/(?:厂家|供应商|工厂)[:：]?\s*([^，。；;、\s]+)/);
+  if (factoryMatch) return factoryMatch[1];
+  if (toLocation === "北京仓") return "北京仓";
+  if (toLocation === "北京直营店") return "北京直营店";
+  if (toLocation === "成都仓") return "成都仓";
+  return "";
+}
+
+function parseFinanceFlowText(value) {
+  const cleanText = financeFlowCleanParserText(value);
+  const productName = financeFlowParseProductName(cleanText);
+  const { quantity, unit } = financeFlowParseQuantity(cleanText);
+  const { fromLocation, toLocation } = financeFlowParseLocations(cleanText);
+  const eventType = financeFlowParseEventType(cleanText, toLocation);
+  const itemType = /包材|餐盒|餐具|打包袋/.test(cleanText) || /餐盒|餐具|袋/.test(productName)
+    ? "包材"
+    : /原料/.test(cleanText) || /原料/.test(productName)
+      ? "原料"
+      : "成品";
+  return {
+    date: financeFlowParseDate(cleanText),
+    event_type: eventType,
+    item_type: itemType,
+    lot_id: financeFlowParseLotId(cleanText),
+    product_name: productName,
+    quantity,
+    unit: unit || "件",
+    total_amount: financeFlowParseAmount(cleanText),
+    from_location: fromLocation,
+    to_location: toLocation || (eventType === "采购" || eventType === "生产" ? "工厂暂存" : ""),
+    payment_status: financeFlowParsePaymentStatus(cleanText, eventType, toLocation),
+    production_status: financeFlowParseProductionStatus(cleanText, eventType, toLocation),
+    counterparty: financeFlowParseCounterparty(cleanText, toLocation),
+    note: cleanText,
+  };
+}
+
+function applyFinanceFlowParsedText(form, parsed) {
+  if (!form || !parsed) return;
+  Object.entries(parsed).forEach(([name, value]) => {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (!field) return;
+    field.value = value == null ? "" : value;
+  });
+  generateFinanceFlowLotId(form);
+  if (parsed.lot_id) {
+    const lotField = form.querySelector('[name="lot_id"]');
+    if (lotField) lotField.value = parsed.lot_id;
+  }
+  renderFinanceFlowAmountPreview(form);
+}
+
 function updateFinanceFlowDatalists(payload = financeFlowState.payload || {}) {
   const productList = document.querySelector("#financeFlowProductOptions");
   if (productList) {
@@ -944,6 +1121,30 @@ function initializeFinanceFlowControls() {
     renderFinanceFlowAmountPreview(form);
     form?.querySelectorAll("[data-flow-preset]").forEach((button) => {
       button.addEventListener("click", () => applyFinanceFlowPreset(form, button.dataset.flowPreset));
+    });
+    document.querySelector("#financeFlowParseText")?.addEventListener("click", () => {
+      const sourceInput = document.querySelector("#financeFlowTextInput");
+      const sourceText = sourceInput?.value || "";
+      const parsed = parseFinanceFlowText(sourceText);
+      const missingFields = [
+        parsed.product_name ? "" : "货品",
+        parsed.quantity ? "" : "数量",
+        parsed.total_amount || ["销售", "领用", "调拨", "调整"].includes(parsed.event_type) ? "" : "总金额",
+      ].filter(Boolean);
+      if (!sourceText.trim()) {
+        text("financeFlowParseMessage", "先粘贴一段货流描述，再识别填入。");
+        return;
+      }
+      applyFinanceFlowParsedText(form, parsed);
+      const summary = [
+        parsed.date,
+        parsed.event_type,
+        parsed.product_name || "货品待补",
+        parsed.quantity ? `${parsed.quantity}${parsed.unit || ""}` : "数量待补",
+        [parsed.from_location, parsed.to_location].filter(Boolean).join(" -> "),
+        parsed.payment_status,
+      ].filter(Boolean).join(" · ");
+      text("financeFlowParseMessage", missingFields.length ? `已尽量识别：${summary}；请补充 ${missingFields.join("、")}。` : `已识别并填入：${summary}。`);
     });
     form?.querySelectorAll('[name="date"], [name="event_type"], [name="product_name"], [name="quantity"], [name="total_amount"], [name="to_location"], [name="payment_status"], [name="production_status"]').forEach((field) => {
       field.addEventListener("input", () => {

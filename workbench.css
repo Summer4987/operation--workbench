@@ -1460,6 +1460,71 @@ h2 {
   color: #1d4ed8;
 }
 
+.finance-flow-text-parser {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 0.32fr);
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.finance-flow-text-parser label {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.finance-flow-text-parser span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-flow-text-parser textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  padding: 9px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.finance-flow-text-actions {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.finance-flow-text-actions button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #111827;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.finance-flow-text-actions em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .finance-flow-entry-grid label,
 .finance-flow-update-grid label {
   min-width: 0;
@@ -3300,6 +3365,7 @@ h2 {
   .finance-form-grid,
   .finance-flow-entry-grid,
   .finance-flow-update-grid,
+  .finance-flow-text-parser,
   .finance-flow-amount-preview,
   .finance-flow-toolbar,
   .finance-flow-sku-grid,
