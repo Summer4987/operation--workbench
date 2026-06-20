@@ -72,7 +72,9 @@ def connect_account(playwright, account: dict, *, visible: bool):
     debug_port = int(account.get("debug_port") or 0)
     if debug_port and cdp_available(debug_port):
         browser = playwright.chromium.connect_over_cdp(cdp_url(debug_port))
-        context = browser.contexts[0] if browser.contexts else browser.new_context(accept_downloads=False)
+        if not browser.contexts:
+            raise RuntimeError(f"CDP 端口 {debug_port} 已连接，但没有可复用的浏览器上下文。")
+        context = browser.contexts[0]
         page = context.pages[0] if context.pages else context.new_page()
         return "cdp", browser, context, page
 

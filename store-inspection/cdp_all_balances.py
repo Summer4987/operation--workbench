@@ -40,16 +40,25 @@ def collect_meituan() -> tuple[list[dict], str]:
 
 def collect_direct_meituan() -> tuple[list[dict], str]:
     items: list[dict] = []
+    errors: list[str] = []
     source_url = ""
     for account in cdp_direct_meituan_balance.enabled_accounts(None):
-        account_items, meta = cdp_direct_meituan_balance.collect_account(account, visible=False, wait_seconds=25)
+        try:
+            account_items, meta = cdp_direct_meituan_balance.collect_account(account, visible=False, wait_seconds=25)
+        except Exception as exc:
+            errors.append(f"{account.get('name') or account.get('id')} {exc}")
+            continue
         ok_items = [item for item in account_items if not item.get("error")]
         if not ok_items:
-            raise RuntimeError(f"{account.get('name') or account.get('id')} 未解析到账户余额。")
+            errors.append(f"{account.get('name') or account.get('id')} 未解析到账户余额。")
+            continue
         items.extend(ok_items)
         source_url = source_url or str(meta.get("url") or "")
     if not items:
-        raise RuntimeError("没有可读取的直营美团账号。")
+        detail = "；".join(errors)
+        raise RuntimeError("没有可读取的直营美团账号。" + (f" {detail}" if detail else ""))
+    if errors:
+        print("美团直营部分账号余额读取失败：" + "；".join(errors), flush=True)
     return items, source_url.split("?")[0] if source_url else ""
 
 

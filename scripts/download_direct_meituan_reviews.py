@@ -51,7 +51,9 @@ def launch_context(playwright, account: dict, visible: bool, browser_executable:
     debug_port = account.get("debug_port")
     if debug_port and cdp_available(int(debug_port)):
         browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{int(debug_port)}")
-        context = browser.contexts[0] if browser.contexts else browser.new_context(accept_downloads=False)
+        if not browser.contexts:
+            raise RuntimeError(f"CDP 端口 {int(debug_port)} 已连接，但没有可复用的浏览器上下文。")
+        context = browser.contexts[0]
         return context, False
 
     profile_dir = Path(account["profile_dir"]).expanduser()
