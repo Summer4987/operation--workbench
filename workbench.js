@@ -581,12 +581,27 @@ function financeFlowParseEventType(textValue, toLocation) {
   return "采购";
 }
 
+function financeFlowTextMeansPaid(textValue) {
+  const cleanText = String(textValue || "");
+  if (/未付|待付|未支付|未付款/.test(cleanText)) return false;
+  return /所有货款已支付|货款已支付|货款已付|款已付|已支付|已付款|已付|付清|付款完成|已打款|已结清|结清/.test(cleanText);
+}
+
+function financeFlowTextMeansReceived(textValue) {
+  const cleanText = String(textValue || "");
+  if (/未收|待收|应收/.test(cleanText)) return false;
+  return /所有货款已支付|货款已支付|货款已付|款已付|已支付|已付款|已收款|已收|收齐|收清|结清/.test(cleanText);
+}
+
 function financeFlowParsePaymentStatus(textValue, eventType, toLocation) {
   const cleanText = String(textValue || "");
-  if (/已付|付清|付款完成|付给工厂|已打款/.test(cleanText)) return "已付给工厂";
-  if (/工厂应付|待付|未付|应付/.test(cleanText)) return "工厂应付";
   if (/北京仓已收|北京.*已收|北京.*收款|已收.*北京/.test(cleanText)) return "北京仓已收";
   if (/直营店已收|直营.*已收|门店.*已收|已收.*直营|已收.*门店/.test(cleanText)) return "直营店已收";
+  if ((eventType === "销售" || eventType === "领用") && (financeFlowTextMeansReceived(cleanText) || financeFlowTextMeansPaid(cleanText))) {
+    return financeFlowReceivableBucket(toLocation) === "direct_store" ? "直营店已收" : "北京仓已收";
+  }
+  if (financeFlowTextMeansPaid(cleanText) || /付给工厂/.test(cleanText)) return "已付给工厂";
+  if (/工厂应付|待付|未付|应付/.test(cleanText)) return "工厂应付";
   if (/北京仓应收|北京.*应收/.test(cleanText)) return "北京仓应收";
   if (/直营店应收|直营.*应收|门店.*应收/.test(cleanText)) return "直营店应收";
   if (eventType === "销售" || eventType === "领用") {
@@ -709,14 +724,18 @@ function parseFinanceFlowTextEntries(value) {
       event_type: "生产",
       from_location: "",
       to_location: "工厂暂存",
-      payment_status: "工厂应付",
+      payment_status: financeFlowTextMeansPaid(cleanText) ? "已付给工厂" : "工厂应付",
       production_status: /清零|出清|全部发/.test(cleanText) ? "工厂已生产完成" : base.production_status || "工厂在生产",
       counterparty: "",
       note: `${cleanText}；识别为生产入工厂暂存 ${base.quantity}${base.unit || ""}。`,
     });
   }
   splits.forEach((split) => {
-    const paymentStatus = financeFlowReceivableBucket(split.to_location) === "direct_store" ? "直营店应收" : "北京仓应收";
+    const receivableBucket = financeFlowReceivableBucket(split.to_location);
+    const isReceived = financeFlowTextMeansReceived(cleanText) || financeFlowTextMeansPaid(cleanText);
+    const paymentStatus = receivableBucket === "direct_store"
+      ? isReceived ? "直营店已收" : "直营店应收"
+      : isReceived ? "北京仓已收" : "北京仓应收";
     entries.push({
       ...base,
       event_type: "销售",
