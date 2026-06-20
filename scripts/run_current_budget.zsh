@@ -200,7 +200,8 @@ prepare_budget_node_runtime() {
     "scripts/promo_budget_resolver.mjs" \
     "dianjin-prototype/rules.js" \
     "dianjin-prototype/logic.js" \
-    "config/promo_budget_overrides.json"; do
+    "config/promo_budget_overrides.json" \
+    "config/direct_meituan_accounts.json"; do
     if [ ! -r "$NODE_RUNTIME_ROOT/$relative" ]; then
       missing+=("$relative")
     fi
@@ -223,6 +224,7 @@ run_node_runtime_script() {
 
 sync_budget_config() {
   PROMO_BUDGET_OVERRIDES_COPY_PATH="$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"
+  /bin/cp "$ROOT/config/direct_meituan_accounts.json" "$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
 }
 
 if run_required_step "${PERIOD}预算配置同步" "${BUDGET_CONFIG_SYNC_TIMEOUT_SECONDS:-120}" sync_budget_config; then

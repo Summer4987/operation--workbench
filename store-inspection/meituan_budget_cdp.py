@@ -6,7 +6,9 @@ import os
 import re
 import time
 from pathlib import Path
+from urllib.error import URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.request import urlopen
 
 from one_click_meituan_balance import recent_meituan_promo_url
 
@@ -22,6 +24,7 @@ WORKSPACE = ROOT.parent
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
 DIRECT_MEITUAN_CONFIG_PATH = WORKSPACE / "config" / "direct_meituan_accounts.json"
+MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 WM_POI_IDS = {
     "第3档口": "30703865",
@@ -49,6 +52,16 @@ def load_direct_meituan_accounts() -> dict[str, dict]:
         for account in payload.get("accounts", [])
         if account.get("id") and account.get("enabled", True)
     }
+
+
+def cdp_available(debug_port: int) -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{debug_port}/json/version", timeout=2) as response:
+            return response.status == 200
+    except (URLError, OSError):
+        return False
+    except Exception:
+        return False
 
 
 def load_tasks(period: str) -> list[dict]:
@@ -420,7 +433,13 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
     return record
 
 
-def context_for_task(playwright, contexts: dict[str, object], task: dict, direct_accounts: dict[str, dict]):
+def context_for_task(
+    playwright,
+    contexts: dict[str, object],
+    launched_contexts: list[object],
+    task: dict,
+    direct_accounts: dict[str, dict],
+):
     account_id = task.get("directMeituanAccountId") or ""
     if not account_id:
         endpoint = "http://127.0.0.1:9222"
@@ -436,9 +455,23 @@ def context_for_task(playwright, contexts: dict[str, object], task: dict, direct
     if not debug_port:
         raise RuntimeError(f"直营美团账号未配置 debug_port：{account_id}")
     endpoint = f"http://127.0.0.1:{int(debug_port)}"
-    if endpoint not in contexts:
+    if endpoint not in contexts and cdp_available(int(debug_port)):
         browser = playwright.chromium.connect_over_cdp(endpoint)
         contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
+    if endpoint not in contexts:
+        profile_dir = Path(account["profile_dir"]).expanduser()
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        options = {
+            "user_data_dir": str(profile_dir),
+            "headless": os.environ.get("MEITUAN_DIRECT_BUDGET_HEADLESS", "0") == "1",
+            "accept_downloads": False,
+            "viewport": {"width": 1440, "height": 950},
+        }
+        if MAC_CHROME.exists():
+            options["executable_path"] = str(MAC_CHROME)
+        context = playwright.chromium.launch_persistent_context(**options)
+        contexts[endpoint] = context
+        launched_contexts.append(context)
     return contexts[endpoint]
 
 
@@ -533,22 +566,32 @@ def main() -> int:
     results = []
     with sync_playwright() as playwright:
         contexts: dict[str, object] = {}
-        for task in tasks:
-            try:
-                print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode})", flush=True)
-                context = context_for_task(playwright, contexts, task, direct_accounts)
-                task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
-                results.append(execute_task(context, task_base_url, task, commit=commit))
-            except Exception as exc:
-                results.append({
-                    "store": task.get("store"),
-                    "keyword": task.get("keyword"),
-                    "directMeituanAccountId": task.get("directMeituanAccountId") or "",
-                    "targetBudget": task.get("targetBudget"),
-                    "ok": False,
-                    "error": str(exc),
-                })
-                print(f"失败：{task.get('keyword')}：{exc}", flush=True)
+        launched_contexts: list[object] = []
+        try:
+            for task in tasks:
+                try:
+                    account_id = task.get("directMeituanAccountId") or ""
+                    account_label = f" [{account_id}]" if account_id else ""
+                    print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
+                    context = context_for_task(playwright, contexts, launched_contexts, task, direct_accounts)
+                    task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
+                    results.append(execute_task(context, task_base_url, task, commit=commit))
+                except Exception as exc:
+                    results.append({
+                        "store": task.get("store"),
+                        "keyword": task.get("keyword"),
+                        "directMeituanAccountId": task.get("directMeituanAccountId") or "",
+                        "targetBudget": task.get("targetBudget"),
+                        "ok": False,
+                        "error": str(exc),
+                    })
+                    print(f"失败：{task.get('keyword')}：{exc}", flush=True)
+        finally:
+            for context in launched_contexts:
+                try:
+                    context.close()
+                except Exception:
+                    pass
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     output = LOG_DIR / f"meituan_cdp_{period}_{time.strftime('%Y%m%d_%H%M%S')}.json"
