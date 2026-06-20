@@ -92,10 +92,6 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     data/realtime-history.json \
     "$SERVER:$REMOTE_DIR/data/"
-  rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv \
-    "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   rsync -azc --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/dashboard/ \
@@ -104,6 +100,10 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
+  rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv \
+    "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   rsync -azc --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     store-inspection/latest.json store-inspection/latest-data.js \
