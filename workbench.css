@@ -1517,12 +1517,61 @@ h2 {
   cursor: pointer;
 }
 
+.finance-flow-text-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .finance-flow-text-actions em {
   color: #64748b;
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
   line-height: 1.45;
+}
+
+.finance-flow-parsed-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: -2px 0 12px;
+}
+
+.finance-flow-parsed-list[hidden] {
+  display: none;
+}
+
+.finance-flow-parsed-list button {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finance-flow-parsed-list button:hover {
+  border-color: #0f766e;
+  box-shadow: 0 6px 16px rgb(15 118 110 / 10%);
+}
+
+.finance-flow-parsed-list span,
+.finance-flow-parsed-list em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.finance-flow-parsed-list strong {
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .finance-flow-entry-grid label,
