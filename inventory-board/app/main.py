@@ -826,6 +826,7 @@ def _supply_chain_flow_summary() -> dict:
     received_total = 0.0
     beijing_warehouse_received_total = 0.0
     direct_store_received_total = 0.0
+    factory_clear_signals: list[dict] = []
 
     for entry in entries:
         lot_id = entry["lot_id"]
@@ -846,6 +847,15 @@ def _supply_chain_flow_summary() -> dict:
         normalized_entry["paid_amount"] = paid_amount
         normalized_entry["received_amount"] = received_amount
         normalized_entry["receivable_bucket"] = receivable_bucket
+        if _supply_chain_entry_clears_factory(entry, paid_amount):
+            factory_clear_signals.append(
+                {
+                    "date": entry.get("date") or "",
+                    "lot_id": lot_id,
+                    "product_name": entry.get("product_name") or "",
+                    "note": entry.get("note") or "",
+                }
+            )
         lot = lots.setdefault(
             lot_id,
             {
@@ -976,6 +986,9 @@ def _supply_chain_flow_summary() -> dict:
 
         lot["recent_events"].append(normalized_entry)
 
+    _apply_supply_chain_factory_clear_signals(lots, factory_clear_signals, payment_lines)
+    paid_total = sum(float(lot.get("paid_amount") or 0) for lot in lots.values())
+
     for lot in lots.values():
         lot["balance_quantity"] = sum(float(value or 0) for value in lot["locations"].values())
         lot["factory_quantity"] = sum(
@@ -1049,6 +1062,77 @@ def _supply_chain_receivable_bucket(location: str) -> str:
     if clean_location in {"北京直营店", "成都仓"}:
         return "direct_store"
     return ""
+
+
+def _supply_chain_entry_clears_factory(entry: dict, paid_amount: float) -> bool:
+    note = str(entry.get("note") or "")
+    if "清零" not in note and "清空" not in note:
+        return False
+    if entry.get("event_type") not in {"生产", "采购", "结算"}:
+        return False
+    payment_status = str(entry.get("payment_status") or "")
+    paid_text = bool(re.search(r"(已付|已支付|付清|结清|全部付|所有货款)", note))
+    return paid_amount > 0 or payment_status == "已付给工厂" or paid_text
+
+
+def _apply_supply_chain_factory_clear_signals(
+    lots: dict[str, dict],
+    clear_signals: list[dict],
+    payment_lines: dict[str, list[dict]],
+) -> None:
+    for signal in clear_signals:
+        product_name = str(signal.get("product_name") or "")
+        if not product_name:
+            continue
+        for lot in lots.values():
+            if lot.get("lot_id") == signal.get("lot_id"):
+                continue
+            if lot.get("product_name") != product_name:
+                continue
+            factory_quantity = sum(
+                float(quantity or 0)
+                for location, quantity in lot.get("locations", {}).items()
+                if "工厂" in location
+            )
+            if factory_quantity <= 0:
+                continue
+            for location in list(lot.get("locations", {})):
+                if "工厂" in location:
+                    lot["locations"][location] = 0.0
+            lot["out_quantity"] = float(lot.get("out_quantity") or 0) + factory_quantity
+            if lot.get("production_status") == "工厂在生产":
+                lot["production_status"] = "工厂已生产完成"
+            payable_amount = float(lot.get("payable_amount") or 0)
+            paid_amount = float(lot.get("paid_amount") or 0)
+            open_payable_amount = max(payable_amount - paid_amount, 0)
+            if open_payable_amount <= 0:
+                continue
+            lot["paid_amount"] = paid_amount + open_payable_amount
+            base = lot.get("payment_line_base") or {
+                "date": signal.get("date") or "",
+                "lot_id": lot.get("lot_id") or "",
+                "sku": lot.get("product_name") or "",
+                "product_name": lot.get("product_name") or "",
+                "item_type": lot.get("item_type") or "",
+                "factory": lot.get("factory") or "",
+                "counterparty": lot.get("factory") or "",
+                "quantity": lot.get("purchase_quantity") or 0,
+                "unit": lot.get("unit") or "",
+                "unit_price": lot.get("unit_cost") or 0,
+                "total_amount": lot.get("total_amount") or 0,
+                "payment_status": "已付给工厂",
+                "production_status": lot.get("production_status") or "",
+            }
+            payment_lines["factory_paid"].append(
+                {
+                    **base,
+                    "amount": open_payable_amount,
+                    "quantity": lot.get("purchase_quantity") or base.get("quantity"),
+                    "unit": lot.get("unit") or base.get("unit"),
+                    "payment_status": "已付给工厂",
+                    "production_status": lot.get("production_status") or base.get("production_status") or "",
+                }
+            )
 
 
 def _supply_chain_destination_from_text(value: str) -> str:

@@ -1202,13 +1202,13 @@ function renderFinanceFlow() {
         : "暂无位置余额";
       const purchased = Number(item.purchase_quantity || 0);
       const outbound = Number(item.out_quantity || 0);
-      const balance = Number(item.balance_quantity || 0);
+      const balance = Number(item.factory_quantity || 0);
       const rowClass = balance < 0 ? "warn-row" : "good-row";
       const money = financeFlowMoneyText(item);
       return `
         <div class="${rowClass}">
           <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
-          <strong>购 ${num(purchased, 2)} / 出 ${num(outbound, 2)} / 余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
+          <strong>购 ${num(purchased, 2)} / 出 ${num(outbound, 2)} / 工厂余 ${num(balance, 2)}${escapeHtml(item.unit || "")}</strong>
           <em>${escapeHtml(locations)}${item.factory ? ` · ${escapeHtml(item.factory)}` : ""} · ${escapeHtml(money)}</em>
         </div>
       `;
@@ -1239,7 +1239,7 @@ function renderFinanceFlow() {
       <div class="${Number(item.selected_location_quantity || 0) < 0 ? "warn-row" : "good-row"}">
         <span>${escapeHtml(item.lot_id || "-")} · ${escapeHtml(item.product_name || "-")} · ${escapeHtml(item.item_type || "-")}</span>
         <strong>${num(item.selected_location_quantity, 2)}${escapeHtml(item.unit || "")}</strong>
-        <em>批次余 ${num(item.balance_quantity, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · ${escapeHtml(financeFlowMoneyText(item))}</em>
+        <em>工厂余 ${num(item.factory_quantity || 0, 2)}${escapeHtml(item.unit || "")} · 出 ${num(item.out_quantity, 2)}${escapeHtml(item.unit || "")} · ${escapeHtml(financeFlowMoneyText(item))}</em>
       </div>
     `
   );
