@@ -584,7 +584,7 @@ function financeFlowParseEventType(textValue, toLocation) {
 function financeFlowTextMeansPaid(textValue) {
   const cleanText = String(textValue || "");
   if (/未付|待付|未支付|未付款/.test(cleanText)) return false;
-  return /所有货款已支付|货款已支付|货款已付|款已付|已支付|已付款|已付|付清|付款完成|已打款|已结清|结清/.test(cleanText);
+  return /所有货款已支付|所有.*货款.*已.*支付|货款已支付|货款已付|款已付|已支付|已付款|已付|付清|付款完成|已打款|已结清|结清/.test(cleanText);
 }
 
 function financeFlowTextMeansReceived(textValue) {
@@ -712,6 +712,8 @@ function parseFinanceFlowTextEntries(value) {
   const splits = financeFlowParseDestinationSplits(cleanText);
   if (splits.length <= 1) return [base];
   const entries = [];
+  const isPaidText = financeFlowTextMeansPaid(cleanText);
+  const isReceivedText = financeFlowTextMeansReceived(cleanText) || isPaidText;
   const totalSplitQuantity = splits.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const baseQuantity = Number(base.quantity || 0);
   const shouldCreateProductionEntry = /生产|产出|生产出|出货/.test(cleanText)
@@ -724,7 +726,7 @@ function parseFinanceFlowTextEntries(value) {
       event_type: "生产",
       from_location: "",
       to_location: "工厂暂存",
-      payment_status: financeFlowTextMeansPaid(cleanText) ? "已付给工厂" : "工厂应付",
+      payment_status: isPaidText ? "已付给工厂" : "工厂应付",
       production_status: /清零|出清|全部发/.test(cleanText) ? "工厂已生产完成" : base.production_status || "工厂在生产",
       counterparty: "",
       note: `${cleanText}；识别为生产入工厂暂存 ${base.quantity}${base.unit || ""}。`,
@@ -732,10 +734,9 @@ function parseFinanceFlowTextEntries(value) {
   }
   splits.forEach((split) => {
     const receivableBucket = financeFlowReceivableBucket(split.to_location);
-    const isReceived = financeFlowTextMeansReceived(cleanText) || financeFlowTextMeansPaid(cleanText);
     const paymentStatus = receivableBucket === "direct_store"
-      ? isReceived ? "直营店已收" : "直营店应收"
-      : isReceived ? "北京仓已收" : "北京仓应收";
+      ? isReceivedText ? "直营店已收" : "直营店应收"
+      : isReceivedText ? "北京仓已收" : "北京仓应收";
     entries.push({
       ...base,
       event_type: "销售",
