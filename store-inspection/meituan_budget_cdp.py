@@ -333,7 +333,18 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
         if not wm_id:
             raise
     target_url = url_for_store(base_url, wm_id)
-    page = context.new_page()
+    page = None
+    created_page = False
+    for candidate in context.pages:
+        urls = [candidate.url, *(frame.url for frame in candidate.frames)]
+        if any(f"wmPoiId={wm_id}" in url for url in urls):
+            text = page_text(candidate)
+            if "推广设置" in text or "点金推广" in text:
+                page = candidate
+                break
+    if page is None:
+        page = context.new_page()
+        created_page = True
     record = {
         "store": task.get("store"),
         "keyword": task.get("keyword"),
@@ -343,8 +354,9 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
         "ok": False,
     }
     try:
-        page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
-        time.sleep(5)
+        if created_page:
+            page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
         enter_dianjin_with_recovery(page, target_url)
         ready = wait_setting_ready(page)
         if read_budget(page) in {None, 0} and ready.get("rangeMax") in {None, 0}:
@@ -400,10 +412,11 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
         record["ok"] = True
         record["message"] = "已保存并读回确认"
     finally:
-        try:
-            page.close()
-        except Exception:
-            pass
+        if created_page:
+            try:
+                page.close()
+            except Exception:
+                pass
     return record
 
 
