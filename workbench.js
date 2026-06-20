@@ -1099,10 +1099,15 @@ function financeFlowSkuProductionCards(items) {
   (items || []).forEach((item) => {
     const sku = item.product_name || item.lot_id || "未命名SKU";
     if (financeFlowSkuProductionExcluded.has(sku)) return;
-    const current = skuMap.get(sku) || {
+    const factoryQuantity = Number(item.factory_quantity || 0);
+    if (factoryQuantity <= 0) return;
+    const itemType = item.item_type || "未分类";
+    const unit = item.unit || "";
+    const key = [sku, itemType, unit].join("::");
+    const current = skuMap.get(key) || {
       sku,
-      itemTypes: new Set(),
-      units: new Set(),
+      itemType,
+      unit,
       lotCount: 0,
       producingQuantity: 0,
       completedQuantity: 0,
@@ -1111,18 +1116,18 @@ function financeFlowSkuProductionCards(items) {
       paidAmount: 0,
     };
     current.lotCount += 1;
-    if (item.item_type) current.itemTypes.add(item.item_type);
-    if (item.unit) current.units.add(item.unit);
-    const factoryQuantity = Number(item.factory_quantity || 0);
     current.factoryQuantity += factoryQuantity;
     if (item.production_status === "工厂在生产") current.producingQuantity += factoryQuantity;
     if (item.production_status === "工厂已生产完成") current.completedQuantity += factoryQuantity;
     current.payableAmount += Number(item.payable_amount || 0);
     current.paidAmount += Number(item.paid_amount || 0);
-    skuMap.set(sku, current);
+    skuMap.set(key, current);
   });
   return [...skuMap.values()]
-    .sort((a, b) => (b.producingQuantity + b.completedQuantity) - (a.producingQuantity + a.completedQuantity) || a.sku.localeCompare(b.sku, "zh-Hans-CN"));
+    .sort((a, b) => (b.producingQuantity + b.completedQuantity) - (a.producingQuantity + a.completedQuantity)
+      || a.sku.localeCompare(b.sku, "zh-Hans-CN")
+      || a.itemType.localeCompare(b.itemType, "zh-Hans-CN")
+      || a.unit.localeCompare(b.unit, "zh-Hans-CN"));
 }
 
 function renderFinanceFlowSkuCards(items) {
@@ -1131,18 +1136,16 @@ function renderFinanceFlowSkuCards(items) {
     "financeFlowSkuCards",
     cards,
     (item, index) => {
-      const units = [...item.units].join("/") || "";
-      const itemTypes = [...item.itemTypes].join("/") || "货品";
       const openPayable = Math.max(item.payableAmount - item.paidAmount, 0);
       return `
         <article class="finance-flow-sku-card tone-${(index % 8) + 1}">
-          <span>${escapeHtml(itemTypes)} · ${item.lotCount} 批</span>
+          <span>${escapeHtml(item.itemType)} · ${item.lotCount} 批 · 工厂当前余量</span>
           <strong>${escapeHtml(item.sku)}</strong>
           <div>
-            <b>在产 ${num(item.producingQuantity, 2)}${escapeHtml(units)}</b>
-            <b>已完成 ${num(item.completedQuantity, 2)}${escapeHtml(units)}</b>
+            <b>在产 ${num(item.producingQuantity, 2)}${escapeHtml(item.unit)}</b>
+            <b>已完成 ${num(item.completedQuantity, 2)}${escapeHtml(item.unit)}</b>
           </div>
-          <em>工厂余 ${num(item.factoryQuantity, 2)}${escapeHtml(units)} · 待付 ${yuan(openPayable)} · 已付 ${yuan(item.paidAmount)}</em>
+          <em>工厂余 ${num(item.factoryQuantity, 2)}${escapeHtml(item.unit)} · 待付 ${yuan(openPayable)} · 已付 ${yuan(item.paidAmount)}</em>
         </article>
       `;
     }
