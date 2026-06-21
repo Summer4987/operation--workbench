@@ -1,5 +1,5 @@
 {
-  "source_file": "易代仓预约.xlsx",
+  "source_file": "日常订货sku.xlsx",
   "updated_at": "2026-06-21",
   "stores": [
     "银泰城店",
@@ -195,58 +195,6 @@
       "note": "",
       "image": "/daily-order/static/images/CJ-020.svg",
       "purchase_channel": "虾仁群"
-    },
-    {
-      "sku": "LDXXX0007",
-      "source": "成都易代仓",
-      "category": "冻品",
-      "name": "冷冻虾仁",
-      "spec": "10kg/箱",
-      "unit": "件",
-      "note": "库存为0，暂不可下单",
-      "stock_quantity": 0,
-      "orderable": false,
-      "image": "/daily-order/static/images/LDXXX0007.svg",
-      "purchase_channel": "成都易代仓"
-    },
-    {
-      "sku": "LDXXX00012",
-      "source": "成都易代仓",
-      "category": "冻品",
-      "name": "嫩肩牛肉",
-      "spec": "15kg/箱",
-      "unit": "件",
-      "note": "库存为0，暂不可下单",
-      "stock_quantity": 0,
-      "orderable": false,
-      "image": "/daily-order/static/images/LDXXX00012.svg",
-      "purchase_channel": "成都易代仓"
-    },
-    {
-      "sku": "LDXXX00011",
-      "source": "成都易代仓",
-      "category": "冻品",
-      "name": "菲力牛排",
-      "spec": "10kg/箱",
-      "unit": "件",
-      "note": "库存为0，暂不可下单",
-      "stock_quantity": 0,
-      "orderable": false,
-      "image": "/daily-order/static/images/LDXXX00011.svg",
-      "purchase_channel": "成都易代仓"
-    },
-    {
-      "sku": "LDXXX00010",
-      "source": "成都易代仓",
-      "category": "冻品",
-      "name": "板腱牛排",
-      "spec": "13kg/箱",
-      "unit": "件",
-      "note": "库存为0，暂不可下单",
-      "stock_quantity": 0,
-      "orderable": false,
-      "image": "/daily-order/static/images/LDXXX00010.svg",
-      "purchase_channel": "成都易代仓"
     },
     {
       "sku": "MEAL-001",

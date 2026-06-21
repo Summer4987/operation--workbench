@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -18,6 +19,7 @@ LOCAL_TEMPLATE_DIR = Path("/Users/summer/Desktop/库存管理/出入库模板")
 PROJECT_TEMPLATE_DIR = BASE_DIR / "data" / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
+CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
 
 
 def _env_path(name: str) -> Path | None:
@@ -128,7 +130,7 @@ def load_catalogs(template_path: Path = TEMPLATE_PATH) -> tuple[list[Product], l
         raise OrderParseError(f"没有找到出库模板：{template_path}")
 
     workbook = load_workbook(template_path, data_only=True)
-    products = _load_products(workbook)
+    products = _merge_products(_load_products(workbook), _load_project_catalog_products())
     customers = _merge_customers(_fixed_customers(), _load_customers(workbook))
     if not products:
         raise OrderParseError("模板里没有读到货品信息")
@@ -203,7 +205,13 @@ def generate_structured_outbound_order(
 
 
 def public_order_catalog(template_path: Path = TEMPLATE_PATH) -> dict:
-    products, customers = load_catalogs(template_path)
+    if template_path.exists():
+        products, customers = load_catalogs(template_path)
+    else:
+        products = _load_project_catalog_products()
+        customers = _fixed_customers()
+        if not products:
+            raise OrderParseError(f"没有找到出库模板：{template_path}")
     return {
         "stores": [
             {
@@ -364,6 +372,43 @@ def _load_products(workbook) -> list[Product]:
         warehouse = _clean(row[headers.get("仓库", -1)].value if "仓库" in headers else "")
         result.append(Product(sku=sku, name=name, spec=spec, unit=unit, warehouse=warehouse, aliases=_aliases_for_product(name)))
     return result
+
+
+def _load_project_catalog_products(path: Path = CATALOG_PATH) -> list[Product]:
+    if not path.exists():
+        return []
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    result = []
+    for item in rows if isinstance(rows, list) else []:
+        sku = _clean(item.get("sku"))
+        name = _clean(item.get("name"))
+        if not sku or not name:
+            continue
+        result.append(
+            Product(
+                sku=sku,
+                name=name,
+                spec=_clean(item.get("spec")),
+                unit=_clean(item.get("unit")) or "件",
+                warehouse=_clean(item.get("warehouse")),
+                aliases=_aliases_for_product(name),
+            )
+        )
+    return result
+
+
+def _merge_products(primary: list[Product], extra: list[Product]) -> list[Product]:
+    seen = {product.sku for product in primary}
+    merged = list(primary)
+    for product in extra:
+        if product.sku not in seen:
+            merged.append(product)
+            seen.add(product.sku)
+    return merged
 
 
 def _load_customers(workbook) -> list[Customer]:
