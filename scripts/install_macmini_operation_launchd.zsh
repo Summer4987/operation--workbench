@@ -155,14 +155,23 @@ STAGE_DIR="\$HOME/Library/Application Support/xiong-operation/deploy"
 mkdir -p "\$STAGE_DIR/data"
 "\$PYTHON" - <<'PY'
 from pathlib import Path
-import shutil
 
 root = Path("${ROOT}")
 stage = Path.home() / "Library" / "Application Support" / "xiong-operation" / "deploy"
 (stage / "data").mkdir(parents=True, exist_ok=True)
+
+def copy_bytes(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with source.open("rb") as src, target.open("wb") as dst:
+        while True:
+            chunk = src.read(1024 * 1024)
+            if not chunk:
+                break
+            dst.write(chunk)
+
 for name in ("index.html", "workbench.css", "workbench.js", "workbench-data.js"):
-    shutil.copy2(root / name, stage / name)
-shutil.copy2(root / "data" / "realtime-history.json", stage / "data" / "realtime-history.json")
+    copy_bytes(root / name, stage / name)
+copy_bytes(root / "data" / "realtime-history.json", stage / "data" / "realtime-history.json")
 for name in ("index.html", "workbench.css", "workbench.js", "workbench-data.js"):
     (stage / name).chmod(0o644)
 (stage / "data" / "realtime-history.json").chmod(0o644)
