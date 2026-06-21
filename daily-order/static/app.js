@@ -28,6 +28,7 @@ const sourceLabels = {
   "快递到店": "快递到店（3-5天）",
   "同城物流配送": "同城物流配送（次日）",
   "厂家配送（2日内）": "厂家配送（2日内）",
+  "成都易代仓": "成都易代仓",
   "自主填写": "自主填写",
 };
 
@@ -40,7 +41,7 @@ const vendorGroups = {
   "餐盒": "B",
 };
 
-const imageVersion = "20260614-vendor-badge";
+const imageVersion = "20260621-yida-stock";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -175,11 +176,12 @@ function renderItem(item) {
   if (isCustomMealItem(item)) return renderCustomMealItem(item);
   const quantity = state.quantities.get(item.sku) || "";
   const minQuantity = minOrderQuantity(item);
-  const detail = [sourceLabel(item.source), item.category, item.note].filter(Boolean).join(" · ");
+  const detail = [sourceLabel(item.source), item.category, stockLabel(item), item.note].filter(Boolean).join(" · ");
   const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
   const vendorGroup = vendorGroups[item.name] || "";
+  const orderable = isOrderable(item);
   return `
-    <article class="sku-card">
+    <article class="sku-card${orderable ? "" : " is-unavailable"}">
       <div class="sku-image">
         <img src="${escapeHtml(imageSrc(item.image || ""))}" alt="${escapeHtml(item.name)}" loading="lazy" />
       </div>
@@ -187,12 +189,13 @@ function renderItem(item) {
         <small>${escapeHtml(item.sku)}</small>
         <strong>${escapeHtml(nameLine)}</strong>
         <span>${escapeHtml(detail)}</span>
+        ${orderable ? "" : `<em class="stock-badge">库存 0，暂不可下单</em>`}
         ${vendorGroup ? `<em class="vendor-badge vendor-${escapeHtml(vendorGroup)}">同厂商 ${escapeHtml(vendorGroup)}</em>` : ""}
       </div>
       <div class="qty-control">
-        <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}">-</button>
-        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="${minQuantity}" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" />
-        <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}">+</button>
+        <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>-</button>
+        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="${minQuantity}" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" ${orderable ? "" : "disabled"} />
+        <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>+</button>
       </div>
       <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
     </article>
@@ -223,6 +226,11 @@ function renderCustomMealItem(item) {
 function setQuantity(sku, rawValue) {
   const quantity = Number(rawValue || 0);
   const item = state.catalog.find((candidate) => candidate.sku === sku);
+  if (!isOrderable(item)) {
+    state.quantities.delete(sku);
+    updateSummary();
+    return;
+  }
   const minQuantity = minOrderQuantity(item);
   if (quantity > 0) {
     state.quantities.set(sku, Math.max(minQuantity, quantity));
@@ -234,6 +242,20 @@ function setQuantity(sku, rawValue) {
 
 function minOrderQuantity(item) {
   return Math.max(0, Number(item?.min_quantity || 0));
+}
+
+function isOrderable(item) {
+  if (!item) return false;
+  if (item.orderable === false) return false;
+  if (Object.prototype.hasOwnProperty.call(item, "stock_quantity")) {
+    return Number(item.stock_quantity || 0) > 0;
+  }
+  return true;
+}
+
+function stockLabel(item) {
+  if (!Object.prototype.hasOwnProperty.call(item || {}, "stock_quantity")) return "";
+  return `库存 ${formatNumber(Number(item.stock_quantity || 0))}`;
 }
 
 function setCustomNote(sku, rawValue) {
@@ -251,7 +273,7 @@ function setCustomNote(sku, rawValue) {
 function selectedItems() {
   return state.catalog
     .map((item) => ({ ...item, quantity: Number(state.quantities.get(item.sku) || 0), custom_note: state.customNotes.get(item.sku) || "" }))
-    .filter((item) => item.quantity > 0);
+    .filter((item) => item.quantity > 0 && isOrderable(item));
 }
 
 function updateSummary() {

@@ -449,6 +449,17 @@ textarea {
   padding: 12px;
 }
 
+.sku-card.is-unavailable {
+  border-color: #d6dde5;
+  background: #f7f8fa;
+}
+
+.sku-card.is-unavailable .sku-image,
+.sku-card.is-unavailable .sku-meta strong,
+.sku-card.is-unavailable .qty-unit {
+  opacity: .62;
+}
+
 .custom-meal-card {
   grid-column: 1 / -1;
   grid-template-columns: 84px minmax(0, 1fr) auto;
@@ -546,6 +557,24 @@ textarea {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 0 7px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.stock-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-top: 6px;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  padding: 0 7px;
+  background: #eef1f4;
+  color: #5f6b78;
   font-size: 12px;
   font-style: normal;
   font-weight: 900;

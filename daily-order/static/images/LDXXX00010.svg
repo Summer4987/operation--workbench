@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="板腱牛排">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff8ec" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#d4872f" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M63 121c6-35 43-57 83-49 34 7 55 30 51 58-5 36-45 62-87 54-35-6-53-30-47-63Z" fill="#d95b68" stroke="#87313b" stroke-width="6"/>
+  <path d="M89 127c9-18 31-28 56-23 20 4 34 17 32 32-2 20-27 36-54 31-25-4-42-21-34-40Z" fill="#f7c1bd" stroke="#fff1f3" stroke-width="5"/>
+  <path d="M81 100c31 17 69 24 108 20M78 151c29-8 67-4 101 9" fill="none" stroke="#fff8ec" stroke-width="7" opacity=".75" stroke-linecap="round"/>
+</svg>

@@ -86,6 +86,8 @@ async def submit_order(request: Request, payload: dict):
             quantity = 1
         if quantity <= 0:
             continue
+        if not _is_orderable(product):
+            raise HTTPException(status_code=400, detail=f"{product['name']} 当前库存为 0，暂时无法下单")
         min_quantity = _to_number(product.get("min_quantity"))
         if min_quantity > 0 and quantity < min_quantity:
             raise HTTPException(status_code=400, detail=f"{product['name']} 最少下单 {_format_number(min_quantity)}{product.get('unit', '')}")
@@ -306,6 +308,14 @@ async def update_channel_status(channel: str, request: Request, payload: dict):
 
 def _load_catalog() -> dict:
     return json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+
+
+def _is_orderable(product: dict) -> bool:
+    if product.get("orderable") is False:
+        return False
+    if "stock_quantity" in product and _to_number(product.get("stock_quantity")) <= 0:
+        return False
+    return True
 
 
 def _store_records(catalog_data: dict) -> dict[str, dict]:

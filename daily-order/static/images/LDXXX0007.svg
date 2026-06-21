@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="冷冻虾仁">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f2fbff" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#3d8ec7" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M73 134c12-42 55-68 96-49 33 15 39 61 9 86-28 24-77 15-91-16 33 12 69 2 80-23 7-16-3-33-20-37-22-5-47 12-53 39H73Z" fill="#ffb199" stroke="#87313b" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M161 92c13-14 30-19 48-14-7 17-21 27-40 31" fill="none" stroke="#87313b" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="149" cy="113" r="5" fill="#87313b"/>
+  <path d="M104 143c17 8 42 7 58-4M118 111c15-10 32-12 47-3" fill="none" stroke="#fff1f3" stroke-width="7" stroke-linecap="round"/>
+</svg>
