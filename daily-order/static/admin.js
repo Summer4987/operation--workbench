@@ -394,7 +394,7 @@ function notifyNewOrders(orders) {
 function renderLine(item) {
   const spec = item.spec ? ` ${item.spec}` : "";
   const note = item.note ? ` · ${escapeHtml(item.note)}` : "";
-  return `<em>${escapeHtml(item.name)}${escapeHtml(spec)}${note}</em><b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b>`;
+  return `${escapeHtml(item.name)}${escapeHtml(spec)}${note} <b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b>`;
 }
 
 function plainLine(item) {
