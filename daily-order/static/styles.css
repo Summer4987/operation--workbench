@@ -1013,25 +1013,45 @@ dialog::backdrop {
 }
 
 .channel-totals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
+  gap: 8px;
   padding: 12px 18px 0;
 }
 
 .channel-totals > span,
 .admin-order-items span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
   border-radius: 8px;
   background: #edf5f3;
   color: #22313f;
-  padding: 7px 9px;
-  font-size: 13px;
+  padding: 9px 11px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .channel-totals > span {
   background: var(--channel-chip, #e8f4f1);
   border: 1px solid #cfe4dd;
+}
+
+.channel-totals > span em,
+.admin-order-items span em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #1f2937;
+  font-style: normal;
+  line-height: 1.25;
+}
+
+.channel-totals > span b,
+.admin-order-items span b {
+  color: var(--channel-color, var(--brand));
+  font-size: 16px;
+  line-height: 1;
 }
 
 .channel-order-list {
@@ -1041,7 +1061,7 @@ dialog::backdrop {
 }
 
 .channel-order-card {
-  padding: 14px;
+  padding: 16px;
   background: #fff;
   border-color: #dbe5ee;
   border-left: 5px solid var(--channel-color, #14b8a6);
@@ -1055,7 +1075,7 @@ dialog::backdrop {
 .channel-order-card header strong {
   display: block;
   color: #111827;
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.2;
 }
 
@@ -1072,7 +1092,8 @@ dialog::backdrop {
 }
 
 .channel-order-card p {
-  margin-top: 8px;
+  margin-top: 6px;
+  font-size: 12px;
 }
 
 .wechat-group-card {
@@ -1134,15 +1155,15 @@ dialog::backdrop {
 
 .wechat-group-card pre {
   margin: 12px 0 0;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid #d9f5e2;
   border-radius: 8px;
   background: #fff;
   color: #1f2937;
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.6;
+  line-height: 1.7;
   white-space: pre-wrap;
 }
 
@@ -1171,10 +1192,16 @@ dialog::backdrop {
 }
 
 .admin-order-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.admin-order-items span {
+  min-height: 42px;
+  border: 1px solid #d7e6e2;
+  background: #f5fbf9;
 }
 
 .admin-remark {
@@ -1293,5 +1320,10 @@ dialog::backdrop {
 
   .wechat-group-actions button {
     flex: 1 1 auto;
+  }
+
+  .channel-totals,
+  .admin-order-items {
+    grid-template-columns: 1fr;
   }
 }
