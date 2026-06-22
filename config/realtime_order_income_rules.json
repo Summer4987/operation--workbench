@@ -1,10 +1,5 @@
 {
-  "closed_stores": {
-    "五一广场": {
-      "platforms": ["美团", "饿了么"],
-      "reason": "门店未开业，实时订单和营业额应为 0。"
-    }
-  },
+  "closed_stores": {},
   "meituan_page_row_validation": {
     "min_ticket": 8,
     "max_ticket": 120
