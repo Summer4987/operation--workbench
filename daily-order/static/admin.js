@@ -2,6 +2,7 @@ const params = new URLSearchParams(location.search);
 const token = params.get("token") || "";
 const state = {
   status: "pending",
+  month: currentMonth(),
   payload: { orders: [], channels: [], stats: {} },
   seenPendingIds: new Set(),
   loadedOnce: false,
@@ -45,7 +46,7 @@ async function loadSummary() {
     return;
   }
   try {
-    const response = await fetch(`/daily-order/api/admin/summary?status=${encodeURIComponent(state.status)}&token=${encodeURIComponent(token)}`);
+    const response = await fetch(`/daily-order/api/admin/summary?status=${encodeURIComponent(state.status)}&month=${encodeURIComponent(state.month)}&token=${encodeURIComponent(token)}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "后台数据读取失败");
     const freshPending = (payload.orders || []).filter((order) => order.status === "pending" && !state.seenPendingIds.has(order.order_id));
@@ -54,7 +55,7 @@ async function loadSummary() {
     if (state.loadedOnce && freshPending.length) notifyNewOrders(freshPending);
     (payload.orders || []).filter((order) => order.status === "pending").forEach((order) => state.seenPendingIds.add(order.order_id));
     state.loadedOnce = true;
-    showMessage(`已更新：${formatDate(new Date().toISOString())}`, false);
+    showMessage(`已更新：${formatDate(new Date().toISOString())} · 汇总月份 ${payload.month || state.month}`, false);
   } catch (error) {
     showMessage(error.message, true);
   }
@@ -295,7 +296,7 @@ function renderChannelOrder(order, channelName) {
 async function updateChannelStatus(channel, status) {
   showMessage(`正在更新 ${channel} 渠道状态...`, false);
   try {
-    const response = await fetch(`/daily-order/api/admin/channels/${encodeURIComponent(channel)}/status?token=${encodeURIComponent(token)}`, {
+    const response = await fetch(`/daily-order/api/admin/channels/${encodeURIComponent(channel)}/status?month=${encodeURIComponent(state.month)}&token=${encodeURIComponent(token)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -427,6 +428,11 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function escapeHtml(value) {

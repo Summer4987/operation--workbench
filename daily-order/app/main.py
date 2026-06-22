@@ -155,15 +155,17 @@ def recent_store_orders(store_name: str):
 
 
 @app.get("/daily-order/api/admin/summary")
-def admin_summary(request: Request, status: str = "pending"):
+def admin_summary(request: Request, status: str = "pending", month: str = ""):
     _require_admin(request)
     if status not in {"pending", "processed", "all"}:
         raise HTTPException(status_code=400, detail="状态不正确")
-    all_orders = _read_orders()
+    month_scope = _target_month(month)
+    all_orders = [order for order in _read_orders() if _order_month(order) == month_scope]
     orders = [_order_for_status(order, status) for order in all_orders]
     orders = [order for order in orders if order.get("items")]
     return {
         "status": status,
+        "month": month_scope,
         "orders": orders,
         "channels": _channel_summary(orders),
         "stats": {
@@ -274,7 +276,7 @@ async def update_order_channel_status(order_id: str, channel: str, request: Requ
 
 
 @app.patch("/daily-order/api/admin/channels/{channel}/status")
-async def update_channel_status(channel: str, request: Request, payload: dict):
+async def update_channel_status(channel: str, request: Request, payload: dict, month: str = ""):
     _require_admin(request)
     status = str(payload.get("status") or "").strip()
     if status not in {"pending", "processed"}:
@@ -282,11 +284,14 @@ async def update_channel_status(channel: str, request: Request, payload: dict):
     channel = channel.strip()
     if not channel:
         raise HTTPException(status_code=400, detail="渠道不正确")
+    month_scope = _target_month(month)
     changed = []
     for path in SUBMISSION_DIR.glob("*.json"):
         try:
             order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
         except Exception:
+            continue
+        if _order_month(order) != month_scope:
             continue
         channels = _order_channels(order)
         target_channels = _matching_order_channels(channels, channel)
@@ -303,7 +308,7 @@ async def update_channel_status(channel: str, request: Request, payload: dict):
         path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         _write_order_csv(path.with_suffix(".csv"), order)
         changed.append(order["order_id"])
-    return {"status": "success", "channel": channel, "order_count": len(changed), "order_ids": changed}
+    return {"status": "success", "channel": channel, "month": month_scope, "order_count": len(changed), "order_ids": changed}
 
 
 def _load_catalog() -> dict:
@@ -390,9 +395,19 @@ def _target_day(value: str = "") -> str:
     return value if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) else datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
 
 
+def _target_month(value: str = "") -> str:
+    value = (value or "").strip()
+    return value if re.fullmatch(r"\d{4}-\d{2}", value) else datetime.now(timezone.utc).astimezone().strftime("%Y-%m")
+
+
 def _order_day(order: dict) -> str:
     submitted_at = str(order.get("submitted_at") or "")
     return submitted_at[:10] if len(submitted_at) >= 10 else ""
+
+
+def _order_month(order: dict) -> str:
+    day = _order_day(order)
+    return day[:7] if len(day) >= 7 else ""
 
 
 def _read_orders() -> list[dict]:
