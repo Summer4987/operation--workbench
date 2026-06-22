@@ -4,6 +4,23 @@
 
 ## 用户需要执行的命令
 
+如果目标是让 Mac mini 上的 Codex 接管下一步任务，优先双击：
+
+```text
+Mac mini Codex接管.command
+```
+
+或在 Mac mini 终端执行：
+
+```zsh
+cd "/Users/summer/Documents/New project"
+/bin/zsh scripts/macmini_takeover_clean_checkout.zsh
+```
+
+这会自动准备 `/Users/summer/Documents/operation-workbench-clean` 干净交接仓库、从 GitHub `main` fast-forward 更新，并打印 `docs/MACMINI_NEXT_TASK.md`。它不会覆盖旧生产目录，不会安装定时任务，不会执行预算、下单、付款或发布。
+
+如果目标是把已经验证的代码接入生产定时任务，再使用下面的生产交接流程。
+
 在 Mac mini 上打开终端，进入项目目录：
 
 ```zsh
@@ -43,6 +60,12 @@ git status --short --branch
 ```
 
 脚本只会在工作区干净时 fast-forward 拉取 `origin/main`，然后运行只读检查；如果发现本地改动，会拒绝继续并打印状态，不会覆盖生产现场。
+
+如果生产目录因为运行产物或本地改动无法拉取，但只是要让 Mac mini Codex 读取下一步任务，请改用：
+
+```zsh
+/bin/zsh scripts/macmini_takeover_clean_checkout.zsh
+```
 
 手动路径如下：
 

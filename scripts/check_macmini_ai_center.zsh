@@ -83,6 +83,7 @@ echo "== 配置与语法检查 =="
 /bin/zsh -n scripts/upload_store_inspection_evidence.zsh
 /bin/zsh -n scripts/run_macmini_ai_center_smoke.zsh
 /bin/zsh -n scripts/macmini_pull_and_check.zsh
+/bin/zsh -n scripts/macmini_takeover_clean_checkout.zsh
 /bin/zsh -n scripts/install_macmini_operation_launchd.zsh
 if command -v "$NODE" >/dev/null 2>&1; then
   "$NODE" --check workbench.js

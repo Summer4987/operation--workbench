@@ -45,6 +45,11 @@ if [[ -n "$(git status --porcelain)" ]]; then
   echo "拒绝继续：当前工作区存在未提交或未跟踪改动。"
   echo "请先把下面状态发给 Codex 判断，不要强制覆盖："
   git status --short --branch
+  echo
+  echo "如果只是要让 Mac mini Codex 接管下一步任务，请改用干净交接仓库："
+  echo "  /bin/zsh scripts/macmini_takeover_clean_checkout.zsh"
+  echo "或双击："
+  echo "  Mac mini Codex接管.command"
   exit 64
 fi
 
