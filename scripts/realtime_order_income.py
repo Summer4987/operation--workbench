@@ -762,6 +762,25 @@ def meituan_realtime_active(page) -> bool:
     return False
 
 
+def page_requires_login(page, platform: str) -> bool:
+    login_markers = ["账号登录", "验证码登录", "忘记密码", "登录", "安全验证", "验证码"]
+    platform_markers = {
+        "美团": ["美团外卖商家版", "e.waimai.meituan.com/new_fe/login"],
+        "饿了么": ["饿了么", "melody.shop.ele.me"],
+    }
+    for target in [page, *page.frames]:
+        try:
+            text = target.evaluate("() => document.body ? document.body.innerText.slice(0, 1200) : ''")
+            url = getattr(target, "url", "") or ""
+        except Exception:
+            continue
+        if any(marker in url or marker in text for marker in platform_markers.get(platform, [])) and any(
+            marker in text for marker in login_markers
+        ):
+            return True
+    return False
+
+
 def click_meituan_realtime(target) -> bool:
     try:
         return bool(
@@ -830,6 +849,8 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
         log("美团：进入实时经营页")
         page.goto(MEITUAN_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
         page.wait_for_timeout(7000)
+        if page_requires_login(page, "美团"):
+            raise RuntimeError("美团登录态失效：当前打开的是登录/验证码页面")
         click_meituan_realtime_and_scroll(page)
         for target in [page, *page.frames]:
             dom_records.extend(parse_dom_records(target, "美团"))

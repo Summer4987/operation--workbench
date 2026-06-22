@@ -4,6 +4,7 @@ from scripts.realtime_order_income import (
     build_dom_record,
     build_payload,
     merge_records,
+    page_requires_login,
     realtime_validation_errors,
 )
 
@@ -156,3 +157,22 @@ def test_payload_marks_missing_income_as_partial():
     assert payload["status"] == "partial"
     assert payload["summary"]["income_missing_count"] == 1
     assert payload["income_missing"] == [{"platform": "美团", "store": "双井", "source": "api"}]
+
+
+class FakeTarget:
+    def __init__(self, text: str, url: str = ""):
+        self._text = text
+        self.url = url
+
+    def evaluate(self, _script: str) -> str:
+        return self._text
+
+
+class FakePage(FakeTarget):
+    frames = []
+
+
+def test_meituan_login_page_is_detected_before_realtime_switch():
+    page = FakePage("美团外卖商家版 账号登录 验证码登录 忘记密码 登录", "https://e.waimai.meituan.com/new_fe/login_gw#/login")
+
+    assert page_requires_login(page, "美团")
