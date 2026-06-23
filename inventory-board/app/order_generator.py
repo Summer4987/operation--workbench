@@ -254,6 +254,9 @@ def _reject_removed_public_order_items(items: list[dict], products_by_sku: dict[
             continue
         sku = _clean(item.get("sku"))
         product = products_by_sku.get(sku)
+        if sku in PUBLIC_ORDER_BLOCKED_SKUS:
+            blocked.append(product.name.replace("熊小小牛排饭-", "") if product else sku)
+            continue
         if product and not _is_public_order_product(product):
             blocked.append(product.name.replace("熊小小牛排饭-", ""))
     if blocked:
