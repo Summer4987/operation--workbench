@@ -101,6 +101,14 @@ function renderStoreOptions() {
       return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
     })
     .join("")}`;
+  const singleStore = state.stores.length === 1 ? state.stores[0] : null;
+  if (singleStore) {
+    const name = typeof singleStore === "string" ? singleStore : singleStore.name;
+    els.storeName.value = name || "";
+    els.storeName.closest(".store-field")?.setAttribute("hidden", "");
+  } else {
+    els.storeName.closest(".store-field")?.removeAttribute("hidden");
+  }
 }
 
 function renderTabs() {
