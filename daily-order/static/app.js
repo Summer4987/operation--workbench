@@ -12,6 +12,7 @@ const state = {
 
 lockPageZoom();
 
+const orderBasePath = window.location.pathname.startsWith("/beijing-order") ? "/beijing-order" : "/daily-order";
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
 const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "工作餐"];
 const customMealSku = "MEAL-001";
@@ -26,7 +27,12 @@ const sourceLabels = {
   "快驴配送": "快驴配送（次日）",
   "快递到店": "快递到店（3-5天）",
   "同城物流配送": "同城物流配送（次日）",
+  "厂家配送（次日）": "厂家配送（次日）",
   "厂家配送（2日内）": "厂家配送（2日内）",
+  "闪羚配送（次日）": "闪羚配送（次日）",
+  "冷库配送（2日内）": "冷库配送（2日内）",
+  "供应链发货（7-10天）": "供应链发货（7-10天）",
+  "物流发货（5-7天）": "物流发货（5-7天）",
   "成都易代仓": "成都易代仓",
   "自主填写": "自主填写",
 };
@@ -76,7 +82,7 @@ els.refreshOrders.addEventListener("click", refreshStoreOrders);
 renderOrdersPanelState();
 
 async function loadCatalog() {
-  const response = await fetch("/daily-order/api/catalog");
+  const response = await fetch(`${orderBasePath}/api/catalog`);
   if (!response.ok) throw new Error("SKU 读取失败");
   const payload = await response.json();
   state.catalog = payload.items || [];
@@ -151,8 +157,10 @@ function renderCatalog() {
   els.catalogGrid.querySelectorAll("[data-step]").forEach((button) => {
     button.addEventListener("click", () => {
       const current = Number(state.quantities.get(button.dataset.sku) || 0);
+      const item = state.catalog.find((candidate) => candidate.sku === button.dataset.sku);
+      const minQuantity = minOrderQuantity(item);
       const step = Number(button.dataset.step);
-      const next = Math.max(0, current + step);
+      const next = step < 0 && current <= minQuantity ? 0 : Math.max(0, current + step);
       setQuantity(button.dataset.sku, next);
       renderCatalog();
     });
@@ -172,9 +180,10 @@ function sectionMatchesItem(section, item) {
 function renderItem(item) {
   if (isCustomMealItem(item)) return renderCustomMealItem(item);
   const quantity = state.quantities.get(item.sku) || "";
+  const minQuantity = minOrderQuantity(item);
   const detail = [sourceLabel(item.source), item.category, stockLabel(item), item.note].filter(Boolean).join(" · ");
   const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
-  const vendorGroup = vendorGroups[item.name] || "";
+  const vendorGroup = Object.prototype.hasOwnProperty.call(item, "vendor_group") ? item.vendor_group : (vendorGroups[item.name] || "");
   const orderable = isOrderable(item);
   return `
     <article class="sku-card${orderable ? "" : " is-unavailable"}">
@@ -190,7 +199,7 @@ function renderItem(item) {
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>-</button>
-        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" ${orderable ? "" : "disabled"} />
+        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="${minQuantity}" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" ${orderable ? "" : "disabled"} />
         <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>+</button>
       </div>
       <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
@@ -227,12 +236,17 @@ function setQuantity(sku, rawValue) {
     updateSummary();
     return;
   }
+  const minQuantity = minOrderQuantity(item);
   if (quantity > 0) {
-    state.quantities.set(sku, quantity);
+    state.quantities.set(sku, Math.max(minQuantity, quantity));
   } else {
     state.quantities.delete(sku);
   }
   updateSummary();
+}
+
+function minOrderQuantity(item) {
+  return Math.max(0, Number(item?.min_quantity || 0));
 }
 
 function isOrderable(item) {
@@ -310,7 +324,7 @@ async function submitOrder() {
   els.confirmSubmit.disabled = true;
   els.message.textContent = "正在提交...";
   try {
-    const response = await fetch("/daily-order/api/orders", {
+    const response = await fetch(`${orderBasePath}/api/orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -389,7 +403,7 @@ async function loadStoreOrders() {
   }
   els.storeOrdersList.innerHTML = `<p>正在读取订单...</p>`;
   try {
-    const response = await fetch(`/daily-order/api/orders?store_name=${encodeURIComponent(storeName)}`);
+    const response = await fetch(`${orderBasePath}/api/orders?store_name=${encodeURIComponent(storeName)}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "订单读取失败");
     state.recentOrders = payload.items || [];

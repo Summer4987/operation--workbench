@@ -21,6 +21,9 @@ DATA_DIR = BASE_DIR / "data"
 SUBMISSION_DIR = DATA_DIR / "submissions"
 ORDER_LINES_PATH = DATA_DIR / "order-lines.csv"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
+BEIJING_CATALOG_PATH = BASE_DIR / "app" / "catalog-beijing.json"
+BEIJING_SUBMISSION_DIR = DATA_DIR / "beijing-submissions"
+BEIJING_ORDER_LINES_PATH = DATA_DIR / "beijing-order-lines.csv"
 
 app = FastAPI(title="Daily Order")
 app.add_middleware(
@@ -37,6 +40,11 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/beijing-order/")
+def beijing_index():
+    return FileResponse(STATIC_DIR / "beijing-index.html")
+
+
 @app.get("/daily-order/admin")
 def admin():
     return FileResponse(STATIC_DIR / "admin.html")
@@ -47,15 +55,35 @@ def catalog():
     return _load_catalog()
 
 
+@app.get("/beijing-order/api/catalog")
+def beijing_catalog():
+    return _load_catalog(BEIJING_CATALOG_PATH)
+
+
 @app.get("/daily-order/api/health")
 def health():
     catalog_data = _load_catalog()
     return {"status": "ok", "item_count": len(catalog_data["items"])}
 
 
+@app.get("/beijing-order/api/health")
+def beijing_health():
+    catalog_data = _load_catalog(BEIJING_CATALOG_PATH)
+    return {"status": "ok", "item_count": len(catalog_data["items"])}
+
+
 @app.post("/daily-order/api/orders")
 async def submit_order(request: Request, payload: dict):
-    catalog_data = _load_catalog()
+    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO")
+
+
+@app.post("/beijing-order/api/orders")
+async def submit_beijing_order(request: Request, payload: dict):
+    return await _submit_order(request, payload, BEIJING_CATALOG_PATH, BEIJING_SUBMISSION_DIR, BEIJING_ORDER_LINES_PATH, "BJ")
+
+
+async def _submit_order(request: Request, payload: dict, catalog_path: Path, submission_dir: Path, order_lines_path: Path, order_prefix: str):
+    catalog_data = _load_catalog(catalog_path)
     products = {item["sku"]: item for item in catalog_data["items"]}
     store_records = _store_records(catalog_data)
     stores = set(store_records)
@@ -87,6 +115,9 @@ async def submit_order(request: Request, payload: dict):
             continue
         if not _is_orderable(product):
             raise HTTPException(status_code=400, detail=f"{product['name']} 当前库存为 0，暂时无法下单")
+        min_quantity = _to_number(product.get("min_quantity"))
+        if min_quantity > 0 and quantity < min_quantity:
+            raise HTTPException(status_code=400, detail=f"{product['name']} 最少下单 {_format_number(min_quantity)}{product.get('unit', '')}")
         lines.append(
             {
                 "sku": sku,
@@ -106,7 +137,7 @@ async def submit_order(request: Request, payload: dict):
 
     submitted_time = datetime.now(timezone.utc).astimezone()
     submitted_at = submitted_time.isoformat(timespec="seconds")
-    order_id = f"DO-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
+    order_id = f"{order_prefix}-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
     auto_processed_channels = _auto_processed_channels(lines)
     order_channels = set(_order_channels({"items": lines}))
     order = {
@@ -122,13 +153,13 @@ async def submit_order(request: Request, payload: dict):
         "items": lines,
     }
 
-    SUBMISSION_DIR.mkdir(parents=True, exist_ok=True)
+    submission_dir.mkdir(parents=True, exist_ok=True)
     stem = f"{order_id}_{_safe_name(store_name)}"
-    json_path = SUBMISSION_DIR / f"{stem}.json"
-    csv_path = SUBMISSION_DIR / f"{stem}.csv"
+    json_path = submission_dir / f"{stem}.json"
+    csv_path = submission_dir / f"{stem}.csv"
     json_path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_order_csv(csv_path, order)
-    _append_order_lines(order)
+    _append_order_lines(order, order_lines_path)
     _notify_order(order)
 
     return {
@@ -145,6 +176,14 @@ def recent_store_orders(store_name: str):
     if not store_name:
         raise HTTPException(status_code=400, detail="请选择门店")
     return {"items": [order for order in _read_orders() if order["store_name"] == store_name]}
+
+
+@app.get("/beijing-order/api/orders")
+def recent_beijing_store_orders(store_name: str):
+    store_name = store_name.strip()
+    if not store_name:
+        raise HTTPException(status_code=400, detail="请选择门店")
+    return {"items": [order for order in _read_orders(BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH) if order["store_name"] == store_name]}
 
 
 @app.get("/daily-order/api/admin/summary")
@@ -304,8 +343,9 @@ async def update_channel_status(channel: str, request: Request, payload: dict, m
     return {"status": "success", "channel": channel, "month": month_scope, "order_count": len(changed), "order_ids": changed}
 
 
-def _load_catalog() -> dict:
-    return json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+def _load_catalog(path: Path | None = None) -> dict:
+    path = path or CATALOG_PATH
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _is_orderable(product: dict) -> bool:
@@ -344,6 +384,8 @@ def _default_purchase_channel(product: dict) -> str:
 
 
 def _purchase_channel(product: dict) -> str:
+    if product.get("force_purchase_channel") and product.get("purchase_channel"):
+        return str(product["purchase_channel"])
     name = str(product.get("name") or "")
     sku = str(product.get("sku") or "")
     wechat_group = _wechat_group_channel(name, sku)
@@ -403,33 +445,36 @@ def _order_month(order: dict) -> str:
     return day[:7] if len(day) >= 7 else ""
 
 
-def _read_orders() -> list[dict]:
-    SUBMISSION_DIR.mkdir(parents=True, exist_ok=True)
+def _read_orders(submission_dir: Path | None = None, catalog_path: Path | None = None) -> list[dict]:
+    submission_dir = submission_dir or SUBMISSION_DIR
+    catalog_path = catalog_path or CATALOG_PATH
+    submission_dir.mkdir(parents=True, exist_ok=True)
     orders = []
-    for path in SUBMISSION_DIR.glob("*.json"):
+    for path in submission_dir.glob("*.json"):
         try:
-            orders.append(_normalize_order(json.loads(path.read_text(encoding="utf-8"))))
+            orders.append(_normalize_order(json.loads(path.read_text(encoding="utf-8")), catalog_path))
         except Exception:
             continue
     orders.sort(key=lambda order: (order.get("submitted_at", ""), order.get("order_id", "")), reverse=True)
     return orders
 
 
-def _normalize_order(order: dict) -> dict:
+def _normalize_order(order: dict, catalog_path: Path | None = None) -> dict:
+    catalog_path = catalog_path or CATALOG_PATH
     order.setdefault("status", "pending")
     order.setdefault("processed_at", "")
     order.setdefault("store_address", "")
     products = {}
     if not order["store_address"] and order.get("store_name"):
         try:
-            catalog_data = _load_catalog()
+            catalog_data = _load_catalog(catalog_path)
             products = {item["sku"]: item for item in catalog_data.get("items", [])}
             order["store_address"] = _store_records(catalog_data).get(order["store_name"], {}).get("address", "")
         except Exception:
             order["store_address"] = ""
     elif order.get("items"):
         try:
-            products = {item["sku"]: item for item in _load_catalog().get("items", [])}
+            products = {item["sku"]: item for item in _load_catalog(catalog_path).get("items", [])}
         except Exception:
             products = {}
     for item in order.get("items") or []:
@@ -799,12 +844,13 @@ def _rows_to_csv(headers: list[str], rows: list[dict]) -> str:
     return output.getvalue()
 
 
-def _append_order_lines(order: dict) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    exists = ORDER_LINES_PATH.exists()
-    with ORDER_LINES_PATH.open("a", encoding="utf-8-sig", newline="") as target:
+def _append_order_lines(order: dict, order_lines_path: Path | None = None) -> None:
+    order_lines_path = order_lines_path or ORDER_LINES_PATH
+    order_lines_path.parent.mkdir(parents=True, exist_ok=True)
+    exists = order_lines_path.exists()
+    with order_lines_path.open("a", encoding="utf-8-sig", newline="") as target:
         writer = csv.DictWriter(target, fieldnames=ORDER_LINE_HEADERS)
-        if not exists or ORDER_LINES_PATH.stat().st_size == 0:
+        if not exists or order_lines_path.stat().st_size == 0:
             writer.writeheader()
         for item in order.get("items") or []:
             writer.writerow(_order_line_row(order, item))
