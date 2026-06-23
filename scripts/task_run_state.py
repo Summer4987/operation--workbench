@@ -145,7 +145,8 @@ def record_task_event(
     if status == "success":
         task.pop("extra", None)
     if extra:
-        task["extra"] = {**previous.get("extra", {}), **extra}
+        base_extra = {} if status == "success" else previous.get("extra", {})
+        task["extra"] = {**base_extra, **extra}
     tasks[task_id] = task
     event = {
         "task_id": task_id,
