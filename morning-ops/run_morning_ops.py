@@ -32,6 +32,8 @@ ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
 PROMO_PREVIEW_RUNNER = WORKSPACE / "scripts" / "build_promo_budget_preview.mjs"
 PROMO_BUDGET_SYNC_RUNNER = WORKSPACE / "scripts" / "sync_promo_budget_overrides.py"
 WORKBENCH_DATA_RUNNER = WORKSPACE / "scripts" / "build_workbench_data.py"
+MORNING_COLLECTION_STATUS_RUNNER = WORKSPACE / "scripts" / "build_morning_collection_status.py"
+TASK_HEALTH_RUNNER = WORKSPACE / "scripts" / "build_task_health.py"
 MEITUAN_BUDGET_RUNNER = WORKSPACE / "store-inspection" / "meituan_budget_automation.py"
 MEITUAN_BUDGET_CDP_RUNNER = WORKSPACE / "store-inspection" / "meituan_budget_cdp.py"
 CHROME_CLEANUP_RUNNER = WORKSPACE / "scripts" / "cleanup_chrome_tabs.py"
@@ -260,6 +262,32 @@ def cleanup_chrome_sessions(label: str) -> None:
         print(f"{label}失败，已跳过：{exc}", file=sys.stderr, flush=True)
 
 
+def refresh_final_status() -> None:
+    for label, runner in (
+        ("上午采集状态刷新", MORNING_COLLECTION_STATUS_RUNNER),
+        ("任务健康状态刷新", TASK_HEALTH_RUNNER),
+        ("运营总看板数据刷新", WORKBENCH_DATA_RUNNER),
+    ):
+        if not runner.exists():
+            continue
+        try:
+            result = subprocess.run(
+                [sys.executable, str(runner)],
+                cwd=WORKSPACE,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=180,
+            )
+            output = (result.stdout or "").strip()
+            if result.returncode == 0:
+                print(f"{label}：{output or '完成'}", flush=True)
+            else:
+                print(f"{label}失败，已跳过：{output or result.returncode}", file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f"{label}失败，已跳过：{exc}", file=sys.stderr, flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="运营一键采集")
     parser.add_argument(
@@ -367,6 +395,7 @@ def main() -> int:
                     budget_period=budget_period,
                     failures="、".join(failures),
                 )
+                refresh_final_status()
                 return 1
             print("\n运营一键采集完成。", flush=True)
             record_task_run(
@@ -379,6 +408,7 @@ def main() -> int:
                 source=args.source,
                 budget_period=budget_period,
             )
+            refresh_final_status()
             return 0
         except Exception as exc:
             cleanup_chrome_sessions("异常后 Chrome 会话清理")
@@ -393,6 +423,7 @@ def main() -> int:
                 source=args.source,
                 budget_period=budget_period,
             )
+            refresh_final_status()
             return 1
 
 

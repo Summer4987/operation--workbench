@@ -95,8 +95,8 @@ print(f"准备上传证据文件 {len(paths)} 个。")
 PY
 
 if [[ ! -s "$TMP_LIST" ]]; then
-  echo "没有找到 $DATE_TEXT 往前 $DAYS 天内的巡检证据文件。"
-  exit 1
+  echo "没有找到 $DATE_TEXT 往前 $DAYS 天内的巡检证据文件，跳过上传。"
+  exit 0
 fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
