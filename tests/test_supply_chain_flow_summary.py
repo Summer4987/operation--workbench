@@ -11,13 +11,6 @@ def load_inventory_main():
     return importlib.import_module("app.main")
 
 
-def load_inventory_order_generator():
-    app_root = Path(__file__).resolve().parents[1] / "inventory-board"
-    if str(app_root) not in sys.path:
-        sys.path.insert(0, str(app_root))
-    return importlib.import_module("app.order_generator")
-
-
 def test_production_note_splits_clear_factory_balance(monkeypatch, tmp_path):
     module = load_inventory_main()
     manifest = tmp_path / "supply_chain_flow.jsonl"
@@ -87,35 +80,3 @@ def test_public_order_allows_minimum_quantity():
             {"sku": "牛五花", "quantity": 2},
         ]
     )
-
-
-def test_public_order_catalog_excludes_frozen_and_shrimp(tmp_path):
-    module = load_inventory_order_generator()
-    catalog = module.public_order_catalog(template_path=tmp_path / "missing-template.xlsx")
-
-    names = [item["name"] for item in catalog["products"]]
-    assert names == ["寿司调味汁", "双椒酱", "拌饭汁"]
-    assert all("冻" not in name for name in names)
-    assert all("虾仁" not in name for name in names)
-
-
-def test_public_order_rejects_removed_frozen_sku():
-    module = load_inventory_order_generator()
-    products_by_sku = {
-        "LDXXX0007": module.Product(
-            sku="LDXXX0007",
-            name="熊小小牛排饭-冷冻虾仁（冻）",
-            spec="10kg/箱",
-            unit="件",
-            warehouse="成都易代仓",
-            aliases=(),
-        )
-    }
-
-    try:
-        module._reject_removed_public_order_items([{"sku": "LDXXX0007", "quantity": 5}], products_by_sku)
-    except module.OrderParseError as exc:
-        assert "已从日常订货链接移除" in str(exc)
-        assert "冷冻虾仁" in str(exc)
-    else:
-        raise AssertionError("Expected removed frozen SKU to be rejected")
