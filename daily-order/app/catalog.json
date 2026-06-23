@@ -185,17 +185,6 @@
       "purchase_channel": "大米群"
     },
     {
-      "sku": "CJ-020",
-      "source": "厂家配送（2日内）",
-      "category": "冻品",
-      "name": "虾仁",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-020.svg",
-      "purchase_channel": "虾仁群"
-    },
-    {
       "sku": "MEAL-001",
       "source": "快驴配送",
       "category": "工作餐",
