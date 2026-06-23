@@ -95,12 +95,14 @@ async function loadCatalog() {
 }
 
 function renderStoreOptions() {
-  els.storeName.innerHTML = `<option value="">请选择门店</option>${state.stores
-    .map((store) => {
-      const name = typeof store === "string" ? store : store.name;
-      return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
-    })
-    .join("")}`;
+  if (els.storeName.tagName === "SELECT") {
+    els.storeName.innerHTML = `<option value="">请选择门店</option>${state.stores
+      .map((store) => {
+        const name = typeof store === "string" ? store : store.name;
+        return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+      })
+      .join("")}`;
+  }
   const singleStore = state.stores.length === 1 ? state.stores[0] : null;
   if (singleStore) {
     const name = typeof singleStore === "string" ? singleStore : singleStore.name;

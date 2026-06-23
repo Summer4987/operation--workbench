@@ -37,7 +37,9 @@ def test_beijing_order_page_hides_store_selector():
     chengdu_html = (root / "daily-order" / "static" / "index.html").read_text(encoding="utf-8")
 
     assert '<body class="beijing-order-page">' in beijing_html
-    assert '<div class="store-field" hidden>' in beijing_html
+    assert '<input id="storeName" type="hidden" />' in beijing_html
+    assert '<label for="storeName">门店名称</label>' not in beijing_html
+    assert '<select id="storeName" required>' not in beijing_html
     assert '<body class="beijing-order-page">' not in chengdu_html
     assert '<div class="store-field" hidden>' not in chengdu_html
 
