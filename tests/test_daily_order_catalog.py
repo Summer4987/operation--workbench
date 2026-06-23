@@ -29,3 +29,14 @@ def test_beijing_daily_order_adds_broccoli_and_spinach_between_potato_and_tomato
     assert by_name["菠菜"]["image"] == "/daily-order/static/images/BJ-KL-010B.svg"
     assert (root / "daily-order" / "static" / "images" / "BJ-KL-010.svg").exists()
     assert (root / "daily-order" / "static" / "images" / "BJ-KL-010B.svg").exists()
+
+
+def test_beijing_order_page_hides_store_selector():
+    root = Path(__file__).resolve().parents[1]
+    beijing_html = (root / "daily-order" / "static" / "beijing-index.html").read_text(encoding="utf-8")
+    chengdu_html = (root / "daily-order" / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert '<body class="beijing-order-page">' in beijing_html
+    assert '<div class="store-field" hidden>' in beijing_html
+    assert '<body class="beijing-order-page">' not in chengdu_html
+    assert '<div class="store-field" hidden>' not in chengdu_html

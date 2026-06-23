@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>熊小小北京门店订货</title>
-    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260623-beijing-order" />
+    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260623-beijing-compact-store" />
   </head>
-  <body>
+  <body class="beijing-order-page">
     <main class="shell">
       <header class="topbar">
         <div>
@@ -16,7 +16,7 @@
       </header>
 
       <section class="store-panel">
-        <div class="store-field">
+        <div class="store-field" hidden>
           <label for="storeName">门店名称</label>
           <select id="storeName" required>
             <option value="">请选择门店</option>

@@ -130,6 +130,33 @@ h1 {
   font-weight: 900;
 }
 
+.beijing-order-page .store-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.beijing-order-page .store-actions {
+  align-items: center;
+}
+
+.beijing-order-page .store-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  border-color: #c8d8d5;
+  background: #f7fbfa;
+}
+
+.beijing-order-page .store-orders-panel {
+  width: 100%;
+  margin-top: 0;
+}
+
 .store-orders-panel {
   grid-column: 1 / -1;
   margin-top: 2px;
