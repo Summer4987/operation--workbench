@@ -44,6 +44,18 @@ def test_beijing_order_page_hides_store_selector():
     assert '<div class="store-field" hidden>' not in chengdu_html
 
 
+def test_beijing_order_history_button_sits_in_topbar():
+    beijing_html = (Path(__file__).resolve().parents[1] / "daily-order" / "static" / "beijing-index.html").read_text(
+        encoding="utf-8"
+    )
+    topbar = beijing_html.split("</header>", 1)[0]
+    store_panel = beijing_html.split('<section class="store-panel">', 1)[1].split("</section>", 1)[0]
+
+    assert "查看已下单订单" in topbar
+    assert "toggleOrdersButton" in topbar
+    assert "toggleOrdersButton" not in store_panel
+
+
 def test_packaging_order_groups_bowls_before_starch_boxes():
     root = Path(__file__).resolve().parents[1]
     for filename in ("catalog.json", "catalog-beijing.json"):
