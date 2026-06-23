@@ -56,3 +56,19 @@ def test_packaging_order_groups_bowls_before_starch_boxes():
             "酱料盒",
             "玉米淀粉盒",
         ]
+
+
+def test_condiment_and_supply_categories_are_grouped_by_delivery_source():
+    root = Path(__file__).resolve().parents[1]
+    expected = {
+        "调料": ["快递到店", "快驴配送"],
+        "耗材": ["快驴配送", "快递到店"],
+    }
+    for filename in ("catalog.json", "catalog-beijing.json"):
+        catalog_path = root / "daily-order" / "app" / filename
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        for category, source_order in expected.items():
+            sources = [item["source"] for item in catalog["items"] if item.get("category") == category]
+            positions = [source_order.index(source) for source in sources if source in source_order]
+
+            assert positions == sorted(positions)

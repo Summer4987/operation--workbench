@@ -284,116 +284,6 @@
       "purchase_channel": "四川鸿鹄包装群"
     },
     {
-      "sku": "KL-028",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "芝麻",
-      "spec": "",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/KL-028.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-031",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "焙煎芝麻酱",
-      "spec": "",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-031.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-034",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "鱼露",
-      "spec": "",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-034.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-036",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "鸡粉",
-      "spec": "",
-      "unit": "桶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-036.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-042",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "香油",
-      "spec": "",
-      "unit": "桶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-042.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-045",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "白糖",
-      "spec": "",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/KL-045.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-046",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "袋装盐（大袋）",
-      "spec": "",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/KL-046.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-047",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "厨邦酱油",
-      "spec": "",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-047.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-049",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "薄盐生抽",
-      "spec": "",
-      "unit": "瓶",
-      "note": "",
-      "image": "/daily-order/static/images/KL-049.svg",
-      "purchase_channel": "快驴"
-    },
-    {
-      "sku": "KL-051",
-      "source": "快驴配送",
-      "category": "调料",
-      "name": "翠宏辣椒粉",
-      "spec": "",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/KL-051.svg",
-      "purchase_channel": "快驴"
-    },
-    {
       "sku": "KD-002",
       "source": "快递到店",
       "category": "调料",
@@ -526,6 +416,116 @@
       "purchase_channel": "拼多多"
     },
     {
+      "sku": "KL-028",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "芝麻",
+      "spec": "",
+      "unit": "袋",
+      "note": "",
+      "image": "/daily-order/static/images/KL-028.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-031",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "焙煎芝麻酱",
+      "spec": "",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KL-031.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-034",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "鱼露",
+      "spec": "",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KL-034.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-036",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "鸡粉",
+      "spec": "",
+      "unit": "桶",
+      "note": "",
+      "image": "/daily-order/static/images/KL-036.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-042",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "香油",
+      "spec": "",
+      "unit": "桶",
+      "note": "",
+      "image": "/daily-order/static/images/KL-042.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-045",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "白糖",
+      "spec": "",
+      "unit": "袋",
+      "note": "",
+      "image": "/daily-order/static/images/KL-045.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-046",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "袋装盐（大袋）",
+      "spec": "",
+      "unit": "袋",
+      "note": "",
+      "image": "/daily-order/static/images/KL-046.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-047",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "厨邦酱油",
+      "spec": "",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KL-047.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-049",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "薄盐生抽",
+      "spec": "",
+      "unit": "瓶",
+      "note": "",
+      "image": "/daily-order/static/images/KL-049.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-051",
+      "source": "快驴配送",
+      "category": "调料",
+      "name": "翠宏辣椒粉",
+      "spec": "",
+      "unit": "袋",
+      "note": "",
+      "image": "/daily-order/static/images/KL-051.svg",
+      "purchase_channel": "快驴"
+    },
+    {
       "sku": "KL-053",
       "source": "快驴配送",
       "category": "耗材",
@@ -603,17 +603,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "HC-060",
-      "source": "快递到店",
-      "category": "耗材",
-      "name": "绿色百洁布",
-      "spec": "个",
-      "unit": "个",
-      "note": "",
-      "image": "/daily-order/static/images/HC-060.svg",
-      "purchase_channel": "拼多多"
-    },
-    {
       "sku": "HC-061",
       "source": "快驴配送",
       "category": "耗材",
@@ -634,6 +623,17 @@
       "note": "",
       "image": "/daily-order/static/images/HC-062.svg",
       "purchase_channel": "快驴"
+    },
+    {
+      "sku": "HC-060",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "绿色百洁布",
+      "spec": "个",
+      "unit": "个",
+      "note": "",
+      "image": "/daily-order/static/images/HC-060.svg",
+      "purchase_channel": "拼多多"
     },
     {
       "sku": "HC-063",
