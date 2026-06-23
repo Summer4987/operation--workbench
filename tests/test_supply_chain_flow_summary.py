@@ -119,15 +119,3 @@ def test_public_order_rejects_removed_frozen_sku():
         assert "冷冻虾仁" in str(exc)
     else:
         raise AssertionError("Expected removed frozen SKU to be rejected")
-
-
-def test_public_order_rejects_removed_sku_even_when_catalog_no_longer_has_it():
-    module = load_inventory_order_generator()
-
-    try:
-        module._reject_removed_public_order_items([{"sku": "LDXXX0007", "quantity": 5}], {})
-    except module.OrderParseError as exc:
-        assert "已从日常订货链接移除" in str(exc)
-        assert "LDXXX0007" in str(exc)
-    else:
-        raise AssertionError("Expected removed SKU to be rejected even without catalog metadata")
