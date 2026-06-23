@@ -40,3 +40,19 @@ def test_beijing_order_page_hides_store_selector():
     assert '<div class="store-field" hidden>' in beijing_html
     assert '<body class="beijing-order-page">' not in chengdu_html
     assert '<div class="store-field" hidden>' not in chengdu_html
+
+
+def test_packaging_order_groups_bowls_before_starch_boxes():
+    root = Path(__file__).resolve().parents[1]
+    for filename in ("catalog.json", "catalog-beijing.json"):
+        catalog_path = root / "daily-order" / "app" / filename
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        packaging_names = [item["name"] for item in catalog["items"] if item.get("category") == "包材"]
+        soup_bowl_index = packaging_names.index("汤碗")
+
+        assert packaging_names[soup_bowl_index : soup_bowl_index + 4] == [
+            "汤碗",
+            "小塑料碗",
+            "酱料盒",
+            "玉米淀粉盒",
+        ]

@@ -218,17 +218,6 @@
       "purchase_channel": "拼多多"
     },
     {
-      "sku": "CJ-027",
-      "source": "厂家配送（2日内）",
-      "category": "包材",
-      "name": "玉米淀粉盒",
-      "spec": "300个/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-027.svg",
-      "purchase_channel": "颂李包装群"
-    },
-    {
       "sku": "CJ-030",
       "source": "厂家配送（2日内）",
       "category": "包材",
@@ -237,6 +226,28 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-030.svg",
+      "purchase_channel": "颂李包装群"
+    },
+    {
+      "sku": "CJ-041",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "酱料盒",
+      "spec": "1000个/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-041.svg",
+      "purchase_channel": "四川鸿鹄包装群"
+    },
+    {
+      "sku": "CJ-027",
+      "source": "厂家配送（2日内）",
+      "category": "包材",
+      "name": "玉米淀粉盒",
+      "spec": "300个/箱",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/CJ-027.svg",
       "purchase_channel": "颂李包装群"
     },
     {
@@ -259,17 +270,6 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-038.svg",
-      "purchase_channel": "四川鸿鹄包装群"
-    },
-    {
-      "sku": "CJ-041",
-      "source": "厂家配送（2日内）",
-      "category": "包材",
-      "name": "酱料盒",
-      "spec": "1000个/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-041.svg",
       "purchase_channel": "四川鸿鹄包装群"
     },
     {
