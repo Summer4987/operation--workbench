@@ -15,7 +15,6 @@ lockPageZoom();
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
 const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "工作餐"];
 const customMealSku = "MEAL-001";
-const minOrderTotalQuantity = 5;
 const sectionLabels = {
   "食材": "🥬 食材",
   "包材": "📦 包材",
@@ -152,10 +151,8 @@ function renderCatalog() {
   els.catalogGrid.querySelectorAll("[data-step]").forEach((button) => {
     button.addEventListener("click", () => {
       const current = Number(state.quantities.get(button.dataset.sku) || 0);
-      const item = state.catalog.find((candidate) => candidate.sku === button.dataset.sku);
-      const minQuantity = minOrderQuantity(item);
       const step = Number(button.dataset.step);
-      const next = step < 0 && current <= minQuantity ? 0 : Math.max(0, current + step);
+      const next = Math.max(0, current + step);
       setQuantity(button.dataset.sku, next);
       renderCatalog();
     });
@@ -175,7 +172,6 @@ function sectionMatchesItem(section, item) {
 function renderItem(item) {
   if (isCustomMealItem(item)) return renderCustomMealItem(item);
   const quantity = state.quantities.get(item.sku) || "";
-  const minQuantity = minOrderQuantity(item);
   const detail = [sourceLabel(item.source), item.category, stockLabel(item), item.note].filter(Boolean).join(" · ");
   const nameLine = item.spec ? `${item.name} ${item.spec}` : item.name;
   const vendorGroup = vendorGroups[item.name] || "";
@@ -194,7 +190,7 @@ function renderItem(item) {
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>-</button>
-        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="${minQuantity}" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" ${orderable ? "" : "disabled"} />
+        <input data-qty data-sku="${escapeHtml(item.sku)}" type="number" inputmode="decimal" min="0" step="1" value="${escapeHtml(quantity)}" aria-label="${escapeHtml(item.name)} 数量" ${orderable ? "" : "disabled"} />
         <button type="button" data-step="1" data-sku="${escapeHtml(item.sku)}" aria-label="增加 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>+</button>
       </div>
       <span class="qty-unit">${escapeHtml(item.unit || "")}</span>
@@ -231,17 +227,12 @@ function setQuantity(sku, rawValue) {
     updateSummary();
     return;
   }
-  const minQuantity = minOrderQuantity(item);
   if (quantity > 0) {
-    state.quantities.set(sku, Math.max(minQuantity, quantity));
+    state.quantities.set(sku, quantity);
   } else {
     state.quantities.delete(sku);
   }
   updateSummary();
-}
-
-function minOrderQuantity(item) {
-  return Math.max(0, Number(item?.min_quantity || 0));
 }
 
 function isOrderable(item) {
@@ -281,15 +272,13 @@ function updateSummary() {
   const total = orderTotalQuantity(items);
   if (els.cartCount) els.cartCount.textContent = `${items.length} 项`;
   els.summaryText.textContent = items.length ? `已选 ${items.length} 个 SKU` : "还没有选择 SKU";
-  els.summaryDetail.textContent = items.length ? summaryDetailText(total) : `满 ${minOrderTotalQuantity} 件才可提交`;
-  els.submitButton.disabled = total < minOrderTotalQuantity;
+  els.summaryDetail.textContent = items.length ? summaryDetailText(total) : "填写数量后提交";
+  els.submitButton.disabled = !items.length;
 }
 
 function openConfirm() {
   const items = selectedItems();
   if (!items.length) return;
-  const total = orderTotalQuantity(items);
-  if (total < minOrderTotalQuantity) return;
   const storeName = els.storeName.value.trim();
   els.confirmStore.textContent = storeName ? `门店：${storeName}` : "门店：未选择";
   els.confirmList.innerHTML = items
@@ -318,12 +307,6 @@ async function submitOrder() {
     return;
   }
   const items = selectedItems().map((item) => ({ sku: item.sku, quantity: item.quantity, note: item.custom_note || "" }));
-  const total = orderTotalQuantity(items);
-  if (total < minOrderTotalQuantity) {
-    els.message.textContent = `单次订货满 ${minOrderTotalQuantity} 件才可以提交，当前合计 ${formatNumber(total)} 件`;
-    els.message.className = "message error";
-    return;
-  }
   els.confirmSubmit.disabled = true;
   els.message.textContent = "正在提交...";
   try {
@@ -465,9 +448,6 @@ function orderTotalQuantity(items) {
 }
 
 function summaryDetailText(total) {
-  if (total < minOrderTotalQuantity) {
-    return `合计 ${formatNumber(total)} 件，还差 ${formatNumber(minOrderTotalQuantity - total)} 件可提交`;
-  }
   return `合计数量 ${formatNumber(total)}`;
 }
 

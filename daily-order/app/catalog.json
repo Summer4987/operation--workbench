@@ -125,8 +125,7 @@
       "name": "辣白菜",
       "spec": "10kg/箱",
       "unit": "箱",
-      "note": "2箱起送",
-      "min_quantity": 2,
+      "note": "",
       "image": "/daily-order/static/images/CJ-015.svg",
       "purchase_channel": "辣白菜群"
     },
@@ -159,7 +158,7 @@
       "name": "大米",
       "spec": "",
       "unit": "袋",
-      "note": "2袋起订",
+      "note": "",
       "image": "/daily-order/static/images/TC-003.svg",
       "purchase_channel": "大米群"
     },

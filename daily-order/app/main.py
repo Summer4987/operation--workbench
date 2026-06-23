@@ -21,7 +21,6 @@ DATA_DIR = BASE_DIR / "data"
 SUBMISSION_DIR = DATA_DIR / "submissions"
 ORDER_LINES_PATH = DATA_DIR / "order-lines.csv"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
-MIN_ORDER_TOTAL_QUANTITY = 5
 
 app = FastAPI(title="Daily Order")
 app.add_middleware(
@@ -88,9 +87,6 @@ async def submit_order(request: Request, payload: dict):
             continue
         if not _is_orderable(product):
             raise HTTPException(status_code=400, detail=f"{product['name']} 当前库存为 0，暂时无法下单")
-        min_quantity = _to_number(product.get("min_quantity"))
-        if min_quantity > 0 and quantity < min_quantity:
-            raise HTTPException(status_code=400, detail=f"{product['name']} 最少下单 {_format_number(min_quantity)}{product.get('unit', '')}")
         lines.append(
             {
                 "sku": sku,
@@ -107,9 +103,6 @@ async def submit_order(request: Request, payload: dict):
 
     if not lines:
         raise HTTPException(status_code=400, detail="请至少填写一个订货数量")
-    total_quantity = sum(line["quantity"] for line in lines)
-    if total_quantity < MIN_ORDER_TOTAL_QUANTITY:
-        raise HTTPException(status_code=400, detail=f"单次订货满 {MIN_ORDER_TOTAL_QUANTITY} 件才可以提交")
 
     submitted_time = datetime.now(timezone.utc).astimezone()
     submitted_at = submitted_time.isoformat(timespec="seconds")
