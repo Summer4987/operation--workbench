@@ -10,3 +10,22 @@ def test_chengdu_daily_order_catalog_excludes_frozen_shrimp():
     assert all(item.get("category") != "冻品" for item in items)
     assert all(item.get("sku") != "CJ-020" for item in items)
     assert all(item.get("name") != "虾仁" for item in items)
+
+
+def test_beijing_daily_order_adds_broccoli_and_spinach_between_potato_and_tomato():
+    root = Path(__file__).resolve().parents[1]
+    catalog_path = root / "daily-order" / "app" / "catalog-beijing.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    vegetables = [item for item in catalog["items"] if item.get("category") == "蔬菜"]
+    names = [item["name"] for item in vegetables]
+
+    potato_index = names.index("土豆")
+    assert names[potato_index : potato_index + 4] == ["土豆", "西兰花", "菠菜", "圣女果"]
+
+    by_name = {item["name"]: item for item in vegetables}
+    assert by_name["西兰花"]["source"] == "快驴配送"
+    assert by_name["菠菜"]["source"] == "快驴配送"
+    assert by_name["西兰花"]["image"] == "/daily-order/static/images/BJ-KL-010.svg"
+    assert by_name["菠菜"]["image"] == "/daily-order/static/images/BJ-KL-010B.svg"
+    assert (root / "daily-order" / "static" / "images" / "BJ-KL-010.svg").exists()
+    assert (root / "daily-order" / "static" / "images" / "BJ-KL-010B.svg").exists()

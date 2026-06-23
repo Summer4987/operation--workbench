@@ -53,6 +53,28 @@
       "purchase_channel": "快驴"
     },
     {
+      "sku": "BJ-KL-010",
+      "source": "快驴配送",
+      "category": "蔬菜",
+      "name": "西兰花",
+      "spec": "",
+      "unit": "斤",
+      "note": "",
+      "image": "/daily-order/static/images/BJ-KL-010.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "BJ-KL-010B",
+      "source": "快驴配送",
+      "category": "蔬菜",
+      "name": "菠菜",
+      "spec": "",
+      "unit": "斤",
+      "note": "",
+      "image": "/daily-order/static/images/BJ-KL-010B.svg",
+      "purchase_channel": "快驴"
+    },
+    {
       "sku": "KL-011",
       "source": "快驴配送",
       "category": "蔬菜",
