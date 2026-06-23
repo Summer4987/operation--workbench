@@ -45,6 +45,11 @@ def beijing_index():
     return FileResponse(STATIC_DIR / "beijing-index.html")
 
 
+@app.get("/beijing-order/admin")
+def beijing_admin():
+    return FileResponse(STATIC_DIR / "beijing-admin.html")
+
+
 @app.get("/daily-order/admin")
 def admin():
     return FileResponse(STATIC_DIR / "admin.html")
@@ -74,15 +79,15 @@ def beijing_health():
 
 @app.post("/daily-order/api/orders")
 async def submit_order(request: Request, payload: dict):
-    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO")
+    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO", True)
 
 
 @app.post("/beijing-order/api/orders")
 async def submit_beijing_order(request: Request, payload: dict):
-    return await _submit_order(request, payload, BEIJING_CATALOG_PATH, BEIJING_SUBMISSION_DIR, BEIJING_ORDER_LINES_PATH, "BJ")
+    return await _submit_order(request, payload, BEIJING_CATALOG_PATH, BEIJING_SUBMISSION_DIR, BEIJING_ORDER_LINES_PATH, "BJ", False)
 
 
-async def _submit_order(request: Request, payload: dict, catalog_path: Path, submission_dir: Path, order_lines_path: Path, order_prefix: str):
+async def _submit_order(request: Request, payload: dict, catalog_path: Path, submission_dir: Path, order_lines_path: Path, order_prefix: str, auto_process_wechat: bool):
     catalog_data = _load_catalog(catalog_path)
     products = {item["sku"]: item for item in catalog_data["items"]}
     store_records = _store_records(catalog_data)
@@ -138,7 +143,7 @@ async def _submit_order(request: Request, payload: dict, catalog_path: Path, sub
     submitted_time = datetime.now(timezone.utc).astimezone()
     submitted_at = submitted_time.isoformat(timespec="seconds")
     order_id = f"{order_prefix}-{submitted_time.strftime('%Y%m%d-%H%M%S')}-{submitted_time.strftime('%f')[:3]}"
-    auto_processed_channels = _auto_processed_channels(lines)
+    auto_processed_channels = _auto_processed_channels(lines) if auto_process_wechat else set()
     order_channels = set(_order_channels({"items": lines}))
     order = {
         "order_id": order_id,
@@ -189,23 +194,13 @@ def recent_beijing_store_orders(store_name: str):
 @app.get("/daily-order/api/admin/summary")
 def admin_summary(request: Request, status: str = "pending", month: str = ""):
     _require_admin(request)
-    if status not in {"pending", "processed", "all"}:
-        raise HTTPException(status_code=400, detail="状态不正确")
-    month_scope = _target_month(month)
-    all_orders = [order for order in _read_orders() if _order_month(order) == month_scope]
-    orders = [_order_for_status(order, status) for order in all_orders]
-    orders = [order for order in orders if order.get("items")]
-    return {
-        "status": status,
-        "month": month_scope,
-        "orders": orders,
-        "channels": _channel_summary(orders),
-        "stats": {
-            "order_count": len(orders),
-            "line_count": sum(len(order.get("items") or []) for order in orders),
-            "pending_count": sum(1 for order in all_orders if _order_for_status(order, "pending").get("items")),
-        },
-    }
+    return _admin_summary(status, month, SUBMISSION_DIR, CATALOG_PATH)
+
+
+@app.get("/beijing-order/api/admin/summary")
+def beijing_admin_summary(request: Request, status: str = "pending", month: str = ""):
+    _require_admin(request)
+    return _admin_summary(status, month, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)
 
 
 @app.get("/daily-order/api/admin/order-lines")
@@ -262,34 +257,86 @@ def send_admin_wechat_digest(request: Request, date: str = "", test: bool = Fals
 @app.patch("/daily-order/api/admin/orders/{order_id}/status")
 async def update_order_status(order_id: str, request: Request, payload: dict):
     _require_admin(request)
-    status = str(payload.get("status") or "").strip()
-    if status not in {"pending", "processed"}:
-        raise HTTPException(status_code=400, detail="状态不正确")
-    path = _order_path(order_id)
-    if path is None:
-        raise HTTPException(status_code=404, detail="订单不存在")
-    order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
-    order["status"] = status
-    order["processed_at"] = now_iso() if status == "processed" else ""
-    order["processed_channels"] = _order_channels(order) if status == "processed" else []
-    path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    _write_order_csv(path.with_suffix(".csv"), order)
-    return {"status": "success", "order": _normalize_order(order)}
+    return _update_order_status(order_id, payload, SUBMISSION_DIR, CATALOG_PATH)
+
+
+@app.patch("/beijing-order/api/admin/orders/{order_id}/status")
+async def update_beijing_order_status(order_id: str, request: Request, payload: dict):
+    _require_admin(request)
+    return _update_order_status(order_id, payload, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)
 
 
 @app.patch("/daily-order/api/admin/orders/{order_id}/channels/{channel}/status")
 async def update_order_channel_status(order_id: str, channel: str, request: Request, payload: dict):
     _require_admin(request)
+    return _update_order_channel_status(order_id, channel, payload, SUBMISSION_DIR, CATALOG_PATH)
+
+
+@app.patch("/beijing-order/api/admin/orders/{order_id}/channels/{channel}/status")
+async def update_beijing_order_channel_status(order_id: str, channel: str, request: Request, payload: dict):
+    _require_admin(request)
+    return _update_order_channel_status(order_id, channel, payload, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)
+
+
+@app.patch("/daily-order/api/admin/channels/{channel}/status")
+async def update_channel_status(channel: str, request: Request, payload: dict, month: str = ""):
+    _require_admin(request)
+    return _update_channel_status(channel, payload, month, SUBMISSION_DIR, CATALOG_PATH)
+
+
+@app.patch("/beijing-order/api/admin/channels/{channel}/status")
+async def update_beijing_channel_status(channel: str, request: Request, payload: dict, month: str = ""):
+    _require_admin(request)
+    return _update_channel_status(channel, payload, month, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)
+
+
+def _admin_summary(status: str, month: str, submission_dir: Path, catalog_path: Path) -> dict:
+    if status not in {"pending", "processed", "all"}:
+        raise HTTPException(status_code=400, detail="状态不正确")
+    month_scope = _target_month(month)
+    all_orders = [order for order in _read_orders(submission_dir, catalog_path) if _order_month(order) == month_scope]
+    orders = [_order_for_status(order, status) for order in all_orders]
+    orders = [order for order in orders if order.get("items")]
+    return {
+        "status": status,
+        "month": month_scope,
+        "orders": orders,
+        "channels": _channel_summary(orders),
+        "stats": {
+            "order_count": len(orders),
+            "line_count": sum(len(order.get("items") or []) for order in orders),
+            "pending_count": sum(1 for order in all_orders if _order_for_status(order, "pending").get("items")),
+        },
+    }
+
+
+def _update_order_status(order_id: str, payload: dict, submission_dir: Path, catalog_path: Path) -> dict:
+    status = str(payload.get("status") or "").strip()
+    if status not in {"pending", "processed"}:
+        raise HTTPException(status_code=400, detail="状态不正确")
+    path = _order_path(order_id, submission_dir)
+    if path is None:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    order = _normalize_order(json.loads(path.read_text(encoding="utf-8")), catalog_path)
+    order["status"] = status
+    order["processed_at"] = now_iso() if status == "processed" else ""
+    order["processed_channels"] = _order_channels(order) if status == "processed" else []
+    path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_order_csv(path.with_suffix(".csv"), order)
+    return {"status": "success", "order": _normalize_order(order, catalog_path)}
+
+
+def _update_order_channel_status(order_id: str, channel: str, payload: dict, submission_dir: Path, catalog_path: Path) -> dict:
     status = str(payload.get("status") or "").strip()
     if status not in {"pending", "processed"}:
         raise HTTPException(status_code=400, detail="状态不正确")
     channel = channel.strip()
     if not channel:
         raise HTTPException(status_code=400, detail="渠道不正确")
-    path = _order_path(order_id)
+    path = _order_path(order_id, submission_dir)
     if path is None:
         raise HTTPException(status_code=404, detail="订单不存在")
-    order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
+    order = _normalize_order(json.loads(path.read_text(encoding="utf-8")), catalog_path)
     channels = _order_channels(order)
     target_channels = _matching_order_channels(channels, channel)
     if not target_channels:
@@ -304,12 +351,10 @@ async def update_order_channel_status(order_id: str, channel: str, request: Requ
     order["processed_at"] = now_iso() if order["status"] == "processed" else ""
     path.write_text(json.dumps(order, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_order_csv(path.with_suffix(".csv"), order)
-    return {"status": "success", "order": _normalize_order(order), "channel": channel}
+    return {"status": "success", "order": _normalize_order(order, catalog_path), "channel": channel}
 
 
-@app.patch("/daily-order/api/admin/channels/{channel}/status")
-async def update_channel_status(channel: str, request: Request, payload: dict, month: str = ""):
-    _require_admin(request)
+def _update_channel_status(channel: str, payload: dict, month: str, submission_dir: Path, catalog_path: Path) -> dict:
     status = str(payload.get("status") or "").strip()
     if status not in {"pending", "processed"}:
         raise HTTPException(status_code=400, detail="状态不正确")
@@ -318,9 +363,9 @@ async def update_channel_status(channel: str, request: Request, payload: dict, m
         raise HTTPException(status_code=400, detail="渠道不正确")
     month_scope = _target_month(month)
     changed = []
-    for path in SUBMISSION_DIR.glob("*.json"):
+    for path in submission_dir.glob("*.json"):
         try:
-            order = _normalize_order(json.loads(path.read_text(encoding="utf-8")))
+            order = _normalize_order(json.loads(path.read_text(encoding="utf-8")), catalog_path)
         except Exception:
             continue
         if _order_month(order) != month_scope:
@@ -515,6 +560,8 @@ def _order_channels(order: dict) -> list[str]:
 
 
 def _item_channel(item: dict) -> str:
+    if item.get("purchase_channel"):
+        return str(item["purchase_channel"])
     wechat_group = _wechat_group_channel(str(item.get("name") or ""), str(item.get("sku") or ""))
     if wechat_group:
         return wechat_group
@@ -543,9 +590,10 @@ def _channel_is_processed(order: dict, channel: str) -> bool:
     return channel in set(order.get("processed_channels") or [])
 
 
-def _order_path(order_id: str) -> Path | None:
+def _order_path(order_id: str, submission_dir: Path | None = None) -> Path | None:
+    submission_dir = submission_dir or SUBMISSION_DIR
     safe_id = Path(order_id).name
-    return next(SUBMISSION_DIR.glob(f"{safe_id}_*.json"), None)
+    return next(submission_dir.glob(f"{safe_id}_*.json"), None)
 
 
 def _channel_summary(orders: list[dict]) -> list[dict]:

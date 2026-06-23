@@ -2,7 +2,10 @@
   "source_file": "复制自日常订货sku.xlsx，北京门店订货专用",
   "updated_at": "2026-06-23",
   "stores": [
-    "朝阳门店"
+    {
+      "name": "朝阳门店",
+      "address": "北京市朝阳区日坛北路19号雅宝城国际大厦b1层雅宝食堂"
+    }
   ],
   "items": [
     {
@@ -113,7 +116,7 @@
       "unit": "斤",
       "note": "",
       "image": "/daily-order/static/images/KL-023.svg",
-      "purchase_channel": "快递到店",
+      "purchase_channel": "淘宝",
       "force_purchase_channel": true
     },
     {
@@ -159,7 +162,7 @@
       "unit": "袋",
       "note": "5袋起订",
       "image": "/daily-order/static/images/TC-003.svg",
-      "purchase_channel": "厂家配送",
+      "purchase_channel": "北京大米群",
       "min_quantity": 5,
       "force_purchase_channel": true
     },
@@ -172,7 +175,7 @@
       "unit": "袋",
       "note": "尽量和大米一起下单",
       "image": "/daily-order/static/images/TC-006.svg",
-      "purchase_channel": "闪羚配送",
+      "purchase_channel": "闪羚",
       "force_purchase_channel": true
     },
     {
@@ -184,7 +187,7 @@
       "unit": "袋",
       "note": "尽量和大米一起下单",
       "image": "/daily-order/static/images/TC-007.svg",
-      "purchase_channel": "闪羚配送",
+      "purchase_channel": "闪羚",
       "force_purchase_channel": true
     },
     {
@@ -196,7 +199,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-020.svg",
-      "purchase_channel": "冷库配送",
+      "purchase_channel": "高碑店",
       "force_purchase_channel": true
     },
     {
@@ -241,7 +244,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-027.svg",
-      "purchase_channel": "物流发货",
+      "purchase_channel": "颂李包装群",
       "force_purchase_channel": true,
       "vendor_group": "A"
     },
@@ -254,7 +257,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-030.svg",
-      "purchase_channel": "快递到店",
+      "purchase_channel": "淘宝",
       "force_purchase_channel": true,
       "vendor_group": ""
     },
@@ -267,7 +270,7 @@
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/CJ-033.svg",
-      "purchase_channel": "物流发货",
+      "purchase_channel": "颂李包装群",
       "force_purchase_channel": true,
       "vendor_group": "A"
     },
@@ -280,7 +283,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-038.svg",
-      "purchase_channel": "物流发货",
+      "purchase_channel": "四川鸿鹄微信群",
       "force_purchase_channel": true,
       "vendor_group": "B"
     },
@@ -293,7 +296,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-041.svg",
-      "purchase_channel": "快递到店",
+      "purchase_channel": "淘宝",
       "force_purchase_channel": true,
       "vendor_group": ""
     },
@@ -306,7 +309,7 @@
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/CJ-044.svg",
-      "purchase_channel": "物流发货",
+      "purchase_channel": "易代仓微信群",
       "force_purchase_channel": true,
       "vendor_group": "C"
     },
@@ -770,7 +773,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-001.svg",
-      "purchase_channel": "冷库配送",
+      "purchase_channel": "高碑店",
       "force_purchase_channel": true
     },
     {
@@ -782,7 +785,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-002.svg",
-      "purchase_channel": "冷库配送",
+      "purchase_channel": "高碑店",
       "force_purchase_channel": true
     },
     {
@@ -794,7 +797,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-003.svg",
-      "purchase_channel": "冷库配送",
+      "purchase_channel": "高碑店",
       "force_purchase_channel": true
     },
     {
@@ -806,7 +809,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-004.svg",
-      "purchase_channel": "冷库配送",
+      "purchase_channel": "高碑店",
       "force_purchase_channel": true
     },
     {
@@ -818,7 +821,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-005.svg",
-      "purchase_channel": "供应链发货",
+      "purchase_channel": "冷链发货",
       "force_purchase_channel": true
     },
     {
@@ -830,7 +833,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-006.svg",
-      "purchase_channel": "供应链发货",
+      "purchase_channel": "冷链发货",
       "force_purchase_channel": true
     },
     {
@@ -842,7 +845,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-007.svg",
-      "purchase_channel": "供应链发货",
+      "purchase_channel": "冷链发货",
       "force_purchase_channel": true
     },
     {
@@ -854,7 +857,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-008.svg",
-      "purchase_channel": "供应链发货",
+      "purchase_channel": "冷链发货",
       "force_purchase_channel": true
     },
     {
@@ -866,7 +869,7 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/BJ-DP-009.svg",
-      "purchase_channel": "供应链发货",
+      "purchase_channel": "冷链发货",
       "force_purchase_channel": true
     }
   ]

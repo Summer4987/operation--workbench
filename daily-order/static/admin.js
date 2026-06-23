@@ -1,5 +1,6 @@
 const params = new URLSearchParams(location.search);
 const token = params.get("token") || "";
+const adminBasePath = window.location.pathname.startsWith("/beijing-order") ? "/beijing-order" : "/daily-order";
 const state = {
   status: "pending",
   month: currentMonth(),
@@ -14,6 +15,9 @@ lockPageZoom();
 const channelShortcuts = [
   { channel: "快驴", label: "快驴订货" },
   { channel: "微信群", label: "微信群" },
+  { channel: "闪羚", label: "闪羚" },
+  { channel: "高碑店", label: "高碑店" },
+  { channel: "冷链发货", label: "冷链发货" },
   { channel: "淘宝", label: "淘宝" },
   { channel: "拼多多", label: "拼多多" },
   { channel: "京东", label: "京东" },
@@ -46,7 +50,7 @@ async function loadSummary() {
     return;
   }
   try {
-    const response = await fetch(`/daily-order/api/admin/summary?status=${encodeURIComponent(state.status)}&month=${encodeURIComponent(state.month)}&token=${encodeURIComponent(token)}`);
+    const response = await fetch(`${adminBasePath}/api/admin/summary?status=${encodeURIComponent(state.status)}&month=${encodeURIComponent(state.month)}&token=${encodeURIComponent(token)}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "后台数据读取失败");
     const freshPending = (payload.orders || []).filter((order) => order.status === "pending" && !state.seenPendingIds.has(order.order_id));
@@ -236,11 +240,16 @@ function wechatMessageText(groupName, stores) {
   return [
     `【${groupName}】`,
     ...stores.map((store) => [
-      `${store.storeName}（${store.address}）`,
+      wechatStoreLine(store),
       "",
       ...[...store.items.values()].map((item) => plainLine(item)),
     ].join("\n")),
   ].join("\n\n");
+}
+
+function wechatStoreLine(store) {
+  if (store.storeName === "朝阳门店" && store.address) return `${store.storeName}（${store.address}）`;
+  return store.storeName;
 }
 
 function renderWechatOrderAction(entry) {
@@ -307,7 +316,7 @@ function renderCollapsedItems(label, items, channelName, className) {
 async function updateChannelStatus(channel, status) {
   showMessage(`正在更新 ${channel} 渠道状态...`, false);
   try {
-    const response = await fetch(`/daily-order/api/admin/channels/${encodeURIComponent(channel)}/status?month=${encodeURIComponent(state.month)}&token=${encodeURIComponent(token)}`, {
+      const response = await fetch(`${adminBasePath}/api/admin/channels/${encodeURIComponent(channel)}/status?month=${encodeURIComponent(state.month)}&token=${encodeURIComponent(token)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -326,7 +335,7 @@ async function updateOrderChannelStatus(orderId, channel, status) {
   try {
     const orderIds = String(orderId || "").split("|").filter(Boolean);
     for (const id of orderIds) {
-      const response = await fetch(`/daily-order/api/admin/orders/${encodeURIComponent(id)}/channels/${encodeURIComponent(channel)}/status?token=${encodeURIComponent(token)}`, {
+      const response = await fetch(`${adminBasePath}/api/admin/orders/${encodeURIComponent(id)}/channels/${encodeURIComponent(channel)}/status?token=${encodeURIComponent(token)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
