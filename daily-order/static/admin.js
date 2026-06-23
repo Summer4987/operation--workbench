@@ -119,9 +119,7 @@ function renderChannel(channel) {
         </div>
         <button type="button" data-channel="${escapeHtml(channel.channel)}" data-channel-status="${nextStatus}">${buttonText}</button>
       </header>
-      <div class="channel-totals">
-        ${(channel.totals || []).map((item) => `<span>${renderChannelLine(item, channel.channel)}</span>`).join("")}
-      </div>
+      ${renderCollapsedItems("本月订货总量", channel.totals || [], channel.channel, "channel-totals-panel")}
       <div class="channel-order-list">
         ${renderChannelOrderList(channel)}
       </div>
@@ -270,6 +268,7 @@ function renderChannelOrder(order, channelName) {
   const nextStatus = order.status === "processed" ? "pending" : "processed";
   const buttonText = nextStatus === "processed" ? "标记已处理" : "改回未处理";
   const orderIds = order.order_ids?.length ? order.order_ids : [order.order_id];
+  const items = order.items || [];
   return `
     <section class="channel-order-card ${order.status === "processed" ? "is-processed" : ""}">
       <header>
@@ -285,11 +284,23 @@ function renderChannelOrder(order, channelName) {
         >${buttonText}</button>
       </header>
       <p>${escapeHtml(order.store_address || "未填写地址")}</p>
-      <div class="admin-order-items">
-        ${(order.items || []).map((item) => `<span>${renderChannelLine(item, channelName)}</span>`).join("")}
-      </div>
+      ${renderCollapsedItems("本日SKU汇总", items, channelName, "order-items-panel")}
       ${order.remark ? `<p class="admin-remark">备注：${escapeHtml(order.remark)}</p>` : ""}
     </section>
+  `;
+}
+
+function renderCollapsedItems(label, items, channelName, className) {
+  return `
+    <details class="${className}">
+      <summary>
+        <span>${escapeHtml(label)}</span>
+        <strong>${items.length} 个SKU</strong>
+      </summary>
+      <div class="admin-order-items">
+        ${items.map((item) => `<span>${renderChannelLine(item, channelName)}</span>`).join("")}
+      </div>
+    </details>
   `;
 }
 

@@ -1012,14 +1012,6 @@ dialog::backdrop {
   font-weight: 800;
 }
 
-.channel-totals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  padding: 12px 18px 0;
-}
-
-.channel-totals > span,
 .admin-order-items span {
   border-radius: 8px;
   background: #edf5f3;
@@ -1027,11 +1019,6 @@ dialog::backdrop {
   padding: 7px 9px;
   font-size: 13px;
   font-weight: 900;
-}
-
-.channel-totals > span {
-  background: var(--channel-chip, #e8f4f1);
-  border: 1px solid #cfe4dd;
 }
 
 .channel-order-list {
@@ -1073,6 +1060,88 @@ dialog::backdrop {
 
 .channel-order-card p {
   margin-top: 8px;
+}
+
+.channel-totals-panel,
+.order-items-panel {
+  border: 1px solid #dbe5ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.channel-totals-panel {
+  margin: 12px 18px 0;
+  background: var(--channel-soft, #f8fafc);
+  border-color: #d6e4df;
+}
+
+.order-items-panel {
+  margin-top: 10px;
+}
+
+.channel-totals-panel summary,
+.order-items-panel summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  color: #22313f;
+  cursor: pointer;
+  list-style: none;
+}
+
+.channel-totals-panel summary::-webkit-details-marker,
+.order-items-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.channel-totals-panel summary::before,
+.order-items-panel summary::before {
+  content: "展开";
+  flex: 0 0 auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--channel-color, var(--brand));
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.channel-totals-panel[open] summary::before,
+.order-items-panel[open] summary::before {
+  content: "收起";
+}
+
+.channel-totals-panel summary span,
+.order-items-panel summary span {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.channel-totals-panel summary strong,
+.order-items-panel summary strong {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.channel-totals-panel .admin-order-items {
+  padding: 0 11px 11px;
+}
+
+.channel-totals-panel .admin-order-items span {
+  background: var(--channel-chip, #e8f4f1);
+  border: 1px solid #cfe4dd;
+}
+
+.order-items-panel .admin-order-items {
+  padding: 0 10px 10px;
 }
 
 .wechat-group-card {
