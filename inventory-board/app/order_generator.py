@@ -20,6 +20,8 @@ PROJECT_TEMPLATE_DIR = BASE_DIR / "data" / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
+PUBLIC_ORDER_BLOCKED_SKUS = {"LDXXX0007"}
+PUBLIC_ORDER_BLOCKED_KEYWORDS = ("冻", "虾仁")
 
 
 def _env_path(name: str) -> Path | None:
@@ -178,6 +180,7 @@ def generate_structured_outbound_order(
         raise OrderParseError("请选择门店")
 
     products_by_sku = {product.sku: product for product in products}
+    _reject_removed_public_order_items(items, products_by_sku)
     lines: list[OrderLine] = []
     for item in items:
         sku = _clean(item.get("sku"))
@@ -231,8 +234,30 @@ def public_order_catalog(template_path: Path = TEMPLATE_PATH) -> dict:
                 "unit": product.unit,
             }
             for product in products
+            if _is_public_order_product(product)
         ],
     }
+
+
+def _is_public_order_product(product: Product) -> bool:
+    if product.sku in PUBLIC_ORDER_BLOCKED_SKUS:
+        return False
+    name = product.name or ""
+    return not any(keyword in name for keyword in PUBLIC_ORDER_BLOCKED_KEYWORDS)
+
+
+def _reject_removed_public_order_items(items: list[dict], products_by_sku: dict[str, Product]) -> None:
+    blocked = []
+    for item in items:
+        quantity = _decimal(str(item.get("quantity", "")))
+        if quantity is None or quantity <= 0:
+            continue
+        sku = _clean(item.get("sku"))
+        product = products_by_sku.get(sku)
+        if product and not _is_public_order_product(product):
+            blocked.append(product.name.replace("熊小小牛排饭-", ""))
+    if blocked:
+        raise OrderParseError(f"以下商品已从日常订货链接移除，暂不可下单：{', '.join(sorted(set(blocked)))}")
 
 
 def _generate_outbound_order_from_lines(
