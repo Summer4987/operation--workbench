@@ -72,3 +72,31 @@ def test_condiment_and_supply_categories_are_grouped_by_delivery_source():
             positions = [source_order.index(source) for source in sources if source in source_order]
 
             assert positions == sorted(positions)
+
+
+def test_sauce_category_is_available_in_food_tabs():
+    app_js = (Path(__file__).resolve().parents[1] / "daily-order" / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert '["蔬菜", "禽蛋", "粮油", "酱汁", "冻品", "工作餐"]' in app_js
+
+
+def test_sauce_items_exist_in_store_order_catalogs():
+    root = Path(__file__).resolve().parents[1]
+    expected = [
+        ("SAUCE-001", "拌饭汁", "10kg/箱"),
+        ("SAUCE-002", "寿司调味汁", "10kg/箱"),
+        ("SAUCE-003", "藤椒酱", "10kg/箱"),
+        ("SAUCE-004", "双椒酱", "12kg/箱"),
+        ("SAUCE-005", "拌鱼酱", "10kg/箱"),
+    ]
+    for filename in ("catalog.json", "catalog-beijing.json"):
+        catalog_path = root / "daily-order" / "app" / filename
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        sauce_items = [item for item in catalog["items"] if item.get("category") == "酱汁"]
+
+        assert [(item["sku"], item["name"], item["spec"]) for item in sauce_items] == expected
+        assert all(item["source"] == "物流发货（5-7天）" for item in sauce_items)
+        assert all(item["purchase_channel"] == "物流发货（5-7天）" for item in sauce_items)
+        assert all(item.get("force_purchase_channel") is True for item in sauce_items)
+        for item in sauce_items:
+            assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()

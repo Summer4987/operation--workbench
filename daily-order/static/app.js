@@ -14,7 +14,7 @@ lockPageZoom();
 
 const orderBasePath = window.location.pathname.startsWith("/beijing-order") ? "/beijing-order" : "/daily-order";
 const sectionOrder = ["食材", "包材", "调料", "耗材"];
-const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "冻品", "工作餐"];
+const foodCategoryOrder = ["蔬菜", "禽蛋", "粮油", "酱汁", "冻品", "工作餐"];
 const customMealSku = "MEAL-001";
 const sectionLabels = {
   "食材": "🥬 食材",
