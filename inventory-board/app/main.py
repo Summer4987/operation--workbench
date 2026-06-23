@@ -57,6 +57,7 @@ FINANCE_UPLOAD_MANIFEST = FINANCE_UPLOAD_DIR / "manifest.jsonl"
 FINANCE_ENTRY_MANIFEST = FINANCE_UPLOAD_DIR / "manual_entries.jsonl"
 FINANCE_OPENING_MANIFEST = FINANCE_UPLOAD_DIR / "opening_balances.jsonl"
 SUPPLY_CHAIN_FLOW_MANIFEST = FINANCE_UPLOAD_DIR / "supply_chain_flow.jsonl"
+PUBLIC_ORDER_MIN_TOTAL_QUANTITY = 5
 FINANCE_SOURCE_IDS = {
     "bank",
     "wechat_pay",
@@ -534,11 +535,13 @@ def public_order_catalog_api(request: Request):
 @app.post("/api/public-order/submit")
 async def public_order_submit_api(request: Request, payload: dict):
     _require_public_order_token(request)
-    _reject_unavailable_order_items(list(payload.get("items") or []))
+    items = list(payload.get("items") or [])
+    _reject_public_order_below_minimum(items)
+    _reject_unavailable_order_items(items)
     try:
         result = generate_structured_outbound_order(
             store_name=str(payload.get("store_name", "")),
-            items=list(payload.get("items") or []),
+            items=items,
         )
     except OrderParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -552,6 +555,20 @@ async def public_order_submit_api(request: Request, payload: dict):
         "filename": filename,
         "download_url": download_url,
     }
+
+
+def _public_order_total_quantity(items: list) -> float:
+    return sum(max(_to_float(item.get("quantity", 0)), 0.0) for item in items)
+
+
+def _reject_public_order_below_minimum(items: list) -> None:
+    total_quantity = _public_order_total_quantity(items)
+    if total_quantity < PUBLIC_ORDER_MIN_TOTAL_QUANTITY:
+        total_text = int(total_quantity) if total_quantity.is_integer() else round(total_quantity, 2)
+        raise HTTPException(
+            status_code=400,
+            detail=f"日配订货满 {PUBLIC_ORDER_MIN_TOTAL_QUANTITY} 件才可以提交，当前合计 {total_text} 件",
+        )
 
 
 def _reject_unavailable_order_items(items: list) -> None:

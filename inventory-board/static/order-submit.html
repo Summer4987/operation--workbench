@@ -469,6 +469,7 @@
       let products = [];
       let stores = [];
       let pendingItems = [];
+      const minOrderQuantity = 5;
 
       async function loadCatalog() {
         setMessage("正在加载商品...");
@@ -500,7 +501,7 @@
           bindQuantityButtons();
           els.itemCount.textContent = `${products.filter((item) => item.available).length}/${products.length} 个可订`;
           renderStoreInfo();
-          setMessage("填写数量后提交。");
+          setMessage(`合计满 ${minOrderQuantity} 件后提交。`);
         } catch (error) {
           setMessage(error.message, "error");
           els.submit.disabled = true;
@@ -517,6 +518,7 @@
           setMessage("请至少填写一个商品数量", "error");
           return;
         }
+        if (!hasMinimumQuantity(items)) return;
 
         pendingItems = items;
         renderConfirm(items);
@@ -525,6 +527,7 @@
 
       async function submitOrder() {
         const items = pendingItems.length ? pendingItems : selectedItems();
+        if (!hasMinimumQuantity(items)) return;
         els.confirm.disabled = true;
         els.edit.disabled = true;
         setMessage("正在提交...");
@@ -547,6 +550,19 @@
           .filter((input) => !input.disabled)
           .map((input) => ({ sku: input.dataset.sku, quantity: Number(input.value || 0) }))
           .filter((item) => item.quantity > 0);
+      }
+
+      function totalQuantity(items) {
+        return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      }
+
+      function hasMinimumQuantity(items) {
+        const total = totalQuantity(items);
+        if (total < minOrderQuantity) {
+          setMessage(`日配订货满 ${minOrderQuantity} 件才可以提交，当前合计 ${formatNumber(total)} 件`, "error");
+          return false;
+        }
+        return true;
       }
 
       async function fetchJson(url, options) {
@@ -585,7 +601,7 @@
         els.confirmActions.style.display = "none";
         els.confirm.disabled = false;
         els.edit.disabled = false;
-        setMessage("填写数量后提交。");
+        setMessage(`合计满 ${minOrderQuantity} 件后提交。`);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
 

@@ -1,15 +1,14 @@
-import importlib.util
+import importlib
 import json
+import sys
 from pathlib import Path
 
 
 def load_inventory_main():
-    module_path = Path(__file__).resolve().parents[1] / "inventory-board" / "app" / "main.py"
-    spec = importlib.util.spec_from_file_location("inventory_board_main_for_test", module_path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
-    spec.loader.exec_module(module)
-    return module
+    app_root = Path(__file__).resolve().parents[1] / "inventory-board"
+    if str(app_root) not in sys.path:
+        sys.path.insert(0, str(app_root))
+    return importlib.import_module("app.main")
 
 
 def test_production_note_splits_clear_factory_balance(monkeypatch, tmp_path):
@@ -52,3 +51,32 @@ def test_production_note_splits_clear_factory_balance(monkeypatch, tmp_path):
     assert summary["factory_completed_items"] == []
     locations = {item["location"]: item["quantity"] for item in lot["locations"]}
     assert locations == {"北京仓": 35, "北京直营店": 5, "成都仓": 27}
+
+
+def test_public_order_rejects_below_minimum_quantity():
+    module = load_inventory_main()
+
+    try:
+        module._reject_public_order_below_minimum(
+            [
+                {"sku": "调理鸡胸肉", "quantity": 2},
+                {"sku": "牛五花", "quantity": 2},
+            ]
+        )
+    except module.HTTPException as exc:
+        assert exc.status_code == 400
+        assert "满 5 件" in exc.detail
+        assert "当前合计 4 件" in exc.detail
+    else:
+        raise AssertionError("Expected below-minimum public order to be rejected")
+
+
+def test_public_order_allows_minimum_quantity():
+    module = load_inventory_main()
+
+    module._reject_public_order_below_minimum(
+        [
+            {"sku": "调理鸡胸肉", "quantity": 3},
+            {"sku": "牛五花", "quantity": 2},
+        ]
+    )
