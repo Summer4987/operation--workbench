@@ -56,6 +56,16 @@ def test_beijing_order_history_button_sits_in_topbar():
     assert "toggleOrdersButton" not in store_panel
 
 
+def test_admin_sku_summary_keeps_expanded_state_across_refreshes():
+    root = Path(__file__).resolve().parents[1]
+    admin_js = (root / "daily-order" / "static" / "admin.js").read_text(encoding="utf-8")
+
+    assert "expandedPanels: new Set()" in admin_js
+    assert "data-collapse-key" in admin_js
+    assert "state.expandedPanels.add" in admin_js
+    assert "state.expandedPanels.has(collapseKey)" in admin_js
+
+
 def test_packaging_order_groups_bowls_before_starch_boxes():
     root = Path(__file__).resolve().parents[1]
     for filename in ("catalog.json", "catalog-beijing.json"):
