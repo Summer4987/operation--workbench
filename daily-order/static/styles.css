@@ -1105,8 +1105,7 @@ dialog::backdrop {
   margin-top: 10px;
 }
 
-.channel-totals-panel summary,
-.order-items-panel summary {
+.items-panel-heading {
   min-height: 38px;
   display: flex;
   align-items: center;
@@ -1114,42 +1113,15 @@ dialog::backdrop {
   gap: 10px;
   padding: 8px 11px;
   color: #22313f;
-  cursor: pointer;
-  list-style: none;
 }
 
-.channel-totals-panel summary::-webkit-details-marker,
-.order-items-panel summary::-webkit-details-marker {
-  display: none;
-}
-
-.channel-totals-panel summary::before,
-.order-items-panel summary::before {
-  content: "展开";
-  flex: 0 0 auto;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: var(--channel-color, var(--brand));
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.channel-totals-panel[open] summary::before,
-.order-items-panel[open] summary::before {
-  content: "收起";
-}
-
-.channel-totals-panel summary span,
-.order-items-panel summary span {
+.items-panel-heading span {
   color: #1f2937;
   font-size: 14px;
   font-weight: 900;
 }
 
-.channel-totals-panel summary strong,
-.order-items-panel summary strong {
+.items-panel-heading strong {
   margin-left: auto;
   color: var(--muted);
   font-size: 13px;

@@ -8,7 +8,6 @@ const state = {
   seenPendingIds: new Set(),
   loadedOnce: false,
   copyTexts: new Map(),
-  expandedPanels: new Set(),
 };
 
 lockPageZoom();
@@ -105,12 +104,6 @@ function renderChannels() {
   els.channelBoard.querySelectorAll("[data-copy-wechat]").forEach((button) => {
     button.addEventListener("click", () => copyWechatText(button.dataset.copyWechat, button));
   });
-  els.channelBoard.querySelectorAll("[data-collapse-key]").forEach((panel) => {
-    panel.addEventListener("toggle", () => {
-      if (panel.open) state.expandedPanels.add(panel.dataset.collapseKey);
-      else state.expandedPanels.delete(panel.dataset.collapseKey);
-    });
-  });
 }
 
 function visibleChannels() {
@@ -130,7 +123,7 @@ function renderChannel(channel) {
         </div>
         <button type="button" data-channel="${escapeHtml(channel.channel)}" data-channel-status="${nextStatus}">${buttonText}</button>
       </header>
-      ${renderCollapsedItems("本月订货总量", channel.totals || [], channel.channel, "channel-totals-panel", `channel-total:${channel.channel}`)}
+      ${renderItemsPanel("本月订货总量", channel.totals || [], channel.channel, "channel-totals-panel")}
       <div class="channel-order-list">
         ${renderChannelOrderList(channel)}
       </div>
@@ -300,24 +293,23 @@ function renderChannelOrder(order, channelName) {
         >${buttonText}</button>
       </header>
       <p>${escapeHtml(order.store_address || "未填写地址")}</p>
-      ${renderCollapsedItems("本日SKU汇总", items, channelName, "order-items-panel", `order-items:${channelName}:${order.order_day || ""}:${order.store_name || ""}`)}
+      ${renderItemsPanel("本日SKU汇总", items, channelName, "order-items-panel")}
       ${order.remark ? `<p class="admin-remark">备注：${escapeHtml(order.remark)}</p>` : ""}
     </section>
   `;
 }
 
-function renderCollapsedItems(label, items, channelName, className, collapseKey) {
-  const openAttr = state.expandedPanels.has(collapseKey) ? " open" : "";
+function renderItemsPanel(label, items, channelName, className) {
   return `
-    <details class="${className}" data-collapse-key="${escapeHtml(collapseKey)}"${openAttr}>
-      <summary>
+    <section class="${className}">
+      <div class="items-panel-heading">
         <span>${escapeHtml(label)}</span>
         <strong>${items.length} 个SKU</strong>
-      </summary>
+      </div>
       <div class="admin-order-items">
         ${items.map((item) => `<span>${renderChannelLine(item, channelName)}</span>`).join("")}
       </div>
-    </details>
+    </section>
   `;
 }
 
