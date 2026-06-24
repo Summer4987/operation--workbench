@@ -19,10 +19,17 @@ def load_daily_order_module():
     return module
 
 
-def write_order(submission_dir: Path, order_id: str, submitted_at: str, quantity: int, processed: bool = True) -> Path:
+def write_order(
+    submission_dir: Path,
+    order_id: str,
+    submitted_at: str,
+    quantity: int,
+    processed: bool = True,
+    store_name: str = "银泰城店",
+) -> Path:
     order = {
         "order_id": order_id,
-        "store_name": "银泰城店",
+        "store_name": store_name,
         "store_address": "测试地址",
         "remark": "",
         "status": "processed" if processed else "pending",
@@ -43,7 +50,7 @@ def write_order(submission_dir: Path, order_id: str, submitted_at: str, quantity
             }
         ],
     }
-    path = submission_dir / f"{order_id}_银泰城店.json"
+    path = submission_dir / f"{order_id}_{store_name}.json"
     path.write_text(json.dumps(order, ensure_ascii=False), encoding="utf-8")
     return path
 
@@ -86,3 +93,53 @@ def test_channel_status_update_only_touches_requested_month(tmp_path, monkeypatc
     assert response.json()["order_ids"] == ["DO-JUN"]
     assert json.loads(june_path.read_text(encoding="utf-8"))["processed_channels"] == ["快驴"]
     assert json.loads(may_path.read_text(encoding="utf-8"))["processed_channels"] == []
+
+
+def test_daily_admin_summary_includes_beijing_orders(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    beijing_submission_dir = tmp_path / "beijing-submissions"
+    submission_dir.mkdir()
+    beijing_submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+    monkeypatch.setattr(module, "BEIJING_SUBMISSION_DIR", beijing_submission_dir)
+
+    write_order(submission_dir, "DO-JUN", "2026-06-15T10:00:00+08:00", 10, processed=False)
+    write_order(beijing_submission_dir, "BJ-JUN", "2026-06-16T10:00:00+08:00", 6, processed=False, store_name="朝阳门店")
+
+    client = TestClient(module.app)
+    response = client.get("/daily-order/api/admin/summary?status=pending&month=2026-06&token=daily-order-admin")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["stats"]["order_count"] == 2
+    assert [order["order_id"] for order in payload["orders"]] == ["BJ-JUN", "DO-JUN"]
+
+
+def test_daily_channel_status_update_can_process_beijing_order(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    beijing_submission_dir = tmp_path / "beijing-submissions"
+    submission_dir.mkdir()
+    beijing_submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+    monkeypatch.setattr(module, "BEIJING_SUBMISSION_DIR", beijing_submission_dir)
+
+    beijing_path = write_order(
+        beijing_submission_dir,
+        "BJ-JUN",
+        "2026-06-16T10:00:00+08:00",
+        6,
+        processed=False,
+        store_name="朝阳门店",
+    )
+
+    client = TestClient(module.app)
+    response = client.patch(
+        "/daily-order/api/admin/channels/%E5%BF%AB%E9%A9%B4/status?month=2026-06&token=daily-order-admin",
+        json={"status": "processed"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["order_ids"] == ["BJ-JUN"]
+    assert json.loads(beijing_path.read_text(encoding="utf-8"))["processed_channels"] == ["快驴"]
