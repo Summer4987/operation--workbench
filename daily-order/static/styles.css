@@ -425,7 +425,7 @@ textarea {
   border-color: #d8e7e3;
   background: #f4faf8;
   color: #426156;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 900;
 }
 
@@ -1360,12 +1360,12 @@ dialog::backdrop {
 
   .secondary-tabs button {
     min-height: 36px;
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .beijing-order-page .secondary-tabs button {
     padding: 0 3px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .admin-stats,

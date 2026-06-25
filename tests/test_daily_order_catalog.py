@@ -61,7 +61,7 @@ def test_order_pages_bust_static_cache_for_drink_category():
     for filename in ("index.html", "beijing-index.html"):
         html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
 
-        assert "styles.css?v=20260625-sam-delivery" in html
+        assert "styles.css?v=20260625-secondary-tabs" in html
         assert "app.js?v=20260625-sam-delivery" in html
 
 
@@ -70,7 +70,7 @@ def test_admin_pages_bust_static_cache_for_sam_delivery_channel():
     for filename in ("admin.html", "beijing-admin.html"):
         html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
 
-        assert "styles.css?v=20260625-sam-delivery" in html
+        assert "styles.css?v=20260625-secondary-tabs" in html
         assert "admin.js?v=20260625-sam-delivery" in html
 
 
@@ -180,6 +180,8 @@ def test_beijing_food_tabs_are_seven_even_columns():
 
     assert ".beijing-order-page .secondary-tabs" in styles
     assert "repeat(7, minmax(0, 1fr))" in styles
+    assert "font-size: 16px;" in styles
+    assert "font-size: 13px;" in styles
 
 
 def test_sam_delivery_channel_is_available_in_admin_board():
