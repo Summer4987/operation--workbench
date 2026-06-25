@@ -14,6 +14,7 @@ lockPageZoom();
 
 const channelShortcuts = [
   { channel: "快驴", label: "快驴订货" },
+  { channel: "山姆配送", label: "山姆配送" },
   { channel: "微信群", label: "微信群" },
   { channel: "闪羚", label: "闪羚" },
   { channel: "高碑店", label: "高碑店" },
@@ -266,6 +267,7 @@ function renderWechatOrderAction(entry) {
 
 function channelTone(channel) {
   if (channel.includes("快驴")) return "tone-kuailv";
+  if (channel.includes("山姆")) return "tone-sam";
   if (channel.includes("淘宝")) return "tone-taobao";
   if (channel.includes("京东")) return "tone-jingdong";
   if (channel.includes("拼多多")) return "tone-pdd";

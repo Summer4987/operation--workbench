@@ -985,6 +985,12 @@ dialog::backdrop {
   --channel-chip: #fee2e2;
 }
 
+.channel-card.tone-sam {
+  --channel-color: #0d9488;
+  --channel-soft: #f0fdfa;
+  --channel-chip: #ccfbf1;
+}
+
 .channel-card.tone-taobao {
   --channel-color: #ea580c;
   --channel-soft: #fff7ed;

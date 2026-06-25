@@ -61,8 +61,17 @@ def test_order_pages_bust_static_cache_for_drink_category():
     for filename in ("index.html", "beijing-index.html"):
         html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
 
-        assert "styles.css?v=20260625-beijing-drinks" in html
-        assert "app.js?v=20260625-beijing-drinks" in html
+        assert "styles.css?v=20260625-sam-delivery" in html
+        assert "app.js?v=20260625-sam-delivery" in html
+
+
+def test_admin_pages_bust_static_cache_for_sam_delivery_channel():
+    root = Path(__file__).resolve().parents[1]
+    for filename in ("admin.html", "beijing-admin.html"):
+        html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
+
+        assert "styles.css?v=20260625-sam-delivery" in html
+        assert "admin.js?v=20260625-sam-delivery" in html
 
 
 def test_admin_sku_summary_is_static_without_expand_collapse():
@@ -150,8 +159,13 @@ def test_beijing_drink_category_items_exist_only_in_beijing_catalog():
         ("BJ-DRINK-002", "无糖可乐"),
         ("BJ-DRINK-003", "椰子水"),
     ]
-    assert all(item["source"] == "快递到店" for item in drink_items)
-    assert all(item["purchase_channel"] == "山姆" for item in drink_items)
+    by_name = {item["name"]: item for item in drink_items}
+    assert by_name["山姆矿泉水"]["source"] == "山姆配送"
+    assert by_name["山姆矿泉水"]["purchase_channel"] == "山姆配送"
+    assert by_name["无糖可乐"]["source"] == "快驴配送"
+    assert by_name["无糖可乐"]["purchase_channel"] == "快驴"
+    assert by_name["椰子水"]["source"] == "山姆配送"
+    assert by_name["椰子水"]["purchase_channel"] == "山姆配送"
     assert all(item.get("force_purchase_channel") is True for item in drink_items)
     assert all(item["unit"] == "箱" for item in drink_items)
     assert all(item.get("category") != "饮品" for item in chengdu_catalog["items"])
@@ -166,3 +180,16 @@ def test_beijing_food_tabs_are_seven_even_columns():
 
     assert ".beijing-order-page .secondary-tabs" in styles
     assert "repeat(7, minmax(0, 1fr))" in styles
+
+
+def test_sam_delivery_channel_is_available_in_admin_board():
+    root = Path(__file__).resolve().parents[1]
+    app_py = (root / "daily-order" / "app" / "main.py").read_text(encoding="utf-8")
+    admin_js = (root / "daily-order" / "static" / "admin.js").read_text(encoding="utf-8")
+    styles = (root / "daily-order" / "static" / "styles.css").read_text(encoding="utf-8")
+
+    assert 'source == "山姆配送"' in app_py
+    assert '"山姆配送": 1' in app_py
+    assert '{ channel: "山姆配送", label: "山姆配送" }' in admin_js
+    assert 'channel.includes("山姆")' in admin_js
+    assert ".channel-card.tone-sam" in styles

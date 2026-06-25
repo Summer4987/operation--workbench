@@ -446,6 +446,8 @@ def _default_purchase_channel(product: dict) -> str:
     source = product.get("source")
     if source == "快驴配送":
         return "快驴"
+    if source == "山姆配送":
+        return "山姆配送"
     if source == "同城物流配送":
         return "微信群"
     if source == "厂家配送（2日内）":
@@ -644,7 +646,7 @@ def _matching_order_channels(channels: list[str], display_channel: str) -> set[s
 
 
 def _channel_sort_key(channel: dict) -> tuple[int, str]:
-    order = {"快驴": 0, "微信群": 1, "工作餐": 2, "淘宝": 3, "拼多多": 4, "京东": 5}
+    order = {"快驴": 0, "山姆配送": 1, "微信群": 2, "工作餐": 3, "淘宝": 4, "拼多多": 5, "京东": 6}
     name = str(channel.get("channel") or "")
     return (order.get(name, 99), name)
 
