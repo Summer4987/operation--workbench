@@ -56,6 +56,15 @@ def test_beijing_order_history_button_sits_in_topbar():
     assert "toggleOrdersButton" not in store_panel
 
 
+def test_order_pages_bust_static_cache_for_drink_category():
+    root = Path(__file__).resolve().parents[1]
+    for filename in ("index.html", "beijing-index.html"):
+        html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
+
+        assert "styles.css?v=20260625-beijing-drinks" in html
+        assert "app.js?v=20260625-beijing-drinks" in html
+
+
 def test_admin_sku_summary_is_static_without_expand_collapse():
     root = Path(__file__).resolve().parents[1]
     admin_js = (root / "daily-order" / "static" / "admin.js").read_text(encoding="utf-8")
