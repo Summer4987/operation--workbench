@@ -235,10 +235,50 @@ def balance_items(payload: dict) -> list[dict]:
     return [item for item in payload.get("items") or [] if not is_direct_meituan_item(item)]
 
 
+def is_unconfirmed_zero_balance(item: dict) -> bool:
+    try:
+        balance = float(item.get("balance"))
+    except (TypeError, ValueError):
+        return False
+    if balance != 0:
+        return False
+    if item.get("confirmed_zero") is True:
+        return False
+    if item.get("api_seen") is True or item.get("account_response_url"):
+        return False
+    source = str(item.get("source") or "")
+    if "接口读取" in source:
+        return False
+    return True
+
+
+def unconfirmed_balance_items(payload: dict) -> list[dict]:
+    items = []
+    threshold = float(payload.get("threshold") or 100)
+    for item in balance_items(payload):
+        if not is_unconfirmed_zero_balance(item):
+            continue
+        items.append(
+            {
+                "platform": item.get("platform", ""),
+                "store_name": item.get("store_name") or item.get("store") or "",
+                "balance": item.get("balance"),
+                "threshold": threshold,
+                "status": "unconfirmed",
+                "source": item.get("source") or "",
+                "message": "页面文本读到 0 元，但接口没有确认余额，需重跑巡检或人工复核。",
+                "human_action": "先重跑推广余额巡检；若仍未确认，再人工打开平台余额页核对。",
+            }
+        )
+    return items
+
+
 def low_balance_items(payload: dict) -> list[dict]:
     threshold = float(payload.get("threshold") or 100)
     warnings: list[dict] = []
     for item in balance_items(payload):
+        if is_unconfirmed_zero_balance(item):
+            continue
         balance = float(item.get("balance") or 0)
         if item.get("status") == "warning" or balance <= threshold:
             warnings.append(
@@ -329,13 +369,19 @@ def build_status(payload: dict) -> dict:
     direct_coverage = build_direct_coverage(items)
     coverage_rows = direct_coverage_rows(payload)
     warnings = low_balance_items(payload)
+    unconfirmed_items = unconfirmed_balance_items(payload)
     platform_failure_count = len(failures)
     coverage_missing_count = sum(len(row.get("missing_stores") or []) for row in coverage_rows)
     low_balance_count = len(warnings)
+    unconfirmed_count = len(unconfirmed_items)
     store_count = len(items)
     threshold = float(payload.get("threshold") or 100)
     platform_count = len({item.get("platform") for item in items if item.get("platform")})
-    balances = [float(item.get("balance") or 0) for item in items if item.get("balance") is not None]
+    balances = [
+        float(item.get("balance") or 0)
+        for item in items
+        if item.get("balance") is not None and not is_unconfirmed_zero_balance(item)
+    ]
     lowest_balance = min(balances) if balances else 0
 
     if not payload:
@@ -344,7 +390,7 @@ def build_status(payload: dict) -> dict:
     elif platform_failure_count and not store_count:
         status = "failed"
         message = f"推广余额巡检失败：{platform_failure_count} 个平台需要人工处理。"
-    elif platform_failure_count or coverage_missing_count or low_balance_count:
+    elif platform_failure_count or coverage_missing_count or low_balance_count or unconfirmed_count:
         status = "warning"
         parts = []
         if platform_failure_count:
@@ -353,6 +399,8 @@ def build_status(payload: dict) -> dict:
             parts.append(f"{coverage_missing_count} 个直营门店缺少余额结果")
         if low_balance_count:
             parts.append(f"{low_balance_count} 个低余额预警")
+        if unconfirmed_count:
+            parts.append(f"{unconfirmed_count} 个余额未确认")
         message = "，".join(parts) + "。"
     else:
         status = "ok"
@@ -365,6 +413,8 @@ def build_status(payload: dict) -> dict:
         human_action = coverage_rows[0].get("human_action", "")
     elif warnings:
         human_action = "先充值低余额门店，再执行预算或出价自动化。"
+    elif unconfirmed_items:
+        human_action = "先重跑推广余额巡检；若仍未确认，再人工打开平台余额页核对。"
 
     platform_rows_payload = platform_rows(payload, failures)
     recharge = recharge_plan(warnings)
@@ -385,6 +435,7 @@ def build_status(payload: dict) -> dict:
             "platform_failure_count": platform_failure_count,
             "direct_coverage_missing_count": coverage_missing_count,
             "low_balance_count": low_balance_count,
+            "balance_unconfirmed_count": unconfirmed_count,
             "store_count": store_count,
             "platform_count": platform_count,
             "warning_threshold": threshold,
@@ -404,6 +455,7 @@ def build_status(payload: dict) -> dict:
         "direct_coverage": direct_coverage,
         "direct_coverage_issues": coverage_rows,
         "low_balance_items": warnings,
+        "unconfirmed_balance_items": unconfirmed_items,
         "recharge_plan": recharge,
     }
 

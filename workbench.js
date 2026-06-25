@@ -2279,11 +2279,11 @@ function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshol
   const summary = promoBalanceStatus.summary || {};
   const lowBalanceItems = promoBalanceStatus.low_balance_items || [];
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
-  const unconfirmedItems = (balances.items || []).filter((item) => balanceValue(item) === null);
+  const unconfirmedItems = promoBalanceStatus.unconfirmed_balance_items || (balances.items || []).filter((item) => balanceValue(item) === null);
   const hasPromoStatus = Boolean(promoBalanceStatus.generated_at || promoBalanceStatus.source_generated_at || lowBalanceItems.length || platformFailures.length);
   const lowBalanceCount = Number(summary.low_balance_count ?? balances.summary?.warning_count ?? 0);
   const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length);
-  const unconfirmedCount = unconfirmedItems.length;
+  const unconfirmedCount = Number(summary.balance_unconfirmed_count ?? unconfirmedItems.length);
   if (hasPromoStatus && (lowBalanceCount || platformFailureCount || unconfirmedCount)) {
     const lowBalanceDetail = priorityDetailList(
       lowBalanceItems,
@@ -2786,8 +2786,8 @@ function isReliableBalance(item) {
   if (!Number.isFinite(balance)) return false;
   if (balance !== 0) return true;
   if (item.confirmed_zero === true) return true;
-  if (/CDP|接口读取|api/i.test(String(item.source || ""))) return true;
-  if (item.api_seen === true || item.account_response_url || item.page_url) return true;
+  if (/接口读取|api/i.test(String(item.source || ""))) return true;
+  if (item.api_seen === true || item.account_response_url) return true;
   return false;
 }
 
@@ -2808,11 +2808,12 @@ function renderBalances() {
   const threshold = Number(summary.warning_threshold || balances.threshold || 200);
   const allBalanceItems = balances.items || [];
   const reliableItems = allBalanceItems.filter((item) => balanceValue(item) !== null);
-  const unconfirmedItems = allBalanceItems.filter((item) => balanceValue(item) === null);
-  const warnings = reliableItems.filter((item) => Number(item.balance || 0) < threshold);
+  const unconfirmedItems = promoBalanceStatus.unconfirmed_balance_items || allBalanceItems.filter((item) => balanceValue(item) === null);
+  const warnings = promoBalanceStatus.low_balance_items || reliableItems.filter((item) => Number(item.balance || 0) < threshold);
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
   const platformFailureCount = Number(summary.platform_failure_count || platformFailures.length || 0);
-  const lowBalanceCount = warnings.length;
+  const lowBalanceCount = Number(summary.low_balance_count ?? warnings.length);
+  const unconfirmedCount = Number(summary.balance_unconfirmed_count ?? unconfirmedItems.length);
   const lowestReliable = reliableItems.length ? Math.min(...reliableItems.map((item) => Number(item.balance || 0))) : null;
   const needsAttention = platformFailureCount > 0 || lowBalanceCount > 0;
   const statusText = platformFailureCount ? "巡检失败" : lowBalanceCount ? "需充值" : "正常";
@@ -2821,7 +2822,7 @@ function renderBalances() {
   text("balanceWarningCount", `${lowBalanceCount} 个`);
   text(
     "balanceSummary",
-    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedItems.length} 个，阈值 ${yuan(threshold)}，证据清单 ${evidenceSync.file_count || 0} 个。CDP/API 读到的 0 元按已确认余额处理。`
+    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedCount} 个，阈值 ${yuan(threshold)}，证据清单 ${evidenceSync.file_count || 0} 个。页面文本读到 0 元但接口未确认时不计入充值项。`
   );
   text("balanceStatus", statusText);
   cls("balanceMetricCard", "alert", needsAttention);
