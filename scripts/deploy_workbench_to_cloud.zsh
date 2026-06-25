@@ -46,6 +46,10 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
     -e "ssh ${SSH_OPTS[*]}" \
     index.html workbench.css workbench.js workbench-data.js PROJECT_TREE.md \
     "$SERVER:$REMOTE_DIR/"
+  rsync -az --delete \
+    -e "ssh ${SSH_OPTS[*]}" \
+    franchise-data-center/ \
+    "$SERVER:$REMOTE_DIR/franchise-data-center/"
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/business-report-dashboard/data'"
   rsync -az --delete \
@@ -83,11 +87,15 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     "$SERVER:$REMOTE_DIR/data/"
   echo "已按 data-only 模式发布，仅更新 workbench-data.js 和 data/realtime-history.json，未同步页面布局文件。"
 else
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection' '$REMOTE_DIR/franchise-data-center'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     index.html workbench.css workbench.js workbench-data.js \
     "$SERVER:$REMOTE_DIR/"
+  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    franchise-data-center/ \
+    "$SERVER:$REMOTE_DIR/franchise-data-center/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     data/realtime-history.json \
@@ -132,6 +140,9 @@ else
   verify_remote_file "index.html"
   verify_remote_file "workbench.css"
   verify_remote_file "workbench.js"
+  verify_remote_file "franchise-data-center/index.html"
+  verify_remote_file "franchise-data-center/styles.css"
+  verify_remote_file "franchise-data-center/app.js"
   verify_remote_file "workbench-data.js"
 fi
 
