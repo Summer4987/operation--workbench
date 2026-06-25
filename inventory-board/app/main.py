@@ -57,6 +57,9 @@ FINANCE_UPLOAD_MANIFEST = FINANCE_UPLOAD_DIR / "manifest.jsonl"
 FINANCE_ENTRY_MANIFEST = FINANCE_UPLOAD_DIR / "manual_entries.jsonl"
 FINANCE_OPENING_MANIFEST = FINANCE_UPLOAD_DIR / "opening_balances.jsonl"
 SUPPLY_CHAIN_FLOW_MANIFEST = FINANCE_UPLOAD_DIR / "supply_chain_flow.jsonl"
+DEFAULT_SUPPLY_CHAIN_FLOW_MANIFEST = SUPPLY_CHAIN_FLOW_MANIFEST
+SUPPLY_CHAIN_FLOW_RESET_MARKER = BASE_DIR.parent / "config" / "supply_chain_flow_reset.json"
+SUPPLY_CHAIN_FLOW_RESET_APPLIED = FINANCE_UPLOAD_DIR / ".supply_chain_flow_reset_applied"
 PUBLIC_ORDER_MIN_TOTAL_QUANTITY = 5
 FINANCE_SOURCE_IDS = {
     "bank",
@@ -192,6 +195,7 @@ def inventory_flow(month: Optional[str] = None, limit: int = 80):
 @app.post("/api/supply-chain/flow")
 async def supply_chain_flow_entry(request: Request, payload: dict):
     _require_operation_auth(request)
+    _apply_supply_chain_flow_reset_if_needed()
     entry = _validate_supply_chain_flow_entry(payload)
     SUPPLY_CHAIN_FLOW_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     with SUPPLY_CHAIN_FLOW_MANIFEST.open("a", encoding="utf-8") as target:
@@ -711,6 +715,7 @@ def _validate_finance_opening(payload: dict) -> dict:
 
 
 def _read_supply_chain_flow_entries() -> list[dict]:
+    _apply_supply_chain_flow_reset_if_needed()
     items = []
     if SUPPLY_CHAIN_FLOW_MANIFEST.exists():
         for line in SUPPLY_CHAIN_FLOW_MANIFEST.read_text(encoding="utf-8").splitlines():
@@ -722,9 +727,31 @@ def _read_supply_chain_flow_entries() -> list[dict]:
 
 
 def _write_supply_chain_flow_entries(entries: list[dict]) -> None:
+    _apply_supply_chain_flow_reset_if_needed()
     SUPPLY_CHAIN_FLOW_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     payload = "\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries)
     SUPPLY_CHAIN_FLOW_MANIFEST.write_text((payload + "\n") if payload else "", encoding="utf-8")
+
+
+def _apply_supply_chain_flow_reset_if_needed() -> None:
+    if SUPPLY_CHAIN_FLOW_MANIFEST != DEFAULT_SUPPLY_CHAIN_FLOW_MANIFEST:
+        return
+    if not SUPPLY_CHAIN_FLOW_RESET_MARKER.exists():
+        return
+    try:
+        marker = json.loads(SUPPLY_CHAIN_FLOW_RESET_MARKER.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    reset_id = str(marker.get("reset_id") or "").strip()
+    if not reset_id:
+        return
+    if SUPPLY_CHAIN_FLOW_RESET_APPLIED.exists():
+        applied_id = SUPPLY_CHAIN_FLOW_RESET_APPLIED.read_text(encoding="utf-8").strip()
+        if applied_id == reset_id:
+            return
+    SUPPLY_CHAIN_FLOW_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    SUPPLY_CHAIN_FLOW_MANIFEST.write_text("", encoding="utf-8")
+    SUPPLY_CHAIN_FLOW_RESET_APPLIED.write_text(reset_id, encoding="utf-8")
 
 
 def _update_supply_chain_lot(payload: dict) -> dict:

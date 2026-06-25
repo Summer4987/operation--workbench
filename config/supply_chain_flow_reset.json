@@ -1,0 +1,5 @@
+{
+  "reset_id": "2026-06-25-clean-finance-flow-ledger",
+  "reason": "货款货流板块重构，旧供应链批次与款项数据口径不准确，部署后一次性清空 supply_chain_flow.jsonl。",
+  "created_at": "2026-06-25"
+}

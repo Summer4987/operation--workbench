@@ -382,21 +382,41 @@
               <form class="finance-flow-entry-form finance-flow-entry-panel" id="financeFlowEntryForm">
                 <div class="finance-form-head">
                   <div>
-                    <span>货权流向录入</span>
-                    <strong>生产批次、工厂暂存、发货、应收应付都从这里记</strong>
+                    <span>按业务场景录入</span>
+                    <strong>先选这次发生了什么，再补批次、数量和款项</strong>
                   </div>
-                  <button type="submit">保存流向</button>
+                  <button type="submit">保存这笔记录</button>
                 </div>
-                <div class="finance-flow-presets" aria-label="货权流向常用动作">
-                  <button type="button" data-flow-preset="purchase_paid">采购付款</button>
-                  <button type="button" data-flow-preset="production">工厂在产</button>
-                  <button type="button" data-flow-preset="production_done">生产完成</button>
-                  <button type="button" data-flow-preset="warehouse_sale">发北京仓</button>
-                  <button type="button" data-flow-preset="direct_store">发直营店</button>
+                <div class="finance-flow-scenario-grid" aria-label="货款货流业务场景">
+                  <button type="button" data-flow-preset="purchase_paid">
+                    <span>买原料</span>
+                    <strong>采购付款</strong>
+                    <em>形成工厂应付或已付</em>
+                  </button>
+                  <button type="button" data-flow-preset="production_done">
+                    <span>工厂生产</span>
+                    <strong>生产完成</strong>
+                    <em>生成批次和可发货库存</em>
+                  </button>
+                  <button type="button" data-flow-preset="warehouse_sale">
+                    <span>从工厂发货</span>
+                    <strong>发北京仓</strong>
+                    <em>形成北京仓应收</em>
+                  </button>
+                  <button type="button" data-flow-preset="direct_store">
+                    <span>从工厂发货</span>
+                    <strong>发直营店</strong>
+                    <em>形成直营店应收</em>
+                  </button>
+                  <button type="button" data-flow-preset="production">
+                    <span>补过程</span>
+                    <strong>工厂在产</strong>
+                    <em>记录还没有完成的批次</em>
+                  </button>
                 </div>
                 <div class="finance-flow-text-parser" id="financeFlowTextParser">
                   <label>
-                    <span>文字识别填入</span>
+                    <span>快速识别录入</span>
                     <textarea id="financeFlowTextInput" rows="3" placeholder="例如：6月18日购买板腱原料1吨，总金额86530元，已付给工厂，原料留在工厂生产"></textarea>
                   </label>
                   <div class="finance-flow-text-actions">
@@ -537,7 +557,7 @@
                   <option value="箱"></option>
                   <option value="袋"></option>
                 </datalist>
-                <div class="finance-form-message" id="financeFlowEntryMessage">采购原料请手填总金额；原料留在工厂加工时也要选择工厂进度。销售成品可按结算价自动计算。</div>
+                <div class="finance-form-message" id="financeFlowEntryMessage">建议从上面的场景按钮开始；采购填总金额，发货按去向自动落到北京仓或直营店应收。</div>
               </form>
               <form class="finance-flow-update-form finance-flow-entry-panel" id="financeFlowLotUpdateForm">
                 <div class="finance-form-head">
@@ -595,6 +615,11 @@
                   </label>
                   <button type="button" id="financeFlowRefresh">刷新</button>
                 </div>
+                <div class="finance-flow-title">
+                  <strong>待处理</strong>
+                  <span>系统按批次余额和款项状态自动筛出来</span>
+                </div>
+                <div class="finance-flow-action-grid" id="financeFlowActionQueue"></div>
                 <div class="finance-flow-title">
                   <strong>SKU 生产概览</strong>
                   <span>按货品、类型和单位查看工厂当前余量</span>

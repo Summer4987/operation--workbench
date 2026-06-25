@@ -266,6 +266,7 @@ const financeFlowState = {
   payload: null,
   selectedLocation: "",
   parsedEntries: [],
+  activeScenario: "",
 };
 
 function readLocalList(key) {
@@ -1032,6 +1033,10 @@ const financeFlowPresets = {
 function applyFinanceFlowPreset(form, presetKey) {
   const preset = financeFlowPresets[presetKey];
   if (!form || !preset) return;
+  financeFlowState.activeScenario = presetKey || "";
+  document.querySelectorAll("[data-flow-preset]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.flowPreset === presetKey);
+  });
   Object.entries(preset).forEach(([name, value]) => {
     const field = form.querySelector(`[name="${name}"]`);
     if (field) field.value = value;
@@ -1152,6 +1157,70 @@ function renderFinanceFlowSkuCards(items) {
   );
 }
 
+function financeFlowActionQueue(items, totals, paymentLines) {
+  const actions = [];
+  const negativeLots = (items || []).filter((item) => Number(item.balance_quantity || 0) < -0.000001);
+  if (negativeLots.length) {
+    actions.push({
+      tone: "danger",
+      label: "先查异常",
+      title: `${negativeLots.length} 个批次余额为负`,
+      detail: "优先核对是否重复发货、来源位置选错或旧批次未清。",
+    });
+  }
+  const completedLots = (items || []).filter((item) => item.production_status === "工厂已生产完成" && Number(item.factory_quantity || 0) > 0);
+  if (completedLots.length) {
+    const quantity = completedLots.reduce((sum, item) => sum + Number(item.factory_quantity || 0), 0);
+    actions.push({
+      tone: "good",
+      label: "可安排发货",
+      title: `${completedLots.length} 批工厂已完成`,
+      detail: `工厂当前余量 ${num(quantity, 2)}，可按北京仓或直营店去向登记。`,
+    });
+  }
+  const openPayable = Number(totals.open_payable_amount || 0);
+  if (openPayable > 0) {
+    actions.push({
+      tone: "warn",
+      label: "待付款",
+      title: `待付工厂 ${yuan(openPayable)}`,
+      detail: `${(paymentLines.factory_payable || []).length} 条应付记录，付款后在批次状态更新里核销。`,
+    });
+  }
+  const openReceivable = Number(totals.open_receivable_amount || 0);
+  if (openReceivable > 0) {
+    actions.push({
+      tone: "warn",
+      label: "待收款",
+      title: `待收 ${yuan(openReceivable)}`,
+      detail: `北京仓 ${yuan(totals.open_beijing_warehouse_receivable_amount)} / 直营店 ${yuan(totals.open_direct_store_receivable_amount)}。`,
+    });
+  }
+  if (!actions.length) {
+    actions.push({
+      tone: "neutral",
+      label: "干净起账",
+      title: "暂无待处理批次",
+      detail: "旧货款货流数据已清空，可从上方场景入口重新录入准确台账。",
+    });
+  }
+  return actions.slice(0, 4);
+}
+
+function renderFinanceFlowActionQueue(items, totals, paymentLines) {
+  rows(
+    "financeFlowActionQueue",
+    financeFlowActionQueue(items, totals, paymentLines),
+    (item) => `
+      <article class="finance-flow-action-card ${escapeHtml(item.tone)}">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <em>${escapeHtml(item.detail)}</em>
+      </article>
+    `
+  );
+}
+
 function renderFinanceFlow() {
   const payload = financeFlowState.payload || {};
   updateFinanceFlowDatalists(payload);
@@ -1168,6 +1237,7 @@ function renderFinanceFlow() {
   const selectedEvents = financeFlowLocationEvents(payload.recent_events || [], selectedLocation);
   text("financeFlowStatus", payload.items ? `${items.length} 个批次` : "待读取");
   renderFinanceFlowSkuCards(items);
+  renderFinanceFlowActionQueue(items, totals, paymentLines);
   html(
     "financeFlowKpis",
     [
