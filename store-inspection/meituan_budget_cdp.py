@@ -335,6 +335,76 @@ def open_budget_modal(page) -> None:
     raise RuntimeError("未打开预算设置弹窗，可能当前门店预算区域不可编辑")
 
 
+def budget_input_locator(page):
+    scored_candidates = []
+    for frame in page.frames:
+        try:
+            candidates = frame.evaluate(
+                """() => [...document.querySelectorAll('input[type="number"]')]
+                    .map((el, index) => {
+                        const rect = el.getBoundingClientRect();
+                        const style = getComputedStyle(el);
+                        const visible = rect.width > 0 && rect.height > 0
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && !el.disabled
+                            && !el.readOnly;
+                        let text = '';
+                        let node = el;
+                        for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
+                            text += '\\n' + (node.innerText || '');
+                        }
+                        const dialog = el.closest('[role=dialog], [class*=dialog], [class*=modal], [class*=popover]');
+                        const dialogText = dialog ? (dialog.innerText || '') : '';
+                        const placeholder = el.getAttribute('placeholder') || '';
+                        let score = 0;
+                        if (dialogText.includes('预算设置')) score += 100;
+                        if (dialogText.includes('预算')) score += 40;
+                        if (text.includes('预算设置')) score += 60;
+                        if (text.includes('推广预算') || text.includes('每日预算')) score += 30;
+                        if (placeholder.includes('预算') || placeholder.includes('金额')) score += 20;
+                        if (visible) score += 10;
+                        return {index, visible, score, text, dialogText, placeholder};
+                    })
+                    .filter((item) => item.visible)
+                    .sort((a, b) => b.score - a.score)"""
+            )
+        except Exception:
+            continue
+        for item in candidates:
+            scored_candidates.append((int(item.get("score", 0)), frame, int(item["index"])))
+    if not scored_candidates:
+        raise RuntimeError("预算弹窗没有可见可编辑的数字输入框")
+    scored_candidates.sort(key=lambda item: item[0], reverse=True)
+    _, frame, index = scored_candidates[0]
+    return frame.locator('input[type="number"]').nth(index)
+
+
+def set_budget_input(input_box, value: str) -> tuple[str, str]:
+    before = input_box.input_value(timeout=3000)
+    input_box.click(timeout=3000)
+    input_box.fill("")
+    input_box.type(value, delay=35)
+    input_box.evaluate(
+        """(el, value) => {
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            if (setter) {
+                setter.call(el, value);
+            } else {
+                el.value = value;
+            }
+            el.dispatchEvent(new Event('input', {bubbles: true}));
+            el.dispatchEvent(new Event('change', {bubbles: true}));
+            el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true, key: 'Enter'}));
+            el.blur();
+        }""",
+        value,
+    )
+    time.sleep(0.8)
+    after = input_box.input_value(timeout=3000)
+    return before, after
+
+
 def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
     target = float(task["targetBudget"])
     try:
@@ -395,12 +465,9 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
             enter_dianjin_with_recovery(page, target_url)
             wait_setting_ready(page)
             open_budget_modal(page)
-        input_box = page.locator('input[type="number"]').first
-        record["beforeInput"] = input_box.input_value(timeout=3000)
+        input_box = budget_input_locator(page)
         value = str(int(target) if target.is_integer() else target)
-        input_box.fill(value)
-        time.sleep(0.3)
-        record["afterInput"] = input_box.input_value(timeout=3000)
+        record["beforeInput"], record["afterInput"] = set_budget_input(input_box, value)
         if float(record["afterInput"]) != target:
             raise RuntimeError(f"输入框未变为目标预算：{record['afterInput']}")
         confirm_button = page.get_by_role("button", name="确定")
@@ -529,6 +596,24 @@ def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[s
     return page_url
 
 
+def write_run_log(output: Path, period: str, requested_period: str, mode: str, results: list[dict], *, partial: bool) -> None:
+    output.write_text(
+        json.dumps(
+            {
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "period": period,
+                "requestedPeriod": requested_period,
+                "mode": mode,
+                "partial": partial,
+                "results": results,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", default="auto", choices=["auto", "午餐", "晚餐"])
@@ -563,6 +648,9 @@ def main() -> int:
         raise RuntimeError("没有找到本地 Chrome 最近的美团推广 URL，请先在本地 Chrome 打开一次美团点金推广页。")
     base_url = base_url or ""
 
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    output = LOG_DIR / f"meituan_cdp_{period}_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    partial_output = output.with_suffix(".partial.json")
     results = []
     with sync_playwright() as playwright:
         contexts: dict[str, object] = {}
@@ -586,6 +674,8 @@ def main() -> int:
                         "error": str(exc),
                     })
                     print(f"失败：{task.get('keyword')}：{exc}", flush=True)
+                finally:
+                    write_run_log(partial_output, period, args.period, args.mode, results, partial=True)
         finally:
             for context in launched_contexts:
                 try:
@@ -593,22 +683,7 @@ def main() -> int:
                 except Exception:
                     pass
 
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    output = LOG_DIR / f"meituan_cdp_{period}_{time.strftime('%Y%m%d_%H%M%S')}.json"
-    output.write_text(
-        json.dumps(
-            {
-                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "period": period,
-                "requestedPeriod": args.period,
-                "mode": args.mode,
-                "results": results,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    write_run_log(output, period, args.period, args.mode, results, partial=False)
     ok_count = sum(1 for item in results if item.get("ok"))
     fail_count = len(results) - ok_count
     print(f"美团预算执行日志：{output}")
