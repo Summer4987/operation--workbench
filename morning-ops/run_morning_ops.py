@@ -45,6 +45,7 @@ NODE = Path("/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependenc
 REPORT_VENV_PYTHON = REPORT_DIR / ".venv" / "bin" / "python"
 REPORT_PYTHON = REPORT_VENV_PYTHON if REPORT_VENV_PYTHON.exists() else Path("/usr/bin/python3")
 TASK_ID = "ops.morning_collection"
+DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS = 900
 
 
 BUDGET_PERIODS = {
@@ -152,6 +153,21 @@ def record_task_run(status: str, message: str, step: str, log_path: Path, *, ret
 
 def looks_like_auth_block(text: str) -> bool:
     return any(pattern in text for pattern in AUTH_BLOCK_PATTERNS)
+
+
+def env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        print(f"环境变量 {name}={raw!r} 不是整数，使用默认值 {default}。", file=sys.stderr, flush=True)
+        return default
+    if value <= 0:
+        print(f"环境变量 {name}={raw!r} 必须大于 0，使用默认值 {default}。", file=sys.stderr, flush=True)
+        return default
+    return value
 
 
 def is_production_environment() -> bool:
@@ -373,7 +389,25 @@ def main() -> int:
                     timeout_seconds=int(os.environ.get("ELEME_BUDGET_TIMEOUT_SECONDS", "1800")),
                 ).returncode != 0:
                     failures.append(f"饿了么{budget_period}预算")
-                if run_step_with_pause(f"美团{budget_period}预算真实提交", [str(REPORT_PYTHON), str(MEITUAN_BUDGET_CDP_RUNNER), "--period", budget_period], required=False, timeout_seconds=360).returncode != 0:
+                meituan_budget_timeout = env_int(
+                    "MEITUAN_BUDGET_TIMEOUT_SECONDS",
+                    DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS,
+                )
+                if run_step_with_pause(
+                    f"美团{budget_period}预算真实提交",
+                    [
+                        str(REPORT_PYTHON),
+                        str(MEITUAN_BUDGET_CDP_RUNNER),
+                        "--period",
+                        budget_period,
+                        "--mode",
+                        "commit",
+                        "--limit",
+                        "all",
+                    ],
+                    required=False,
+                    timeout_seconds=meituan_budget_timeout,
+                ).returncode != 0:
                     failures.append(f"美团{budget_period}预算")
             if run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False).returncode != 0:
                 failures.append("运营总看板")
