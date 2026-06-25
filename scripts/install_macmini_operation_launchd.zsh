@@ -232,13 +232,9 @@ def copy_bytes(source: Path, target: Path) -> None:
 
 for name in ("index.html", "workbench.css", "workbench.js", "workbench-data.js"):
     copy_bytes(root / name, stage / name)
-for name in ("index.html", "styles.css", "app.js"):
-    copy_bytes(root / "franchise-data-center" / name, stage / "franchise-data-center" / name)
 copy_bytes(root / "data" / "realtime-history.json", stage / "data" / "realtime-history.json")
 for name in ("index.html", "workbench.css", "workbench.js", "workbench-data.js"):
     (stage / name).chmod(0o644)
-for name in ("index.html", "styles.css", "app.js"):
-    (stage / "franchise-data-center" / name).chmod(0o644)
 (stage / "data" / "realtime-history.json").chmod(0o644)
 PY
 
@@ -249,10 +245,6 @@ if [[ "\$DEPLOY_MODE" == "full" ]]; then
     -e "ssh \${SSH_OPTS[*]}" \
     index.html workbench.css workbench.js workbench-data.js PROJECT_TREE.md \
     "\$SERVER:\$REMOTE_DIR/"
-  rsync -az --delete \
-    -e "ssh \${SSH_OPTS[*]}" \
-    franchise-data-center/ \
-    "\$SERVER:\$REMOTE_DIR/franchise-data-center/"
 
   ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/business-report-dashboard/data'"
   rsync -az --delete \
@@ -286,7 +278,7 @@ elif [[ "\$DEPLOY_MODE" == "data-only" ]]; then
     "\$SERVER:\$REMOTE_DIR/data/"
   echo "已按 data-only 模式发布，仅更新 workbench-data.js 和 data/realtime-history.json，未同步页面布局文件。"
 else
-  ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/data' '\$REMOTE_DIR/business-report-dashboard/data' '\$REMOTE_DIR/franchise-data-center'"
+  ssh "\${SSH_OPTS[@]}" "\$SERVER" "mkdir -p '\$REMOTE_DIR/data' '\$REMOTE_DIR/business-report-dashboard/data'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh \${SSH_OPTS[*]}" \
     "\$STAGE_DIR/index.html" \
@@ -294,10 +286,6 @@ else
     "\$STAGE_DIR/workbench.js" \
     "\$STAGE_DIR/workbench-data.js" \
     "\$SERVER:\$REMOTE_DIR/"
-  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh \${SSH_OPTS[*]}" \
-    "\$STAGE_DIR/franchise-data-center/" \
-    "\$SERVER:\$REMOTE_DIR/franchise-data-center/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh \${SSH_OPTS[*]}" \
     "\$STAGE_DIR/data/realtime-history.json" \
