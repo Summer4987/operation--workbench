@@ -176,19 +176,13 @@ async def _submit_order(request: Request, payload: dict, catalog_path: Path, sub
 
 
 @app.get("/daily-order/api/orders")
-def recent_store_orders(store_name: str):
-    store_name = store_name.strip()
-    if not store_name:
-        raise HTTPException(status_code=400, detail="请选择门店")
-    return {"items": [order for order in _read_orders() if order["store_name"] == store_name]}
+def recent_store_orders(store_name: str, order_ids: str = ""):
+    return {"items": _public_store_orders(store_name, order_ids, SUBMISSION_DIR, CATALOG_PATH)}
 
 
 @app.get("/beijing-order/api/orders")
-def recent_beijing_store_orders(store_name: str):
-    store_name = store_name.strip()
-    if not store_name:
-        raise HTTPException(status_code=400, detail="请选择门店")
-    return {"items": [order for order in _read_orders(BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH) if order["store_name"] == store_name]}
+def recent_beijing_store_orders(store_name: str, order_ids: str = ""):
+    return {"items": _public_store_orders(store_name, order_ids, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)}
 
 
 @app.get("/daily-order/api/admin/summary")
@@ -536,6 +530,45 @@ def _read_orders(submission_dir: Path | None = None, catalog_path: Path | None =
             continue
     orders.sort(key=lambda order: (order.get("submitted_at", ""), order.get("order_id", "")), reverse=True)
     return orders
+
+
+def _public_store_orders(store_name: str, order_ids: str, submission_dir: Path, catalog_path: Path) -> list[dict]:
+    clean_store_name = store_name.strip()
+    if not clean_store_name:
+        raise HTTPException(status_code=400, detail="请选择门店")
+    allowed_ids = _public_order_id_set(order_ids)
+    if not allowed_ids:
+        return []
+    orders = []
+    for order in _read_orders(submission_dir, catalog_path):
+        if order.get("store_name") != clean_store_name or order.get("order_id") not in allowed_ids:
+            continue
+        orders.append(_public_order_view(order))
+    return orders
+
+
+def _public_order_id_set(raw_order_ids: str) -> set[str]:
+    ids: set[str] = set()
+    for item in re.split(r"[,\s]+", raw_order_ids.strip()):
+        clean = item.strip()[:80]
+        if clean and re.fullmatch(r"[A-Za-z0-9_.:-]+", clean):
+            ids.add(clean)
+        if len(ids) >= 20:
+            break
+    return ids
+
+
+def _public_order_view(order: dict) -> dict:
+    return {
+        "order_id": order.get("order_id") or "",
+        "store_name": order.get("store_name") or "",
+        "remark": order.get("remark") or "",
+        "status": order.get("status") or "pending",
+        "processed_at": order.get("processed_at") or "",
+        "processed_channels": list(order.get("processed_channels") or []),
+        "submitted_at": order.get("submitted_at") or "",
+        "items": list(order.get("items") or []),
+    }
 
 
 def _normalize_order(order: dict, catalog_path: Path | None = None) -> dict:

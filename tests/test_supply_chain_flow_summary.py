@@ -2,6 +2,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def load_inventory_main():
@@ -80,3 +81,22 @@ def test_public_order_allows_minimum_quantity():
             {"sku": "牛五花", "quantity": 2},
         ]
     )
+
+
+def test_supply_chain_flow_rejects_public_order_token_without_login(monkeypatch, tmp_path):
+    module = load_inventory_main()
+    monkeypatch.setenv("INVENTORY_PASSWORD", "test-password")
+    monkeypatch.setattr(module, "SUPPLY_CHAIN_FLOW_MANIFEST", tmp_path / "supply_chain_flow.jsonl")
+    request = SimpleNamespace(
+        cookies={},
+        headers={},
+        query_params={"token": "xiongxiaoxiao-order"},
+        url=SimpleNamespace(path="/api/supply-chain/flow", scheme="http"),
+    )
+
+    try:
+        module._require_operation_auth(request)
+    except module.HTTPException as exc:
+        assert exc.status_code == 401
+    else:
+        raise AssertionError("Expected public order token to be rejected for supply-chain data")

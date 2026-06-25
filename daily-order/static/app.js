@@ -47,6 +47,7 @@ const vendorGroups = {
 };
 
 const imageVersion = "20260621-yida-stock";
+const localOrdersPrefix = "xiongxiaoxiao-store-orders";
 
 const els = {
   cartCount: document.querySelector("#cartCount"),
@@ -347,6 +348,7 @@ async function submitOrder() {
     if (!response.ok) throw new Error(payload.detail || "提交失败");
     els.confirmDialog.close();
     els.successOrderId.textContent = payload.order_id;
+    rememberStoreOrder(storeName, payload.order_id);
     els.successScreen.style.display = "grid";
     if (state.ordersExpanded) await loadStoreOrders();
   } catch (error) {
@@ -413,7 +415,18 @@ async function loadStoreOrders() {
   }
   els.storeOrdersList.innerHTML = `<p>正在读取订单...</p>`;
   try {
-    const response = await fetch(`${orderBasePath}/api/orders?store_name=${encodeURIComponent(storeName)}`);
+    const orderIds = rememberedStoreOrders(storeName);
+    if (!orderIds.length) {
+      state.recentOrders = [];
+      state.recentOrdersStore = storeName;
+      renderStoreOrders();
+      return;
+    }
+    const query = new URLSearchParams({
+      store_name: storeName,
+      order_ids: orderIds.join(","),
+    });
+    const response = await fetch(`${orderBasePath}/api/orders?${query.toString()}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "订单读取失败");
     state.recentOrders = payload.items || [];
@@ -431,11 +444,11 @@ function renderStoreOrders() {
     return;
   }
   if (!els.storeName.value.trim()) {
-    els.storeOrdersList.innerHTML = `<p>选择门店后可查看最近提交的订单。</p>`;
+    els.storeOrdersList.innerHTML = `<p>选择门店后可查看本设备提交的订单。</p>`;
     return;
   }
   if (!state.recentOrders.length) {
-    els.storeOrdersList.innerHTML = `<p>这个门店暂时没有已提交订单。</p>`;
+    els.storeOrdersList.innerHTML = `<p>本设备还没有保存这个门店的提交记录。</p>`;
     return;
   }
   els.storeOrdersList.innerHTML = state.recentOrders
@@ -460,6 +473,30 @@ function renderStoreOrders() {
       `;
     })
     .join("");
+}
+
+function storeOrdersKey(storeName) {
+  return `${localOrdersPrefix}:${orderBasePath}:${storeName}`;
+}
+
+function rememberedStoreOrders(storeName) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storeOrdersKey(storeName)) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => typeof item === "string" && item.trim()).slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
+function rememberStoreOrder(storeName, orderId) {
+  if (!storeName || !orderId) return;
+  const orders = [String(orderId), ...rememberedStoreOrders(storeName).filter((item) => item !== orderId)].slice(0, 20);
+  try {
+    localStorage.setItem(storeOrdersKey(storeName), JSON.stringify(orders));
+  } catch {
+    // Browsers can disable localStorage; submitting orders should still work.
+  }
 }
 
 function formatNumber(value) {

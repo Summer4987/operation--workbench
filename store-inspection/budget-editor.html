@@ -108,7 +108,7 @@
     <script src="../outputs/promo_budget_preview/latest-data.js"></script>
     <script>
       const preview = window.PROMO_BUDGET_PREVIEW || {};
-      const apiUrl = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
+      const apiUrl = "/api/promo-budget-overrides";
       const rows = preview.eleme_lunch || [];
       const elemeDinner = new Map((preview.eleme_dinner || []).map((item) => [item.store, item]));
       const meituanLunch = new Map((preview.meituan_lunch || []).map((item) => [item.sourceStore || item.store, item]));

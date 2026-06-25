@@ -1,10 +1,10 @@
 const data = window.WORKBENCH_DATA || {};
-const PROMO_BUDGET_OVERRIDES_URL = "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order";
-const FINANCE_UPLOAD_URL = "/api/finance/upload?token=xiongxiaoxiao-order";
-const FINANCE_ENTRY_URL = "/api/finance/entry?token=xiongxiaoxiao-order";
-const FINANCE_OPENING_URL = "/api/finance/opening?token=xiongxiaoxiao-order";
-const SUPPLY_CHAIN_FLOW_URL = "/api/supply-chain/flow?token=xiongxiaoxiao-order";
-const SUPPLY_CHAIN_LOT_UPDATE_URL = "/api/supply-chain/lot-update?token=xiongxiaoxiao-order";
+const PROMO_BUDGET_OVERRIDES_URL = "/api/promo-budget-overrides";
+const FINANCE_UPLOAD_URL = "/api/finance/upload";
+const FINANCE_ENTRY_URL = "/api/finance/entry";
+const FINANCE_OPENING_URL = "/api/finance/opening";
+const SUPPLY_CHAIN_FLOW_URL = "/api/supply-chain/flow";
+const SUPPLY_CHAIN_LOT_UPDATE_URL = "/api/supply-chain/lot-update";
 let budgetOverridesFetchStarted = false;
 
 const mainView = document.querySelector(".main");

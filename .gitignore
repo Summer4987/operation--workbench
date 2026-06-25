@@ -44,6 +44,8 @@ store-inspection/eleme-cdp-latest*.json
 store-inspection/eleme-cdp-latest-data.js
 store-inspection/meituan-cdp-latest*.json
 store-inspection/meituan-cdp-latest-data.js
+store-inspection/direct-meituan-cdp-latest*.json
+store-inspection/direct-meituan-cdp-latest-data.js
 store-inspection/meituan-cdp-network-candidates.json
 store-inspection/meituan-cdp-network-matches.json
 store-inspection/meituan-cdp-route-probe.json
@@ -64,3 +66,4 @@ reformatted_render/
 docx_extracted.txt
 pdf_extracted.txt
 pdf_vs_docx_pdf_text.txt
+tmp/

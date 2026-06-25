@@ -90,18 +90,8 @@ async def password_gate(request: Request, call_next):
     if _operation_session_valid(request):
         return await call_next(request)
 
-    authorization = request.headers.get("Authorization", "")
-    prefix = "Basic "
-    if authorization.startswith(prefix):
-        import base64
-
-        try:
-            decoded = base64.b64decode(authorization[len(prefix) :]).decode("utf-8")
-            supplied_username, supplied_password = decoded.split(":", 1)
-            if secrets.compare_digest(supplied_username, _operation_auth_username()) and secrets.compare_digest(supplied_password, password):
-                return await call_next(request)
-        except Exception:
-            pass
+    if _basic_auth_valid(request):
+        return await call_next(request)
 
     return Response(status_code=401, content="需要登录")
 
@@ -129,7 +119,7 @@ def operation_login_page(next: str = "/operation-workbench/"):
 
 
 @app.post("/api/auth/login")
-async def operation_login(payload: dict):
+async def operation_login(request: Request, payload: dict):
     username = str(payload.get("username") or "")
     password = str(payload.get("password") or "")
     if not secrets.compare_digest(username, _operation_auth_username()) or not secrets.compare_digest(password, os.environ.get("INVENTORY_PASSWORD", "")):
@@ -143,6 +133,7 @@ async def operation_login(payload: dict):
         max_age=30 * 24 * 60 * 60,
         httponly=True,
         samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
         path="/",
     )
     return result
@@ -200,7 +191,7 @@ def inventory_flow(month: Optional[str] = None, limit: int = 80):
 
 @app.post("/api/supply-chain/flow")
 async def supply_chain_flow_entry(request: Request, payload: dict):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     entry = _validate_supply_chain_flow_entry(payload)
     SUPPLY_CHAIN_FLOW_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     with SUPPLY_CHAIN_FLOW_MANIFEST.open("a", encoding="utf-8") as target:
@@ -210,13 +201,13 @@ async def supply_chain_flow_entry(request: Request, payload: dict):
 
 @app.get("/api/supply-chain/flow")
 def supply_chain_flow(request: Request):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     return _supply_chain_flow_summary()
 
 
 @app.post("/api/supply-chain/lot-update")
 async def supply_chain_lot_update(request: Request, payload: dict):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     result = _update_supply_chain_lot(payload)
     return {"status": "success", **result, "summary": _supply_chain_flow_summary()}
 
@@ -248,13 +239,13 @@ def inbound_template_status():
 
 @app.get("/api/promo-budget-overrides")
 def promo_budget_overrides(request: Request):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     return _read_promo_budget_overrides()
 
 
 @app.post("/api/promo-budget-overrides")
 async def save_promo_budget_overrides(request: Request, payload: dict):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     data = _validate_promo_budget_overrides(payload)
     PROMO_BUDGET_PATH.parent.mkdir(parents=True, exist_ok=True)
     PROMO_BUDGET_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -365,7 +356,7 @@ async def finance_upload(
     source_name: str = Form(""),
     files: list[UploadFile] = File(...),
 ):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     clean_source_id = source_id.strip()
     if clean_source_id not in FINANCE_SOURCE_IDS:
         raise HTTPException(status_code=400, detail="未知的财务录入来源")
@@ -406,7 +397,7 @@ async def finance_upload(
 
 @app.get("/api/finance/uploads")
 def finance_uploads(request: Request):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     items = []
     if FINANCE_UPLOAD_MANIFEST.exists():
         for line in FINANCE_UPLOAD_MANIFEST.read_text(encoding="utf-8").splitlines()[-120:]:
@@ -419,7 +410,7 @@ def finance_uploads(request: Request):
 
 @app.post("/api/finance/entry")
 async def finance_entry(request: Request, payload: dict):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     entry = _validate_finance_entry(payload)
     FINANCE_ENTRY_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     with FINANCE_ENTRY_MANIFEST.open("a", encoding="utf-8") as target:
@@ -429,7 +420,7 @@ async def finance_entry(request: Request, payload: dict):
 
 @app.get("/api/finance/entries")
 def finance_entries(request: Request):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     items = []
     if FINANCE_ENTRY_MANIFEST.exists():
         for line in FINANCE_ENTRY_MANIFEST.read_text(encoding="utf-8").splitlines()[-120:]:
@@ -442,7 +433,7 @@ def finance_entries(request: Request):
 
 @app.post("/api/finance/opening")
 async def finance_opening(request: Request, payload: dict):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     opening = _validate_finance_opening(payload)
     FINANCE_OPENING_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     with FINANCE_OPENING_MANIFEST.open("a", encoding="utf-8") as target:
@@ -452,7 +443,7 @@ async def finance_opening(request: Request, payload: dict):
 
 @app.get("/api/finance/opening")
 def finance_opening_entries(request: Request):
-    _require_public_order_token(request)
+    _require_operation_auth(request)
     items = []
     if FINANCE_OPENING_MANIFEST.exists():
         for line in FINANCE_OPENING_MANIFEST.read_text(encoding="utf-8").splitlines()[-40:]:
@@ -1522,6 +1513,30 @@ def _login_page_html(next_path: str) -> str:
 def _require_public_order_token(request: Request) -> None:
     if not secrets.compare_digest(_request_token(request), _public_order_token()):
         raise HTTPException(status_code=403, detail="链接无效")
+
+
+def _require_operation_auth(request: Request) -> None:
+    if _operation_session_valid(request) or _basic_auth_valid(request):
+        return
+    raise HTTPException(status_code=401, detail="需要登录")
+
+
+def _basic_auth_valid(request: Request) -> bool:
+    password = os.environ.get("INVENTORY_PASSWORD", "")
+    if not password:
+        return False
+    authorization = request.headers.get("Authorization", "")
+    prefix = "Basic "
+    if not authorization.startswith(prefix):
+        return False
+    import base64
+
+    try:
+        decoded = base64.b64decode(authorization[len(prefix) :]).decode("utf-8")
+        supplied_username, supplied_password = decoded.split(":", 1)
+    except Exception:
+        return False
+    return secrets.compare_digest(supplied_username, _operation_auth_username()) and secrets.compare_digest(supplied_password, password)
 
 
 def _public_download_url(request: Request, filename: str) -> str:

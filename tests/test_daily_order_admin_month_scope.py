@@ -36,6 +36,7 @@ def write_order(
         "processed_channels": ["快驴"] if processed else [],
         "processed_at": submitted_at if processed else "",
         "submitted_at": submitted_at,
+        "client_host": "203.0.113.9",
         "items": [
             {
                 "sku": "KL-001",
@@ -143,3 +144,27 @@ def test_daily_channel_status_update_can_process_beijing_order(tmp_path, monkeyp
     assert response.status_code == 200
     assert response.json()["order_ids"] == ["BJ-JUN"]
     assert json.loads(beijing_path.read_text(encoding="utf-8"))["processed_channels"] == ["快驴"]
+
+
+def test_public_store_order_history_requires_remembered_order_ids(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+
+    write_order(submission_dir, "DO-KNOWN", "2026-06-15T10:00:00+08:00", 10)
+    write_order(submission_dir, "DO-OTHER", "2026-06-15T11:00:00+08:00", 6)
+
+    client = TestClient(module.app)
+    response = client.get("/daily-order/api/orders?store_name=%E9%93%B6%E6%B3%B0%E5%9F%8E%E5%BA%97")
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+    response = client.get(
+        "/daily-order/api/orders?store_name=%E9%93%B6%E6%B3%B0%E5%9F%8E%E5%BA%97&order_ids=DO-KNOWN"
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["order_id"] for item in items] == ["DO-KNOWN"]
+    assert "client_host" not in items[0]
+    assert items[0]["items"][0]["name"] == "洋葱"
