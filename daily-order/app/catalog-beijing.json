@@ -273,6 +273,42 @@
       "force_purchase_channel": true
     },
     {
+      "sku": "BJ-DRINK-001",
+      "source": "快递到店",
+      "category": "饮品",
+      "name": "山姆矿泉水",
+      "spec": "",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/BJ-DRINK-001.svg",
+      "purchase_channel": "山姆",
+      "force_purchase_channel": true
+    },
+    {
+      "sku": "BJ-DRINK-002",
+      "source": "快递到店",
+      "category": "饮品",
+      "name": "无糖可乐",
+      "spec": "",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/BJ-DRINK-002.svg",
+      "purchase_channel": "山姆",
+      "force_purchase_channel": true
+    },
+    {
+      "sku": "BJ-DRINK-003",
+      "source": "快递到店",
+      "category": "饮品",
+      "name": "椰子水",
+      "spec": "",
+      "unit": "箱",
+      "note": "",
+      "image": "/daily-order/static/images/BJ-DRINK-003.svg",
+      "purchase_channel": "山姆",
+      "force_purchase_channel": true
+    },
+    {
       "sku": "CJ-020",
       "source": "冷库配送（2日内）",
       "category": "冻品",

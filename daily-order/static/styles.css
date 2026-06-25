@@ -368,6 +368,10 @@ textarea {
   margin-top: 10px;
 }
 
+.beijing-order-page .secondary-tabs {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
 .tabs button,
 .ghost-button {
   min-height: 48px;
@@ -441,6 +445,18 @@ textarea {
   border-color: #efcfaa;
   background: #fff4e9;
   color: #875526;
+}
+
+.secondary-tabs button[data-food-category="酱汁"] {
+  border-color: #f0c7b8;
+  background: #fff3ee;
+  color: #8a4a32;
+}
+
+.secondary-tabs button[data-food-category="饮品"] {
+  border-color: #b8dff0;
+  background: #effaff;
+  color: #2f6d89;
 }
 
 .secondary-tabs button[data-food-category="冻品"] {
@@ -1331,9 +1347,19 @@ dialog::backdrop {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .beijing-order-page .secondary-tabs {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+  }
+
   .secondary-tabs button {
     min-height: 36px;
     font-size: 14px;
+  }
+
+  .beijing-order-page .secondary-tabs button {
+    padding: 0 3px;
+    font-size: 12px;
   }
 
   .admin-stats,

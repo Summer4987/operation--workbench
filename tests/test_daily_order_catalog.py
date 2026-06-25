@@ -105,7 +105,7 @@ def test_condiment_and_supply_categories_are_grouped_by_delivery_source():
 def test_sauce_category_is_available_in_food_tabs():
     app_js = (Path(__file__).resolve().parents[1] / "daily-order" / "static" / "app.js").read_text(encoding="utf-8")
 
-    assert '["蔬菜", "禽蛋", "粮油", "酱汁", "冻品", "工作餐"]' in app_js
+    assert '["蔬菜", "禽蛋", "粮油", "酱汁", "饮品", "冻品", "工作餐"]' in app_js
 
 
 def test_sauce_items_exist_in_store_order_catalogs():
@@ -128,3 +128,32 @@ def test_sauce_items_exist_in_store_order_catalogs():
         assert all(item.get("force_purchase_channel") is True for item in sauce_items)
         for item in sauce_items:
             assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
+
+
+def test_beijing_drink_category_items_exist_only_in_beijing_catalog():
+    root = Path(__file__).resolve().parents[1]
+    beijing_catalog = json.loads((root / "daily-order" / "app" / "catalog-beijing.json").read_text(encoding="utf-8"))
+    chengdu_catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+    drink_items = [item for item in beijing_catalog["items"] if item.get("category") == "饮品"]
+
+    assert [(item["sku"], item["name"]) for item in drink_items] == [
+        ("BJ-DRINK-001", "山姆矿泉水"),
+        ("BJ-DRINK-002", "无糖可乐"),
+        ("BJ-DRINK-003", "椰子水"),
+    ]
+    assert all(item["source"] == "快递到店" for item in drink_items)
+    assert all(item["purchase_channel"] == "山姆" for item in drink_items)
+    assert all(item.get("force_purchase_channel") is True for item in drink_items)
+    assert all(item["unit"] == "箱" for item in drink_items)
+    assert all(item.get("category") != "饮品" for item in chengdu_catalog["items"])
+    for item in drink_items:
+        assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
+
+
+def test_beijing_food_tabs_are_seven_even_columns():
+    styles = (Path(__file__).resolve().parents[1] / "daily-order" / "static" / "styles.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".beijing-order-page .secondary-tabs" in styles
+    assert "repeat(7, minmax(0, 1fr))" in styles
