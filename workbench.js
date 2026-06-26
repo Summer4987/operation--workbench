@@ -1411,12 +1411,10 @@ function orderSuggestionGroups(orderSuggestions) {
       channel,
       status: "待人工确认",
       item_count: 0,
-      estimated_cost: 0,
       items: [],
     };
     group.items.push(item);
     group.item_count += 1;
-    group.estimated_cost += Number(item.estimated_cost || 0);
     grouped.set(channel, group);
   });
   return [...grouped.values()].sort((a, b) => b.item_count - a.item_count);
@@ -1439,7 +1437,6 @@ function checklistText(orderSuggestions, groups) {
     `生成时间：${orderSuggestions.generated_at || data.generated_at || "-"}`,
     `建议品项：${summary.suggestion_count || 0} 项`,
     `供应渠道：${summary.channel_count || groups.length || 0} 个`,
-    `预估金额：${yuan(summary.estimated_cost || 0)}`,
     `确认状态：${confirmation.status === "pending" ? "待人工确认" : "当前无需订货"}`,
     "",
     "确认前禁止动作：",
@@ -1450,15 +1447,15 @@ function checklistText(orderSuggestions, groups) {
 
   groups.forEach((group) => {
     lines.push("");
-    lines.push(`[${group.channel || "未配置供应渠道"}] ${group.item_count || 0} 项，预估 ${yuan(group.estimated_cost || 0)}`);
+    lines.push(`[${group.channel || "未配置供应渠道"}] ${group.item_count || 0} 项`);
     (group.items || []).forEach((item) => {
       lines.push(
-        `- ${item.name || item.sku || "未命名商品"}｜规格 ${item.spec || "-"}｜库存 ${num(item.balance, 2)}${item.unit || ""}｜预警 ${num(item.warning_threshold, 2)}｜建议 ${num(item.suggested_quantity, 2)}${item.unit || ""}｜预估 ${yuan(item.estimated_cost || 0)}`
+        `- ${item.name || item.sku || "未命名商品"}｜规格 ${item.spec || "-"}｜库存 ${num(item.balance, 2)}${item.unit || ""}｜预警 ${num(item.warning_threshold, 2)}｜建议 ${num(item.suggested_quantity, 2)}${item.unit || ""}`
       );
     });
   });
   lines.push("");
-  lines.push("人工确认：品项、数量、供应渠道、替代品、付款金额均确认无误后，再生成渠道下单清单。");
+  lines.push("人工确认：品项、数量、供应渠道和替代品均确认无误后，再生成渠道下单清单；付款金额只在供应渠道平台最终页面核对。");
   return lines.join("\n");
 }
 
@@ -1570,7 +1567,6 @@ function renderOrdering() {
   const deviceRows = androidConfigRows(androidConfig);
   const suggestionCount = Number(summary.suggestion_count || groups.reduce((sum, group) => sum + Number(group.item_count || 0), 0));
   const channelCount = Number(summary.channel_count || groups.length);
-  const estimatedCost = Number(summary.estimated_cost || groups.reduce((sum, group) => sum + Number(group.estimated_cost || 0), 0));
   const pending = confirmation.status === "pending" && suggestionCount > 0;
   const hasOrderLists = orderLists.status === "ready" && listRows.length > 0;
   const statusText = orderSuggestions.status === "failed" ? "生成失败" : hasOrderLists ? "待下单" : pending ? "待确认" : "无需订货";
@@ -1585,7 +1581,7 @@ function renderOrdering() {
     "orderingSummary",
     orderSuggestions.status === "failed"
       ? orderSuggestions.message || "订货建议生成失败，请查看任务健康报告。"
-      : `按库存预警生成订货建议，当前 ${channelCount} 个供应渠道，预估 ${yuan(estimatedCost)}。`
+      : `按库存预警生成订货建议，当前 ${channelCount} 个供应渠道。`
   );
   text("orderingConfirmStatus", pending ? "需人工确认" : "当前无需处理");
   text("orderingConfirmMessage", confirmation.message || "订货建议只用于人工确认；确认前不会自动下单或付款。");
@@ -1609,19 +1605,19 @@ function renderOrdering() {
   rows(
     "orderingRows",
     groups.slice(0, 8),
-    (group) => `<div class="${pending ? "warn-row" : "good-row"}"><span>${escapeHtml(group.channel || "未配置供应渠道")}</span><strong>${num(group.item_count)} 项 / ${yuan(group.estimated_cost)}</strong><em>${escapeHtml(orderItemsPreview(group))}</em></div>`
+    (group) => `<div class="${pending ? "warn-row" : "good-row"}"><span>${escapeHtml(group.channel || "未配置供应渠道")}</span><strong>${num(group.item_count)} 项</strong><em>${escapeHtml(orderItemsPreview(group))}</em></div>`
   );
 
   rows(
     "orderingListRows",
     listRows.slice(0, 8),
-    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项 / ${yuan(item.estimated_cost)}</strong><em>${escapeHtml(orderListPreview(item))}</em></div>`
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项</strong><em>${escapeHtml(orderListPreview(item))}</em></div>`
   );
 
   rows(
     "orderingExecutionRows",
     executionRows.slice(0, 8),
-    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项 / ${yuan(item.estimated_cost)}</strong><em>${escapeHtml(executionPreviewText(item))}</em></div>`
+    (item) => `<div class="warn-row"><span>${escapeHtml(item.channel || "未配置供应渠道")}</span><strong>${num(item.item_count)} 项</strong><em>${escapeHtml(executionPreviewText(item))}</em></div>`
   );
 
   rows(
@@ -1651,9 +1647,9 @@ function renderInventory() {
   const warningCount = warningsReliable ? Number(inventory.warning_count ?? warnings.length) : 0;
   const sourceText = inventory.source === "cloud" ? "云端" : inventory.source === "local_fallback_empty" ? "本地空库" : "本地";
   text("metricInventory", warningsReliable ? `${warningCount} 个` : "待同步");
-  text("metricInventoryValue", warningsReliable ? `货值 ${yuan(inventory.inventory_value || 0)} · ${sourceText}` : `货值待同步 · ${sourceText}`);
+  text("metricInventoryValue", `成本已隐藏 · ${sourceText}`);
   text("inventoryProductCount", `${inventory.product_count || 0} 项`);
-  text("inventorySummary", warningsReliable ? `当前库存货值 ${yuan(inventory.inventory_value || 0)}，预警 ${warningCount} 项，来源：${sourceText}。` : (inventory.message || "库存数据待同步，暂不展示低库存预警。"));
+  text("inventorySummary", warningsReliable ? `当前库存预警 ${warningCount} 项，来源：${sourceText}。成本字段不下发到前端。` : (inventory.message || "库存数据待同步，暂不展示低库存预警。"));
   cls("inventoryMetricCard", "alert", warnings.length > 0);
   document.querySelector("#inventory")?.classList.toggle("alert", warnings.length > 0);
   document.querySelector("#metricInventoryValue")?.classList.toggle("danger", warnings.length > 0);

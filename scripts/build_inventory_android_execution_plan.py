@@ -65,7 +65,6 @@ def build_channel_job(preview: dict[str, Any]) -> dict[str, Any]:
         "target_app": app_hint(channel),
         "status": "只读计划",
         "item_count": len(lines),
-        "estimated_cost": round(sum(safe_float(item.get("estimated_cost")) for item in lines), 2),
         "preflight_checks": [
             "远控安卓手机在线且屏幕已解锁",
             "目标 App 已登录正确账号",
@@ -107,7 +106,6 @@ def not_ready_payload(preview: dict[str, Any]) -> dict[str, Any]:
         "summary": {
             "channel_count": 0,
             "item_count": 0,
-            "estimated_cost": 0.0,
         },
         "safety": {
             "dry_run": True,
@@ -135,7 +133,6 @@ def build_payload(preview: dict[str, Any], operator: str) -> dict[str, Any]:
         "summary": {
             "channel_count": len(jobs),
             "item_count": sum(int(item.get("item_count") or 0) for item in jobs),
-            "estimated_cost": round(sum(safe_float(item.get("estimated_cost")) for item in jobs), 2),
         },
         "operator": {
             "name": operator,
@@ -163,7 +160,6 @@ def failed_payload(exc: Exception) -> dict[str, Any]:
         "summary": {
             "channel_count": 0,
             "item_count": 0,
-            "estimated_cost": 0.0,
         },
         "android_jobs": [],
     }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import subprocess
 from datetime import datetime, timedelta
@@ -50,6 +51,8 @@ DISPLAY_LABEL_DUPLICATES = (
     ("直营店直营店", "直营店"),
     ("品牌品牌", "品牌"),
 )
+PUBLIC_SENSITIVE_KEYS = {"unit_cost", "unit_price", "estimated_cost", "inventory_value"}
+RETIRED_PUBLIC_TASK_PREFIXES = ("finance.",)
 
 
 def read_json(path: Path, fallback: dict) -> dict:
@@ -71,6 +74,32 @@ def normalize_display_labels(value):
         for duplicate, replacement in DISPLAY_LABEL_DUPLICATES:
             text = text.replace(duplicate, replacement)
         return text
+    return value
+
+
+def sanitize_public_payload(value):
+    if isinstance(value, dict):
+        identifier = str(value.get("task_id") or value.get("id") or "")
+        if identifier.startswith(RETIRED_PUBLIC_TASK_PREFIXES):
+            return None
+        clean = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text in PUBLIC_SENSITIVE_KEYS or key_text.startswith(RETIRED_PUBLIC_TASK_PREFIXES):
+                continue
+            sanitized = sanitize_public_payload(item)
+            if sanitized is not None:
+                clean[key] = sanitized
+        return clean
+    if isinstance(value, list):
+        clean_items = []
+        for item in value:
+            sanitized = sanitize_public_payload(item)
+            if sanitized is not None:
+                clean_items.append(sanitized)
+        return clean_items
+    if isinstance(value, str):
+        return re.sub(r"[，,]?\s*预估金额\s*[-+]?\d+(?:\.\d+)?\s*元", "", value)
     return value
 
 
@@ -99,6 +128,11 @@ def git_metadata() -> dict:
     }
 
 
+def public_inventory_item(item: dict) -> dict:
+    allowed = {"sku", "name", "spec", "unit", "warehouse", "balance", "warning_threshold", "last_inbound_at", "last_outbound_at"}
+    return {key: item.get(key) for key in allowed if key in item}
+
+
 def inventory_snapshot() -> dict:
     try:
         with urlopen(CLOUD_INVENTORY_URL, timeout=10) as response:
@@ -110,9 +144,8 @@ def inventory_snapshot() -> dict:
             "source": "cloud",
             "product_count": int(stats.get("product_count") or len(items)),
             "warning_count": int(stats.get("warning_count") or 0),
-            "inventory_value": float(stats.get("inventory_value") or 0),
             "warnings_reliable": True,
-            "items": items[:12],
+            "items": [public_inventory_item(item) for item in items[:12]],
         }
     except Exception as exc:
         cloud_error = str(exc)
@@ -126,7 +159,6 @@ def inventory_snapshot() -> dict:
             "message": "库存云端未返回可用数据，本地备用库不存在；已暂停低库存预警。",
             "product_count": 0,
             "warning_count": 0,
-            "inventory_value": 0,
             "warnings_reliable": False,
             "items": [],
         }
@@ -135,7 +167,7 @@ def inventory_snapshot() -> dict:
         movement_count = int(conn.execute("SELECT COUNT(*) FROM movements").fetchone()[0] or 0)
         rows = conn.execute(
             """
-            SELECT sku, name, spec, unit, warning_threshold, unit_cost,
+            SELECT sku, name, spec, unit, warning_threshold,
                    COALESCE((SELECT SUM(signed_quantity) FROM movements WHERE movements.sku = products.sku), 0) AS balance
             FROM products
             ORDER BY name
@@ -149,20 +181,16 @@ def inventory_snapshot() -> dict:
             "message": "库存云端未返回可用数据，本地备用库只有商品目录、没有入出库流水；已暂停低库存预警，避免把 0 库存种子数据误报为异常。",
             "product_count": len(rows),
             "warning_count": 0,
-            "inventory_value": 0,
             "warnings_reliable": False,
             "items": [],
         }
     items = []
     warning_count = 0
-    inventory_value = 0.0
     for row in rows:
         balance = float(row["balance"] or 0)
         threshold = float(row["warning_threshold"] or 0)
-        unit_cost = float(row["unit_cost"] or 0)
         if balance <= threshold:
             warning_count += 1
-        inventory_value += balance * unit_cost
         items.append(
             {
                 "sku": row["sku"],
@@ -171,7 +199,6 @@ def inventory_snapshot() -> dict:
                 "unit": row["unit"],
                 "balance": balance,
                 "warning_threshold": threshold,
-                "inventory_value": balance * unit_cost,
             }
         )
     return {
@@ -180,7 +207,6 @@ def inventory_snapshot() -> dict:
         "error": cloud_error,
         "product_count": len(items),
         "warning_count": warning_count,
-        "inventory_value": inventory_value,
         "warnings_reliable": True,
         "items": items[:12],
     }
@@ -1021,7 +1047,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "level": "需人工处理",
                 "center": "直营店货流中心",
                 "title": "订货建议待确认",
-                "reason": f"库存预警已生成 {suggestion_count} 项订货建议，{channel_count} 个供应渠道，预估 {float(suggestion_summary.get('estimated_cost') or 0):.0f} 元。",
+                "reason": f"库存预警已生成 {suggestion_count} 项订货建议，{channel_count} 个供应渠道。",
                 "action": "先人工确认品项、数量和供应渠道；确认前不自动下单、不付款。",
                 "source": "flow.auto_ordering",
             }
@@ -1034,7 +1060,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "level": "需人工处理",
                 "center": "直营店货流中心",
                 "title": "渠道下单清单待执行",
-                "reason": f"已生成 {order_list_summary.get('order_list_count')} 个供应渠道下单清单，预估 {float(order_list_summary.get('estimated_cost') or 0):.0f} 元。",
+                "reason": f"已生成 {order_list_summary.get('order_list_count')} 个供应渠道下单清单。",
                 "action": "按渠道下单前再次核对数量和付款金额，付款仍需人工确认。",
                 "source": "flow.auto_ordering",
             }
@@ -1047,7 +1073,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "level": "需人工处理",
                 "center": "直营店货流中心",
                 "title": "订货付款待确认",
-                "reason": f"下单执行预览已生成，{execution_summary.get('channel_count', 0)} 个供应渠道，预估 {float(execution_summary.get('estimated_cost') or 0):.0f} 元。",
+                "reason": f"下单执行预览已生成，{execution_summary.get('channel_count', 0)} 个供应渠道。",
                 "action": "付款前核对供应渠道、商品、数量和平台最终金额；未确认前不要远控安卓提交订单。",
                 "source": "flow.auto_ordering",
             }
@@ -1060,7 +1086,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 "level": "需人工处理",
                 "center": "直营店货流中心",
                 "title": "远控安卓执行计划待接管",
-                "reason": f"只读执行计划已生成，{android_summary.get('channel_count', 0)} 个供应渠道，预估 {float(android_summary.get('estimated_cost') or 0):.0f} 元。",
+                "reason": f"只读执行计划已生成，{android_summary.get('channel_count', 0)} 个供应渠道。",
                 "action": "人工操作员接管远控安卓；系统仍禁止自动提交订单和自动付款。",
                 "source": "flow.auto_ordering",
             }
@@ -1382,7 +1408,7 @@ def main() -> None:
         "task_health": task_health,
         "ai_advice": ai_advice,
     }
-    payload = normalize_display_labels(payload)
+    payload = sanitize_public_payload(normalize_display_labels(payload))
     atomic_write_text(OUTPUT_PATH, "window.WORKBENCH_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n")
     print(f"运营总看板数据已更新：{OUTPUT_PATH}")
 

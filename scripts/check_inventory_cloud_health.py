@@ -44,7 +44,6 @@ def normalize_summary(payload: dict[str, Any], server: str) -> dict[str, Any]:
 
     product_count = int(stats.get("product_count") or len(items))
     warning_count = int(stats.get("warning_count") or 0)
-    inventory_value = float(stats.get("inventory_value") or 0)
     if product_count <= 0:
         raise ValueError("库存云端没有返回任何商品。")
 
@@ -74,7 +73,6 @@ def normalize_summary(payload: dict[str, Any], server: str) -> dict[str, Any]:
         "stats": {
             "product_count": product_count,
             "warning_count": warning_count,
-            "inventory_value": inventory_value,
         },
         "warning_items": warning_items[:12],
         "message": f"库存云端可访问：{product_count} 个商品，预警 {warning_count} 项。",

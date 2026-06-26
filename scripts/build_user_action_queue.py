@@ -158,7 +158,7 @@ def build_payload() -> dict[str, Any]:
                 title="订货建议待人工确认",
                 center="直营店货流中心",
                 priority="medium",
-                reason=f"当前有 {suggestion_count} 项订货建议，分布在 {order_summary.get('channel_count', 0)} 个供应渠道，预估 {float(order_summary.get('estimated_cost') or 0):.2f} 元。",
+                reason=f"当前有 {suggestion_count} 项订货建议，分布在 {order_summary.get('channel_count', 0)} 个供应渠道。",
                 action=f"{checklist or '先核对品项、数量和供应渠道。'} 确认后运行 `{command}`。",
                 source="flow.inventory",
                 evidence="outputs/inventory_order_suggestions/latest.json",

@@ -67,7 +67,7 @@ async function loadAll() {
   state.inboundTemplate = templateStatus;
   els.productCount.textContent = summary.stats.product_count;
   els.warningCount.textContent = summary.stats.warning_count;
-  els.inventoryValue.textContent = money(summary.stats.inventory_value);
+  els.inventoryValue.textContent = "已隐藏";
   renderInventory();
   renderImports(imports.items);
   renderMovements(movements.items);

@@ -51,13 +51,11 @@ def normalize_groups(suggestions: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "channel": channel,
                 "item_count": 0,
-                "estimated_cost": 0.0,
                 "items": [],
             },
         )
         group["items"].append(item)
         group["item_count"] += 1
-        group["estimated_cost"] = round(safe_float(group["estimated_cost"]) + safe_float(item.get("estimated_cost")), 2)
     return sorted(grouped.values(), key=lambda item: (-int(item["item_count"]), item["channel"]))
 
 
@@ -65,7 +63,6 @@ def channel_order_lines(group: dict[str, Any]) -> list[dict[str, Any]]:
     lines = []
     for index, item in enumerate(group.get("items") or [], start=1):
         quantity = safe_float(item.get("suggested_quantity"))
-        estimated_cost = safe_float(item.get("estimated_cost"))
         lines.append(
             {
                 "line_no": index,
@@ -74,7 +71,6 @@ def channel_order_lines(group: dict[str, Any]) -> list[dict[str, Any]]:
                 "spec": item.get("spec", ""),
                 "unit": item.get("unit", ""),
                 "quantity": quantity,
-                "estimated_cost": round(estimated_cost, 2),
                 "current_balance": safe_float(item.get("balance")),
                 "warning_threshold": safe_float(item.get("warning_threshold")),
                 "reason": item.get("reason", ""),
@@ -93,7 +89,6 @@ def waiting_payload(suggestions: dict[str, Any]) -> dict[str, Any]:
         "summary": {
             "suggestion_count": int(summary.get("suggestion_count") or 0),
             "channel_count": int(summary.get("channel_count") or 0),
-            "estimated_cost": safe_float(summary.get("estimated_cost")),
             "order_list_count": 0,
         },
         "confirmation": {
@@ -121,7 +116,6 @@ def build_payload(suggestions: dict[str, Any], confirmed_by: str) -> dict[str, A
             "summary": {
                 "suggestion_count": 0,
                 "channel_count": 0,
-                "estimated_cost": 0.0,
                 "order_list_count": 0,
             },
             "confirmation": {
@@ -146,8 +140,7 @@ def build_payload(suggestions: dict[str, Any], confirmed_by: str) -> dict[str, A
                 "channel": group.get("channel") or "未配置供应渠道",
                 "status": "待下单",
                 "item_count": len(lines),
-                "estimated_cost": round(sum(safe_float(item.get("estimated_cost")) for item in lines), 2),
-                "next_action": "按此清单在对应供应渠道下单；付款前再次人工核对金额。",
+                "next_action": "按此清单在对应供应渠道下单；付款前再次人工核对平台最终金额。",
                 "lines": lines,
             }
         )
@@ -159,7 +152,6 @@ def build_payload(suggestions: dict[str, Any], confirmed_by: str) -> dict[str, A
         "summary": {
             "suggestion_count": suggestion_count,
             "channel_count": len(order_lists),
-            "estimated_cost": round(sum(safe_float(item.get("estimated_cost")) for item in order_lists), 2),
             "order_list_count": len(order_lists),
         },
         "confirmation": {
@@ -184,7 +176,6 @@ def failed_payload(exc: Exception) -> dict[str, Any]:
         "summary": {
             "suggestion_count": 0,
             "channel_count": 0,
-            "estimated_cost": 0.0,
             "order_list_count": 0,
         },
         "order_lists": [],

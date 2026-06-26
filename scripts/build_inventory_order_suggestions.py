@@ -50,7 +50,6 @@ def build_suggestions(items: list[dict[str, Any]], buffer_units: float) -> list[
             continue
         target_stock = max(threshold + buffer_units, threshold)
         suggested_quantity = max(1, math.ceil(target_stock - balance))
-        unit_cost = safe_float(item.get("unit_cost"))
         suggestions.append(
             {
                 "sku": item.get("sku", ""),
@@ -62,7 +61,6 @@ def build_suggestions(items: list[dict[str, Any]], buffer_units: float) -> list[
                 "warning_threshold": threshold,
                 "target_stock": target_stock,
                 "suggested_quantity": suggested_quantity,
-                "estimated_cost": round(suggested_quantity * unit_cost, 2),
                 "reason": f"当前库存 {balance:g}，预警线 {threshold:g}，建议补到 {target_stock:g}。",
             }
         )
@@ -79,14 +77,12 @@ def group_by_channel(suggestions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "channel": channel,
                 "status": "待人工确认",
                 "item_count": 0,
-                "estimated_cost": 0.0,
                 "items": [],
                 "next_action": "人工确认品项、数量和供应渠道后，再生成下单清单。",
             },
         )
         group["items"].append(item)
         group["item_count"] += 1
-        group["estimated_cost"] = round(float(group["estimated_cost"]) + float(item.get("estimated_cost") or 0), 2)
     return sorted(grouped.values(), key=lambda item: (-int(item["item_count"]), item["channel"]))
 
 
@@ -94,7 +90,7 @@ def confirmation_checklist(groups: list[dict[str, Any]]) -> list[str]:
     if not groups:
         return []
     return [
-        "逐个供应渠道核对品项、规格、数量和预估金额。",
+        "逐个供应渠道核对品项、规格和数量。",
         "确认低库存原因不是盘点延迟或单位录入错误。",
         "确认后运行 `python3 scripts/build_inventory_order_lists.py --confirmed-by \"确认人\"` 生成渠道下单清单。",
     ]
@@ -107,7 +103,6 @@ def build_payload(server: str, timeout: int, buffer_units: float) -> dict[str, A
         raise ValueError("库存 /api/summary 缺少 items 列表。")
     suggestions = build_suggestions(items, buffer_units)
     groups = group_by_channel(suggestions)
-    estimated_cost = round(sum(float(item.get("estimated_cost") or 0) for item in suggestions), 2)
     return {
         "generated_at": now_text(),
         "status": "ready",
@@ -129,11 +124,10 @@ def build_payload(server: str, timeout: int, buffer_units: float) -> dict[str, A
         "summary": {
             "suggestion_count": len(suggestions),
             "channel_count": len(groups),
-            "estimated_cost": estimated_cost,
         },
         "groups": groups,
         "items": suggestions,
-        "message": f"订货建议已生成：{len(suggestions)} 项，预估金额 {estimated_cost:.2f} 元。",
+        "message": f"订货建议已生成：{len(suggestions)} 项。",
     }
 
 
@@ -170,7 +164,6 @@ def main() -> int:
             log_path=LATEST_PATH,
             extra={
                 "suggestion_count": payload["summary"]["suggestion_count"],
-                "estimated_cost": payload["summary"]["estimated_cost"],
                 "requires_human_confirm": True,
             },
         )

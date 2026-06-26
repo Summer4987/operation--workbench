@@ -44,11 +44,10 @@ def build_channel_preview(order_list: dict[str, Any]) -> dict[str, Any]:
         "channel": order_list.get("channel") or "未配置供应渠道",
         "status": "等待执行确认",
         "item_count": len(lines),
-        "estimated_cost": round(sum(safe_float(item.get("estimated_cost")) for item in lines), 2),
         "execution_steps": [
             "打开对应供应渠道下单入口",
             "逐项录入商品、规格和数量",
-            "核对平台显示金额和本清单预估金额",
+            "在平台页面核对最终金额",
             "提交订单前停止，等待人工确认付款",
         ],
         "manual_confirm_fields": [
@@ -75,7 +74,6 @@ def not_required_payload(order_lists: dict[str, Any]) -> dict[str, Any]:
         "summary": {
             "channel_count": 0,
             "item_count": 0,
-            "estimated_cost": 0.0,
         },
         "payment_confirmation": {
             "required": False,
@@ -98,7 +96,6 @@ def waiting_payload(order_lists: dict[str, Any]) -> dict[str, Any]:
         "summary": {
             "channel_count": int(summary.get("order_list_count") or 0),
             "item_count": int(summary.get("suggestion_count") or 0),
-            "estimated_cost": safe_float(summary.get("estimated_cost")),
         },
         "payment_confirmation": {
             "required": True,
@@ -121,7 +118,6 @@ def build_payload(order_lists: dict[str, Any], payment_confirmed_by: str) -> dic
 
     channel_previews = [build_channel_preview(item) for item in order_lists.get("order_lists") or []]
     item_count = sum(int(item.get("item_count") or 0) for item in channel_previews)
-    estimated_cost = round(sum(safe_float(item.get("estimated_cost")) for item in channel_previews), 2)
     generated_at = now_text()
     payment_confirmed = bool(payment_confirmed_by)
     return {
@@ -131,7 +127,6 @@ def build_payload(order_lists: dict[str, Any], payment_confirmed_by: str) -> dic
         "summary": {
             "channel_count": len(channel_previews),
             "item_count": item_count,
-            "estimated_cost": estimated_cost,
         },
         "payment_confirmation": {
             "required": True,
@@ -165,7 +160,6 @@ def failed_payload(exc: Exception) -> dict[str, Any]:
         "summary": {
             "channel_count": 0,
             "item_count": 0,
-            "estimated_cost": 0.0,
         },
         "channel_previews": [],
     }
