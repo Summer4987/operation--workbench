@@ -67,7 +67,6 @@ echo "== 配置与语法检查 =="
   scripts/build_promo_balance_status.py \
   scripts/build_user_action_queue.py \
   scripts/build_tool_warehouse_status.py \
-  scripts/build_finance_center_status.py \
   scripts/build_task_health.py \
   scripts/download_direct_meituan_daily.py \
   scripts/download_direct_meituan_reviews.py \
@@ -120,7 +119,6 @@ else
   echo "提示：未找到 Node，跳过销售单打印版式校验。"
 fi
 "$PYTHON" scripts/build_tool_warehouse_status.py
-"$PYTHON" scripts/build_finance_center_status.py
 "$PYTHON" scripts/build_task_health.py
 "$PYTHON" scripts/build_workbench_data.py
 echo

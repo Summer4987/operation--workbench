@@ -35,8 +35,6 @@ run_optional "日报重点状态更新" "$PYTHON" scripts/build_daily_focus_stat
 run_optional "评价待办状态更新" "$PYTHON" scripts/build_review_action_status.py
 run_optional "直营店日报看板生成" "$PYTHON" business-report-dashboard/process_direct_reports.py
 run_optional "推广余额状态更新" "$PYTHON" scripts/build_promo_balance_status.py
-run_optional "财务三方流水核对预览" "$PYTHON" scripts/build_finance_reconciliation_preview.py
-run_optional "品牌财务中心状态" "$PYTHON" scripts/build_finance_center_status.py
 "$PYTHON" scripts/build_workbench_data.py
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"

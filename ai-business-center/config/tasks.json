@@ -17,11 +17,6 @@
       "description": "订货、库存、销量预测、缺货和滞销提醒。"
     },
     {
-      "id": "finance",
-      "name": "品牌财务中心",
-      "description": "账单解析、费用归因、利润报表和异常扣费提醒。"
-    },
-    {
       "id": "franchise",
       "name": "加盟业务中心",
       "description": "合同、加盟资料、流程清单、文件生成和提醒。"
@@ -150,17 +145,6 @@
         {"path": "inventory-board/data/inventory.sqlite3", "type": "file", "freshness_hours": 168}
       ],
       "blockers": ["network", "remote_permission", "data_missing"]
-    },
-    {
-      "id": "finance.placeholder",
-      "center": "finance",
-      "name": "财务账单分析",
-      "risk": "low",
-      "mode": "planned",
-      "description": "待接入平台账单下载、解析、利润报表和费用异常分析。",
-      "command": [],
-      "evidence": [],
-      "blockers": ["source_not_connected"]
     },
     {
       "id": "franchise.placeholder",

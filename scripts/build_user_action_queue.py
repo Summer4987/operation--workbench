@@ -11,7 +11,6 @@ OUTPUT_DIR = ROOT / "outputs" / "user_action_queue"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 TASK_HEALTH_PATH = ROOT / "outputs" / "task_health" / "latest.json"
 ANDROID_CONFIG_PATH = ROOT / "outputs" / "android_execution_config" / "latest.json"
-FINANCE_CENTER_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 TOOL_WAREHOUSE_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
 PROMO_BID_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
@@ -63,7 +62,6 @@ def action_item(
 def build_payload() -> dict[str, Any]:
     task_health = read_json(TASK_HEALTH_PATH, {})
     android_config = read_json(ANDROID_CONFIG_PATH, {})
-    finance = read_json(FINANCE_CENTER_PATH, {})
     tools = read_json(TOOL_WAREHOUSE_PATH, {})
     bid_queue = read_json(PROMO_BID_QUEUE_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
@@ -294,26 +292,6 @@ def build_payload() -> dict[str, Any]:
                 action=weekly_recap.get("next_action") or "查看本周评价复盘，先处理高频问题门店。",
                 source="ops.review_weekly",
                 evidence="outputs/review_action_status/latest.json",
-            )
-        )
-
-    if finance.get("status") == "waiting_samples":
-        missing = "、".join(finance.get("missing") or []) or "银行账单和平台账单样例"
-        intake_messages = [
-            item.get("message", "")
-            for item in finance.get("intake_checklist") or []
-            if item.get("message")
-        ]
-        items.append(
-            action_item(
-                item_id="finance.samples",
-                title="财务账单样例待提供",
-                center="品牌财务中心",
-                priority="medium",
-                reason=f"财务字段字典已建立，当前缺少：{missing}。",
-                action="；".join(intake_messages) or "提供银行账单、美团账单、饿了么账单样例后，再进入字段映射和利润表生成。",
-                source="finance.bill_analysis",
-                evidence="outputs/finance_center_status/latest.json",
             )
         )
 

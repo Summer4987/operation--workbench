@@ -32,7 +32,6 @@ PROMO_BID_EXECUTION_PLAN_PATH = ROOT / "outputs" / "promo_bid_execution_plan" / 
 PROMO_BID_SIGNAL_STATUS_PATH = ROOT / "outputs" / "promo_bid_signal_status" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
-FINANCE_CENTER_STATUS_PATH = ROOT / "outputs" / "finance_center_status" / "latest.json"
 USER_ACTION_QUEUE_PATH = ROOT / "outputs" / "user_action_queue" / "latest.json"
 MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
 OPERATION_AUTOMATION_CHECK_PATH = ROOT / "outputs" / "operation_automation_check" / "latest.json"
@@ -44,7 +43,6 @@ DISPLAY_LABEL_REPLACEMENTS = {
     "运营数据中心": "加盟店运营数据中心",
     "商业化推广中心": "全品牌推广中心",
     "货流中心": "直营店货流中心",
-    "财务中心": "品牌财务中心",
 }
 DISPLAY_LABEL_DUPLICATES = (
     ("加盟店加盟店", "加盟店"),
@@ -720,7 +718,7 @@ def explain_store_change(store: str, delta: float, signals: dict[str, list], inv
     return "；".join(part for part in reasons if part), "；".join(actions[:3])
 
 
-def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, finance_center: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, daily_trends: dict, task_health: dict) -> dict:
+def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggestions: dict, order_lists: dict, order_execution_preview: dict, android_execution_plan: dict, android_config: dict, promo_retry: dict, promo_bid_advice: dict, promo_bid_approval_queue: dict, promo_balance_status: dict, review_actions: dict, daily_focus: dict, tool_warehouse: dict, user_action_queue: dict, morning_collection: dict, realtime_collection: dict, realtime_comparison: dict, daily_trends: dict, task_health: dict) -> dict:
     rows: list[dict] = []
     daily_trend_rows: list[dict] = []
     review_weekly_rows: list[dict] = []
@@ -1147,19 +1145,6 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             }
         )
 
-    if finance_center.get("status") == "waiting_samples":
-        missing = "、".join(finance_center.get("missing") or [])
-        rows.append(
-            {
-                "level": "提醒",
-                "center": "品牌财务中心",
-                "title": "财务账单样例待提供",
-                "reason": f"财务字段字典已建立，当前缺少：{missing or '账单样例'}。",
-                "action": "提供银行账单和美团/饿了么平台账单样例后，再进入字段映射和利润表生成。",
-                "source": "finance.bill_analysis",
-            }
-        )
-
     trend = "待积累"
     summary = "AI建议会优先处理自动化异常，再结合实时单量、评价、余额和库存解释经营波动。"
     trend_orders = (daily_trends.get("summary") or {}).get("orders") or {}
@@ -1305,7 +1290,6 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         "flow.auto_ordering",
         "growth.promo_balance",
         "growth.promo_bid",
-        "finance.bill_analysis",
         "tools.franchise_contract",
     }
     seen_singletons = set()
@@ -1343,7 +1327,6 @@ def main() -> None:
     promo_bid_signal_status = read_json(PROMO_BID_SIGNAL_STATUS_PATH, {})
     promo_balance_status = read_json(PROMO_BALANCE_STATUS_PATH, {})
     tool_warehouse = read_json(TOOL_WAREHOUSE_STATUS_PATH, {})
-    finance_center = read_json(FINANCE_CENTER_STATUS_PATH, {})
     macmini_smoke_status = read_json(MACMINI_SMOKE_STATUS_PATH, {})
     operation_automation_check = read_json(OPERATION_AUTOMATION_CHECK_PATH, {})
     task_runs = read_json(TASK_RUNS_PATH, {})
@@ -1361,7 +1344,7 @@ def main() -> None:
     write_task_health(task_health)
     user_action_queue = build_user_action_queue_payload()
     atomic_write_text(USER_ACTION_QUEUE_PATH, json.dumps(user_action_queue, ensure_ascii=False, indent=2) + "\n")
-    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, finance_center, user_action_queue, morning_collection, realtime_collection, realtime_comparison, daily_trends, task_health)
+    ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, user_action_queue, morning_collection, realtime_collection, realtime_comparison, daily_trends, task_health)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "system": {
@@ -1386,7 +1369,6 @@ def main() -> None:
         "promo_bid_signal_status": promo_bid_signal_status,
         "promo_balance_status": promo_balance_status,
         "tool_warehouse": tool_warehouse,
-        "finance_center": finance_center,
         "user_action_queue": user_action_queue,
         "macmini_smoke_status": macmini_smoke_status,
         "operation_automation_check": operation_automation_check,
