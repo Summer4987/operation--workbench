@@ -23,8 +23,12 @@ from playwright.sync_api import sync_playwright
 WORKSPACE = ROOT.parent
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
+EVIDENCE_DIR = WORKSPACE / "outputs" / "meituan_budget_automation" / "evidence"
 DIRECT_MEITUAN_CONFIG_PATH = WORKSPACE / "config" / "direct_meituan_accounts.json"
 MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+
+INPUT_RETRY_ATTEMPTS = int(os.environ.get("MEITUAN_BUDGET_INPUT_RETRY_ATTEMPTS", "3"))
+STORE_RETRY_ATTEMPTS = int(os.environ.get("MEITUAN_BUDGET_STORE_RETRY_ATTEMPTS", "2"))
 
 WM_POI_IDS = {
     "第3档口": "30703865",
@@ -121,6 +125,58 @@ def page_text(page) -> str:
         except Exception:
             pass
     return "\n".join(text for text in texts if text)
+
+
+def classify_failure(message: str) -> str:
+    body = str(message or "")
+    if any(token in body for token in ("未登录", "登录", "验证码", "安全验证", "UNAUTHORIZED")):
+        return "auth_block"
+    if any(token in body for token in ("未能打开点金推广内层页面", "没有可见的点金推广入口", "进入点金推广后没有预算区域")):
+        return "direct_promo_url_missing" if "直营美团账号" in body else "dianjin_entry_missing"
+    if any(token in body for token in ("输入框未变为目标预算", "预算弹窗没有可见可编辑", "确定按钮禁用")):
+        return "input_sync_failed" if "输入框" in body else "confirm_disabled"
+    if any(token in body for token in ("未打开预算设置弹窗", "预算区域不可编辑", "预算弹窗没有确定按钮")):
+        return "page_structure_changed"
+    if "没有门店 wmPoiId" in body or "未找到直营美团账号配置" in body:
+        return "store_mapping"
+    if "timeout" in body.lower() or "超时" in body:
+        return "timeout"
+    return "execution_failed"
+
+
+def store_slug(task: dict) -> str:
+    raw = str(task.get("keyword") or task.get("store") or task.get("sourceStore") or "store")
+    slug = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]+", "_", raw).strip("_")
+    return slug or "store"
+
+
+def save_failure_evidence(page, task: dict, stage: str) -> dict:
+    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    prefix = EVIDENCE_DIR / f"{stamp}_{store_slug(task)}_{stage}"
+    evidence = {
+        "stage": stage,
+        "text_path": "",
+        "screenshot_path": "",
+        "url": "",
+    }
+    try:
+        evidence["url"] = page.url
+    except Exception:
+        pass
+    try:
+        text_path = prefix.with_suffix(".txt")
+        text_path.write_text(page_text(page), encoding="utf-8")
+        evidence["text_path"] = str(text_path.relative_to(WORKSPACE))
+    except Exception:
+        pass
+    try:
+        shot_path = prefix.with_suffix(".png")
+        page.screenshot(path=str(shot_path), full_page=True, timeout=10000)
+        evidence["screenshot_path"] = str(shot_path.relative_to(WORKSPACE))
+    except Exception:
+        pass
+    return evidence
 
 
 def read_budget(page) -> float | None:
@@ -232,7 +288,7 @@ def enter_dianjin_with_recovery(page, target_url: str) -> None:
                 page.reload(wait_until="domcontentloaded", timeout=30000)
             else:
                 page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(5)
+            time.sleep(8)
     raise RuntimeError("没有可见的点金推广入口；重试后仍失败：" + "；".join(errors[-2:]))
 
 
@@ -405,7 +461,96 @@ def set_budget_input(input_box, value: str) -> tuple[str, str]:
     return before, after
 
 
-def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
+def close_budget_modal(page) -> None:
+    try:
+        page.keyboard.press("Escape")
+        time.sleep(1)
+    except Exception:
+        pass
+
+
+def trigger_form_dirty(page, input_box, value: str) -> None:
+    try:
+        input_box.evaluate(
+            """(el, value) => {
+                const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                if (setter) setter.call(el, value);
+                else el.value = value;
+                for (const eventName of ['input', 'change', 'keyup', 'blur']) {
+                    el.dispatchEvent(new Event(eventName, {bubbles: true}));
+                }
+            }""",
+            value,
+        )
+    except Exception:
+        pass
+    try:
+        radios = page.locator('input[type="radio"]')
+        if radios.count() >= 2:
+            first_checked = None
+            for index in range(radios.count()):
+                radio = radios.nth(index)
+                if radio.is_checked(timeout=1000):
+                    first_checked = index
+                    break
+            toggle_index = 1 if first_checked == 0 else 0
+            radios.nth(toggle_index).click(force=True, timeout=2000)
+            time.sleep(0.4)
+            if first_checked is not None:
+                radios.nth(first_checked).click(force=True, timeout=2000)
+    except Exception:
+        pass
+
+
+def fill_budget_with_recovery(page, target: float) -> tuple[str, str, int]:
+    value = str(int(target) if target.is_integer() else target)
+    before = ""
+    after = ""
+    for attempt in range(1, INPUT_RETRY_ATTEMPTS + 1):
+        input_box = budget_input_locator(page)
+        try:
+            before, after = set_budget_input(input_box, value)
+        except Exception:
+            before, after = "", ""
+        if after and abs(float(after) - target) <= 0.01:
+            return before, after, attempt
+        trigger_form_dirty(page, input_box, value)
+        time.sleep(0.8)
+        try:
+            after = input_box.input_value(timeout=3000)
+            if after and abs(float(after) - target) <= 0.01:
+                return before, after, attempt
+        except Exception:
+            pass
+        if attempt < INPUT_RETRY_ATTEMPTS:
+            close_budget_modal(page)
+            time.sleep(1)
+            open_budget_modal(page)
+    raise RuntimeError(f"输入框未变为目标预算：{after or before}")
+
+
+def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str]:
+    confirm_button = page.get_by_role("button", name="确定")
+    if confirm_button.count() == 0:
+        raise RuntimeError("预算弹窗没有确定按钮")
+    if not confirm_button.first.is_enabled(timeout=3000):
+        input_box = budget_input_locator(page)
+        value = str(int(target) if target.is_integer() else target)
+        trigger_form_dirty(page, input_box, value)
+        time.sleep(1)
+    if not confirm_button.first.is_enabled(timeout=3000):
+        final_budget = read_budget(page)
+        if final_budget is not None and abs(final_budget - target) <= 0.01:
+            close_budget_modal(page)
+            return final_budget, "确定按钮禁用，页面预算已是目标值"
+        raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
+    confirm_button.first.click(timeout=5000)
+    time.sleep(6)
+    final_budget = read_budget(page)
+    return final_budget, "已保存并读回确认"
+
+
+def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight: bool = False) -> dict:
     target = float(task["targetBudget"])
     try:
         wm_id = wm_poi_id(task)
@@ -448,6 +593,17 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
             enter_dianjin_with_recovery(page, target_url)
             wait_setting_ready(page)
         record["beforeBudget"] = wait_budget(page)
+        if preflight:
+            try:
+                open_budget_modal(page)
+                input_box = budget_input_locator(page)
+                record["beforeInput"] = input_box.input_value(timeout=3000)
+                close_budget_modal(page)
+            except Exception as exc:
+                raise RuntimeError(f"预算前预检失败：{exc}") from exc
+            record["ok"] = True
+            record["message"] = "预算前预检通过：点金页、预算弹窗和输入框可用，未保存修改"
+            return record
         if not commit:
             record["ok"] = True
             record["message"] = "预览模式：已打开门店并读取当前预算，未保存修改"
@@ -465,32 +621,18 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
             enter_dianjin_with_recovery(page, target_url)
             wait_setting_ready(page)
             open_budget_modal(page)
-        input_box = budget_input_locator(page)
-        value = str(int(target) if target.is_integer() else target)
-        record["beforeInput"], record["afterInput"] = set_budget_input(input_box, value)
-        if float(record["afterInput"]) != target:
-            raise RuntimeError(f"输入框未变为目标预算：{record['afterInput']}")
-        confirm_button = page.get_by_role("button", name="确定")
-        if confirm_button.count() == 0:
-            raise RuntimeError("预算弹窗没有确定按钮")
-        if not confirm_button.first.is_enabled(timeout=3000):
-            page.keyboard.press("Escape")
-            time.sleep(2)
-            final_budget = read_budget(page)
-            record["afterBudget"] = final_budget
-            if final_budget is not None and abs(final_budget - target) <= 0.01:
-                record["ok"] = True
-                record["message"] = "确定按钮禁用，页面预算已是目标值"
-                return record
-            raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
-        confirm_button.first.click(timeout=5000)
-        time.sleep(6)
-        final_budget = read_budget(page)
+        record["beforeInput"], record["afterInput"], record["inputAttempts"] = fill_budget_with_recovery(page, target)
+        final_budget, message = confirm_budget_with_recovery(page, target)
         record["afterBudget"] = final_budget
         if final_budget is None or abs(final_budget - target) > 0.01:
             raise RuntimeError(f"保存后预算={final_budget}，目标={target}")
         record["ok"] = True
-        record["message"] = "已保存并读回确认"
+        record["message"] = message
+    except Exception as exc:
+        record["error"] = str(exc)
+        record["failure_type"] = classify_failure(str(exc))
+        if page is not None:
+            record["evidence"] = save_failure_evidence(page, task, record["failure_type"])
     finally:
         if created_page:
             try:
@@ -498,6 +640,22 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool) -> dict:
             except Exception:
                 pass
     return record
+
+
+def execute_task_with_store_retries(context, base_url: str, task: dict, *, commit: bool, preflight: bool) -> dict:
+    attempts = 1 if preflight or not commit else max(1, STORE_RETRY_ATTEMPTS)
+    last_record: dict | None = None
+    for attempt in range(1, attempts + 1):
+        record = execute_task(context, base_url, task, commit=commit, preflight=preflight)
+        record["attempt"] = attempt
+        last_record = record
+        if record.get("ok"):
+            return record
+        if record.get("failure_type") in {"auth_block", "store_mapping", "page_structure_changed"}:
+            return record
+        print(f"门店级重试：{task.get('keyword')} 第 {attempt}/{attempts} 次失败：{record.get('error')}", flush=True)
+        time.sleep(5)
+    return last_record or {"ok": False, "error": "未执行", "failure_type": "execution_failed"}
 
 
 def context_for_task(
@@ -559,15 +717,6 @@ def recent_promo_url_from_context(context) -> str | None:
 def open_direct_promo_url(context, account: dict) -> str:
     page = context.new_page()
     try:
-        home_url = ((account.get("pages") or {}).get("home")) or "https://e.waimai.meituan.com/"
-        page.goto(home_url, wait_until="domcontentloaded", timeout=30000)
-        time.sleep(5)
-        click_visible_text(page, "门店推广")
-        time.sleep(12)
-        promo_url = recent_promo_url_from_context(context)
-        if promo_url:
-            return promo_url
-
         page_url = ((account.get("pages") or {}).get("promo_balance")) or ""
         if page_url:
             page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
@@ -575,6 +724,17 @@ def open_direct_promo_url(context, account: dict) -> str:
             promo_url = recent_promo_url_from_context(context)
             if promo_url:
                 return promo_url
+        home_url = ((account.get("pages") or {}).get("home")) or "https://e.waimai.meituan.com/"
+        for _ in range(2):
+            page.goto(home_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(6)
+            click_visible_text(page, "门店推广")
+            for _ in range(18):
+                time.sleep(1)
+                promo_url = recent_promo_url_from_context(context)
+                if promo_url:
+                    return promo_url
+            page.reload(wait_until="domcontentloaded", timeout=30000)
     finally:
         try:
             page.close()
@@ -620,9 +780,10 @@ def main() -> int:
     parser.add_argument("--mode", default="commit", choices=["preview", "commit"])
     parser.add_argument("--limit", default="all", help="执行数量；默认 all。预览时可用 1 快速验证。")
     parser.add_argument("--stores", default="", help="只执行指定门店关键词，逗号分隔，例如：第3档口,川湘府")
+    parser.add_argument("--preflight", action="store_true", help="正式提交前只读预检：打开点金页、预算弹窗和输入框，但不保存。")
     args = parser.parse_args()
     period = resolve_period(args.period)
-    commit = args.mode == "commit"
+    commit = args.mode == "commit" and not args.preflight
 
     direct_accounts = load_direct_meituan_accounts()
 
@@ -663,7 +824,13 @@ def main() -> int:
                     print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
                     context = context_for_task(playwright, contexts, launched_contexts, task, direct_accounts)
                     task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
-                    results.append(execute_task(context, task_base_url, task, commit=commit))
+                    result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
+                    results.append(result)
+                    if not result.get("ok"):
+                        print(
+                            f"失败：{task.get('keyword')}：{result.get('failure_type') or 'execution_failed'}：{result.get('error')}",
+                            flush=True,
+                        )
                 except Exception as exc:
                     results.append({
                         "store": task.get("store"),
@@ -672,6 +839,7 @@ def main() -> int:
                         "targetBudget": task.get("targetBudget"),
                         "ok": False,
                         "error": str(exc),
+                        "failure_type": classify_failure(str(exc)),
                     })
                     print(f"失败：{task.get('keyword')}：{exc}", flush=True)
                 finally:

@@ -16,6 +16,10 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 SAFE_RETRY_FAILURE_TYPES = {
     "timeout",
     "execution_failed",
+    "input_sync_failed",
+    "confirm_disabled",
+    "dianjin_entry_missing",
+    "direct_promo_url_missing",
 }
 
 MANUAL_FAILURE_TYPES = {
@@ -23,6 +27,7 @@ MANUAL_FAILURE_TYPES = {
     "permission",
     "budget_guardrail",
     "page_structure",
+    "page_structure_changed",
     "store_mapping",
     "manual_browser_setup",
 }
@@ -58,6 +63,38 @@ REPAIR_GUIDES = {
             "人工打开失败平台预算页，确认预算按钮、输入框或弹窗名称是否变化。",
             "保存页面提示或截图，定位对应平台预算脚本选择器。",
             "在 MacBook 修复脚本并推送后，再同步到 Mac mini 重跑。",
+        ],
+    },
+    "input_sync_failed": {
+        "title": "预算输入框同步恢复向导",
+        "checklist": [
+            "优先只重试失败门店，脚本会重新打开预算弹窗并重新填入目标预算。",
+            "若连续两次仍失败，人工打开该门店预算弹窗，确认输入框是否被平台限制或页面结构变化。",
+            "保存失败截图和输入框文本，作为脚本选择器修复依据。",
+        ],
+    },
+    "confirm_disabled": {
+        "title": "预算确定按钮禁用恢复向导",
+        "checklist": [
+            "只重试失败门店，脚本会重新触发表单 change/blur 并再次检查按钮状态。",
+            "若按钮仍禁用，人工确认当前页面预算是否已经等于目标值。",
+            "若页面预算不等于目标值且按钮禁用，按页面改版或平台限制处理。",
+        ],
+    },
+    "direct_promo_url_missing": {
+        "title": "直营美团点金入口恢复向导",
+        "checklist": [
+            "检查对应直营 Chrome profile 是否仍保持登录。",
+            "优先打开配置里的点金推广直达页，确认能进入内层 ad/v1/rpc 页面。",
+            "若入口变化，更新直营账号 promo_balance 配置后再重跑。",
+        ],
+    },
+    "dianjin_entry_missing": {
+        "title": "美团点金入口加载恢复向导",
+        "checklist": [
+            "刷新美团门店推广页面，确认点金推广入口可见。",
+            "入口加载慢时只重试失败门店，不重跑全平台。",
+            "若入口名称变化，保存截图后修复入口识别逻辑。",
         ],
     },
     "store_mapping": {

@@ -50,6 +50,16 @@ PAGE_STRUCTURE_PATTERNS = [
     "接口缺少",
 ]
 
+INPUT_SYNC_PATTERNS = [
+    "输入框未变为目标预算",
+    "确定按钮禁用",
+    "预算弹窗没有可见可编辑的数字输入框",
+]
+
+DIRECT_PROMO_PATTERNS = [
+    "直营美团账号未能打开点金推广内层页面",
+]
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -100,6 +110,10 @@ def classify_failure_text(text: str | None, returncode: int | None = None) -> st
         return "store_mapping"
     if "没有找到本地 Chrome 最近的美团推广 URL" in body or "请先打开一次美团点金推广页" in body:
         return "manual_browser_setup"
+    if any(pattern in body for pattern in DIRECT_PROMO_PATTERNS):
+        return "direct_promo_url_missing"
+    if any(pattern in body for pattern in INPUT_SYNC_PATTERNS):
+        return "input_sync_failed"
     if any(pattern in body for pattern in BUDGET_RISK_PATTERNS):
         return "budget_guardrail"
     if any(pattern in body for pattern in PAGE_STRUCTURE_PATTERNS):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 
@@ -69,9 +70,28 @@ def main() -> int:
         defaults = {"stores": {}}
     try:
         with urlopen(URL, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
+            status = getattr(response, "status", 200)
+            raw = response.read()
+            content_type = response.headers.get("Content-Type", "")
+        if status >= 400:
+            raise RuntimeError(f"HTTP {status}")
+        body = raw.decode("utf-8", errors="replace").strip()
+        if not body:
+            raise RuntimeError("云端返回空内容")
+        if "json" not in content_type.lower() and not body.startswith(("{", "[")):
+            preview = body[:120].replace("\n", " ")
+            raise RuntimeError(f"云端返回非 JSON 内容：Content-Type={content_type or 'unknown'}，片段={preview!r}")
+        data = json.loads(body)
+        if not isinstance(data, dict):
+            raise RuntimeError(f"云端 JSON 顶层不是对象：{type(data).__name__}")
+    except HTTPError as exc:
+        print(f"云端预算配置读取失败，继续使用本地最后可用配置：HTTP {exc.code} {exc.reason}")
+        return 0
+    except URLError as exc:
+        print(f"云端预算配置读取失败，继续使用本地最后可用配置：网络错误 {exc.reason}")
+        return 0
     except Exception as exc:
-        print(f"云端预算配置读取失败，继续使用本地配置：{exc}")
+        print(f"云端预算配置读取失败，继续使用本地最后可用配置：{exc}")
         return 0
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     data = merge_missing_defaults(normalize_store_names(data), defaults)
