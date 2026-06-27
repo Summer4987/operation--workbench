@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 LAUNCHD_LOG_DIR="$HOME/Library/Logs/xiong-operation/launchd"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
+SECRETS_FILE="$HOME/Library/Application Support/xiong-operation/secrets.env"
 mkdir -p "$LAUNCH_DIR" "$LAUNCHD_LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
 
 chmod u+rwX,go+rX "$ROOT/morning-ops/上午运营一键采集.command" \
@@ -312,7 +313,13 @@ cat > "$SCRIPT_DIR/run_morning_ops.zsh" <<EOF
 set -euo pipefail
 
 ROOT="${ROOT}"
+SECRETS_FILE="${SECRETS_FILE}"
 cd "\$ROOT"
+if [ -r "\$SECRETS_FILE" ]; then
+  set -a
+  source "\$SECRETS_FILE"
+  set +a
+fi
 LOG_DIR="\$HOME/Library/Logs/xiong-operation/morning"
 mkdir -p "\$LOG_DIR"
 export MORNING_OPS_LOG_DIR="\$LOG_DIR"
@@ -397,6 +404,7 @@ cat > "$SCRIPT_DIR/run_evening_budget.zsh" <<EOF
 set -euo pipefail
 
 ROOT="${ROOT}"
+SECRETS_FILE="${SECRETS_FILE}"
 RUNNER="${SCRIPT_DIR}/run_evening_budget_entry.zsh"
 CURRENT_RUNNER="${SCRIPT_DIR}/run_current_budget.zsh"
 ELEME_RUNNER="${SCRIPT_DIR}/run_eleme_automation.zsh"
@@ -404,6 +412,11 @@ DEPLOY_RUNNER="${SCRIPT_DIR}/deploy_workbench_to_cloud.zsh"
 LOG_DIR="\$HOME/Library/Logs/xiong-operation/evening_budget"
 mkdir -p "\$LOG_DIR"
 LOG_FILE="\$LOG_DIR/\$(date +%F).log"
+if [ -r "\$SECRETS_FILE" ]; then
+  set -a
+  source "\$SECRETS_FILE"
+  set +a
+fi
 
 {
   echo
