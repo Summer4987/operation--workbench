@@ -185,66 +185,6 @@
       "purchase_channel": "大米群"
     },
     {
-      "sku": "SAUCE-001",
-      "source": "物流发货（5-7天）",
-      "category": "酱汁",
-      "name": "拌饭汁",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/SAUCE-001.svg",
-      "purchase_channel": "物流发货（5-7天）",
-      "force_purchase_channel": true
-    },
-    {
-      "sku": "SAUCE-002",
-      "source": "物流发货（5-7天）",
-      "category": "酱汁",
-      "name": "寿司调味汁",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/SAUCE-002.svg",
-      "purchase_channel": "物流发货（5-7天）",
-      "force_purchase_channel": true
-    },
-    {
-      "sku": "SAUCE-003",
-      "source": "物流发货（5-7天）",
-      "category": "酱汁",
-      "name": "藤椒酱",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/SAUCE-003.svg",
-      "purchase_channel": "物流发货（5-7天）",
-      "force_purchase_channel": true
-    },
-    {
-      "sku": "SAUCE-004",
-      "source": "物流发货（5-7天）",
-      "category": "酱汁",
-      "name": "双椒酱",
-      "spec": "12kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/SAUCE-004.svg",
-      "purchase_channel": "物流发货（5-7天）",
-      "force_purchase_channel": true
-    },
-    {
-      "sku": "SAUCE-005",
-      "source": "物流发货（5-7天）",
-      "category": "酱汁",
-      "name": "拌鱼酱",
-      "spec": "10kg/箱",
-      "unit": "箱",
-      "note": "",
-      "image": "/daily-order/static/images/SAUCE-005.svg",
-      "purchase_channel": "物流发货（5-7天）",
-      "force_purchase_channel": true
-    },
-    {
       "sku": "MEAL-001",
       "source": "快驴配送",
       "category": "工作餐",

@@ -126,7 +126,7 @@ def test_sauce_category_is_available_in_food_tabs():
     assert '["蔬菜", "禽蛋", "粮油", "酱汁", "饮品", "冻品", "工作餐"]' in app_js
 
 
-def test_sauce_items_exist_in_store_order_catalogs():
+def test_sauce_items_exist_only_in_beijing_order_catalog():
     root = Path(__file__).resolve().parents[1]
     expected = [
         ("SAUCE-001", "拌饭汁", "10kg/箱"),
@@ -135,17 +135,18 @@ def test_sauce_items_exist_in_store_order_catalogs():
         ("SAUCE-004", "双椒酱", "12kg/箱"),
         ("SAUCE-005", "拌鱼酱", "10kg/箱"),
     ]
-    for filename in ("catalog.json", "catalog-beijing.json"):
-        catalog_path = root / "daily-order" / "app" / filename
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        sauce_items = [item for item in catalog["items"] if item.get("category") == "酱汁"]
+    chengdu_catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+    beijing_catalog = json.loads((root / "daily-order" / "app" / "catalog-beijing.json").read_text(encoding="utf-8"))
+    sauce_items = [item for item in beijing_catalog["items"] if item.get("category") == "酱汁"]
 
-        assert [(item["sku"], item["name"], item["spec"]) for item in sauce_items] == expected
-        assert all(item["source"] == "物流发货（5-7天）" for item in sauce_items)
-        assert all(item["purchase_channel"] == "物流发货（5-7天）" for item in sauce_items)
-        assert all(item.get("force_purchase_channel") is True for item in sauce_items)
-        for item in sauce_items:
-            assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
+    assert all(item.get("category") != "酱汁" for item in chengdu_catalog["items"])
+    assert all(not str(item.get("sku", "")).startswith("SAUCE-") for item in chengdu_catalog["items"])
+    assert [(item["sku"], item["name"], item["spec"]) for item in sauce_items] == expected
+    assert all(item["source"] == "物流发货（5-7天）" for item in sauce_items)
+    assert all(item["purchase_channel"] == "物流发货（5-7天）" for item in sauce_items)
+    assert all(item.get("force_purchase_channel") is True for item in sauce_items)
+    for item in sauce_items:
+        assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
 
 
 def test_beijing_drink_category_items_exist_only_in_beijing_catalog():
