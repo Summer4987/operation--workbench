@@ -24,6 +24,7 @@ WORKSPACE = ROOT.parent
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
 EVIDENCE_DIR = WORKSPACE / "outputs" / "meituan_budget_automation" / "evidence"
+DIRECT_PROMO_URL_CACHE_PATH = LOG_DIR / "direct_promo_urls.json"
 DIRECT_MEITUAN_CONFIG_PATH = WORKSPACE / "config" / "direct_meituan_accounts.json"
 MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
@@ -714,16 +715,61 @@ def recent_promo_url_from_context(context) -> str | None:
     return None
 
 
+def recent_promo_url_from_page(page) -> str | None:
+    candidates = [page.url]
+    candidates.extend(frame.url for frame in page.frames)
+    for candidate in candidates:
+        if (
+            "waimaieapp.meituan.com/ad/v1/rpc" in candidate
+            and "token=" in candidate
+            and "acctId=" in candidate
+        ):
+            return candidate
+    return None
+
+
+def load_direct_promo_url_cache() -> dict[str, str]:
+    try:
+        payload = json.loads(DIRECT_PROMO_URL_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    urls = payload.get("urls") if isinstance(payload, dict) else {}
+    return urls if isinstance(urls, dict) else {}
+
+
+def save_direct_promo_url_cache(account_id: str, promo_url: str) -> None:
+    if not account_id or not promo_url:
+        return
+    urls = load_direct_promo_url_cache()
+    urls[account_id] = promo_url
+    DIRECT_PROMO_URL_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DIRECT_PROMO_URL_CACHE_PATH.write_text(
+        json.dumps(
+            {
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "urls": urls,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def open_direct_promo_url(context, account: dict) -> str:
+    account_id = str(account.get("id") or "")
     page = context.new_page()
     try:
         page_url = ((account.get("pages") or {}).get("promo_balance")) or ""
         if page_url:
             page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(10)
-            promo_url = recent_promo_url_from_context(context)
-            if promo_url:
-                return promo_url
+            for _ in range(30):
+                time.sleep(1)
+                promo_url = recent_promo_url_from_page(page) or recent_promo_url_from_context(context)
+                if promo_url:
+                    save_direct_promo_url_cache(account_id, promo_url)
+                    return promo_url
         home_url = ((account.get("pages") or {}).get("home")) or "https://e.waimai.meituan.com/"
         for _ in range(2):
             page.goto(home_url, wait_until="domcontentloaded", timeout=30000)
@@ -733,6 +779,7 @@ def open_direct_promo_url(context, account: dict) -> str:
                 time.sleep(1)
                 promo_url = recent_promo_url_from_context(context)
                 if promo_url:
+                    save_direct_promo_url_cache(account_id, promo_url)
                     return promo_url
             page.reload(wait_until="domcontentloaded", timeout=30000)
     finally:
@@ -749,7 +796,11 @@ def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[s
         return default_base_url
     account = direct_accounts.get(account_id)
     if context is not None:
-        return recent_promo_url_from_context(context) or open_direct_promo_url(context, account or {})
+        return (
+            recent_promo_url_from_context(context)
+            or load_direct_promo_url_cache().get(account_id)
+            or open_direct_promo_url(context, account or {})
+        )
     page_url = ((account or {}).get("pages") or {}).get("promo_balance")
     if not page_url:
         raise RuntimeError(f"直营美团账号未配置 promo_balance 页面：{account_id}")

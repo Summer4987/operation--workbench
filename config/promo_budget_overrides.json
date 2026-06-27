@@ -5,27 +5,27 @@
         "lunchBudget": 100,
         "dinnerBudget": 150,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       },
       "美团": {
         "lunchBudget": 100,
         "dinnerBudget": 150,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       }
     },
     "保利中心店": {
       "饿了么": {
-        "lunchBudget": 90,
+        "lunchBudget": 80,
         "dinnerBudget": 140,
-        "weekendLunchBudget": 80,
-        "weekendDinnerBudget": 120
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 90,
-        "dinnerBudget": 140,
-        "weekendLunchBudget": 80,
-        "weekendDinnerBudget": 120
+        "lunchBudget": 80,
+        "dinnerBudget": 120,
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
       }
     },
     "朝阳门店": {
@@ -46,14 +46,14 @@
       "饿了么": {
         "lunchBudget": 120,
         "dinnerBudget": 200,
-        "weekendLunchBudget": 100,
-        "weekendDinnerBudget": 200
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 120
       },
       "美团": {
         "lunchBudget": 120,
         "dinnerBudget": 200,
-        "weekendLunchBudget": 100,
-        "weekendDinnerBudget": 200
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 120
       }
     },
     "第5号档口川湘府美食城店": {
@@ -61,33 +61,33 @@
         "lunchBudget": 100,
         "dinnerBudget": 150,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150,
+        "lunchBudget": 80,
+        "dinnerBudget": 120,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       }
     },
     "光谷店": {
       "饿了么": {
         "lunchBudget": 80,
-        "dinnerBudget": 120,
-        "weekendLunchBudget": 65,
-        "weekendDinnerBudget": 120
+        "dinnerBudget": 130,
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
       },
       "美团": {
         "lunchBudget": 80,
         "dinnerBudget": 120,
-        "weekendLunchBudget": 65,
-        "weekendDinnerBudget": 120
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
       }
     },
     "金融城店": {
       "饿了么": {
         "lunchBudget": 100,
-        "dinnerBudget": 150,
+        "dinnerBudget": 140,
         "weekendLunchBudget": 80,
         "weekendDinnerBudget": 120
       },
@@ -103,41 +103,41 @@
         "lunchBudget": 100,
         "dinnerBudget": 150,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       },
       "美团": {
         "lunchBudget": 100,
         "dinnerBudget": 150,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       }
     },
     "丽泽门店": {
       "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150,
+        "lunchBudget": 80,
+        "dinnerBudget": 130,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150,
+        "lunchBudget": 80,
+        "dinnerBudget": 120,
         "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "weekendDinnerBudget": 100
       }
     },
     "双井店": {
       "饿了么": {
         "lunchBudget": 80,
-        "dinnerBudget": 150,
-        "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "dinnerBudget": 140,
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 130
       },
       "美团": {
         "lunchBudget": 80,
-        "dinnerBudget": 150,
-        "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 120
+        "dinnerBudget": 140,
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 130
       }
     },
     "万象城店": {
@@ -156,16 +156,16 @@
     },
     "五一广场店": {
       "饿了么": {
-        "lunchBudget": 80,
-        "dinnerBudget": 130,
-        "weekendLunchBudget": 50,
+        "lunchBudget": 60,
+        "dinnerBudget": 120,
+        "weekendLunchBudget": 60,
         "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 80,
-        "dinnerBudget": 130,
-        "weekendLunchBudget": 50,
-        "weekendDinnerBudget": 100
+        "lunchBudget": 70,
+        "dinnerBudget": 120,
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 120
       }
     },
     "银泰城店": {
@@ -182,17 +182,5 @@
         "weekendDinnerBudget": 120
       }
     }
-  },
-  "weekendPreset": {
-    "enabled": true,
-    "name": "周末/中国法定节假日预算",
-    "activeDays": [
-      0,
-      6
-    ],
-    "lunchMultiplier": 1,
-    "dinnerMultiplier": 1,
-    "roundTo": 1,
-    "notes": "中国法定节假日按周末预算执行；调休上班日按工作日预算执行。"
   }
 }
