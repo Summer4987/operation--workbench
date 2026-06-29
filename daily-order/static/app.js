@@ -73,6 +73,7 @@ const els = {
   storeOrdersList: document.querySelector("#storeOrdersList"),
   toggleOrders: document.querySelector("#toggleOrdersButton"),
   refreshOrders: document.querySelector("#refreshOrdersButton"),
+  logout: document.querySelector("#logoutButton"),
 };
 
 els.search.addEventListener("input", renderCatalog);
@@ -82,6 +83,7 @@ els.confirmSubmit.addEventListener("click", submitOrder);
 els.newOrder.addEventListener("click", resetOrder);
 els.toggleOrders.addEventListener("click", toggleStoreOrders);
 els.refreshOrders.addEventListener("click", refreshStoreOrders);
+els.logout?.addEventListener("click", logoutAccount);
 renderOrdersPanelState();
 
 async function loadCatalog() {
@@ -471,6 +473,16 @@ async function authFetch(url, options) {
     location.href = "/daily-order/";
   }
   return response;
+}
+
+async function logoutAccount() {
+  if (!window.confirm("确认退出当前门店账号？")) return;
+  els.logout.disabled = true;
+  try {
+    await fetch(`${orderBasePath}/api/auth/logout`, { method: "POST" });
+  } finally {
+    location.href = orderBasePath === "/daily-order" ? "/daily-order/" : `${orderBasePath}/`;
+  }
 }
 
 function renderStoreOrders() {

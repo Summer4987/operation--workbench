@@ -74,6 +74,18 @@ async def daily_order_login(request: Request, payload: dict):
     return result
 
 
+@app.post("/daily-order/api/auth/logout")
+def daily_order_logout(request: Request):
+    result = Response(content=json.dumps({"status": "success"}, ensure_ascii=False), media_type="application/json")
+    result.delete_cookie(
+        "store_order_session",
+        path="/",
+        samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+    )
+    return result
+
+
 @app.get("/beijing-order/")
 def beijing_index():
     return FileResponse(STATIC_DIR / "beijing-index.html")
@@ -209,6 +221,8 @@ async def _submit_order(request: Request, payload: dict, catalog_path: Path, sub
     _write_order_csv(csv_path, order)
     _append_order_lines(order, order_lines_path)
     _notify_order(order)
+    if auto_process_wechat and _is_wechat_addon_time(submitted_time):
+        _notify_wechat_addon(order)
 
     return {
         "status": "success",
@@ -1008,6 +1022,15 @@ def _notify_wechat_groups(order: dict) -> None:
         _send_notify_text(webhook, notify_type, text, {"order": order, "message_type": "wechat_group_order"})
 
 
+def _notify_wechat_addon(order: dict) -> None:
+    webhook = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "").strip() or os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
+    if not webhook:
+        return
+    notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
+    for text in _wechat_addon_messages(order):
+        _send_notify_text(webhook, notify_type, text, {"order": order, "message_type": "wechat_addon_order"})
+
+
 def _wechat_digest_message(day: str) -> str:
     return "\n\n".join(_wechat_digest_messages(day))
 
@@ -1046,6 +1069,39 @@ def _wechat_digest_messages(day: str) -> list[str]:
 
 def _plain_digest_line(item: dict) -> str:
     return f"{item.get('name', '')} {_format_number(item.get('quantity'))}{item.get('unit') or ''}"
+
+
+def _is_wechat_addon_time(submitted_time: datetime) -> bool:
+    return 18 <= submitted_time.hour < 24
+
+
+def _wechat_addon_messages(order: dict) -> list[str]:
+    groups: dict[str, dict[str, dict[str, dict]]] = {}
+    store_name = order.get("store_name") or "未命名门店"
+    for item in order.get("items") or []:
+        item_channel = _item_channel(item)
+        if _display_channel(item_channel) != "微信群":
+            continue
+        stores = groups.setdefault(item_channel, {})
+        items = stores.setdefault(store_name, {})
+        item_key = f"{item.get('sku', '')}||{item.get('name', '')}||{item.get('unit', '')}"
+        line = items.setdefault(
+            item_key,
+            {
+                "name": item.get("name", ""),
+                "unit": item.get("unit", ""),
+                "quantity": 0,
+            },
+        )
+        line["quantity"] += _to_number(item.get("quantity"))
+    messages = []
+    for group_name in sorted(groups):
+        lines = [f"【{group_name} 加单】"]
+        for current_store_name in sorted(groups[group_name]):
+            item_text = "、".join(_plain_digest_line(item) for item in groups[group_name][current_store_name].values())
+            lines.append(f"{current_store_name}：{item_text}")
+        messages.append("\n".join(lines))
+    return messages
 
 
 def _send_notify_text(webhook: str, notify_type: str, text: str, extra_payload: dict | None = None) -> None:

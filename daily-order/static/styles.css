@@ -83,6 +83,25 @@ h1 {
   font-size: 14px;
 }
 
+.quiet-logout {
+  align-self: start;
+  min-height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #7b8794;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quiet-logout:hover {
+  background: #f0f4f7;
+  color: #3f4c5a;
+}
+
 .store-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

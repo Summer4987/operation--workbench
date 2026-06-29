@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -128,6 +129,29 @@ def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
     assert "?." not in page.text
 
 
+def test_daily_order_submit_logout_clears_store_session(monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "测试门店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "public_order_catalog", lambda: {"stores": [], "products": []})
+    monkeypatch.setattr(module, "inventory_summary", lambda: [])
+
+    client = TestClient(module.app)
+    login = client.post(
+        "/api/public-order/auth/login?token=xiongxiaoxiao-order",
+        json={"username": "store-user", "password": "secret"},
+    )
+    assert login.status_code == 200
+    assert client.get("/api/public-order/catalog?token=xiongxiaoxiao-order").status_code == 200
+
+    logout = client.post("/api/public-order/auth/logout?token=xiongxiaoxiao-order")
+
+    assert logout.status_code == 200
+    assert client.get("/api/public-order/catalog?token=xiongxiaoxiao-order").status_code == 401
+
+
 def test_signed_daily_order_file_links_download_without_store_cookie(tmp_path, monkeypatch):
     module = load_inventory_module()
     monkeypatch.setenv(
@@ -242,3 +266,40 @@ def test_chengdu_catalog_returns_authenticated_store(monkeypatch):
     payload = response.json()
     assert payload["authenticated_store"]["name"] == "测试门店"
     assert payload["stores"][0]["name"] == "测试门店"
+
+
+def test_chengdu_daily_order_logout_clears_store_session(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "测试门店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "_load_catalog", lambda: {"stores": [], "items": []})
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "store-user", "password": "secret"})
+    assert login.status_code == 200
+    assert client.get("/daily-order/api/catalog").status_code == 200
+
+    logout = client.post("/daily-order/api/auth/logout")
+
+    assert logout.status_code == 200
+    assert client.get("/daily-order/api/catalog").status_code == 401
+
+
+def test_wechat_addon_messages_keep_digest_format_and_mark_addon():
+    module = load_daily_order_module()
+    order = {
+        "store_name": "测试门店",
+        "items": [
+            {"sku": "A", "name": "青菜", "unit": "斤", "quantity": 2, "purchase_channel": "四川鸿鹄微信群"},
+            {"sku": "A", "name": "青菜", "unit": "斤", "quantity": 3, "purchase_channel": "四川鸿鹄微信群"},
+            {"sku": "B", "name": "米饭", "unit": "袋", "quantity": 1, "purchase_channel": "快驴"},
+        ],
+    }
+
+    shanghai = timezone(timedelta(hours=8))
+    assert module._is_wechat_addon_time(datetime(2026, 6, 29, 18, 0, tzinfo=shanghai))
+    assert module._is_wechat_addon_time(datetime(2026, 6, 29, 23, 59, tzinfo=shanghai))
+    assert not module._is_wechat_addon_time(datetime(2026, 6, 29, 17, 59, tzinfo=shanghai))
+    assert module._wechat_addon_messages(order) == ["【四川鸿鹄微信群 加单】\n测试门店：青菜 5斤"]

@@ -536,6 +536,19 @@ async def public_order_login(request: Request, payload: dict):
     return result
 
 
+@app.post("/api/public-order/auth/logout")
+def public_order_logout(request: Request):
+    _require_public_order_token(request)
+    result = Response(content=json.dumps({"status": "success"}, ensure_ascii=False), media_type="application/json")
+    result.delete_cookie(
+        "store_order_session",
+        path="/",
+        samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+    )
+    return result
+
+
 def seed_catalog() -> None:
     catalog_path = BASE_DIR / "app" / "catalog.json"
     if catalog_path.exists():

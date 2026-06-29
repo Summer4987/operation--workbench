@@ -33,6 +33,7 @@
       }
 
       .top {
+        position: relative;
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 10px;
@@ -55,6 +56,27 @@
         margin: 0;
         color: var(--muted);
         line-height: 1.45;
+      }
+
+      .quiet-logout {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        min-height: 28px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #7b8794;
+        padding: 0 6px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .quiet-logout:hover {
+        background: #f0f4f7;
+        color: #3f4c5a;
       }
 
       .store-box,
@@ -511,6 +533,7 @@
         <span class="eyebrow">熊小小牛排饭</span>
         <h1>熊小小日配订货</h1>
         <p>选择门店，填写需要配送的数量。没有订的商品留空即可。</p>
+        <button id="logoutButton" class="quiet-logout" type="button">退出账号</button>
       </section>
 
       <section class="store-box">
@@ -585,6 +608,7 @@
         itemCount: document.querySelector("#itemCount"),
         message: document.querySelector("#message"),
         submit: document.querySelector("#submitButton"),
+        logout: document.querySelector("#logoutButton"),
       };
 
       let products = [];
@@ -593,6 +617,8 @@
       let pendingItems = [];
       let historyLoaded = false;
       const minOrderQuantity = 5;
+
+      els.logout.addEventListener("click", logoutAccount);
 
       async function loadCatalog() {
         setMessage("正在加载商品...");
@@ -712,6 +738,16 @@
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail || "操作失败");
         return payload;
+      }
+
+      async function logoutAccount() {
+        if (!window.confirm("确认退出当前门店账号？")) return;
+        els.logout.disabled = true;
+        try {
+          await fetch(`/api/public-order/auth/logout?token=${encodeURIComponent(token)}`, { method: "POST" });
+        } finally {
+          location.href = `/order-submit?token=${encodeURIComponent(token)}&logout_at=${Date.now()}`;
+        }
       }
 
       function setMessage(text, type = "") {
