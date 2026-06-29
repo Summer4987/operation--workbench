@@ -459,6 +459,7 @@
         confirmMeta: document.querySelector("#confirmMeta"),
         summaryList: document.querySelector("#summaryList"),
         store: document.querySelector("#storeSelect"),
+        storeBox: document.querySelector(".store-box"),
         storeInfo: document.querySelector("#storeInfo"),
         grid: document.querySelector("#productGrid"),
         itemCount: document.querySelector("#itemCount"),
@@ -484,6 +485,12 @@
               return `<option value="${escapeHtml(store.name)}">${escapeHtml(store.name)}${detail ? ` - ${escapeHtml(detail)}` : ""}</option>`;
             }),
           ].join("");
+          if (stores.length === 1) {
+            els.store.value = stores[0].name;
+            els.storeBox.hidden = true;
+          } else {
+            els.storeBox.hidden = false;
+          }
           els.grid.innerHTML = products.map((item) => `
             <div class="item ${item.available ? "" : "unavailable"}">
               <div>
