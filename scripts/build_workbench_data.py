@@ -162,17 +162,29 @@ def inventory_snapshot() -> dict:
             "warnings_reliable": False,
             "items": [],
         }
-    with sqlite3.connect(db_path) as conn:
-        conn.row_factory = sqlite3.Row
-        movement_count = int(conn.execute("SELECT COUNT(*) FROM movements").fetchone()[0] or 0)
-        rows = conn.execute(
-            """
-            SELECT sku, name, spec, unit, warning_threshold,
-                   COALESCE((SELECT SUM(signed_quantity) FROM movements WHERE movements.sku = products.sku), 0) AS balance
-            FROM products
-            ORDER BY name
-            """
-        ).fetchall()
+    try:
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            movement_count = int(conn.execute("SELECT COUNT(*) FROM movements").fetchone()[0] or 0)
+            rows = conn.execute(
+                """
+                SELECT sku, name, spec, unit, warning_threshold,
+                       COALESCE((SELECT SUM(signed_quantity) FROM movements WHERE movements.sku = products.sku), 0) AS balance
+                FROM products
+                ORDER BY name
+                """
+            ).fetchall()
+    except sqlite3.Error as exc:
+        return {
+            "status": "unavailable",
+            "source": "local_fallback_error",
+            "error": f"{cloud_error}; local sqlite fallback failed: {exc}",
+            "message": "库存云端未返回可用数据，本地备用库读取失败；已暂停低库存预警，但不影响运营总看板发布。",
+            "product_count": 0,
+            "warning_count": 0,
+            "warnings_reliable": False,
+            "items": [],
+        }
     if rows and movement_count == 0:
         return {
             "status": "unavailable",

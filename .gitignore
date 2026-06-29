@@ -15,6 +15,7 @@ business-report-dashboard/chrome-profile/
 *.log
 logs/
 outputs/
+output/
 morning-ops/logs/
 morning-ops/.last_morning_loop_slot
 store-inspection/logs/
