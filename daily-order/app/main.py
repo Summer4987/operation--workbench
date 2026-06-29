@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import csv
+import base64
+import hashlib
+import hmac
+import html
 import io
 import json
 import os
 import re
+import secrets
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request as url_request
@@ -36,8 +42,31 @@ app.mount("/daily-order/static", StaticFiles(directory=STATIC_DIR), name="daily-
 
 
 @app.get("/daily-order/")
-def index():
+def index(request: Request):
+    if _store_order_auth_enabled() and not _store_order_session(request):
+        return Response(content=_store_order_login_page_html("熊小小成都门店订货", "/daily-order/"), media_type="text/html; charset=utf-8")
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.post("/daily-order/api/auth/login")
+async def daily_order_login(request: Request, payload: dict):
+    account = _verify_store_order_credentials(str(payload.get("username") or ""), str(payload.get("password") or ""))
+    if not account:
+        raise HTTPException(status_code=401, detail="用户名或密码不正确")
+    result = Response(
+        content=json.dumps({"status": "success", "store_name": account["store_name"]}, ensure_ascii=False),
+        media_type="application/json",
+    )
+    result.set_cookie(
+        "store_order_session",
+        _sign_store_order_session(account["username"], account["store_name"]),
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+        path="/",
+    )
+    return result
 
 
 @app.get("/beijing-order/")
@@ -56,8 +85,12 @@ def admin():
 
 
 @app.get("/daily-order/api/catalog")
-def catalog():
-    return _load_catalog()
+def catalog(request: Request):
+    account = _require_store_order_auth(request)
+    catalog_data = _load_catalog()
+    if account:
+        catalog_data = _catalog_for_store(catalog_data, account["store_name"])
+    return catalog_data
 
 
 @app.get("/beijing-order/api/catalog")
@@ -79,7 +112,8 @@ def beijing_health():
 
 @app.post("/daily-order/api/orders")
 async def submit_order(request: Request, payload: dict):
-    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO", True)
+    account = _require_store_order_auth(request)
+    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO", True, account["store_name"] if account else None)
 
 
 @app.post("/beijing-order/api/orders")
@@ -87,12 +121,12 @@ async def submit_beijing_order(request: Request, payload: dict):
     return await _submit_order(request, payload, BEIJING_CATALOG_PATH, BEIJING_SUBMISSION_DIR, BEIJING_ORDER_LINES_PATH, "BJ", False)
 
 
-async def _submit_order(request: Request, payload: dict, catalog_path: Path, submission_dir: Path, order_lines_path: Path, order_prefix: str, auto_process_wechat: bool):
+async def _submit_order(request: Request, payload: dict, catalog_path: Path, submission_dir: Path, order_lines_path: Path, order_prefix: str, auto_process_wechat: bool, bound_store_name: str | None = None):
     catalog_data = _load_catalog(catalog_path)
     products = {item["sku"]: item for item in catalog_data["items"]}
     store_records = _store_records(catalog_data)
     stores = set(store_records)
-    store_name = str(payload.get("store_name") or "").strip()
+    store_name = bound_store_name or str(payload.get("store_name") or "").strip()
     remark = str(payload.get("remark") or "").strip()
     raw_items = payload.get("items") or []
 
@@ -176,7 +210,10 @@ async def _submit_order(request: Request, payload: dict, catalog_path: Path, sub
 
 
 @app.get("/daily-order/api/orders")
-def recent_store_orders(store_name: str, order_ids: str = ""):
+def recent_store_orders(request: Request, store_name: str, order_ids: str = ""):
+    account = _require_store_order_auth(request)
+    if account:
+        store_name = account["store_name"]
     return {"items": _public_store_orders(store_name, order_ids, SUBMISSION_DIR, CATALOG_PATH)}
 
 
@@ -649,6 +686,168 @@ def _channel_sort_key(channel: dict) -> tuple[int, str]:
     order = {"快驴": 0, "山姆配送": 1, "微信群": 2, "工作餐": 3, "淘宝": 4, "拼多多": 5, "京东": 6}
     name = str(channel.get("channel") or "")
     return (order.get(name, 99), name)
+
+
+def _catalog_for_store(catalog_data: dict, store_name: str) -> dict:
+    result = dict(catalog_data)
+    stores = catalog_data.get("stores") or []
+    if stores and isinstance(stores[0], dict):
+        result["stores"] = [store for store in stores if store.get("name") == store_name]
+    else:
+        result["stores"] = [store for store in stores if str(store) == store_name]
+    return result
+
+
+def _store_order_accounts() -> dict[str, dict]:
+    raw = os.environ.get("STORE_ORDER_ACCOUNTS_JSON", "").strip()
+    if not raw:
+        path = Path(os.environ.get("STORE_ORDER_ACCOUNTS_FILE", "/etc/store-order-accounts.json"))
+        if path.exists():
+            raw = path.read_text(encoding="utf-8")
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    accounts = payload.get("accounts") if isinstance(payload, dict) else payload
+    if not isinstance(accounts, dict):
+        return {}
+    clean = {}
+    for username, item in accounts.items():
+        if not isinstance(item, dict):
+            continue
+        password = str(item.get("password") or "")
+        store_name = str(item.get("store_name") or "")
+        if username and password and store_name:
+            clean[str(username)] = {"username": str(username), "password": password, "store_name": store_name}
+    return clean
+
+
+def _store_order_auth_enabled() -> bool:
+    return bool(_store_order_accounts())
+
+
+def _store_order_auth_secret() -> str:
+    secret = os.environ.get("STORE_ORDER_AUTH_SECRET", "")
+    if secret:
+        return secret
+    material = json.dumps(_store_order_accounts(), ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def _verify_store_order_credentials(username: str, password: str) -> dict | None:
+    account = _store_order_accounts().get(username.strip())
+    if not account:
+        return None
+    if not secrets.compare_digest(password, account["password"]):
+        return None
+    return account
+
+
+def _sign_store_order_session(username: str, store_name: str) -> str:
+    expires = int(time.time()) + 30 * 24 * 60 * 60
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"username": username, "store_name": store_name, "expires": expires}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    signature = hmac.new(_store_order_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def _store_order_session(request: Request) -> dict | None:
+    cookie = request.cookies.get("store_order_session", "")
+    if not cookie:
+        return None
+    try:
+        payload, signature = cookie.rsplit(".", 1)
+        data = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")).decode("utf-8"))
+        username = str(data.get("username") or "")
+        store_name = str(data.get("store_name") or "")
+        expires = int(data.get("expires") or 0)
+    except Exception:
+        return None
+    if expires < int(time.time()):
+        return None
+    account = _store_order_accounts().get(username)
+    if not account or account["store_name"] != store_name:
+        return None
+    expected = hmac.new(_store_order_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not secrets.compare_digest(signature, expected):
+        return None
+    return {"username": username, "store_name": store_name}
+
+
+def _require_store_order_auth(request: Request) -> dict | None:
+    if not _store_order_auth_enabled():
+        return None
+    account = _store_order_session(request)
+    if account:
+        return account
+    raise HTTPException(status_code=401, detail="需要门店登录")
+
+
+def _store_order_login_page_html(title: str, next_path: str) -> str:
+    safe_title = html.escape(title, quote=True)
+    safe_next = html.escape(next_path, quote=True)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{safe_title}登录</title>
+    <style>
+      :root {{ color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+      body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7f4; color: #17201b; }}
+      main {{ width: min(420px, calc(100vw - 32px)); padding: 26px; border: 1px solid #d9ded3; border-radius: 8px; background: #fff; box-shadow: 0 18px 44px rgba(22, 32, 27, .14); }}
+      h1 {{ margin: 0 0 8px; font-size: 24px; line-height: 1.2; }}
+      p {{ margin: 0 0 20px; color: #64705f; font-size: 14px; line-height: 1.5; }}
+      form {{ display: grid; gap: 14px; }}
+      label {{ display: grid; gap: 6px; color: #3f4c42; font-size: 13px; font-weight: 800; }}
+      input {{ min-height: 44px; border: 1px solid #cfd8cc; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 16px; }}
+      button {{ min-height: 44px; border: 0; border-radius: 8px; background: #2f6f4e; color: #fff; font: inherit; font-weight: 900; cursor: pointer; }}
+      button:disabled {{ cursor: not-allowed; opacity: .65; }}
+      .message {{ min-height: 20px; color: #b42318; font-size: 13px; font-weight: 800; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>{safe_title}</h1>
+      <p>请输入门店账号密码。登录后会自动匹配门店。</p>
+      <form id="loginForm">
+        <label>账号<input name="username" autocomplete="username" required /></label>
+        <label>密码<input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">登录</button>
+        <div class="message" id="message"></div>
+      </form>
+    </main>
+    <script>
+      const nextPath = "{safe_next}";
+      const form = document.querySelector("#loginForm");
+      const message = document.querySelector("#message");
+      form.addEventListener("submit", async (event) => {{
+        event.preventDefault();
+        const button = form.querySelector("button");
+        button.disabled = true;
+        message.textContent = "正在登录...";
+        const data = Object.fromEntries(new FormData(form).entries());
+        try {{
+          const response = await fetch("/daily-order/api/auth/login", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify(data),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok) throw new Error(payload.detail || "登录失败");
+          window.location.href = nextPath || "/daily-order/";
+        }} catch (error) {{
+          message.textContent = error.message || "登录失败";
+        }} finally {{
+          button.disabled = false;
+        }}
+      }});
+    </script>
+  </body>
+</html>"""
 
 
 def _auto_processed_channels(items: list[dict]) -> set[str]:

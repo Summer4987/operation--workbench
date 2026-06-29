@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/inventory-board
 EnvironmentFile=/etc/inventory-board.env
+EnvironmentFile=-/etc/store-order-auth.env
 ExecStart=/opt/inventory-board/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=3

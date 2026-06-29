@@ -84,7 +84,7 @@ els.refreshOrders.addEventListener("click", refreshStoreOrders);
 renderOrdersPanelState();
 
 async function loadCatalog() {
-  const response = await fetch(`${orderBasePath}/api/catalog`);
+  const response = await authFetch(`${orderBasePath}/api/catalog`);
   if (!response.ok) throw new Error("SKU 读取失败");
   const payload = await response.json();
   state.catalog = payload.items || [];
@@ -336,7 +336,7 @@ async function submitOrder() {
   els.confirmSubmit.disabled = true;
   els.message.textContent = "正在提交...";
   try {
-    const response = await fetch(`${orderBasePath}/api/orders`, {
+    const response = await authFetch(`${orderBasePath}/api/orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -427,7 +427,7 @@ async function loadStoreOrders() {
       store_name: storeName,
       order_ids: orderIds.join(","),
     });
-    const response = await fetch(`${orderBasePath}/api/orders?${query.toString()}`);
+    const response = await authFetch(`${orderBasePath}/api/orders?${query.toString()}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "订单读取失败");
     state.recentOrders = payload.items || [];
@@ -436,6 +436,14 @@ async function loadStoreOrders() {
   } catch (error) {
     els.storeOrdersList.innerHTML = `<p class="error-text">${escapeHtml(error.message)}</p>`;
   }
+}
+
+async function authFetch(url, options) {
+  const response = await fetch(url, options);
+  if (response.status === 401 && orderBasePath === "/daily-order") {
+    location.href = "/daily-order/";
+  }
+  return response;
 }
 
 function renderStoreOrders() {

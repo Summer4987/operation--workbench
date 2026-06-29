@@ -567,6 +567,10 @@
 
       async function fetchJson(url, options) {
         const response = await fetch(url, options);
+        if (response.status === 401) {
+          location.href = `/order-submit?token=${encodeURIComponent(token)}`;
+          throw new Error("需要门店登录");
+        }
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail || "操作失败");
         return payload;

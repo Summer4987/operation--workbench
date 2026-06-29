@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import hmac
+import base64
 import json
 import os
 import re
@@ -94,6 +95,8 @@ def index():
 @app.get("/order-submit")
 def public_order_submit(request: Request):
     _require_public_order_token(request)
+    if _store_order_auth_enabled() and not _store_order_session(request):
+        return Response(content=_store_order_login_page_html("熊小小日配订货", "/order-submit", request), media_type="text/html; charset=utf-8")
     return FileResponse(STATIC_DIR / "order-submit.html")
 
 
@@ -342,7 +345,9 @@ async def order_generate(payload: dict):
 
 
 @app.get("/api/order/files/{filename}")
-def order_file(filename: str):
+def order_file(request: Request, filename: str):
+    if secrets.compare_digest(_request_token(request), _public_order_token()):
+        _require_store_order_auth(request)
     path = OUTPUT_DIR / Path(filename).name
     if not path.exists() or path.suffix.lower() not in {".xlsx", ".xlsm"}:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -352,6 +357,7 @@ def order_file(filename: str):
 @app.get("/order-file/{filename}")
 def public_order_file_page(request: Request, filename: str):
     _require_public_order_token(request)
+    _require_store_order_auth(request)
     path = OUTPUT_DIR / Path(filename).name
     if not path.exists() or path.suffix.lower() not in {".xlsx", ".xlsm"}:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -366,8 +372,11 @@ def public_order_file_page(request: Request, filename: str):
 @app.get("/api/public-order/catalog")
 def public_order_catalog_api(request: Request):
     _require_public_order_token(request)
+    account = _require_store_order_auth(request)
     try:
         catalog = public_order_catalog()
+        if account:
+            catalog["stores"] = [store for store in catalog.get("stores", []) if store.get("name") == account["store_name"]]
         balances = {item["sku"]: float(item["balance"]) for item in inventory_summary()}
         for product in catalog.get("products", []):
             balance = balances.get(product["sku"], 0.0)
@@ -381,12 +390,13 @@ def public_order_catalog_api(request: Request):
 @app.post("/api/public-order/submit")
 async def public_order_submit_api(request: Request, payload: dict):
     _require_public_order_token(request)
+    account = _require_store_order_auth(request)
     items = list(payload.get("items") or [])
     _reject_public_order_below_minimum(items)
     _reject_unavailable_order_items(items)
     try:
         result = generate_structured_outbound_order(
-            store_name=str(payload.get("store_name", "")),
+            store_name=account["store_name"] if account else str(payload.get("store_name", "")),
             items=items,
         )
     except OrderParseError as exc:
@@ -464,6 +474,7 @@ def _to_float(value) -> float:
 @app.get("/api/public-order/files")
 def public_order_files(request: Request):
     _require_public_order_token(request)
+    _require_store_order_auth(request)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     files = []
     for path in sorted(OUTPUT_DIR.glob("*.xlsx"), key=lambda item: item.stat().st_mtime, reverse=True):
@@ -476,6 +487,28 @@ def public_order_files(request: Request):
             }
         )
     return {"items": files}
+
+
+@app.post("/api/public-order/auth/login")
+async def public_order_login(request: Request, payload: dict):
+    _require_public_order_token(request)
+    account = _verify_store_order_credentials(str(payload.get("username") or ""), str(payload.get("password") or ""))
+    if not account:
+        raise HTTPException(status_code=401, detail="用户名或密码不正确")
+    result = Response(
+        content=json.dumps({"status": "success", "store_name": account["store_name"]}, ensure_ascii=False),
+        media_type="application/json",
+    )
+    result.set_cookie(
+        "store_order_session",
+        _sign_store_order_session(account["username"], account["store_name"]),
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+        path="/",
+    )
+    return result
 
 
 def seed_catalog() -> None:
@@ -713,6 +746,160 @@ def _login_page_html(next_path: str) -> str:
 def _require_public_order_token(request: Request) -> None:
     if not secrets.compare_digest(_request_token(request), _public_order_token()):
         raise HTTPException(status_code=403, detail="链接无效")
+
+
+def _store_order_accounts() -> dict[str, dict]:
+    raw = os.environ.get("STORE_ORDER_ACCOUNTS_JSON", "").strip()
+    if not raw:
+        path = Path(os.environ.get("STORE_ORDER_ACCOUNTS_FILE", "/etc/store-order-accounts.json"))
+        if path.exists():
+            raw = path.read_text(encoding="utf-8")
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    accounts = payload.get("accounts") if isinstance(payload, dict) else payload
+    if not isinstance(accounts, dict):
+        return {}
+    clean = {}
+    for username, item in accounts.items():
+        if not isinstance(item, dict):
+            continue
+        password = str(item.get("password") or "")
+        store_name = str(item.get("store_name") or "")
+        if username and password and store_name:
+            clean[str(username)] = {"username": str(username), "password": password, "store_name": store_name}
+    return clean
+
+
+def _store_order_auth_enabled() -> bool:
+    return bool(_store_order_accounts())
+
+
+def _store_order_auth_secret() -> str:
+    secret = os.environ.get("STORE_ORDER_AUTH_SECRET", "")
+    if secret:
+        return secret
+    material = json.dumps(_store_order_accounts(), ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def _verify_store_order_credentials(username: str, password: str) -> dict | None:
+    account = _store_order_accounts().get(username.strip())
+    if not account:
+        return None
+    if not secrets.compare_digest(password, account["password"]):
+        return None
+    return account
+
+
+def _sign_store_order_session(username: str, store_name: str) -> str:
+    expires = int(time.time()) + 30 * 24 * 60 * 60
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"username": username, "store_name": store_name, "expires": expires}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    signature = hmac.new(_store_order_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def _store_order_session(request: Request) -> dict | None:
+    cookie = request.cookies.get("store_order_session", "")
+    if not cookie:
+        return None
+    try:
+        payload, signature = cookie.rsplit(".", 1)
+        data = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")).decode("utf-8"))
+        username = str(data.get("username") or "")
+        store_name = str(data.get("store_name") or "")
+        expires = int(data.get("expires") or 0)
+    except Exception:
+        return None
+    if expires < int(time.time()):
+        return None
+    account = _store_order_accounts().get(username)
+    if not account or account["store_name"] != store_name:
+        return None
+    expected = hmac.new(_store_order_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not secrets.compare_digest(signature, expected):
+        return None
+    return {"username": username, "store_name": store_name}
+
+
+def _require_store_order_auth(request: Request) -> dict | None:
+    if not _store_order_auth_enabled():
+        return None
+    account = _store_order_session(request)
+    if account:
+        return account
+    raise HTTPException(status_code=401, detail="需要门店登录")
+
+
+def _store_order_login_page_html(title: str, next_path: str, request: Request) -> str:
+    token = html.escape(_request_token(request), quote=True)
+    safe_title = html.escape(title, quote=True)
+    safe_next = html.escape(next_path, quote=True)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{safe_title}登录</title>
+    <style>
+      :root {{ color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+      body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7f4; color: #17201b; }}
+      main {{ width: min(420px, calc(100vw - 32px)); padding: 26px; border: 1px solid #d9ded3; border-radius: 8px; background: #fff; box-shadow: 0 18px 44px rgba(22, 32, 27, .14); }}
+      h1 {{ margin: 0 0 8px; font-size: 24px; line-height: 1.2; }}
+      p {{ margin: 0 0 20px; color: #64705f; font-size: 14px; line-height: 1.5; }}
+      form {{ display: grid; gap: 14px; }}
+      label {{ display: grid; gap: 6px; color: #3f4c42; font-size: 13px; font-weight: 800; }}
+      input {{ min-height: 44px; border: 1px solid #cfd8cc; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 16px; }}
+      button {{ min-height: 44px; border: 0; border-radius: 8px; background: #2f6f4e; color: #fff; font: inherit; font-weight: 900; cursor: pointer; }}
+      button:disabled {{ cursor: not-allowed; opacity: .65; }}
+      .message {{ min-height: 20px; color: #b42318; font-size: 13px; font-weight: 800; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>{safe_title}</h1>
+      <p>请输入门店账号密码。登录后会自动匹配门店。</p>
+      <form id="loginForm">
+        <label>账号<input name="username" autocomplete="username" required /></label>
+        <label>密码<input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">登录</button>
+        <div class="message" id="message"></div>
+      </form>
+    </main>
+    <script>
+      const token = "{token}";
+      const nextPath = "{safe_next}";
+      const form = document.querySelector("#loginForm");
+      const message = document.querySelector("#message");
+      form.addEventListener("submit", async (event) => {{
+        event.preventDefault();
+        const button = form.querySelector("button");
+        button.disabled = true;
+        message.textContent = "正在登录...";
+        const data = Object.fromEntries(new FormData(form).entries());
+        try {{
+          const response = await fetch(`/api/public-order/auth/login?token=${{encodeURIComponent(token)}}`, {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify(data),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok) throw new Error(payload.detail || "登录失败");
+          window.location.href = `${{nextPath}}?token=${{encodeURIComponent(token)}}`;
+        }} catch (error) {{
+          message.textContent = error.message || "登录失败";
+        }} finally {{
+          button.disabled = false;
+        }}
+      }});
+    </script>
+  </body>
+</html>"""
 
 
 def _require_operation_auth(request: Request) -> None:
