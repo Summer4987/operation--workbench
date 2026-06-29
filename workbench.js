@@ -1647,9 +1647,9 @@ function renderInventory() {
   const warningCount = warningsReliable ? Number(inventory.warning_count ?? warnings.length) : 0;
   const sourceText = inventory.source === "cloud" ? "云端" : inventory.source === "local_fallback_empty" ? "本地空库" : "本地";
   text("metricInventory", warningsReliable ? `${warningCount} 个` : "待同步");
-  text("metricInventoryValue", `成本已隐藏 · ${sourceText}`);
+  text("metricInventoryValue", `来源：${sourceText}`);
   text("inventoryProductCount", `${inventory.product_count || 0} 项`);
-  text("inventorySummary", warningsReliable ? `当前库存预警 ${warningCount} 项，来源：${sourceText}。成本字段不下发到前端。` : (inventory.message || "库存数据待同步，暂不展示低库存预警。"));
+  text("inventorySummary", warningsReliable ? `当前库存预警 ${warningCount} 项，来源：${sourceText}。` : (inventory.message || "库存数据待同步，暂不展示低库存预警。"));
   cls("inventoryMetricCard", "alert", warnings.length > 0);
   document.querySelector("#inventory")?.classList.toggle("alert", warnings.length > 0);
   document.querySelector("#metricInventoryValue")?.classList.toggle("danger", warnings.length > 0);

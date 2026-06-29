@@ -12,7 +12,6 @@ const els = {
   grid: document.querySelector("#inventoryGrid"),
   productCount: document.querySelector("#productCount"),
   warningCount: document.querySelector("#warningCount"),
-  inventoryValue: document.querySelector("#inventoryValue"),
   search: document.querySelector("#searchInput"),
   filter: document.querySelector("#statusFilter"),
   imports: document.querySelector("#importsList"),
@@ -67,7 +66,6 @@ async function loadAll() {
   state.inboundTemplate = templateStatus;
   els.productCount.textContent = summary.stats.product_count;
   els.warningCount.textContent = summary.stats.warning_count;
-  els.inventoryValue.textContent = "已隐藏";
   renderInventory();
   renderImports(imports.items);
   renderMovements(movements.items);
