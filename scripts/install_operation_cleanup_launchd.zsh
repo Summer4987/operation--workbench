@@ -22,6 +22,8 @@ EVIDENCE_MAX_MB="\${OPERATION_CLEAN_EVIDENCE_MAX_MB:-800}"
 LOG_DAYS="\${OPERATION_CLEAN_LOG_DAYS:-30}"
 DRY_RUN="\${OPERATION_CLEAN_DRY_RUN:-false}"
 PYTHON_BIN="\${PYTHON_BIN:-/usr/bin/python3}"
+AUTOMATION_SCREENSHOT_MINUTES="\${OPERATION_CLEAN_AUTOMATION_SCREENSHOT_MINUTES:-0}"
+EXTRA_AUTOMATION_SCREENSHOT_ROOTS="\${OPERATION_CLEAN_EXTRA_AUTOMATION_SCREENSHOT_ROOTS:-\$HOME/Library/Mobile Documents/.Trash:\$HOME/Documents/文稿 - summer的Mac mini/mac-mini-operation-migration}"
 
 delete_old() {
   local label="\$1"
@@ -47,6 +49,55 @@ delete_old() {
   done
 }
 
+delete_automation_debug_artifacts() {
+  local label="\$1"
+  shift
+  local roots=("\$@")
+  local screenshot_names=(
+    "eleme_balance*.png"
+    "meituan_balance*.png"
+    "meituan_find*.png"
+    "meituan_promo_ready*.png"
+    "chrome_restore_popup*.png"
+    "eleme_account_branch*.png"
+  )
+  local cache_names=(
+    "eleme_balance*.ocr.json"
+    "eleme_balance*_ocr.json"
+    "meituan_balance*.ocr.json"
+    "meituan_find*.ocr.json"
+    "meituan_promo_ready*.ocr.json"
+    "chrome_restore_popup*.ocr.json"
+    "eleme_account_branch*.ocr.json"
+    "meituan_balance_body_probe.json"
+    "meituan_balance_url_probe.json"
+  )
+  local age_args=()
+  if [[ "\$AUTOMATION_SCREENSHOT_MINUTES" =~ '^[0-9]+\$' && "\$AUTOMATION_SCREENSHOT_MINUTES" -gt 0 ]]; then
+    age_args=(-mmin "+\$AUTOMATION_SCREENSHOT_MINUTES")
+    echo "清理 \$label：删除超过 \${AUTOMATION_SCREENSHOT_MINUTES} 分钟的自动化调试截图/OCR"
+  else
+    echo "清理 \$label：立即删除自动化调试截图/OCR"
+  fi
+
+  for root_path in "\${roots[@]}"; do
+    if [[ "\$root_path" != /* ]]; then
+      root_path="\$ROOT/\$root_path"
+    fi
+    [[ -n "\$root_path" && -e "\$root_path" ]] || continue
+    for pattern in "\${screenshot_names[@]}" "\${cache_names[@]}"; do
+      if [[ "\$DRY_RUN" == "true" ]]; then
+        "\$FIND_BIN" "\$root_path" -type f -name "\$pattern" "\${age_args[@]}" -print 2>/dev/null || true
+      else
+        "\$FIND_BIN" "\$root_path" -type f -name "\$pattern" "\${age_args[@]}" -delete 2>/dev/null || true
+      fi
+    done
+    if [[ "\$DRY_RUN" != "true" ]]; then
+      "\$FIND_BIN" "\$root_path" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+    fi
+  done
+}
+
 delete_old "日报/评价原始下载" "\$RAW_DAYS" \
   "business-report-dashboard/data/raw" \
   "business-report-dashboard/data/reviews/raw"
@@ -60,6 +111,14 @@ delete_old "自动化 JSON 和实时记录" "\$JSON_DAYS" \
 
 delete_old "巡检截图和 OCR 证据" "\$EVIDENCE_DAYS" \
   "outputs/store_inspection"
+
+extra_roots=()
+if [[ -n "\$EXTRA_AUTOMATION_SCREENSHOT_ROOTS" ]]; then
+  IFS=":" read -rA extra_roots <<< "\$EXTRA_AUTOMATION_SCREENSHOT_ROOTS"
+fi
+delete_automation_debug_artifacts "自动化调试截图/OCR 缓存" \
+  "outputs/store_inspection" \
+  "\${extra_roots[@]}"
 
 if [[ -d "\$ROOT/outputs/store_inspection" && -x "\$PYTHON_BIN" ]]; then
   "\$PYTHON_BIN" - <<PY

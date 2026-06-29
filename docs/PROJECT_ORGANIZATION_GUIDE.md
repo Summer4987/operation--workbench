@@ -66,6 +66,7 @@ New project/
 
 3. 清理明显本地垃圾
    - 已清理 `.DS_Store`、`__pycache__`、`.pytest_cache`、临时渲染草稿。
+   - `eleme_balance*`、`meituan_balance*`、`meituan_find*`、`meituan_promo_ready*`、`chrome_restore_popup*`、`eleme_account_branch*` 这类自动化调试截图和 OCR 缓存默认无业务保存价值，由 `scripts/cleanup_operation_data.zsh` 即时清理。
    - 下一步只在确认后清理旧截图、旧 PDF 提取物、无价值调试图片。
 
 4. 固化根目录入口
@@ -119,4 +120,3 @@ New project/
 - 没有提交真实密钥、Cookie、Token、验证码、私钥。
 - 高风险动作仍默认预览或需要人工确认。
 - 验证命令已运行，或说明本次只改文档无需运行程序测试。
-
