@@ -93,6 +93,7 @@ def test_daily_order_submit_page_keeps_bound_store_visible():
     assert "payload.authenticated_store" in html
     assert "function normalizeStore" in html
     assert "function findStore" in html
+    assert "?." not in html
     assert "els.store.hidden = true" in html
     assert "els.storeLabel.hidden = true" in html
     assert "els.storeBox.hidden = true" not in html

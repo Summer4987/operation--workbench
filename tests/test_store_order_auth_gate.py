@@ -77,9 +77,11 @@ def test_daily_order_submit_shows_login_when_auth_file_is_configured(tmp_path, m
     assert "熊小小日配订货" in response.text
     assert "请输入门店账号密码" in response.text
     assert "/api/public-order/auth/login" in response.text
+    assert response.headers["cache-control"] == "no-store, no-cache, must-revalidate"
     assert "viewport-fit=cover" in response.text
     assert "100dvh" in response.text
     assert "@media (max-height: 520px)" in response.text
+    assert "login_at=${Date.now()}" in response.text
 
 
 def test_operation_login_page_fits_small_screens():
@@ -116,6 +118,11 @@ def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
     payload = response.json()
     assert payload["authenticated_store"]["name"] == "测试门店"
     assert payload["stores"][0]["name"] == "测试门店"
+
+    page = client.get("/order-submit?token=xiongxiaoxiao-order")
+    assert page.status_code == 200
+    assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate"
+    assert "?." not in page.text
 
 
 def test_chengdu_catalog_returns_authenticated_store(monkeypatch):

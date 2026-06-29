@@ -96,8 +96,15 @@ def index():
 def public_order_submit(request: Request):
     _require_public_order_token(request)
     if _store_order_auth_enabled() and not _store_order_session(request):
-        return Response(content=_store_order_login_page_html("熊小小日配订货", "/order-submit", request), media_type="text/html; charset=utf-8")
-    return FileResponse(STATIC_DIR / "order-submit.html")
+        return Response(
+            content=_store_order_login_page_html("熊小小日配订货", "/order-submit", request),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+        )
+    return FileResponse(
+        STATIC_DIR / "order-submit.html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @app.get("/login")
@@ -929,7 +936,7 @@ def _store_order_login_page_html(title: str, next_path: str, request: Request) -
           }});
           const payload = await response.json().catch(() => ({{}}));
           if (!response.ok) throw new Error(payload.detail || "登录失败");
-          window.location.href = `${{nextPath}}?token=${{encodeURIComponent(token)}}`;
+          window.location.href = `${{nextPath}}?token=${{encodeURIComponent(token)}}&login_at=${{Date.now()}}`;
         }} catch (error) {{
           message.textContent = error.message || "登录失败";
         }} finally {{
