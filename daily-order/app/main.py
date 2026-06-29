@@ -95,6 +95,10 @@ def catalog(request: Request):
     catalog_data = _load_catalog()
     if account:
         catalog_data = _catalog_for_store(catalog_data, account["store_name"])
+        stores = catalog_data.get("stores") or []
+        verified_store = stores[0] if stores else {"name": account["store_name"], "address": "", "contact": "", "phone": ""}
+        catalog_data["stores"] = stores or [verified_store]
+        catalog_data["authenticated_store"] = verified_store
     return catalog_data
 
 

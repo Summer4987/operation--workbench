@@ -90,6 +90,9 @@ def test_daily_order_submit_page_keeps_bound_store_visible():
 
     assert "已校验门店" in html
     assert "verified-label" in html
+    assert "payload.authenticated_store" in html
+    assert "function normalizeStore" in html
+    assert "function findStore" in html
     assert "els.store.hidden = true" in html
     assert "els.storeLabel.hidden = true" in html
     assert "els.storeBox.hidden = true" not in html

@@ -478,6 +478,7 @@
 
       let products = [];
       let stores = [];
+      let authenticatedStore = null;
       let pendingItems = [];
       const minOrderQuantity = 5;
 
@@ -486,7 +487,11 @@
         try {
           const payload = await fetchJson(`/api/public-order/catalog?token=${encodeURIComponent(token)}`);
           products = payload.products || [];
-          stores = payload.stores || [];
+          authenticatedStore = normalizeStore(payload.authenticated_store);
+          stores = (payload.stores || []).map(normalizeStore).filter((store) => store.name);
+          if (authenticatedStore.name && !stores.some((store) => store.name === authenticatedStore.name)) {
+            stores.unshift(authenticatedStore);
+          }
           els.store.innerHTML = [
             `<option value="">请选择门店</option>`,
             ...stores.map((store) => {
@@ -494,8 +499,9 @@
               return `<option value="${escapeHtml(store.name)}">${escapeHtml(store.name)}${detail ? ` - ${escapeHtml(detail)}` : ""}</option>`;
             }),
           ].join("");
-          if (stores.length === 1) {
-            els.store.value = stores[0].name;
+          const boundStore = authenticatedStore.name ? authenticatedStore : stores.length === 1 ? stores[0] : null;
+          if (boundStore) {
+            els.store.value = boundStore.name;
             els.storeBox.hidden = false;
             els.store.hidden = true;
             els.storeLabel.hidden = true;
@@ -630,7 +636,7 @@
       }
 
       function renderConfirm(items) {
-        const store = stores.find((item) => item.name === els.store.value);
+        const store = findStore(els.store.value);
         const total = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         els.confirmMeta.innerHTML = `
           <strong>${escapeHtml(store?.name || els.store.value)}</strong>
@@ -665,7 +671,7 @@
       }
 
       function renderStoreInfo() {
-        const store = stores.find((item) => item.name === els.store.value);
+        const store = findStore(els.store.value);
         if (!store) {
           els.storeInfo.style.display = "none";
           els.storeInfo.innerHTML = "";
@@ -678,6 +684,23 @@
           <div>联系人：${escapeHtml(store.contact || "-")} ${escapeHtml(store.phone || "")}</div>
           <div>地址：${escapeHtml(store.address || "-")}</div>
         `;
+      }
+
+      function normalizeStore(store) {
+        if (!store) return { name: "", address: "", contact: "", phone: "" };
+        if (typeof store === "string") return { name: store, address: "", contact: "", phone: "" };
+        return {
+          name: String(store.name || store.store_name || ""),
+          address: String(store.address || ""),
+          contact: String(store.contact || ""),
+          phone: String(store.phone || ""),
+        };
+      }
+
+      function findStore(name) {
+        const cleanName = String(name || "");
+        if (authenticatedStore?.name === cleanName) return authenticatedStore;
+        return stores.find((item) => item.name === cleanName);
       }
 
       function escapeHtml(value) {

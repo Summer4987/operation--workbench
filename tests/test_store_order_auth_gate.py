@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import types
 from pathlib import Path
@@ -91,3 +92,47 @@ def test_operation_login_page_fits_small_screens():
     assert "viewport-fit=cover" in response.text
     assert "100dvh" in response.text
     assert "@media (max-width: 420px)" in response.text
+
+
+def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "测试门店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "public_order_catalog", lambda: {"stores": [], "products": []})
+    monkeypatch.setattr(module, "inventory_summary", lambda: [])
+
+    client = TestClient(module.app)
+    login = client.post(
+        "/api/public-order/auth/login?token=xiongxiaoxiao-order",
+        json={"username": "store-user", "password": "secret"},
+    )
+    assert login.status_code == 200
+
+    response = client.get("/api/public-order/catalog?token=xiongxiaoxiao-order")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["authenticated_store"]["name"] == "测试门店"
+    assert payload["stores"][0]["name"] == "测试门店"
+
+
+def test_chengdu_catalog_returns_authenticated_store(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "测试门店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "_load_catalog", lambda: {"stores": [], "items": []})
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "store-user", "password": "secret"})
+    assert login.status_code == 200
+
+    response = client.get("/daily-order/api/catalog")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["authenticated_store"]["name"] == "测试门店"
+    assert payload["stores"][0]["name"] == "测试门店"

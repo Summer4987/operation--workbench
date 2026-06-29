@@ -376,7 +376,10 @@ def public_order_catalog_api(request: Request):
     try:
         catalog = public_order_catalog()
         if account:
-            catalog["stores"] = [store for store in catalog.get("stores", []) if store.get("name") == account["store_name"]]
+            stores = [store for store in catalog.get("stores", []) if store.get("name") == account["store_name"]]
+            verified_store = stores[0] if stores else {"name": account["store_name"], "address": "", "contact": "", "phone": ""}
+            catalog["stores"] = stores or [verified_store]
+            catalog["authenticated_store"] = verified_store
         balances = {item["sku"]: float(item["balance"]) for item in inventory_summary()}
         for product in catalog.get("products", []):
             balance = balances.get(product["sku"], 0.0)
