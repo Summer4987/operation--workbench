@@ -122,6 +122,9 @@ def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
     page = client.get("/order-submit?token=xiongxiaoxiao-order")
     assert page.status_code == 200
     assert page.headers["cache-control"] == "no-store, no-cache, must-revalidate"
+    assert "已校验门店" in page.text
+    assert "测试门店" in page.text
+    assert "请核对当前账号对应门店后再下单" in page.text
     assert "?." not in page.text
 
 

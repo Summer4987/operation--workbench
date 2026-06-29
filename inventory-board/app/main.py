@@ -95,9 +95,16 @@ def index():
 @app.get("/order-submit")
 def public_order_submit(request: Request):
     _require_public_order_token(request)
-    if _store_order_auth_enabled() and not _store_order_session(request):
+    account = _store_order_session(request) if _store_order_auth_enabled() else None
+    if _store_order_auth_enabled() and not account:
         return Response(
             content=_store_order_login_page_html("熊小小日配订货", "/order-submit", request),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+        )
+    if account:
+        return Response(
+            content=_order_submit_page_html(account),
             media_type="text/html; charset=utf-8",
             headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
         )
@@ -866,6 +873,17 @@ def _require_store_order_auth(request: Request) -> dict | None:
     if account:
         return account
     raise HTTPException(status_code=401, detail="需要门店登录")
+
+
+def _order_submit_page_html(account: dict) -> str:
+    page = (STATIC_DIR / "order-submit.html").read_text(encoding="utf-8")
+    store_name = html.escape(str(account.get("store_name") or ""), quote=False)
+    store_info = f"""<div id="storeInfo" class="store-info" style="display:block">
+          <span class="verified-label">已校验门店</span>
+          <strong>{store_name}</strong>
+          <div>请核对当前账号对应门店后再下单。</div>
+        </div>"""
+    return page.replace('<div id="storeInfo" class="store-info"></div>', store_info, 1)
 
 
 def _store_order_login_page_html(title: str, next_path: str, request: Request) -> str:
