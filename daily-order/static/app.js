@@ -478,10 +478,14 @@ async function authFetch(url, options) {
 async function logoutAccount() {
   if (!window.confirm("确认退出当前门店账号？")) return;
   els.logout.disabled = true;
+  if (orderBasePath === "/daily-order") {
+    location.href = "/daily-order/logout";
+    return;
+  }
   try {
     await fetch(`${orderBasePath}/api/auth/logout`, { method: "POST" });
   } finally {
-    location.href = orderBasePath === "/daily-order" ? "/daily-order/" : `${orderBasePath}/`;
+    location.href = `${orderBasePath}/`;
   }
 }
 

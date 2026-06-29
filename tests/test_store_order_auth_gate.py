@@ -287,6 +287,27 @@ def test_chengdu_daily_order_logout_clears_store_session(monkeypatch):
     assert client.get("/daily-order/api/catalog").status_code == 401
 
 
+def test_chengdu_daily_order_logout_page_returns_login_and_clears_session(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "测试门店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "_load_catalog", lambda: {"stores": [], "items": []})
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "store-user", "password": "secret"})
+    assert login.status_code == 200
+    assert client.get("/daily-order/api/catalog").status_code == 200
+
+    logout = client.get("/daily-order/logout")
+
+    assert logout.status_code == 200
+    assert "请输入门店账号密码" in logout.text
+    assert "no-store" in logout.headers["cache-control"]
+    assert client.get("/daily-order/api/catalog").status_code == 401
+
+
 def test_wechat_addon_messages_keep_digest_format_and_mark_addon():
     module = load_daily_order_module()
     order = {

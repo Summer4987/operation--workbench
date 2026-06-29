@@ -49,8 +49,15 @@ def index_without_trailing_slash():
 @app.get("/daily-order/")
 def index(request: Request):
     if _store_order_auth_enabled() and not _store_order_session(request):
-        return Response(content=_store_order_login_page_html("熊小小成都门店订货", "/daily-order/"), media_type="text/html; charset=utf-8")
-    return FileResponse(STATIC_DIR / "index.html")
+        return Response(
+            content=_store_order_login_page_html("熊小小成都门店订货", "/daily-order/"),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+        )
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @app.post("/daily-order/api/auth/login")
@@ -77,12 +84,18 @@ async def daily_order_login(request: Request, payload: dict):
 @app.post("/daily-order/api/auth/logout")
 def daily_order_logout(request: Request):
     result = Response(content=json.dumps({"status": "success"}, ensure_ascii=False), media_type="application/json")
-    result.delete_cookie(
-        "store_order_session",
-        path="/",
-        samesite="lax",
-        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+    _clear_store_order_session_cookie(result, request)
+    return result
+
+
+@app.get("/daily-order/logout")
+def daily_order_logout_page(request: Request):
+    result = Response(
+        content=_store_order_login_page_html("熊小小成都门店订货", "/daily-order/"),
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
     )
+    _clear_store_order_session_cookie(result, request)
     return result
 
 
@@ -815,6 +828,15 @@ def _require_store_order_auth(request: Request) -> dict | None:
     if account:
         return account
     raise HTTPException(status_code=401, detail="需要门店登录")
+
+
+def _clear_store_order_session_cookie(response: Response, request: Request) -> None:
+    response.delete_cookie(
+        "store_order_session",
+        path="/",
+        samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+    )
 
 
 def _store_order_login_page_html(title: str, next_path: str) -> str:
