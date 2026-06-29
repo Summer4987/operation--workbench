@@ -774,8 +774,16 @@ def _store_order_accounts() -> dict[str, dict]:
     return clean
 
 
+def _store_order_auth_configured() -> bool:
+    return bool(
+        os.environ.get("STORE_ORDER_ACCOUNTS_JSON", "").strip()
+        or os.environ.get("STORE_ORDER_ACCOUNTS_FILE", "").strip()
+        or Path("/etc/store-order-accounts.json").exists()
+    )
+
+
 def _store_order_auth_enabled() -> bool:
-    return bool(_store_order_accounts())
+    return _store_order_auth_configured() or bool(_store_order_accounts())
 
 
 def _store_order_auth_secret() -> str:

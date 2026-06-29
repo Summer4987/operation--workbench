@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/daily-order
 EnvironmentFile=-/etc/store-order-auth.env
+Environment=STORE_ORDER_ACCOUNTS_FILE=/etc/store-order-accounts.json
 ExecStart=/opt/daily-order/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010
 Restart=always
 RestartSec=3

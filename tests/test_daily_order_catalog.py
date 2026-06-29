@@ -58,11 +58,15 @@ def test_beijing_order_history_button_sits_in_topbar():
 
 def test_order_pages_bust_static_cache_for_drink_category():
     root = Path(__file__).resolve().parents[1]
-    for filename in ("index.html", "beijing-index.html"):
+    expected_scripts = {
+        "index.html": "app.js?v=20260629-store-auth",
+        "beijing-index.html": "app.js?v=20260625-sam-delivery",
+    }
+    for filename, expected_script in expected_scripts.items():
         html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
 
         assert "styles.css?v=20260625-secondary-tabs" in html
-        assert "app.js?v=20260625-sam-delivery" in html
+        assert expected_script in html
 
 
 def test_admin_pages_bust_static_cache_for_sam_delivery_channel():
