@@ -102,6 +102,14 @@
         font-size: 15px;
       }
 
+      .store-info .verified-label {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--brand);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
       .products-head {
         display: flex;
         align-items: center;
@@ -460,6 +468,7 @@
         summaryList: document.querySelector("#summaryList"),
         store: document.querySelector("#storeSelect"),
         storeBox: document.querySelector(".store-box"),
+        storeLabel: document.querySelector("label[for='storeSelect']"),
         storeInfo: document.querySelector("#storeInfo"),
         grid: document.querySelector("#productGrid"),
         itemCount: document.querySelector("#itemCount"),
@@ -487,9 +496,13 @@
           ].join("");
           if (stores.length === 1) {
             els.store.value = stores[0].name;
-            els.storeBox.hidden = true;
+            els.storeBox.hidden = false;
+            els.store.hidden = true;
+            els.storeLabel.hidden = true;
           } else {
             els.storeBox.hidden = false;
+            els.store.hidden = false;
+            els.storeLabel.hidden = false;
           }
           els.grid.innerHTML = products.map((item) => `
             <div class="item ${item.available ? "" : "unavailable"}">
@@ -660,6 +673,7 @@
         }
         els.storeInfo.style.display = "block";
         els.storeInfo.innerHTML = `
+          ${stores.length === 1 ? `<span class="verified-label">已校验门店</span>` : ""}
           <strong>${escapeHtml(store.name)}</strong>
           <div>联系人：${escapeHtml(store.contact || "-")} ${escapeHtml(store.phone || "")}</div>
           <div>地址：${escapeHtml(store.address || "-")}</div>

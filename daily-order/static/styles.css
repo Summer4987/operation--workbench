@@ -113,6 +113,36 @@ h1 {
   font-weight: 900;
 }
 
+.verified-store {
+  display: grid;
+  gap: 4px;
+  min-height: 56px;
+  border: 1px solid #b5cbc7;
+  border-radius: 8px;
+  background: #f4fbf8;
+  padding: 10px 12px;
+  color: #243447;
+  line-height: 1.35;
+}
+
+.verified-store span {
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.verified-store strong {
+  color: #12262f;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.verified-store small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .store-actions {
   display: flex;
   align-items: end;

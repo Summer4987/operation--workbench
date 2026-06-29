@@ -53,6 +53,7 @@ const localOrdersPrefix = "xiongxiaoxiao-store-orders";
 const els = {
   cartCount: document.querySelector("#cartCount"),
   storeName: document.querySelector("#storeName"),
+  verifiedStore: document.querySelector("#verifiedStore"),
   search: document.querySelector("#searchInput"),
   sourceTabs: document.querySelector("#sourceTabs"),
   catalogGrid: document.querySelector("#catalogGrid"),
@@ -100,19 +101,45 @@ function renderStoreOptions() {
   if (els.storeName.tagName === "SELECT") {
     els.storeName.innerHTML = `<option value="">请选择门店</option>${state.stores
       .map((store) => {
-        const name = typeof store === "string" ? store : store.name;
+        const name = storeNameOf(store);
         return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
       })
       .join("")}`;
   }
   const singleStore = state.stores.length === 1 ? state.stores[0] : null;
   if (singleStore) {
-    const name = typeof singleStore === "string" ? singleStore : singleStore.name;
+    const name = storeNameOf(singleStore);
     els.storeName.value = name || "";
-    els.storeName.closest(".store-field")?.setAttribute("hidden", "");
+    els.storeName.hidden = true;
+    els.storeName.closest(".store-field")?.querySelector("label")?.setAttribute("hidden", "");
   } else {
-    els.storeName.closest(".store-field")?.removeAttribute("hidden");
+    els.storeName.hidden = false;
+    els.storeName.closest(".store-field")?.querySelector("label")?.removeAttribute("hidden");
   }
+  renderVerifiedStore(singleStore);
+}
+
+function renderVerifiedStore(store) {
+  if (!els.verifiedStore) return;
+  if (!store) {
+    els.verifiedStore.hidden = true;
+    els.verifiedStore.innerHTML = "";
+    return;
+  }
+  const name = storeNameOf(store);
+  const detail = typeof store === "string" ? "" : [store.contact, store.phone].filter(Boolean).join(" ");
+  const address = typeof store === "string" ? "" : store.address || "";
+  els.verifiedStore.hidden = false;
+  els.verifiedStore.innerHTML = `
+    <span>已校验门店</span>
+    <strong>${escapeHtml(name)}</strong>
+    ${detail ? `<small>联系人：${escapeHtml(detail)}</small>` : ""}
+    ${address ? `<small>地址：${escapeHtml(address)}</small>` : ""}
+  `;
+}
+
+function storeNameOf(store) {
+  return typeof store === "string" ? store : store?.name || "";
 }
 
 function renderTabs() {

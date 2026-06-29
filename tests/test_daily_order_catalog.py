@@ -59,14 +59,40 @@ def test_beijing_order_history_button_sits_in_topbar():
 def test_order_pages_bust_static_cache_for_drink_category():
     root = Path(__file__).resolve().parents[1]
     expected_scripts = {
-        "index.html": "app.js?v=20260629-store-auth",
-        "beijing-index.html": "app.js?v=20260625-sam-delivery",
+        "index.html": "app.js?v=20260629-store-check",
+        "beijing-index.html": "app.js?v=20260629-store-check",
     }
     for filename, expected_script in expected_scripts.items():
         html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
 
         assert "styles.css?v=20260625-secondary-tabs" in html
         assert expected_script in html
+
+
+def test_chengdu_order_page_shows_verified_store_after_login():
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "daily-order" / "static" / "index.html").read_text(encoding="utf-8")
+    app_js = (root / "daily-order" / "static" / "app.js").read_text(encoding="utf-8")
+    styles = (root / "daily-order" / "static" / "styles.css").read_text(encoding="utf-8")
+
+    assert 'id="verifiedStore"' in html
+    assert "已校验门店" in app_js
+    assert "renderVerifiedStore(singleStore)" in app_js
+    assert 'els.storeName.hidden = true' in app_js
+    assert 'closest(".store-field")?.setAttribute("hidden"' not in app_js
+    assert ".verified-store" in styles
+
+
+def test_daily_order_submit_page_keeps_bound_store_visible():
+    html = (Path(__file__).resolve().parents[1] / "inventory-board" / "static" / "order-submit.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "已校验门店" in html
+    assert "verified-label" in html
+    assert "els.store.hidden = true" in html
+    assert "els.storeLabel.hidden = true" in html
+    assert "els.storeBox.hidden = true" not in html
 
 
 def test_admin_pages_bust_static_cache_for_sam_delivery_channel():
