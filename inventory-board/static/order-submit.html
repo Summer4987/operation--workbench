@@ -146,6 +146,19 @@
         font-size: 14px;
       }
 
+      .history-card summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .history-card summary::-webkit-details-marker {
+        display: none;
+      }
+
       .history-card strong {
         display: block;
         color: var(--ink);
@@ -156,6 +169,36 @@
         display: block;
         margin-top: 3px;
         color: var(--muted);
+      }
+
+      .history-card b {
+        color: var(--brand);
+        white-space: nowrap;
+      }
+
+      .history-card ul {
+        display: grid;
+        gap: 7px;
+        margin: 10px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .history-card li {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: baseline;
+        border-top: 1px solid #edf2f7;
+        padding-top: 7px;
+      }
+
+      .history-card li span {
+        min-width: 0;
+      }
+
+      .history-card li b {
+        color: #17202a;
       }
 
       .history-card a {
@@ -704,11 +747,19 @@
             return;
           }
           els.historyPanel.innerHTML = orders.map((order) => `
-            <div class="history-card">
-              <strong>${escapeHtml(order.filename || "日配订单")}</strong>
-              <small>${escapeHtml(formatDate(order.created_at))} · ${formatNumber(order.total_quantity)} 件 · ${Number(order.line_count || 0)} 行</small>
+            <details class="history-card">
+              <summary>
+                <span>
+                  <strong>${escapeHtml(order.filename || "日配订单")}</strong>
+                  <small>${escapeHtml(formatDate(order.created_at))} · ${Number(order.item_count || order.line_count || 0)} 个 SKU · 合计 ${formatNumber(order.total_quantity)} 件</small>
+                </span>
+                <b>明细</b>
+              </summary>
+              <ul>
+                ${(order.items || []).map((item) => `<li><span>${escapeHtml(item.name || item.sku)} ${escapeHtml(item.spec || "")}</span><b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
+              </ul>
               <a href="${escapeHtml(order.download_url)}" target="_blank" rel="noopener">下载 Excel</a>
-            </div>
+            </details>
           `).join("");
         } catch (error) {
           els.historyPanel.innerHTML = `<div class="history-card">${escapeHtml(error.message || "订单读取失败")}</div>`;

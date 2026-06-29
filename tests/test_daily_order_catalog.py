@@ -107,6 +107,8 @@ def test_daily_order_submit_page_has_order_history_panel():
     assert "查看已下单订单" in html
     assert "historyPanel" in html
     assert "/api/public-order/orders" in html
+    assert "<details class=\"history-card\">" in html
+    assert "order.items" in html
     assert "下载 Excel" in html
 
 

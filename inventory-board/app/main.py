@@ -902,6 +902,7 @@ def _public_store_order_history(request: Request, store_name: str, limit: int = 
         rows = conn.execute(
             """
             SELECT
+                f.id,
                 f.filename,
                 f.created_at,
                 f.line_count,
@@ -918,16 +919,35 @@ def _public_store_order_history(request: Request, store_name: str, limit: int = 
             """,
             (clean_store, limit),
         ).fetchall()
+        order_items = {}
+        for row in rows:
+            order_items[int(row["id"])] = [
+                dict(item)
+                for item in conn.execute(
+                    """
+                    SELECT sku, name, spec, unit, quantity
+                    FROM movements
+                    WHERE import_file_id = ?
+                      AND movement_type = 'outbound'
+                      AND store_name = ?
+                    ORDER BY source_row, id
+                    """,
+                    (int(row["id"]), clean_store),
+                ).fetchall()
+            ]
     items = []
     for row in rows:
         filename = str(row["filename"] or "")
+        row_id = int(row["id"])
         items.append(
             {
+                "order_id": filename,
                 "filename": filename,
                 "created_at": row["created_at"] or "",
                 "line_count": int(row["line_count"] or row["item_count"] or 0),
                 "item_count": int(row["item_count"] or 0),
                 "total_quantity": float(row["total_quantity"] or 0),
+                "items": order_items.get(row_id, []),
                 "download_url": _public_order_file_page_url(request, filename),
             }
         )

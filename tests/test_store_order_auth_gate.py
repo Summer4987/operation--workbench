@@ -211,6 +211,15 @@ def test_daily_order_history_filters_to_authenticated_store(tmp_path, monkeypatc
     items = response.json()["items"]
     assert [item["filename"] for item in items] == ["银泰城日配.xlsx"]
     assert items[0]["total_quantity"] == 6
+    assert items[0]["items"] == [
+        {
+            "sku": "SKU-1",
+            "name": "SKU-1",
+            "spec": "",
+            "unit": "斤",
+            "quantity": 6.0,
+        }
+    ]
     assert "expires=" in items[0]["download_url"]
     assert "sig=" in items[0]["download_url"]
 
