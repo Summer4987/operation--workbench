@@ -507,6 +507,13 @@ def public_order_files(request: Request):
     return {"items": files}
 
 
+@app.get("/api/public-order/orders")
+def public_store_order_history(request: Request):
+    _require_public_order_token(request)
+    account = _require_store_order_auth(request)
+    return {"items": _public_store_order_history(request, account["store_name"] if account else "")}
+
+
 @app.post("/api/public-order/auth/login")
 async def public_order_login(request: Request, payload: dict):
     _require_public_order_token(request)
@@ -885,6 +892,46 @@ def _order_submit_page_html(account: dict) -> str:
           <div>请核对当前账号对应门店后再下单。</div>
         </div>"""
     return page.replace('<div id="storeInfo" class="store-info"></div>', store_info, 1)
+
+
+def _public_store_order_history(request: Request, store_name: str, limit: int = 20) -> list[dict]:
+    clean_store = str(store_name or "").strip()
+    if not clean_store:
+        return []
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                f.filename,
+                f.created_at,
+                f.line_count,
+                COUNT(m.id) AS item_count,
+                COALESCE(SUM(m.quantity), 0) AS total_quantity
+            FROM import_files f
+            JOIN movements m ON m.import_file_id = f.id
+            WHERE f.source = 'cloud_order'
+              AND f.movement_type = 'outbound'
+              AND m.store_name = ?
+            GROUP BY f.id, f.filename, f.created_at, f.line_count
+            ORDER BY f.id DESC
+            LIMIT ?
+            """,
+            (clean_store, limit),
+        ).fetchall()
+    items = []
+    for row in rows:
+        filename = str(row["filename"] or "")
+        items.append(
+            {
+                "filename": filename,
+                "created_at": row["created_at"] or "",
+                "line_count": int(row["line_count"] or row["item_count"] or 0),
+                "item_count": int(row["item_count"] or 0),
+                "total_quantity": float(row["total_quantity"] or 0),
+                "download_url": _public_order_file_page_url(request, filename),
+            }
+        )
+    return items
 
 
 def _store_order_login_page_html(title: str, next_path: str, request: Request) -> str:

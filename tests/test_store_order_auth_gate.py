@@ -159,6 +159,62 @@ def test_signed_daily_order_file_links_download_without_store_cookie(tmp_path, m
     assert blocked.status_code == 401
 
 
+def test_daily_order_history_filters_to_authenticated_store(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
+    monkeypatch.setattr(db_module, "DB_PATH", tmp_path / "inventory.sqlite3")
+    module.init_db()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "银泰城店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setenv("INVENTORY_PASSWORD", "operation-secret")
+
+    with module.connect() as conn:
+        yintai_id = module.create_import(
+            conn,
+            file_hash="hash-yintai",
+            filename="银泰城日配.xlsx",
+            movement_type="outbound",
+            source="cloud_order",
+        )
+        other_id = module.create_import(
+            conn,
+            file_hash="hash-other",
+            filename="其他门店日配.xlsx",
+            movement_type="outbound",
+            source="cloud_order",
+        )
+        for import_id, store_name, sku in ((yintai_id, "银泰城店", "SKU-1"), (other_id, "金融城店", "SKU-2")):
+            conn.execute(
+                """
+                INSERT INTO movements (
+                    import_file_id, row_key, movement_type, sku, name, spec, unit, warehouse, address, store_name,
+                    quantity, signed_quantity, document_date, source_row, created_at
+                )
+                VALUES (?, ?, 'outbound', ?, ?, '', '斤', '', '', ?, 6, -6, '2026-06-29', 1, '2026-06-29T12:00:00+08:00')
+                """,
+                (import_id, f"row-{sku}", sku, sku, store_name),
+            )
+            module.finish_import(conn, import_id, status="success", line_count=1)
+
+    client = TestClient(module.app)
+    login = client.post(
+        "/api/public-order/auth/login?token=xiongxiaoxiao-order",
+        json={"username": "store-user", "password": "secret"},
+    )
+    assert login.status_code == 200
+
+    response = client.get("/api/public-order/orders?token=xiongxiaoxiao-order")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["filename"] for item in items] == ["银泰城日配.xlsx"]
+    assert items[0]["total_quantity"] == 6
+    assert "expires=" in items[0]["download_url"]
+    assert "sig=" in items[0]["download_url"]
+
+
 def test_chengdu_catalog_returns_authenticated_store(monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv(

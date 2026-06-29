@@ -110,6 +110,68 @@
         font-weight: 900;
       }
 
+      .order-history-actions {
+        margin-top: 10px;
+      }
+
+      .history-button {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #cbd8e6;
+        border-radius: 8px;
+        background: #f7fafc;
+        color: #273747;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      .history-panel {
+        display: none;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .history-panel.is-open {
+        display: grid;
+      }
+
+      .history-card {
+        border: 1px solid #e6edf4;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 10px 12px;
+        color: #273747;
+        line-height: 1.45;
+        font-size: 14px;
+      }
+
+      .history-card strong {
+        display: block;
+        color: var(--ink);
+        word-break: break-all;
+      }
+
+      .history-card small {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+      }
+
+      .history-card a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        margin-top: 8px;
+        border-radius: 8px;
+        background: var(--brand);
+        color: #fff;
+        padding: 0 12px;
+        font-weight: 900;
+        text-decoration: none;
+      }
+
       .products-head {
         display: flex;
         align-items: center;
@@ -412,6 +474,10 @@
         <label for="storeSelect">门店</label>
         <select id="storeSelect"></select>
         <div id="storeInfo" class="store-info"></div>
+        <div class="order-history-actions">
+          <button id="historyButton" class="history-button" type="button" aria-expanded="false">查看已下单订单</button>
+        </div>
+        <div id="historyPanel" class="history-panel"></div>
       </section>
 
       <section class="products">
@@ -470,6 +536,8 @@
         storeBox: document.querySelector(".store-box"),
         storeLabel: document.querySelector("label[for='storeSelect']"),
         storeInfo: document.querySelector("#storeInfo"),
+        historyButton: document.querySelector("#historyButton"),
+        historyPanel: document.querySelector("#historyPanel"),
         grid: document.querySelector("#productGrid"),
         itemCount: document.querySelector("#itemCount"),
         message: document.querySelector("#message"),
@@ -480,6 +548,7 @@
       let stores = [];
       let authenticatedStore = null;
       let pendingItems = [];
+      let historyLoaded = false;
       const minOrderQuantity = 5;
 
       async function loadCatalog() {
@@ -615,6 +684,37 @@
         els.successView.style.display = "grid";
       }
 
+      async function toggleOrderHistory() {
+        const isOpen = els.historyPanel.classList.toggle("is-open");
+        els.historyButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        els.historyButton.textContent = isOpen ? "收起已下单订单" : "查看已下单订单";
+        if (isOpen && !historyLoaded) {
+          await loadOrderHistory();
+        }
+      }
+
+      async function loadOrderHistory() {
+        els.historyPanel.innerHTML = `<div class="history-card">正在读取已下单订单...</div>`;
+        try {
+          const payload = await fetchJson(`/api/public-order/orders?token=${encodeURIComponent(token)}`);
+          const orders = payload.items || [];
+          historyLoaded = true;
+          if (!orders.length) {
+            els.historyPanel.innerHTML = `<div class="history-card">当前门店还没有可查看的日配订单。</div>`;
+            return;
+          }
+          els.historyPanel.innerHTML = orders.map((order) => `
+            <div class="history-card">
+              <strong>${escapeHtml(order.filename || "日配订单")}</strong>
+              <small>${escapeHtml(formatDate(order.created_at))} · ${formatNumber(order.total_quantity)} 件 · ${Number(order.line_count || 0)} 行</small>
+              <a href="${escapeHtml(order.download_url)}" target="_blank" rel="noopener">下载 Excel</a>
+            </div>
+          `).join("");
+        } catch (error) {
+          els.historyPanel.innerHTML = `<div class="history-card">${escapeHtml(error.message || "订单读取失败")}</div>`;
+        }
+      }
+
       function showConfirm() {
         els.formView.style.display = "none";
         els.confirmView.style.display = "block";
@@ -718,10 +818,18 @@
         return Number.isInteger(number) ? String(number) : String(Number(number.toFixed(2)));
       }
 
+      function formatDate(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      }
+
       els.submit.addEventListener("click", previewSummary);
       els.edit.addEventListener("click", showForm);
       els.confirm.addEventListener("click", submitOrder);
       els.store.addEventListener("change", renderStoreInfo);
+      els.historyButton.addEventListener("click", toggleOrderHistory);
       loadCatalog();
     </script>
   </body>

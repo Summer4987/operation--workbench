@@ -99,6 +99,17 @@ def test_daily_order_submit_page_keeps_bound_store_visible():
     assert "els.storeBox.hidden = true" not in html
 
 
+def test_daily_order_submit_page_has_order_history_panel():
+    html = (Path(__file__).resolve().parents[1] / "inventory-board" / "static" / "order-submit.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "查看已下单订单" in html
+    assert "historyPanel" in html
+    assert "/api/public-order/orders" in html
+    assert "下载 Excel" in html
+
+
 def test_admin_pages_bust_static_cache_for_sam_delivery_channel():
     root = Path(__file__).resolve().parents[1]
     for filename in ("admin.html", "beijing-admin.html"):
