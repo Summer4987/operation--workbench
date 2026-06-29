@@ -128,6 +128,37 @@ def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
     assert "?." not in page.text
 
 
+def test_signed_daily_order_file_links_download_without_store_cookie(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "测试门店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setenv("INVENTORY_PASSWORD", "operation-secret")
+    monkeypatch.setattr(module, "OUTPUT_DIR", tmp_path)
+    order_file = tmp_path / "DO-TEST.xlsx"
+    order_file.write_bytes(b"excel-bytes")
+
+    client = TestClient(module.app)
+    listing = client.get("/api/public-order/files?token=xiongxiaoxiao-order")
+
+    assert listing.status_code == 200
+    download_url = listing.json()["items"][0]["download_url"]
+    assert "expires=" in download_url
+    assert "sig=" in download_url
+
+    download = client.get(download_url)
+    assert download.status_code == 200
+    assert download.content == b"excel-bytes"
+
+    page = client.get(f"/order-file/{order_file.name}?{download_url.split('?', 1)[1]}")
+    assert page.status_code == 200
+    assert "下载 Excel 文件" in page.text
+
+    blocked = client.get(f"/api/order/files/{order_file.name}?token=xiongxiaoxiao-order")
+    assert blocked.status_code == 401
+
+
 def test_chengdu_catalog_returns_authenticated_store(monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv(

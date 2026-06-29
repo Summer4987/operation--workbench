@@ -54,6 +54,7 @@ STATIC_DIR = BASE_DIR / "static"
 TEMPLATE_DIR = BASE_DIR / "data" / "templates"
 PROMO_BUDGET_PATH = BASE_DIR / "data" / "promo_budget_overrides.json"
 PUBLIC_ORDER_MIN_TOTAL_QUANTITY = 5
+ORDER_FILE_DOWNLOAD_TTL_SECONDS = 7 * 24 * 60 * 60
 
 app = FastAPI(title="Inventory Board")
 app.add_middleware(
@@ -360,7 +361,7 @@ async def order_generate(payload: dict):
 
 @app.get("/api/order/files/{filename}")
 def order_file(request: Request, filename: str):
-    if secrets.compare_digest(_request_token(request), _public_order_token()):
+    if secrets.compare_digest(_request_token(request), _public_order_token()) and not _order_file_download_signature_valid(request, filename):
         _require_store_order_auth(request)
     path = OUTPUT_DIR / Path(filename).name
     if not path.exists() or path.suffix.lower() not in {".xlsx", ".xlsm"}:
@@ -371,7 +372,8 @@ def order_file(request: Request, filename: str):
 @app.get("/order-file/{filename}")
 def public_order_file_page(request: Request, filename: str):
     _require_public_order_token(request)
-    _require_store_order_auth(request)
+    if not _order_file_download_signature_valid(request, filename):
+        _require_store_order_auth(request)
     path = OUTPUT_DIR / Path(filename).name
     if not path.exists() or path.suffix.lower() not in {".xlsx", ".xlsm"}:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -491,7 +493,6 @@ def _to_float(value) -> float:
 @app.get("/api/public-order/files")
 def public_order_files(request: Request):
     _require_public_order_token(request)
-    _require_store_order_auth(request)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     files = []
     for path in sorted(OUTPUT_DIR.glob("*.xlsx"), key=lambda item: item.stat().st_mtime, reverse=True):
@@ -500,7 +501,7 @@ def public_order_files(request: Request):
                 "filename": path.name,
                 "size": path.stat().st_size,
                 "mtime": int(path.stat().st_mtime),
-                "download_url": f"{_order_download_path(path.name)}?token={_public_order_token()}",
+                "download_url": _signed_order_file_download_path(path.name),
             }
         )
     return {"items": files}
@@ -996,16 +997,50 @@ def _public_download_url(request: Request, filename: str) -> str:
 
 def _public_order_file_page_url(request: Request, filename: str) -> str:
     base_url = str(request.base_url).rstrip("/")
-    return f"{base_url}/order-file/{quote(filename)}?token={_public_order_token()}"
+    return f"{base_url}/order-file/{quote(filename)}?{_signed_order_file_query(filename)}"
 
 
 def _public_file_download_url(request: Request, filename: str) -> str:
     base_url = str(request.base_url).rstrip("/")
-    return f"{base_url}{_order_download_path(filename)}?token={_public_order_token()}"
+    return f"{base_url}{_signed_order_file_download_path(filename)}"
 
 
 def _order_download_path(filename: str) -> str:
     return f"/api/order/files/{quote(filename)}"
+
+
+def _signed_order_file_download_path(filename: str) -> str:
+    return f"{_order_download_path(filename)}?{_signed_order_file_query(filename)}"
+
+
+def _signed_order_file_query(filename: str) -> str:
+    expires = int(time.time()) + int(os.environ.get("ORDER_FILE_DOWNLOAD_TTL_SECONDS", ORDER_FILE_DOWNLOAD_TTL_SECONDS))
+    signature = _sign_order_file_download(filename, expires)
+    return f"token={quote(_public_order_token())}&expires={expires}&sig={signature}"
+
+
+def _sign_order_file_download(filename: str, expires: int) -> str:
+    safe_name = Path(filename).name
+    payload = f"{safe_name}:{int(expires)}"
+    return hmac.new(_order_file_download_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _order_file_download_signature_valid(request: Request, filename: str) -> bool:
+    try:
+        expires = int(request.query_params.get("expires") or 0)
+    except ValueError:
+        return False
+    if expires < int(time.time()):
+        return False
+    supplied = request.query_params.get("sig", "")
+    if not supplied:
+        return False
+    expected = _sign_order_file_download(filename, expires)
+    return secrets.compare_digest(supplied, expected)
+
+
+def _order_file_download_secret() -> str:
+    return os.environ.get("ORDER_FILE_DOWNLOAD_SECRET") or _operation_auth_secret()
 
 
 def _order_file_page_html(filename: str, download_url: str, page_url: str) -> str:
