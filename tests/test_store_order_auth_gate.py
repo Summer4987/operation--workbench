@@ -59,6 +59,9 @@ def test_chengdu_daily_order_shows_login_when_auth_file_is_configured(tmp_path, 
     assert "熊小小成都门店订货" in response.text
     assert "请输入门店账号密码" in response.text
     assert "/daily-order/api/auth/login" in response.text
+    assert "viewport-fit=cover" in response.text
+    assert "100dvh" in response.text
+    assert "@media (max-width: 420px)" in response.text
 
 
 def test_daily_order_submit_shows_login_when_auth_file_is_configured(tmp_path, monkeypatch):
@@ -73,3 +76,18 @@ def test_daily_order_submit_shows_login_when_auth_file_is_configured(tmp_path, m
     assert "熊小小日配订货" in response.text
     assert "请输入门店账号密码" in response.text
     assert "/api/public-order/auth/login" in response.text
+    assert "viewport-fit=cover" in response.text
+    assert "100dvh" in response.text
+    assert "@media (max-height: 520px)" in response.text
+
+
+def test_operation_login_page_fits_small_screens():
+    module = load_inventory_module()
+    client = TestClient(module.app)
+    response = client.get("/login")
+
+    assert response.status_code == 200
+    assert "熊小小业务中心" in response.text
+    assert "viewport-fit=cover" in response.text
+    assert "100dvh" in response.text
+    assert "@media (max-width: 420px)" in response.text

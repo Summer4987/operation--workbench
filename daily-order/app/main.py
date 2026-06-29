@@ -806,20 +806,34 @@ def _store_order_login_page_html(title: str, next_path: str) -> str:
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{safe_title}登录</title>
     <style>
       :root {{ color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-      body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7f4; color: #17201b; }}
-      main {{ width: min(420px, calc(100vw - 32px)); padding: 26px; border: 1px solid #d9ded3; border-radius: 8px; background: #fff; box-shadow: 0 18px 44px rgba(22, 32, 27, .14); }}
+      * {{ box-sizing: border-box; }}
+      html {{ min-height: 100%; }}
+      body {{ margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); background: #f6f7f4; color: #17201b; overflow-x: hidden; }}
+      main {{ width: min(420px, 100%); max-height: calc(100dvh - 32px); overflow: auto; -webkit-overflow-scrolling: touch; padding: 26px; border: 1px solid #d9ded3; border-radius: 8px; background: #fff; box-shadow: 0 18px 44px rgba(22, 32, 27, .14); }}
       h1 {{ margin: 0 0 8px; font-size: 24px; line-height: 1.2; }}
       p {{ margin: 0 0 20px; color: #64705f; font-size: 14px; line-height: 1.5; }}
       form {{ display: grid; gap: 14px; }}
       label {{ display: grid; gap: 6px; color: #3f4c42; font-size: 13px; font-weight: 800; }}
-      input {{ min-height: 44px; border: 1px solid #cfd8cc; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 16px; }}
+      input {{ width: 100%; min-height: 44px; border: 1px solid #cfd8cc; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 16px; }}
       button {{ min-height: 44px; border: 0; border-radius: 8px; background: #2f6f4e; color: #fff; font: inherit; font-weight: 900; cursor: pointer; }}
       button:disabled {{ cursor: not-allowed; opacity: .65; }}
       .message {{ min-height: 20px; color: #b42318; font-size: 13px; font-weight: 800; }}
+      @media (max-width: 420px) {{
+        body {{ align-items: start; padding-top: max(12px, env(safe-area-inset-top)); }}
+        main {{ padding: 20px; }}
+        h1 {{ font-size: 22px; }}
+        p {{ margin-bottom: 16px; }}
+      }}
+      @media (max-height: 520px) {{
+        body {{ align-items: start; }}
+        main {{ padding: 18px; }}
+        form {{ gap: 10px; }}
+        p {{ margin-bottom: 12px; }}
+      }}
     </style>
   </head>
   <body>
