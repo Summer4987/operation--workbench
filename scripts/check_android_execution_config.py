@@ -13,6 +13,11 @@ CONFIG_PATH = ROOT / "config" / "android_execution.json"
 EXAMPLE_PATH = ROOT / "config" / "android_execution.example.json"
 OUTPUT_DIR = ROOT / "outputs" / "android_execution_config"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+ADB_COMMON_PATHS = [
+    Path.home() / "Library" / "Android" / "sdk" / "platform-tools" / "adb",
+    Path("/opt/homebrew/bin/adb"),
+    Path("/usr/local/bin/adb"),
+]
 
 
 def now_text() -> str:
@@ -37,6 +42,12 @@ def runtime_environment() -> str:
     if "mini" in hostname:
         return "production"
     return "development"
+
+
+def tool_available(name: str, extra_paths: list[Path] | None = None) -> bool:
+    if shutil.which(name):
+        return True
+    return any(path.exists() and path.is_file() for path in extra_paths or [])
 
 
 def missing_if_blank(items: list[str], value: Any, missing: list[str]) -> None:
@@ -112,8 +123,8 @@ def build_payload() -> dict[str, Any]:
             missing.append(f"safety.forbidden_actions 缺少 {action}。")
 
     tools = {
-        "adb": bool(shutil.which("adb")),
-        "scrcpy": bool(shutil.which("scrcpy")),
+        "adb": tool_available("adb", ADB_COMMON_PATHS),
+        "scrcpy": tool_available("scrcpy"),
     }
     warnings: list[str] = []
     if not tools["adb"]:
