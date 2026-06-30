@@ -408,6 +408,20 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(len(visible), 1)
         self.assertEqual(visible[0]["control_text"], "选规格")
 
+    def test_visible_xml_add_candidates_keep_all_specs_control(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="圣女果" class="android.widget.TextView" bounds="[343,800][520,860]" />
+  <node text="3斤" class="android.widget.TextView" bounds="[343,930][405,990]" />
+  <node text="全部规格" class="android.widget.TextView" bounds="[891,1120][1032,1190]" />
+</hierarchy>"""
+
+        candidates = detect_xml_add_controls(parse_ui_nodes(xml_text))
+        visible = filter_visible_xml_add_candidates(candidates, Path(""))
+
+        self.assertEqual(len(visible), 1)
+        self.assertEqual(visible[0]["control_text"], "全部规格")
+
     def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
         config = {
             "payment": {"auto_payment_allowed": False},

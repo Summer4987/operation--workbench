@@ -142,6 +142,7 @@ CART_REVIEW_KEYWORDS = ["购物车", "进货车", "采购车", "去结算", "结
 CART_XML_MARKERS = ["cart-page-wrap", "cart-page", "去结算", "合计:", "全选"]
 CART_RISK_WORDS = ["纸巾", "嫩豆腐", "5斤", "2盒", "胆水老豆腐", "老豆腐", "400g", "去结算", "合计", "全选"]
 OTHER_PRODUCT_CONTEXT_WORDS = ["金针菇", "鸡翅", "西兰花", "樟树椒", "蟹味菇", "大豆油", "海藻沙拉", "玉米", "豆腐", "纸巾", "胡萝卜", "土豆", "白玉菇"]
+ADD_CONTROL_TEXTS = ["选规格", "全部规格", "加入购物车", "加购物车", "加购"]
 
 
 @dataclass
@@ -632,7 +633,7 @@ def variant_option_rows(snapshot: dict[str, Any], policy: dict[str, Any]) -> lis
         bounds = candidate.get("bounds") or []
         if len(center) != 2 or len(bounds) != 4:
             continue
-        if any(word in control_text for word in ["加入购物车", "加购物车", "加购"]) or candidate.get("source") in {"orange_image", "xml_add_control", "xml_target_card_control"}:
+        if any(word in control_text for word in ADD_CONTROL_TEXTS) or candidate.get("source") in {"orange_image", "xml_add_control", "xml_target_card_control"}:
             add_controls.append(candidate)
 
     rows = []
@@ -842,7 +843,7 @@ def filter_visible_xml_add_candidates(candidates: list[dict[str, Any]], image_pa
             visible.append(candidate)
             continue
         control_text = str(candidate.get("control_text") or "")
-        if source == "xml_add_control" and any(word in control_text for word in ["选规格", "加入购物车", "加购物车", "加购"]):
+        if source == "xml_add_control" and any(word in control_text for word in ADD_CONTROL_TEXTS):
             visible.append(candidate)
             continue
         if image_has_orange_control(image_path, candidate.get("bounds") or []):
@@ -864,7 +865,7 @@ def detect_xml_add_controls(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]
             continue
         rid = str(node.get("resource_id") or "").lower()
         reasons = []
-        if any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]):
+        if any(word in text for word in ADD_CONTROL_TEXTS):
             reasons.append("xml_add_text")
         if "activity-button" in rid and "fly-end" not in rid:
             reasons.append("xml_activity_button")
@@ -899,7 +900,7 @@ def detect_target_card_add_controls(
         if not text or bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
             continue
         cx, _cy = bounds_center(bounds)
-        if not (any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]) and cx >= 700):
+        if not (any(word in text for word in ADD_CONTROL_TEXTS) and cx >= 700):
             text_nodes.append(node)
 
     add_controls = list(orange_controls or [])
@@ -1038,7 +1039,7 @@ def target_card_add_diagnostics(nodes: list[dict[str, Any]], plan: dict[str, Any
         if not text or bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
             continue
         cx, _cy = bounds_center(bounds)
-        if any(word in text for word in ["选规格", "加入购物车", "加购物车", "加购"]) and cx >= 700:
+        if any(word in text for word in ADD_CONTROL_TEXTS) and cx >= 700:
             add_nodes.append(node)
             add_examples.append({"text": text, "bounds": node["bounds"]})
         else:
@@ -1353,7 +1354,7 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
         candidate_source = str(candidate.get("source") or "")
         control_text = str(candidate.get("control_text") or "")
         safe_control = (candidate_source == "xml_target_card_control" and control_text == "orange_add_icon") or (
-            candidate_source == "xml_add_control" and any(word in control_text for word in ["选规格", "加入购物车", "加购物车", "加购"])
+            candidate_source == "xml_add_control" and any(word in control_text for word in ADD_CONTROL_TEXTS)
         )
         if best.get("allowed") and safe_control:
             best_text = " ".join(
@@ -1479,7 +1480,7 @@ def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: 
         candidate_source = str(candidate.get("source") or "")
         control_text = str(candidate.get("control_text") or "")
         safe_control = (candidate_source == "xml_target_card_control" and control_text == "orange_add_icon") or (
-            candidate_source == "xml_add_control" and any(word in control_text for word in ["选规格", "加入购物车", "加购物车", "加购"])
+            candidate_source == "xml_add_control" and any(word in control_text for word in ADD_CONTROL_TEXTS)
         )
         if not safe_control:
             continue
