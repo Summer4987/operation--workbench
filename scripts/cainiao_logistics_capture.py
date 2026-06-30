@@ -1,0 +1,353 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = ROOT / "outputs" / "cainiao_logistics"
+LATEST_PATH = OUTPUT_DIR / "latest.json"
+DEFAULT_SERVER = "http://139.155.148.169"
+DEFAULT_TOKEN = "daily-order-admin"
+DEFAULT_PACKAGE = "com.cainiao.wireless"
+REMOTE_XML_PATH = "/sdcard/cainiao_window.xml"
+REMOTE_SCREENSHOT_PATH = "/sdcard/cainiao_screen.png"
+ADB_COMMON_PATHS = [
+    Path.home() / "Library" / "Android" / "sdk" / "platform-tools" / "adb",
+    Path("/opt/homebrew/bin/adb"),
+    Path("/usr/local/bin/adb"),
+]
+
+PICKUP_RE = re.compile(r"(?:取件码|取货码|提货码|凭证码|取件号)\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9\-]{2,15})")
+TRACKING_RE = re.compile(r"\b(?!20\d{6,})([A-Z]{1,6}[A-Z0-9]{7,24}|\d{10,24})\b", re.I)
+CARRIER_WORDS = ["顺丰", "中通", "圆通", "申通", "韵达", "极兔", "京东", "邮政", "EMS", "德邦", "菜鸟", "丹鸟"]
+STATUS_WORDS = ["待取件", "已入库", "已签收", "派送中", "运输中", "已揽收", "已发出", "到达", "已到"]
+NOISE_WORDS = ["手机号", "订单号", "运单号复制", "复制", "查看", "删除"]
+
+
+def now_text() -> str:
+    return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S%z")
+
+
+def timestamp_text() -> str:
+    return datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+
+
+def adb_executable() -> str:
+    env_path = os.environ.get("ANDROID_ADB_BIN", "").strip()
+    candidates = [Path(env_path)] if env_path else []
+    found = shutil.which("adb")
+    if found:
+        candidates.append(Path(found))
+    candidates.extend(ADB_COMMON_PATHS)
+    for candidate in candidates:
+        if candidate and candidate.exists() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return "adb"
+
+
+def adb_base(serial: str) -> list[str]:
+    base = [adb_executable()]
+    if serial:
+        base.extend(["-s", serial])
+    return base
+
+
+def run_command(args: list[str], timeout: int) -> dict[str, Any]:
+    try:
+        result = subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
+        return {"args": args, "returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+    except Exception as exc:
+        return {"args": args, "returncode": -1, "stdout": "", "stderr": str(exc)}
+
+
+def ensure_ok(result: dict[str, Any], action: str) -> None:
+    if result["returncode"] != 0:
+        detail = (result.get("stderr") or result.get("stdout") or "").strip()
+        raise RuntimeError(f"{action}失败：{detail or result['args']}")
+
+
+def launch_cainiao(serial: str, package: str, timeout: int) -> list[dict[str, Any]]:
+    commands = []
+    base = adb_base(serial)
+    commands.append(run_command(base + ["shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"], timeout))
+    time.sleep(3)
+    return commands
+
+
+def capture_from_device(serial: str, package: str, evidence_dir: Path, timeout: int) -> tuple[str, Path, list[dict[str, Any]]]:
+    commands = launch_cainiao(serial, package, timeout)
+    base = adb_base(serial)
+
+    dump = run_command(base + ["shell", "uiautomator", "dump", REMOTE_XML_PATH], timeout)
+    commands.append(dump)
+    ensure_ok(dump, "导出安卓控件树")
+
+    xml_path = evidence_dir / "window_dump.xml"
+    pull_xml = run_command(base + ["pull", REMOTE_XML_PATH, str(xml_path)], timeout)
+    commands.append(pull_xml)
+    ensure_ok(pull_xml, "拉取安卓控件树")
+
+    shot = run_command(base + ["shell", "screencap", "-p", REMOTE_SCREENSHOT_PATH], timeout)
+    commands.append(shot)
+    if shot["returncode"] == 0:
+        pull_shot = run_command(base + ["pull", REMOTE_SCREENSHOT_PATH, str(evidence_dir / "screen.png")], timeout)
+        commands.append(pull_shot)
+
+    return xml_path.read_text(encoding="utf-8", errors="replace"), xml_path, commands
+
+
+def extract_ui_texts(xml_text: str) -> list[str]:
+    root = ET.fromstring(xml_text)
+    texts: list[str] = []
+    for node in root.iter("node"):
+        for key in ("text", "content-desc"):
+            value = str(node.attrib.get(key) or "").strip()
+            if value:
+                texts.append(value)
+    return texts
+
+
+def clean_code(value: str) -> str:
+    return re.sub(r"^[：:\s]+|[，。,.;；\s]+$", "", value.strip())
+
+
+def first_match(words: list[str], candidates: list[str]) -> str:
+    for word in words:
+        for candidate in candidates:
+            if candidate and candidate in word:
+                return candidate
+    return ""
+
+
+def nearby_text(texts: list[str], index: int, radius: int = 4) -> str:
+    start = max(0, index - radius)
+    end = min(len(texts), index + radius + 1)
+    return " ".join(texts[start:end])
+
+
+def forward_text(texts: list[str], index: int, radius: int = 4) -> str:
+    end = min(len(texts), index + radius + 1)
+    return " ".join(texts[index:end])
+
+
+def find_pickup_codes(texts: list[str]) -> list[tuple[str, int]]:
+    found: list[tuple[str, int]] = []
+    for index, text in enumerate(texts):
+        for match in PICKUP_RE.finditer(text):
+            found.append((clean_code(match.group(1)), index))
+        if any(label in text for label in ["取件码", "取货码", "提货码", "凭证码", "取件号"]) and index + 1 < len(texts):
+            next_text = clean_code(texts[index + 1])
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9\-]{2,15}", next_text):
+                found.append((next_text, index))
+    return dedupe_pairs(found)
+
+
+def dedupe_pairs(pairs: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    seen = set()
+    rows = []
+    for value, index in pairs:
+        key = value.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append((value, index))
+    return rows
+
+
+def find_tracking_numbers(texts: list[str]) -> list[tuple[str, int]]:
+    found: list[tuple[str, int]] = []
+    for index, text in enumerate(texts):
+        if any(word in text for word in NOISE_WORDS):
+            continue
+        for match in TRACKING_RE.finditer(text):
+            number = clean_code(match.group(1)).upper()
+            if len(number) < 8 or number.startswith("400"):
+                continue
+            found.append((number, index))
+    return dedupe_pairs(found)
+
+
+def infer_status(context: str, pickup_code: str) -> str:
+    for word in STATUS_WORDS:
+        if word in context:
+            return "待取件" if word in ["待取件", "已入库", "已到", "到达"] and pickup_code else word
+    return "待取件" if pickup_code else "运输中"
+
+
+def build_record(
+    store_name: str,
+    pickup_code: str,
+    tracking_number: str,
+    context: str,
+    captured_at: str,
+    index: int,
+) -> dict[str, str]:
+    carrier = first_match([context], CARRIER_WORDS)
+    digest_source = "|".join([store_name, pickup_code, tracking_number, context])
+    fallback_tracking = f"CAINIAO-{hashlib.sha1(digest_source.encode('utf-8')).hexdigest()[:10].upper()}"
+    latest = context[:180]
+    return {
+        "store_name": store_name,
+        "goods": "菜鸟裹裹包裹",
+        "supplier": "菜鸟裹裹",
+        "carrier": carrier or "菜鸟裹裹",
+        "tracking_number": tracking_number or fallback_tracking,
+        "status": infer_status(context, pickup_code),
+        "pickup_code": pickup_code,
+        "latest_trace": latest or "菜鸟裹裹采集到物流更新",
+        "updated_at": captured_at,
+        "remark": f"安卓菜鸟裹裹自动采集 #{index}",
+    }
+
+
+def parse_logistics_records(xml_text: str, store_name: str, captured_at: str | None = None) -> dict[str, Any]:
+    captured_at = captured_at or now_text()
+    texts = extract_ui_texts(xml_text)
+    pickups = find_pickup_codes(texts)
+    trackings = find_tracking_numbers(texts)
+    records: list[dict[str, str]] = []
+
+    used_tracking: set[str] = set()
+    for row_index, (pickup, pickup_index) in enumerate(pickups, start=1):
+        context = nearby_text(texts, pickup_index)
+        tracking = ""
+        preceding = [(number, pickup_index - number_index) for number, number_index in trackings if 0 <= pickup_index - number_index <= 8]
+        following = [(number, number_index - pickup_index) for number, number_index in trackings if 0 < number_index - pickup_index <= 3]
+        if preceding:
+            tracking = min(preceding, key=lambda item: item[1])[0]
+        elif following:
+            tracking = min(following, key=lambda item: item[1])[0]
+        if tracking:
+            used_tracking.add(tracking)
+        records.append(build_record(store_name, pickup, tracking, context, captured_at, row_index))
+
+    for number, number_index in trackings:
+        if number in used_tracking:
+            continue
+        context = forward_text(texts, number_index)
+        records.append(build_record(store_name, "", number, context, captured_at, len(records) + 1))
+
+    return {
+        "captured_at": captured_at,
+        "text_count": len(texts),
+        "texts": texts,
+        "pickup_codes": [{"code": code, "index": index} for code, index in pickups],
+        "tracking_numbers": [{"number": number, "index": index} for number, index in trackings],
+        "records": records,
+    }
+
+
+def post_logistics_record(server: str, token: str, record: dict[str, str], timeout: int) -> dict[str, Any]:
+    query = urllib.parse.urlencode({"token": token})
+    url = f"{server.rstrip('/')}/daily-order/api/admin/logistics?{query}"
+    data = json.dumps(record, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json", "User-Agent": "cainiao-logistics-capture/1.0"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def write_json(path: Path, payload: Any) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_latest(evidence_dir: Path, summary: dict[str, Any]) -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    write_json(LATEST_PATH, {"evidence_dir": str(evidence_dir), **summary})
+
+
+def error_payload(exc: Exception, evidence_dir: Path) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "captured_at": now_text(),
+        "error": str(exc),
+        "evidence_dir": str(evidence_dir),
+        "agent_next_action": "检查 evidence_dir 里的 screen.png、window_dump.xml 和 commands.json，确认菜鸟裹裹是否登录、页面是否在包裹列表或详情页。",
+    }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="从安卓菜鸟裹裹采集物流单号、取件码，并同步到门店物流看板。")
+    parser.add_argument("--store-name", required=True, help="写入物流看板的门店名，例如：银泰城店。")
+    parser.add_argument("--server", default=os.environ.get("DAILY_ORDER_SERVER", DEFAULT_SERVER))
+    parser.add_argument("--token", default=os.environ.get("DAILY_ORDER_ADMIN_TOKEN", DEFAULT_TOKEN))
+    parser.add_argument("--serial", default=os.environ.get("CAINIAO_ADB_SERIAL", ""))
+    parser.add_argument("--package", default=os.environ.get("CAINIAO_PACKAGE", DEFAULT_PACKAGE))
+    parser.add_argument("--fixture-ui-dump", default="", help="用于测试/调试的安卓 uiautomator XML 文件；提供后不连接真机。")
+    parser.add_argument("--commit", action="store_true", help="真实写入物流看板；默认只生成证据包和解析结果。")
+    parser.add_argument("--timeout", type=int, default=20)
+    parser.add_argument("--evidence-dir", default="")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    evidence_dir = Path(args.evidence_dir).expanduser() if args.evidence_dir else OUTPUT_DIR / timestamp_text()
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict[str, Any] = {
+        "ok": False,
+        "captured_at": now_text(),
+        "store_name": args.store_name,
+        "commit": bool(args.commit),
+        "records_written": 0,
+    }
+    try:
+        commands: list[dict[str, Any]] = []
+        if args.fixture_ui_dump:
+            xml_path = Path(args.fixture_ui_dump).expanduser()
+            xml_text = xml_path.read_text(encoding="utf-8", errors="replace")
+            shutil.copyfile(xml_path, evidence_dir / "window_dump.xml")
+        else:
+            xml_text, _xml_path, commands = capture_from_device(args.serial, args.package, evidence_dir, args.timeout)
+        write_json(evidence_dir / "commands.json", commands)
+
+        parsed = parse_logistics_records(xml_text, args.store_name, summary["captured_at"])
+        write_json(evidence_dir / "parsed.json", parsed)
+        responses = []
+        if args.commit:
+            for record in parsed["records"]:
+                responses.append(post_logistics_record(args.server, args.token, record, args.timeout))
+        summary.update(
+            {
+                "ok": True,
+                "record_count": len(parsed["records"]),
+                "records_written": len(responses),
+                "pickup_codes": [item["code"] for item in parsed["pickup_codes"]],
+                "tracking_numbers": [item["number"] for item in parsed["tracking_numbers"]],
+                "evidence_dir": str(evidence_dir),
+            }
+        )
+        write_json(evidence_dir / "summary.json", summary)
+        if responses:
+            write_json(evidence_dir / "api_responses.json", responses)
+        write_latest(evidence_dir, summary)
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+    except Exception as exc:
+        payload = error_payload(exc, evidence_dir)
+        write_json(evidence_dir / "error.json", payload)
+        write_latest(evidence_dir, payload)
+        print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
