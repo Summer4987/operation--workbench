@@ -203,6 +203,40 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertTrue(score["allowed"])
         self.assertNotIn("pack_label_not_in_card_context", score["reasons"])
 
+    def test_identity_only_text_spec_candidate_tolerates_neighbor_product_context(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "保利中心店",
+            "submitted_at": "2026-06-30T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "ONION-001",
+                    "name": "洋葱",
+                    "quantity": 30,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        line = build_plan(order)["lines"][0]
+        candidate = {
+            "source": "xml_add_control",
+            "control_text": "选规格",
+            "nearby_texts": [
+                {"text": "黄皮洋葱", "bounds": [866, 1260, 1018, 1313]},
+                {"text": "粉壳黄心鲜鸡蛋 中码 箱装", "bounds": [174, 1409, 492, 1459]},
+            ],
+            "context_texts": [
+                {"text": "黄皮洋葱", "bounds": [866, 1260, 1018, 1313]},
+                {"text": "粉壳黄心鲜鸡蛋 中码 箱装", "bounds": [174, 1409, 492, 1459]},
+            ],
+        }
+
+        score = score_candidate_for_line(candidate, line, "")
+
+        self.assertTrue(score["allowed"])
+        self.assertNotIn("other_product_context_seen", score["reasons"])
+
     def test_search_suggestion_prefers_exact_non_risk_query(self) -> None:
         snapshot = {
             "ui_analysis": {
