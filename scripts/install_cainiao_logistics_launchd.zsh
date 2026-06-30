@@ -8,11 +8,14 @@ LABEL="com.summer.operation.cainiao-logistics"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="$ROOT/outputs/cainiao_logistics_launchd"
 RUNNER="$ROOT/scripts/run_cainiao_logistics_capture.zsh"
+RUNTIME_ROOT="$HOME/Library/Application Support/XiongCainiao"
+RUNTIME_SCRIPT="$RUNTIME_ROOT/scripts/cainiao_logistics_capture.py"
 ADB="${ANDROID_ADB_BIN:-$HOME/Library/Android/sdk/platform-tools/adb}"
-INLINE_COMMAND="set -e; cd \"$ROOT\"; export ANDROID_ADB_BIN=\"$ADB\"; mkdir -p \"$ROOT/outputs/cainiao_logistics\"; STAMP=\$(date +%Y%m%d-%H%M%S); python3 scripts/cainiao_logistics_capture.py --scan-details --max-details \"\${CAINIAO_MAX_DETAILS:-12}\" --scroll-pages \"\${CAINIAO_SCROLL_PAGES:-1}\" --evidence-dir \"$ROOT/outputs/cainiao_logistics/scheduled-\$STAMP\" --commit"
+INLINE_COMMAND="set -e; cd \"$RUNTIME_ROOT\"; export ANDROID_ADB_BIN=\"$ADB\"; mkdir -p \"$RUNTIME_ROOT/outputs/cainiao_logistics\"; STAMP=\$(date +%Y%m%d-%H%M%S); python3 \"$RUNTIME_SCRIPT\" --scan-details --max-details \"\${CAINIAO_MAX_DETAILS:-12}\" --scroll-pages \"\${CAINIAO_SCROLL_PAGES:-1}\" --evidence-dir \"$RUNTIME_ROOT/outputs/cainiao_logistics/scheduled-\$STAMP\" --commit"
 
-mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
+mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR" "$RUNTIME_ROOT/scripts"
 chmod +x "$RUNNER"
+install -m 0644 "$ROOT/scripts/cainiao_logistics_capture.py" "$RUNTIME_SCRIPT"
 
 cat > "$PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -60,3 +63,4 @@ launchctl kickstart -k "gui/$(id -u)/$LABEL" || true
 echo "已安装：$LABEL"
 echo "时间：每天 10:10、18:10"
 echo "日志：$LOG_DIR/stdout.log / $LOG_DIR/stderr.log"
+echo "运行目录：$RUNTIME_ROOT"
