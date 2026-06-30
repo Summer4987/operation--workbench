@@ -3,6 +3,8 @@ from scripts.realtime_order_income import (
     build_api_record,
     build_dom_record,
     build_payload,
+    meituan_realtime_active,
+    meituan_realtime_switch_diagnostics,
     merge_records,
     page_requires_login,
     realtime_validation_errors,
@@ -176,3 +178,44 @@ def test_meituan_login_page_is_detected_before_realtime_switch():
     page = FakePage("美团外卖商家版 账号登录 验证码登录 忘记密码 登录", "https://e.waimai.meituan.com/new_fe/login_gw#/login")
 
     assert page_requires_login(page, "美团")
+
+
+class FakeRealtimeTarget:
+    def __init__(self, result, url: str = "https://e.waimai.meituan.com/"):
+        self.result = result
+        self.url = url
+
+    def evaluate(self, _script: str):
+        return self.result
+
+
+class FakeRealtimePage(FakeRealtimeTarget):
+    def __init__(self, result, frames=None):
+        super().__init__(result)
+        self.frames = frames or []
+
+
+def test_meituan_realtime_active_accepts_active_frame_state():
+    page = FakeRealtimePage(False, frames=[FakeRealtimeTarget(True)])
+
+    assert meituan_realtime_active(page)
+
+
+def test_meituan_realtime_switch_diagnostics_includes_control_state():
+    page = FakeRealtimePage(
+        [
+            {
+                "text": "今日实时",
+                "className": "ant-radio-button-wrapper-checked",
+                "ariaSelected": "true",
+                "ariaPressed": "",
+                "dataSelected": "",
+                "dataActive": "",
+            }
+        ]
+    )
+
+    diagnostics = meituan_realtime_switch_diagnostics(page)
+
+    assert "今日实时" in diagnostics
+    assert "ant-radio-button-wrapper-checked" in diagnostics

@@ -744,22 +744,82 @@ def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[di
     return payloads
 
 
+MEITUAN_REALTIME_ACTIVE_SCRIPT = """
+() => {
+  const normalize = (value) => String(value || '').replace(/\\s+/g, '').trim();
+  const visible = (el) => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  };
+  const hasSelectedMarker = (el) => {
+    let node = el;
+    for (let depth = 0; node && depth < 5; depth += 1, node = node.parentElement) {
+      const classText = String(node.className || '').toLowerCase();
+      const classTokens = classText.split(/\\s+/).filter(Boolean);
+      if (classTokens.some((token) => (
+        token === 'active' ||
+        token === 'selected' ||
+        token === 'current' ||
+        token === 'checked' ||
+        token === 'is-active' ||
+        token === 'is-selected' ||
+        token === 'ant-radio-button-wrapper-checked'
+      ))) {
+        return true;
+      }
+      for (const attr of ['aria-selected', 'aria-pressed', 'aria-current', 'checked', 'selected', 'data-selected', 'data-active', 'data-current']) {
+        const value = node.getAttribute && node.getAttribute(attr);
+        if (value && !['false', '0', 'none'].includes(String(value).toLowerCase())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  return Array.from(document.querySelectorAll('.selector-item,[role="tab"],[role="button"],button,div,span'))
+    .some((el) => visible(el) && normalize(el.innerText || el.textContent) === '今日实时' && hasSelectedMarker(el));
+}
+"""
+
+
 def meituan_realtime_active(page) -> bool:
     for target in [page, *page.frames]:
         try:
-            active = target.evaluate(
-                """
-                () => Array.from(document.querySelectorAll('.selector-item')).some((el) => {
-                  const text = (el.innerText || el.textContent || '').replace(/\\s+/g, '').trim();
-                  return text === '今日实时' && /active/.test(el.className || '');
-                })
-                """
-            )
+            active = target.evaluate(MEITUAN_REALTIME_ACTIVE_SCRIPT)
             if active:
                 return True
         except Exception:
             pass
     return False
+
+
+def meituan_realtime_switch_diagnostics(page) -> str:
+    snapshots: list[str] = []
+    script = """
+    () => Array.from(document.querySelectorAll('.selector-item,[role="tab"],[role="button"],button'))
+      .map((el) => ({
+        text: String(el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40),
+        className: String(el.className || '').slice(0, 120),
+        ariaSelected: el.getAttribute('aria-selected') || '',
+        ariaPressed: el.getAttribute('aria-pressed') || '',
+        dataSelected: el.getAttribute('data-selected') || '',
+        dataActive: el.getAttribute('data-active') || '',
+      }))
+      .filter((item) => item.text.includes('今日') || item.text.includes('实时'))
+      .slice(0, 8)
+    """
+    for index, target in enumerate([page, *page.frames]):
+        try:
+            url = getattr(target, "url", "") or ""
+            items = target.evaluate(script)
+        except Exception:
+            continue
+        if items:
+            snapshots.append(f"frame{index} url={url} controls={json.dumps(items, ensure_ascii=False)}")
+    if not snapshots:
+        return "未找到包含今日/实时的可见切换控件。"
+    return "；".join(snapshots)[:1200]
 
 
 def page_requires_login(page, platform: str) -> bool:
@@ -816,18 +876,24 @@ def click_meituan_realtime_and_scroll(page) -> None:
             break
         except Exception:
             pass
-    for target in [page, *page.frames]:
-        if click_meituan_realtime(target):
-            page.wait_for_timeout(5000)
+    for attempt in range(3):
+        for target in [page, *page.frames]:
+            if click_meituan_realtime(target):
+                page.wait_for_timeout(3000 + attempt * 1000)
+                if meituan_realtime_active(page):
+                    break
+            try:
+                target.locator(".selector-item", has_text="今日实时").first.click(timeout=3000)
+                page.wait_for_timeout(3000 + attempt * 1000)
+                if meituan_realtime_active(page):
+                    break
+            except Exception:
+                pass
+        if meituan_realtime_active(page):
             break
-        try:
-            target.locator(".selector-item", has_text="今日实时").first.click(timeout=3000)
-            page.wait_for_timeout(5000)
-            break
-        except Exception:
-            pass
     if not meituan_realtime_active(page):
-        raise RuntimeError("美团页面未确认切换到今日实时")
+        diagnostics = meituan_realtime_switch_diagnostics(page)
+        raise RuntimeError(f"美团页面未确认切换到今日实时：{diagnostics}")
     for _ in range(8):
         for target in [page, *page.frames]:
             try:
