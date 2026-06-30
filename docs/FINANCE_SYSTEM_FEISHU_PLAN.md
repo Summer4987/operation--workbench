@@ -1,12 +1,14 @@
-# 飞书财务系统 MVP 计划
+# 飞书财务系统交付说明
 
-目标：先把微信里的财务文本变成可追溯、可人工确认的本地财务收件箱，再把确认后的记录导出为飞书多维表格可接收的账本结构。
+目标：把微信里的财务文本变成可追溯、可人工确认的财务工作台流程，再把确认后的记录安全同步到飞书多维表格。
 
 日常使用请优先看 `docs/FINANCE_SYSTEM_RUNBOOK.md`；正式入口是 `python3 scripts/finance_system.py <命令>`。
 
 ## 当前交付
 
 - `scripts/finance_system.py`：熊小小财务系统正式入口。
+- `scripts/finance_web.py`：本地网页工作台，支持录入草稿、人工确认入账、标记待同步、飞书预检/同步。
+- `熊小小财务系统.command`：双击启动网页工作台。
 - `scripts/finance_inbox.py`：命令行财务收件箱。
 - `scripts/finance_feishu_sync.py`：飞书确认账本同步/导出脚本，默认 dry-run/export-only。
 - `ai-business-center/config/finance_schema.json`：草稿、账本和飞书多维表格字段规划。
@@ -27,12 +29,25 @@
 - 系统不会自动发布到飞书。
 - 确认账本必须显式传入 `--draft-id` 和 `--operator`。
 - 金额、日期、收支方向、分类识别不确定时会写入 `parse_warnings`，确认前必须人工复核。
-- 当前账本记录的 `sync_status` 固定为 `local_only`。
+- 新确认账本记录默认是 `local_only`。
 - 账本必须经人工执行 `mark-ready` 后才会变成 `ready_for_feishu`。
 - 飞书同步脚本只读取 `ready_for_feishu`，不会从微信草稿直接写飞书。
 - 没有飞书 token 或没有传 `--execute` 时，只导出 CSV/JSON，不会声称写入成功。
+- 网页真实写入飞书必须手动勾选确认框并点击执行按钮。
 
 ## 本地命令
+
+打开正式网页工作台：
+
+```bash
+./熊小小财务系统.command
+```
+
+或：
+
+```bash
+python3 scripts/finance_system.py serve
+```
 
 录入一条微信财务文本：
 

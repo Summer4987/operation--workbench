@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import html
+import io
 import json
 import sys
 import urllib.parse
 import webbrowser
+from collections import Counter
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import finance_inbox  # noqa: E402
+from scripts import finance_feishu_sync  # noqa: E402
 
 
 CSS = """
@@ -28,6 +32,8 @@ CSS = """
   --soft: #f6f8fb;
   --panel: #ffffff;
   --accent: #0f766e;
+  --accent-strong: #115e59;
+  --warn: #92400e;
   --danger: #b42318;
 }
 * { box-sizing: border-box; }
@@ -47,12 +53,14 @@ header {
   gap: 16px;
 }
 h1 { margin: 0; font-size: 22px; font-weight: 700; }
-main { max-width: 1180px; margin: 0 auto; padding: 24px; }
-.layout { display: grid; grid-template-columns: minmax(360px, 0.9fr) minmax(460px, 1.1fr); gap: 20px; align-items: start; }
+main { max-width: 1320px; margin: 0 auto; padding: 24px; }
+.layout { display: grid; grid-template-columns: minmax(360px, 0.82fr) minmax(620px, 1.18fr); gap: 20px; align-items: start; }
+.stack { display: grid; gap: 16px; }
 section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
 h2 { margin: 0 0 14px; font-size: 17px; }
-label { display: block; font-weight: 600; margin: 14px 0 7px; }
-textarea, input {
+h3 { margin: 0 0 10px; font-size: 15px; }
+label { display: block; font-weight: 600; margin: 12px 0 7px; }
+textarea, input, select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -61,8 +69,12 @@ textarea, input {
   background: white;
 }
 textarea { min-height: 132px; resize: vertical; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-button {
+.checkline { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 13px; }
+.checkline input { width: auto; }
+.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button, .button {
   margin-top: 14px;
   border: 0;
   border-radius: 6px;
@@ -71,19 +83,39 @@ button {
   color: white;
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
 }
+.danger { background: var(--danger); }
 .secondary { background: #334155; }
+.ghost { background: #e2e8f0; color: #263241; }
 .muted { color: var(--muted); font-size: 13px; line-height: 1.45; }
 .notice { padding: 10px 12px; border-radius: 6px; margin-bottom: 14px; background: #ecfdf5; border: 1px solid #a7f3d0; }
 .error { background: #fff1f2; border-color: #fecdd3; color: var(--danger); }
+.warning { background: #fffbeb; border-color: #fde68a; color: var(--warn); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; vertical-align: top; }
+th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 th { color: var(--muted); font-weight: 700; background: var(--soft); }
-.pill { display: inline-block; border-radius: 999px; padding: 2px 8px; background: #e2e8f0; white-space: nowrap; }
+.pill { display: inline-block; border-radius: 999px; padding: 2px 8px; background: #e2e8f0; white-space: nowrap; font-size: 12px; }
+.pill.ready { background: #dbeafe; color: #1d4ed8; }
+.pill.synced { background: #dcfce7; color: #166534; }
+.pill.failed { background: #fee2e2; color: #991b1b; }
 .toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .empty { padding: 24px; text-align: center; color: var(--muted); background: var(--soft); border-radius: 6px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.metric { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.metric strong { display: block; font-size: 22px; line-height: 1.1; }
+.record { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; background: #fff; }
+.record-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.raw { padding: 10px; background: var(--soft); border-radius: 6px; font-size: 13px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr); gap: 16px; align-items: start; }
+pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 320px; overflow: auto; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
+  .split { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .row, .row-3 { grid-template-columns: 1fr; }
   main { padding: 14px; }
   header { padding: 14px; align-items: flex-start; flex-direction: column; }
 }
@@ -121,36 +153,170 @@ def pending_drafts() -> list[dict[str, Any]]:
     ]
 
 
+def ledger_records(status: str | None = None) -> list[dict[str, Any]]:
+    records = finance_inbox.read_jsonl(finance_inbox.LEDGER_PATH)
+    if status:
+        records = [record for record in records if record.get("sync_status") == status]
+    return records
+
+
+def esc(value: Any) -> str:
+    return html.escape("" if value is None else str(value))
+
+
+def money(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def select(name: str, options: list[str], selected: Any) -> str:
+    selected_text = "" if selected is None else str(selected)
+    items = []
+    for option in options:
+        marker = " selected" if option == selected_text else ""
+        items.append(f'<option value="{esc(option)}"{marker}>{esc(option)}</option>')
+    return f'<select name="{esc(name)}">{"".join(items)}</select>'
+
+
+def render_metrics() -> str:
+    drafts = finance_inbox.read_jsonl(finance_inbox.DRAFTS_PATH)
+    pending = pending_drafts()
+    ledger = ledger_records()
+    ledger_status = Counter(str(record.get("sync_status") or "unknown") for record in ledger)
+    return f"""
+<div class="metrics">
+  <div class="metric"><strong>{len(pending)}</strong><span class="muted">待确认草稿</span></div>
+  <div class="metric"><strong>{ledger_status.get("local_only", 0)}</strong><span class="muted">本地已入账</span></div>
+  <div class="metric"><strong>{ledger_status.get("ready_for_feishu", 0)}</strong><span class="muted">待同步飞书</span></div>
+  <div class="metric"><strong>{ledger_status.get("synced", 0)}</strong><span class="muted">已同步飞书</span></div>
+</div>
+<div class="muted">草稿总数 {len(drafts)}，账本总数 {len(ledger)}。所有动作都有本地记录，网页不会绕过人工确认。</div>
+"""
+
+
 def render_drafts() -> str:
     drafts = pending_drafts()
     if not drafts:
         return '<div class="empty">当前没有待确认财务草稿</div>'
-    rows = []
+    cards = []
     for draft in drafts:
         warnings = draft.get("parse_warnings") or []
-        amount_value = draft.get("parsed_amount")
-        amount_text = "" if amount_value is None else f"{float(amount_value):.2f}"
+        warning_html = ""
+        if warnings:
+            warning_html = f'<div class="notice warning">解析提醒：{esc("；".join(str(item) for item in warnings))}</div>'
+        cards.append(
+            f"""
+<div class="record">
+  <div class="record-head">
+    <div>
+      <h3>{esc(draft.get("parsed_transaction_date"))} · {esc(money(draft.get("parsed_amount")))} 元</h3>
+      <div class="muted"><code>{esc(draft.get("draft_id"))}</code> · {esc(draft.get("created_at"))}</div>
+    </div>
+    <span class="pill">{esc(draft.get("parsed_direction"))}</span>
+  </div>
+  <div class="raw">{esc(draft.get("raw_text"))}</div>
+  {warning_html}
+  <form method="post" action="/confirm">
+    <input type="hidden" name="draft_id" value="{esc(draft.get("draft_id"))}">
+    <div class="row-3">
+      <div><label>业务日期</label><input name="transaction_date" value="{esc(draft.get("parsed_transaction_date"))}" required></div>
+      <div><label>金额</label><input name="amount" type="number" min="0.01" step="0.01" value="{esc(money(draft.get("parsed_amount")))}" required></div>
+      <div><label>确认人</label><input name="operator" value="{esc(draft.get("created_by") or "summer")}" required></div>
+    </div>
+    <div class="row-3">
+      <div><label>收支方向</label>{select("direction", sorted(finance_inbox.CONFIRMABLE_DIRECTIONS), draft.get("parsed_direction"))}</div>
+      <div><label>财务分类</label>{select("category", sorted(finance_inbox.CONFIRMABLE_CATEGORIES), draft.get("parsed_category"))}</div>
+      <div><label>收付款方式</label>{select("payment_method", sorted(finance_inbox.VALID_PAYMENT_METHODS), draft.get("parsed_payment_method"))}</div>
+    </div>
+    <div class="row">
+      <div><label>门店</label><input name="store" value="{esc(draft.get("parsed_store"))}"></div>
+      <div><label>交易对方</label><input name="counterparty" value="{esc(draft.get("parsed_counterparty"))}"></div>
+    </div>
+    <label>备注</label><input name="note" value="">
+    <button type="submit">确认入账</button>
+  </form>
+</div>
+"""
+        )
+    return "".join(cards)
+
+
+def sync_pill(status: Any) -> str:
+    status_text = str(status or "unknown")
+    class_name = ""
+    if status_text == "ready_for_feishu":
+        class_name = " ready"
+    elif status_text == "synced":
+        class_name = " synced"
+    elif status_text == "sync_failed":
+        class_name = " failed"
+    return f'<span class="pill{class_name}">{esc(status_text)}</span>'
+
+
+def render_ledger() -> str:
+    records = ledger_records()
+    if not records:
+        return '<div class="empty">当前还没有确认账本记录</div>'
+    rows = []
+    for record in reversed(records[-50:]):
+        action = ""
+        if record.get("sync_status") in {"local_only", "sync_failed"}:
+            action = f"""
+<form method="post" action="/ready">
+  <input type="hidden" name="ledger_id" value="{esc(record.get("ledger_id"))}">
+  <input name="operator" value="{esc(record.get("confirmed_by") or "summer")}" required>
+  <button class="secondary" type="submit">标记待同步</button>
+</form>
+"""
+        elif record.get("sync_status") == "ready_for_feishu":
+            action = '<div class="muted">等待下方飞书同步</div>'
+        elif record.get("sync_status") == "synced":
+            action = f'<div class="muted">飞书记录：<code>{esc(record.get("feishu_record_id"))}</code></div>'
         rows.append(
             "<tr>"
-            f"<td><code>{html.escape(str(draft.get('draft_id') or ''))}</code></td>"
-            f"<td>{html.escape(str(draft.get('parsed_transaction_date') or ''))}</td>"
-            f"<td><span class=\"pill\">{html.escape(str(draft.get('parsed_direction') or ''))}</span></td>"
-            f"<td>{html.escape(amount_text)}</td>"
-            f"<td>{html.escape(str(draft.get('parsed_category') or ''))}</td>"
-            f"<td>{html.escape(str(draft.get('parsed_store') or ''))}</td>"
-            f"<td>{html.escape(str(draft.get('raw_text') or ''))}<div class=\"muted\">提醒：{html.escape('；'.join(warnings) if warnings else '无')}</div></td>"
+            f"<td><code>{esc(record.get('ledger_id'))}</code><div class=\"muted\">草稿 {esc(record.get('draft_id'))}</div></td>"
+            f"<td>{esc(record.get('transaction_date'))}</td>"
+            f"<td>{esc(record.get('direction'))}</td>"
+            f"<td>{esc(money(record.get('amount')))}</td>"
+            f"<td>{esc(record.get('category'))}<div class=\"muted\">{esc(record.get('payment_method'))}</div></td>"
+            f"<td>{esc(record.get('store'))}<div class=\"muted\">{esc(record.get('counterparty'))}</div></td>"
+            f"<td>{sync_pill(record.get('sync_status'))}<div class=\"muted\">{esc(record.get('sync_error'))}</div></td>"
+            f"<td>{action}</td>"
             "</tr>"
         )
     return (
         "<table><thead><tr>"
-        "<th>草稿ID</th><th>日期</th><th>方向</th><th>金额</th><th>分类</th><th>门店</th><th>原始文本</th>"
+        "<th>账本ID</th><th>业务日期</th><th>方向</th><th>金额</th><th>分类</th><th>门店/对方</th><th>飞书状态</th><th>动作</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
     )
 
 
-def render_home(message: str = "", error: str = "") -> bytes:
+def run_finance_action(action: str, args: argparse.Namespace) -> tuple[int, str]:
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+        try:
+            if action == "confirm":
+                code = finance_inbox.command_confirm(args)
+            elif action == "ready":
+                code = finance_inbox.command_mark_ready(args)
+            elif action == "sync":
+                code = finance_feishu_sync.command_sync(args)
+            else:
+                raise SystemExit(f"未知动作：{action}")
+        except SystemExit as exc:
+            code = int(exc.code) if isinstance(exc.code, int) else 1
+            if exc.code and not isinstance(exc.code, int):
+                print(exc.code)
+    return code, buffer.getvalue().strip()
+
+
+def render_home(message: str = "", error: str = "", sync_output: str = "") -> bytes:
     notice = ""
     if message:
         notice = f'<div class="notice">{html.escape(message)}</div>'
@@ -158,33 +324,56 @@ def render_home(message: str = "", error: str = "") -> bytes:
         notice = f'<div class="notice error">{html.escape(error)}</div>'
     body = f"""
 {notice}
+{render_metrics()}
 <div class="layout">
-  <section>
-    <h2>录入财务记录</h2>
-    <form method="post" action="/intake">
-      <label for="raw_text">财务文本</label>
-      <textarea id="raw_text" name="raw_text" required placeholder="例如：今天 熊小小万象城 微信支付采购原料 128.50 元 供应商:张三冻品"></textarea>
-      <div class="row">
-        <div>
-          <label for="operator">录入人</label>
-          <input id="operator" name="operator" value="finance-web">
+  <div class="stack">
+    <section>
+      <h2>录入财务记录</h2>
+      <form method="post" action="/intake">
+        <label for="raw_text">财务文本</label>
+        <textarea id="raw_text" name="raw_text" required placeholder="例如：今天 熊小小万象城 微信支付采购原料 128.50 元 供应商:张三冻品"></textarea>
+        <div class="row">
+          <div>
+            <label for="operator">录入人</label>
+            <input id="operator" name="operator" value="finance-web">
+          </div>
+          <div>
+            <label for="hint">状态</label>
+            <input id="hint" value="待确认草稿" disabled>
+          </div>
         </div>
-        <div>
-          <label for="hint">状态</label>
-          <input id="hint" value="只生成待确认草稿" disabled>
-        </div>
+        <button type="submit">录入草稿</button>
+      </form>
+    </section>
+    <section>
+      <div class="toolbar">
+        <h2>飞书同步</h2>
+        <form method="get" action="/"><button class="ghost" type="submit">刷新</button></form>
       </div>
-      <button type="submit">录入草稿</button>
-    </form>
-    <p class="muted">录入后请在右侧复制草稿 ID，用后台确认命令或后续确认界面人工确认。系统不会从网页录入直接入账。</p>
-  </section>
-  <section>
-    <div class="toolbar">
-      <h2>待确认草稿</h2>
-      <form method="get" action="/"><button class="secondary" type="submit">刷新</button></form>
-    </div>
-    {render_drafts()}
-  </section>
+      <form method="post" action="/sync">
+        <label class="checkline"><input type="checkbox" name="confirm_execute" value="yes">确认把 ready_for_feishu 记录真实写入飞书</label>
+        <div class="actions">
+          <button class="secondary" type="submit" name="mode" value="dry-run">预检并导出</button>
+          <button class="danger" type="submit" name="mode" value="execute">真实写入飞书</button>
+        </div>
+        <p class="muted">真实写入只处理已标记为 ready_for_feishu 的账本；缺少飞书 token 或 API 失败时，会明确报错，不会把本地记录假标为成功。</p>
+      </form>
+      {f'<pre>{esc(sync_output)}</pre>' if sync_output else ''}
+    </section>
+  </div>
+  <div class="stack">
+    <section>
+      <div class="toolbar">
+        <h2>待确认草稿</h2>
+        <a class="button ghost" href="/">刷新</a>
+      </div>
+      {render_drafts()}
+    </section>
+    <section>
+      <h2>确认账本</h2>
+      {render_ledger()}
+    </section>
+  </div>
 </div>
 """
     return page("熊小小财务系统", body)
@@ -192,18 +381,28 @@ def render_home(message: str = "", error: str = "") -> bytes:
 
 class FinanceHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self.path not in {"/", "/index.html"}:
+        if urllib.parse.urlparse(self.path).path not in {"/", "/index.html"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         self.respond(render_home())
 
     def do_POST(self) -> None:
-        if self.path != "/intake":
+        parsed_path = urllib.parse.urlparse(self.path).path
+        if parsed_path not in {"/intake", "/confirm", "/ready", "/sync"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         content_length = int(self.headers.get("Content-Length", "0"))
         payload = self.rfile.read(content_length).decode("utf-8")
         form = urllib.parse.parse_qs(payload)
+        if parsed_path == "/confirm":
+            self.handle_confirm(form)
+            return
+        if parsed_path == "/ready":
+            self.handle_ready(form)
+            return
+        if parsed_path == "/sync":
+            self.handle_sync(form)
+            return
         raw_text = (form.get("raw_text") or [""])[0].strip()
         operator = (form.get("operator") or ["finance-web"])[0].strip() or "finance-web"
         if not raw_text:
@@ -226,6 +425,59 @@ class FinanceHandler(BaseHTTPRequestHandler):
         if warnings:
             message += " 解析提醒：" + "；".join(str(item) for item in warnings)
         self.respond(render_home(message=message))
+
+    def handle_confirm(self, form: dict[str, list[str]]) -> None:
+        def value(name: str, default: str = "") -> str:
+            return (form.get(name) or [default])[0].strip()
+
+        amount_text = value("amount")
+        try:
+            amount = float(amount_text) if amount_text else None
+            args = argparse.Namespace(
+                draft_id=value("draft_id"),
+                operator=value("operator"),
+                transaction_date=value("transaction_date"),
+                direction=value("direction") or None,
+                amount=amount,
+                category=value("category") or None,
+                payment_method=value("payment_method") or None,
+                store=value("store"),
+                counterparty=value("counterparty"),
+                note=value("note"),
+            )
+        except ValueError:
+            self.respond(render_home(error="金额必须是数字。"))
+            return
+        code, output = run_finance_action("confirm", args)
+        if code == 0:
+            self.respond(render_home(message=output or "已确认入账。"))
+        else:
+            self.respond(render_home(error=output or "确认入账失败。"))
+
+    def handle_ready(self, form: dict[str, list[str]]) -> None:
+        def value(name: str, default: str = "") -> str:
+            return (form.get(name) or [default])[0].strip()
+
+        args = argparse.Namespace(ledger_id=value("ledger_id"), operator=value("operator"))
+        code, output = run_finance_action("ready", args)
+        if code == 0:
+            self.respond(render_home(message=output or "已标记待同步。"))
+        else:
+            self.respond(render_home(error=output or "标记待同步失败。"))
+
+    def handle_sync(self, form: dict[str, list[str]]) -> None:
+        mode = (form.get("mode") or ["dry-run"])[0]
+        if mode == "execute" and (form.get("confirm_execute") or [""])[0] != "yes":
+            self.respond(render_home(error="真实写入飞书前必须先勾选确认框。"))
+            return
+        args = argparse.Namespace(execute=mode == "execute", csv_path=None, json_path=None)
+        code, output = run_finance_action("sync", args)
+        if code == 0:
+            self.respond(render_home(message="飞书同步流程完成。", sync_output=output))
+        elif code == 2:
+            self.respond(render_home(message="已完成导出；当前没有执行真实写入。", sync_output=output))
+        else:
+            self.respond(render_home(error="飞书同步失败，请看输出。", sync_output=output))
 
     def respond(self, body: bytes) -> None:
         self.send_response(HTTPStatus.OK)

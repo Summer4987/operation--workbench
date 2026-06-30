@@ -16,7 +16,9 @@
 http://127.0.0.1:8765/
 ```
 
-今天的支出、收入、采购、房租、水电等，都先从这个网页录入。网页提交后只会生成待确认草稿，不会自动入账。
+今天的支出、收入、采购、房租、水电等，都从这个网页工作台处理。网页支持四步：录入草稿、人工确认入账、标记待同步、飞书预检/同步。
+
+安全边界不变：录入不会自动入账；入账必须点击“确认入账”；写飞书必须先把账本标记为 `ready_for_feishu`，再手动勾选确认并点击“真实写入飞书”。
 
 后台统一入口：
 
@@ -38,15 +40,29 @@ Hermes/微信入口：
 
 ## 日常流程
 
-### 1. 录入微信财务记录
+### 1. 打开财务工作台
 
-方式 A：打开网页录入口，填写财务文本：
+日常优先用网页：
 
 ```bash
 ./熊小小财务系统.command
 ```
 
-方式 B：微信或 Hermes 里发：
+如果网页没有自动弹出，手动打开：
+
+```text
+http://127.0.0.1:8765/
+```
+
+### 2. 录入微信财务记录
+
+在网页左侧“录入财务记录”粘贴文本，例如：
+
+```text
+今天 熊小小万象城 微信支付采购原料 128.50 元 供应商:张三冻品
+```
+
+也可以从 Hermes 里发：
 
 ```bash
 ./scripts/hermes_business_center.zsh 财务记录 今天 熊小小万象城 微信支付采购原料 128.50 元 供应商:张三冻品
@@ -54,23 +70,21 @@ Hermes/微信入口：
 
 系统只会生成 `pending_confirmation` 草稿，不会自动入账，也不会写飞书。
 
-### 2. 查看待确认草稿
+### 3. 人工确认入账
 
-```bash
-python3 scripts/finance_system.py drafts
-```
+网页右侧“待确认草稿”会显示解析出来的日期、金额、收支方向、分类、收付款方式、门店和交易对方。
 
-重点看：
+确认前必须核对：
 
 - 金额是否正确。
 - 业务日期是否正确。
 - 收支方向是否正确。
 - 财务分类是否正确。
-- `warnings` 是否大于 0。
+- 解析提醒是否需要人工修正。
 
-### 3. 人工确认到本地账本
+核对无误后，点击“确认入账”。确认成功后，记录进入下方“确认账本”，状态是 `local_only`。
 
-确认前必须核对原始文本。确认命令示例：
+命令行也可以确认：
 
 ```bash
 python3 scripts/finance_system.py confirm \
@@ -81,21 +95,19 @@ python3 scripts/finance_system.py confirm \
   --payment-method wechat_pay
 ```
 
-确认后，本地账本状态默认是 `local_only`。
-
 ### 4. 标记可同步飞书
 
-只有确认无误的账本才能标记：
+确认账本里，只有 `local_only` 或 `sync_failed` 的记录会显示“标记待同步”。点击后状态变成 `ready_for_feishu`。
+
+命令行也可以标记：
 
 ```bash
 python3 scripts/finance_system.py ready --ledger-id "<账本ID>" --operator "summer"
 ```
 
-标记后状态变成 `ready_for_feishu`。
-
 ### 5. 飞书同步预检
 
-默认只 dry-run 和导出，不写飞书：
+网页左侧“飞书同步”点击“预检并导出”，默认只 dry-run 和导出，不写飞书。
 
 ```bash
 python3 scripts/finance_system.py sync
@@ -108,7 +120,14 @@ python3 scripts/finance_system.py sync
 
 ### 6. 真实写入飞书
 
-只有在飞书环境变量齐全，并且显式传入 `--execute` 时才写入飞书：
+网页写入飞书必须同时满足：
+
+- 账本记录已经是 `ready_for_feishu`。
+- 飞书环境变量齐全。
+- 勾选“确认把 ready_for_feishu 记录真实写入飞书”。
+- 点击“真实写入飞书”。
+
+命令行写入必须显式传入 `--execute`：
 
 ```bash
 python3 scripts/finance_system.py sync --execute

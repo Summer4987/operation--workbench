@@ -194,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
     guide = subparsers.add_parser("guide", aliases=["说明", "手册"], help="打印财务系统使用说明。")
     guide.set_defaults(func=command_guide)
 
-    serve = subparsers.add_parser("serve", aliases=["入口", "网页"], help="启动财务系统网页录入口。")
+    serve = subparsers.add_parser("serve", aliases=["入口", "网页"], help="启动财务系统网页工作台。")
     serve.add_argument("--host", default="127.0.0.1", help="监听地址。")
     serve.add_argument("--port", type=int, default=8765, help="监听端口。")
     serve.set_defaults(func=command_serve)
