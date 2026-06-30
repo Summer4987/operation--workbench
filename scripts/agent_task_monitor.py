@@ -144,10 +144,10 @@ def classify_completion(health_status: str, run_status: str) -> str:
         return "running"
     if run_status == "skipped":
         return "skipped"
-    if run_status in RUN_STATUS_DONE or health_status == "ok":
-        return "completed"
     if health_status in HEALTH_STATUS_WARN:
         return "attention"
+    if run_status in RUN_STATUS_DONE or health_status == "ok":
+        return "completed"
     return "missing"
 
 
