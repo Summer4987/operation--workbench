@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import importlib
 import json
 import os
 import re
@@ -540,10 +541,35 @@ def main() -> int:
     sub.add_parser("list", help="列出已登记任务")
     sub.add_parser("health", help="检查任务产物和状态")
     sub.add_parser("dashboard", help="生成本地状态页")
+    agent_status_parser = sub.add_parser("agent-status", help="输出 Hermes/微信可读状态摘要")
+    agent_status_parser.add_argument("--no-refresh", action="store_true", help="复用已有 health.json")
+    agent_status_parser.add_argument("--limit", type=int, default=6, help="最多展示的异常任务数")
+    sub.add_parser("agent-commands", help="输出 Hermes 可用命令说明")
+    agent_task_parser = sub.add_parser("agent-task", help="输出 Hermes/微信可读任务详情")
+    agent_task_parser.add_argument("task_id_or_name")
+    agent_task_parser.add_argument("--no-refresh", action="store_true", help="复用已有 health.json")
     run_parser = sub.add_parser("run", help="手动执行一个已登记任务")
     run_parser.add_argument("task_id")
     run_parser.add_argument("--timeout", type=int, default=None, help="超时时间，单位秒")
     args = parser.parse_args()
+
+    if args.command.startswith("agent-"):
+        agent_bridge = importlib.import_module("agent_bridge")
+        if args.command == "agent-status":
+            snapshot = agent_bridge.build_snapshot(refresh=not args.no_refresh)
+            print(agent_bridge.format_status(snapshot, limit=args.limit))
+            return 0
+        if args.command == "agent-commands":
+            print(agent_bridge.format_commands())
+            return 0
+        if args.command == "agent-task":
+            snapshot = agent_bridge.build_snapshot(refresh=not args.no_refresh)
+            task = agent_bridge.find_task(snapshot, args.task_id_or_name)
+            if task is None:
+                print(f"没有找到任务：{args.task_id_or_name}")
+                return 2
+            print(agent_bridge.format_task_detail(task))
+            return 0
 
     if args.command == "run":
         return run_task(args.task_id, timeout_seconds=args.timeout)

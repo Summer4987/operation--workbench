@@ -17,6 +17,7 @@
 python3 ai-business-center/center.py list
 python3 ai-business-center/center.py health
 python3 ai-business-center/center.py dashboard
+python3 ai-business-center/center.py agent-status
 ```
 
 如果要在干净 GitHub 副本中旁路检查生产目录的真实产物，可以指定生产根目录：
@@ -55,6 +56,36 @@ ai-business-center/dashboard/index.html
 ```bash
 python3 ai-business-center/center.py run ops.balance_inspection --timeout 420
 ```
+
+## Hermes / 微信入口
+
+Hermes 可以先通过只读桥接入口接入业务中心，用来回复微信里的“状态、任务列表、任务详情”这类问题：
+
+```bash
+python3 ai-business-center/center.py agent-status
+python3 ai-business-center/center.py agent-commands
+python3 ai-business-center/center.py agent-task ops.daily_report_publish
+```
+
+也可以直接调用独立桥接脚本：
+
+```bash
+python3 ai-business-center/agent_bridge.py status
+python3 ai-business-center/agent_bridge.py list
+python3 ai-business-center/agent_bridge.py task ops.daily_report_publish
+python3 ai-business-center/agent_bridge.py commands
+```
+
+给 Hermes 配工具调用时，推荐使用固定 shell 入口：
+
+```bash
+./scripts/hermes_business_center.zsh status
+./scripts/hermes_business_center.zsh 任务列表
+./scripts/hermes_business_center.zsh 任务 ops.daily_report_publish
+./scripts/hermes_business_center.zsh 命令
+```
+
+这个入口默认会刷新健康检查，但只读取文件和产物状态；不会自动执行预算、出价、订货、财务发布或云端发布。需要复用最近一次健康结果时，加 `--no-refresh`。
 
 ## 设计原则
 
