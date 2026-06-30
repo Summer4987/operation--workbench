@@ -89,6 +89,13 @@ run_followup_step() {
   return "$rc"
 }
 
+refresh_final_workbench_state() {
+  TASK_STEP="刷新最终工作台状态"
+  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_realtime_collection_status.py" || true
+  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_task_health.py" || true
+  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_workbench_data.py" || true
+}
+
 finish_task_state() {
   local rc="$?"
   if [[ "$TASK_STATE_FINALIZED" == "true" ]]; then
@@ -131,8 +138,8 @@ trap finish_task_state EXIT
   else
     record_task_run "$TASK_ID" failed --message "$(latest_failure_message)" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$FINAL_RC"
   fi
-  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_task_health.py" || true
-  run_with_timeout "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_workbench_data.py" || true
+  refresh_final_workbench_state
+  run_with_timeout "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" env OPERATION_ROOT="$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh" || true
   TASK_STATE_FINALIZED="true"
   if [[ "$FINAL_RC" -eq 0 ]]; then
     echo "[$(date '+%F %T')] 实时单量收入采集完成"
