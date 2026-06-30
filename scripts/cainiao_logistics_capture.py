@@ -191,6 +191,17 @@ def list_detail_targets(xml_text: str, max_details: int) -> list[dict[str, int]]
     return targets[:max_details]
 
 
+def popup_cancel_target(xml_text: str) -> dict[str, int] | None:
+    texts = extract_ui_texts(xml_text)
+    if not ("你的鼓励，是菜鸟前进的动力~" in texts and "好评" in texts):
+        return None
+    for node in extract_ui_nodes(xml_text):
+        if node["text"] == "取消":
+            cx, cy = bounds_center(node["bounds"])
+            return {"x": cx, "y": cy, "text": node["text"]}
+    return None
+
+
 def clean_code(value: str) -> str:
     return re.sub(r"^[：:\s]+|[，。,.;；\s]+$", "", value.strip())
 
@@ -429,6 +440,14 @@ def scan_detail_pages(
             detail_dir.mkdir(parents=True, exist_ok=True)
             detail_xml, _detail_path, detail_commands = capture_snapshot(serial, detail_dir, timeout, "detail")
             commands.extend(detail_commands)
+            popup = popup_cancel_target(detail_xml)
+            if popup:
+                cancel = run_command(base + ["shell", "input", "tap", str(popup["x"]), str(popup["y"])], timeout)
+                commands.append(cancel)
+                time.sleep(1)
+                detail_xml, _detail_path, detail_commands = capture_snapshot(serial, detail_dir, timeout, "detail_after_popup")
+                commands.extend(detail_commands)
+                write_json(detail_dir / "popup_cancelled.json", popup)
             parsed = parse_logistics_records(detail_xml, store_name, captured_at)
             write_json(detail_dir / "parsed.json", parsed)
             write_json(detail_dir / "target.json", target)

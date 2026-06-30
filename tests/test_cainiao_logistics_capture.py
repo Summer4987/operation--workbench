@@ -62,6 +62,16 @@ def list_ui_dump() -> str:
 """
 
 
+def popup_ui_dump() -> str:
+    return """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="你的鼓励，是菜鸟前进的动力~" content-desc="" bounds="[280,1260][780,1320]" />
+  <node text="取消" content-desc="" bounds="[170,1410][530,1540]" />
+  <node text="好评" content-desc="" bounds="[560,1410][920,1540]" />
+</hierarchy>
+"""
+
+
 def test_parse_logistics_records_reads_pickup_code_and_tracking_number():
     module = load_module()
 
@@ -114,6 +124,12 @@ def test_infer_store_name_falls_back_when_address_unknown():
     module = load_module()
 
     assert module.infer_store_name(["送至 未知地址"], "银泰城店") == "银泰城店"
+
+
+def test_popup_cancel_target_detects_cainiao_review_popup():
+    module = load_module()
+
+    assert module.popup_cancel_target(popup_ui_dump()) == {"x": 350, "y": 1475, "text": "取消"}
 
 
 def test_main_fixture_dry_run_writes_evidence(tmp_path, monkeypatch, capsys):
