@@ -55,6 +55,15 @@ python3 scripts/finance_inbox.py export --format csv
 python3 scripts/finance_inbox.py schema
 ```
 
+Hermes/微信入口：
+
+```bash
+./scripts/hermes_business_center.zsh 财务记录 今天 熊小小万象城 微信支付采购原料 128.50 元 供应商:张三冻品
+./scripts/hermes_business_center.zsh 财务草稿
+```
+
+微信入口只做 `intake` 和 `list-drafts`，不会开放直接确认入账。
+
 本地验证时可以改用临时目录，避免污染真实财务数据：
 
 ```bash

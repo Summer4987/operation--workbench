@@ -80,6 +80,15 @@ python3 scripts/agent_task_monitor.py --no-write
 sed -n '1,120p' outputs/agent_task_monitor/latest.txt
 ```
 
+Hermes/微信入口：
+
+```bash
+./scripts/hermes_business_center.zsh 自动化报告
+./scripts/hermes_business_center.zsh 任务报告
+```
+
+入口会刷新 `outputs/agent_task_monitor/latest.json` 和 `latest.txt`，然后返回微信可读文本。
+
 ## 后续接入建议
 
 1. Mac mini 定时任务结束后调用 `python3 scripts/agent_task_monitor.py`，刷新本地报告。

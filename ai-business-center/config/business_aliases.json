@@ -140,6 +140,22 @@
       "risk": "low",
       "command": "python3 scripts/build_user_action_queue.py",
       "safe_note": "只生成/查看待办，不直接执行高风险动作。"
+    },
+    {
+      "name": "财务收件箱",
+      "aliases": ["财务", "财务记录", "财务变动", "记账", "财务草稿", "待确认财务"],
+      "center": "finance",
+      "risk": "high",
+      "command": "python3 scripts/finance_inbox.py intake --text '<财务文本>' --operator hermes-weixin",
+      "safe_note": "微信录入只生成 pending_confirmation 草稿；确认入账和飞书同步必须人工显式执行。"
+    },
+    {
+      "name": "自动化任务透明化报告",
+      "aliases": ["自动化报告", "任务报告", "失败报告", "补跑计划", "任务透明化"],
+      "center": "operations",
+      "risk": "low",
+      "command": "python3 scripts/agent_task_monitor.py",
+      "safe_note": "只生成任务完成/失败/原因和 dry-run 补跑计划，不直接执行生产补跑。"
     }
   ]
 }
