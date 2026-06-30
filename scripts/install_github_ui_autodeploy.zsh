@@ -60,7 +60,7 @@ cleanup() {
 trap cleanup EXIT
 
 for file in "${FILES[@]}"; do
-  curl -fsSL "$RAW_BASE/$file" -o "$tmp_dir/$file"
+  curl -fsSL --connect-timeout 10 --max-time 30 "$RAW_BASE/$file" -o "$tmp_dir/$file"
   test -s "$tmp_dir/$file"
 done
 
