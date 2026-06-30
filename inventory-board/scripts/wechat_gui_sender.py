@@ -24,7 +24,15 @@ on run argv
     end if
 
     tell process "WeChat"
+      if (count windows) is 0 then
+        error "微信没有可操作窗口，无法确认消息已发送"
+      end if
       set frontmost to true
+      delay 0.2
+      if frontmost is false then
+        error "微信窗口无法置前，无法确认消息已发送"
+      end if
+
       keystroke "f" using command down
       delay 0.4
       set the clipboard to targetName
@@ -60,10 +68,20 @@ tell application "System Events"
     error "macOS 辅助功能未授权，无法自动操作微信"
   end if
 end tell
+tell application "WeChat" to activate
+delay 0.8
 tell application "System Events"
   set wechatRunning to exists process "WeChat"
+  if wechatRunning is false then
+    return "false: WeChat 未运行"
+  end if
+  tell process "WeChat"
+    if (count windows) is 0 then
+      return "false: WeChat 没有可操作窗口"
+    end if
+  end tell
 end tell
-return wechatRunning
+return "true"
 '''
 
 

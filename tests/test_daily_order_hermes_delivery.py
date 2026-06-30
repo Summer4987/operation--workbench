@@ -124,6 +124,25 @@ def test_successful_delivery_can_use_wechat_gui_sender(tmp_path, monkeypatch):
     assert module.item_key(item) in state["delivered"]
 
 
+def test_failed_wechat_gui_delivery_is_not_marked_sent(tmp_path, monkeypatch):
+    module = load_delivery_module()
+    item = sample_item()
+    monkeypatch.setattr(module, "fetch_order_files", lambda server, token, latest: [item])
+    monkeypatch.setattr(module, "fetch_bytes", lambda url: b"excel-bytes")
+
+    def fake_send(message, target, file_path, sender_bin):
+        return subprocess.CompletedProcess(args=["wechat-gui"], returncode=1, stdout="微信没有可操作窗口")
+
+    monkeypatch.setattr(module, "send_with_wechat_gui", fake_send)
+
+    payload = module.deliver(args(tmp_path, sender="wechat-gui", target="皮皮球球备忘录"))
+    state = module.load_state(tmp_path / "state.json")
+
+    assert payload["sent"] == 0
+    assert payload["failed"] == 1
+    assert module.item_key(item) not in state["delivered"]
+
+
 def test_delivered_items_are_skipped(tmp_path, monkeypatch):
     module = load_delivery_module()
     item = sample_item()
