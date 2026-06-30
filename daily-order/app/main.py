@@ -54,6 +54,19 @@ def store_ops():
     )
 
 
+@app.get("/daily-order/store-ops")
+def daily_order_store_ops_without_trailing_slash():
+    return RedirectResponse(url="/daily-order/store-ops/", status_code=307)
+
+
+@app.get("/daily-order/store-ops/")
+def daily_order_store_ops():
+    return FileResponse(
+        STATIC_DIR / "store-ops.html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
+
+
 @app.get("/daily-order")
 def index_without_trailing_slash():
     return RedirectResponse(url="/daily-order/", status_code=307)
