@@ -196,7 +196,7 @@ h1 {
 .daily-order-page .compact-title {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 150px);
   align-items: start;
   gap: 8px;
 }
@@ -237,12 +237,14 @@ h1 {
 }
 
 .daily-order-page .compact-title .verified-store {
-  display: block;
-  width: min(34vw, 168px);
+  display: grid;
+  width: 100%;
+  min-width: 0;
   min-height: 34px;
   border-color: #b5cbc7;
   padding: 5px 8px;
   line-height: 1.05;
+  overflow: hidden;
 }
 
 .daily-order-page .compact-title .verified-store span {
@@ -253,6 +255,7 @@ h1 {
 
 .daily-order-page .compact-title .verified-store strong {
   display: block;
+  min-width: 0;
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1478,7 +1481,7 @@ dialog::backdrop {
   }
 
   .daily-order-page .compact-title {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(92px, 32vw);
     align-items: end;
     gap: 8px;
   }
