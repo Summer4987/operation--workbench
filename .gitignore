@@ -55,6 +55,8 @@ dianjin-prototype/current_state.js
 dianjin-prototype/execution_preview.js
 
 # Secrets
+config/android_execution.json
+config/private/
 config/ops_notify.json
 .env
 *.pem
