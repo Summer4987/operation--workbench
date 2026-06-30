@@ -240,9 +240,9 @@ h1 {
   display: grid;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: 30px;
   border-color: #b5cbc7;
-  padding: 5px 8px;
+  padding: 5px 7px;
   line-height: 1.05;
   overflow: hidden;
 }
@@ -256,11 +256,16 @@ h1 {
 .daily-order-page .compact-title .verified-store strong {
   display: block;
   min-width: 0;
+  min-height: 0;
   margin-top: 1px;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: #12262f;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.15;
 }
 
