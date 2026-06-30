@@ -143,11 +143,11 @@
     },
     {
       "name": "财务收件箱",
-      "aliases": ["财务", "财务记录", "财务变动", "记账", "财务草稿", "待确认财务"],
+      "aliases": ["财务", "财务系统", "财务记录", "财务变动", "记账", "财务草稿", "待确认财务", "财务状态", "财务账本", "财务同步", "飞书财务同步"],
       "center": "finance",
       "risk": "high",
-      "command": "python3 scripts/finance_inbox.py intake --text '<财务文本>' --operator hermes-weixin",
-      "safe_note": "微信录入只生成 pending_confirmation 草稿；确认入账和飞书同步必须人工显式执行。"
+      "command": "python3 scripts/finance_system.py status",
+      "safe_note": "正式入口是 scripts/finance_system.py；微信录入只生成 pending_confirmation 草稿，确认入账、标记待同步和飞书 --execute 必须人工显式执行。"
     },
     {
       "name": "自动化任务透明化报告",

@@ -36,13 +36,27 @@ case "${1:-status}" in
       echo "请提供财务文本，例如：财务记录 今天 银泰城 微信支付采购原料 128.50 元"
       exit 2
     fi
-    python3 scripts/finance_inbox.py intake --operator hermes-weixin --text "$*"
+    python3 scripts/finance_system.py record --operator hermes-weixin --text "$*"
     ;;
   finance-drafts|财务草稿|待确认财务|财务待确认)
-    python3 scripts/finance_inbox.py list-drafts
+    python3 scripts/finance_system.py drafts
+    ;;
+  finance-status|财务状态|财务概览)
+    python3 scripts/finance_system.py status
+    ;;
+  finance-ledger|财务账本|确认账本)
+    shift || true
+    python3 scripts/finance_system.py ledger "$@"
+    ;;
+  finance-sync|财务同步|飞书财务同步)
+    shift || true
+    python3 scripts/finance_system.py sync "$@"
+    ;;
+  finance-guide|财务说明|财务手册|财务使用说明)
+    python3 scripts/finance_system.py guide
     ;;
   finance-schema|财务字段|财务系统)
-    python3 scripts/finance_inbox.py schema
+    python3 scripts/finance_system.py guide
     ;;
   route|自然语言)
     shift || true
