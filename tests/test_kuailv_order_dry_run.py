@@ -16,7 +16,9 @@ from kuailv_order_dry_run import (  # noqa: E402
     build_plan,
     delivery_store_match,
     empty_cart_shop_candidate,
+    find_search_entry_candidates,
     load_order_json,
+    parse_ui_nodes,
     safe_tap_visual_proof,
     score_candidate_for_line,
     search_suggestion_candidate,
@@ -236,6 +238,20 @@ class KuailvOrderDryRunTest(unittest.TestCase):
 </hierarchy>"""
 
         self.assertIsNone(empty_cart_shop_candidate(xml_text))
+
+    def test_search_entry_candidate_prefers_text_input_over_header_container(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="" class="android.view.View" bounds="[0,0][1080,334]" />
+  <node text="搜冻品，来冻品大单" class="android.widget.TextView" bounds="[230,225][863,303]" />
+  <node text="搜索" class="android.widget.TextView" bounds="[891,225][1046,303]" />
+</hierarchy>"""
+
+        candidates = find_search_entry_candidates(parse_ui_nodes(xml_text), Path(""))
+
+        self.assertGreaterEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["text"], "搜冻品，来冻品大单")
+        self.assertEqual(candidates[0]["center"], [546.5, 264.0])
 
     def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
         config = {

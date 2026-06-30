@@ -2128,20 +2128,23 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
             continue
         reasons = []
         score = 0
-        if any(word in text for word in ["搜索", "请输入"]):
+        has_search_text = any(word in text for word in ["搜索", "请输入", "搜"])
+        has_search_resource = "search" in blob
+        has_edit_text = "edittext" in blob
+        if has_search_text:
             score += 70
             reasons.append("search_text")
-        if "search" in blob:
+        if has_search_resource:
             score += 55
             reasons.append("search_resource_or_desc")
-        if "edittext" in blob:
+        if has_edit_text:
             score += 120
             reasons.append("edit_text")
         if node.get("clickable"):
             score += 10
             reasons.append("clickable")
         width = bounds[2] - bounds[0]
-        if width >= image_width * 0.35:
+        if width >= image_width * 0.35 and (has_search_text or has_search_resource or has_edit_text):
             score += 45
             reasons.append("wide_input_like")
         if text.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
@@ -3211,6 +3214,7 @@ def run_adb_search(
         "enter_result": enter_result,
         "before": before,
         "after_back": after_back,
+        "empty_cart_exit": empty_cart_exit,
         "back_results": back_results,
         "after": after,
         "after_search_key": after_search_key,
