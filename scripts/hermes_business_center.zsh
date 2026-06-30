@@ -56,11 +56,12 @@ case "${1:-status}" in
     python3 scripts/finance_system.py sync "$@"
     ;;
   finance-entry|财务入口|财务录入入口)
-    echo "熊小小财务系统正式录入口："
+    echo "熊小小财务系统正式工作台："
     echo "1. 在项目根目录双击：熊小小财务系统.command"
     echo "2. 或运行：python3 scripts/finance_system.py serve"
     echo "3. 浏览器打开：http://127.0.0.1:8765/"
-    echo "录入只生成待确认草稿，不会自动入账或同步飞书。"
+    echo "网页支持录入草稿、人工确认入账、标记待同步和飞书预检。"
+    echo "不会自动确认入账；真实写入飞书必须手动勾选并点击执行。"
     ;;
   finance-guide|财务说明|财务手册|财务使用说明)
     python3 scripts/finance_system.py guide
