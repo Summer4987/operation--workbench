@@ -2853,6 +2853,31 @@ def cart_clear_tap_plan(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def delete_confirm_candidate(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    xml_text = snapshot_xml_text(snapshot)
+    text_blob = " ".join(all_page_text(xml_text))
+    if "确认要删除此商品吗" not in text_blob:
+        return None
+    if any(word in text_blob for word in ["提交订单", "付款"]):
+        return None
+    for node in parse_ui_nodes(xml_text):
+        if node_text(node) != "确认":
+            continue
+        bounds = tuple(node.get("bounds") or [])
+        if len(bounds) != 4:
+            continue
+        cx, cy = bounds_center(bounds)
+        if cx < 540 or not (900 <= cy <= 1300):
+            continue
+        return {
+            "text": "确认",
+            "center": [round(cx, 1), round(cy, 1)],
+            "bounds": list(bounds),
+            "reasons": ["delete_confirm_dialog_visible", "no_submit_payment_text"],
+        }
+    return None
+
+
 def run_adb_cart_clear(plan: dict[str, Any], serial: str, timeout: int) -> dict[str, Any]:
     serial, blocked = resolve_adb_serial(serial, timeout)
     if blocked:
@@ -2902,6 +2927,20 @@ def run_adb_cart_clear(plan: dict[str, Any], serial: str, timeout: int) -> dict[
             time.sleep(0.55)
     time.sleep(1.2)
     after = save_adb_snapshot(serial, session_dir / "after", timeout, plan)
+    delete_confirm = None
+    confirm_candidate = delete_confirm_candidate(after)
+    if confirm_candidate:
+        cx, cy = [int(round(float(value))) for value in confirm_candidate["center"]]
+        confirm_tap = run_command(adb_base(serial) + ["shell", "input", "tap", str(cx), str(cy)], timeout)
+        time.sleep(1.2)
+        after_confirm = save_adb_snapshot(serial, session_dir / "after-delete-confirm", timeout, plan)
+        delete_confirm = {
+            "candidate": confirm_candidate,
+            "tap": {"x": cx, "y": cy, "returncode": confirm_tap.returncode, "stderr": confirm_tap.stderr.strip(), "stdout": confirm_tap.stdout.strip()},
+            "after": after_confirm,
+        }
+        if after_confirm.get("captured"):
+            after = after_confirm
     after_details = after.get("cart_review_details") or {}
     remaining = after_details.get("visible_cart_items") or []
     status = "cart_cleared_for_manual_review" if after.get("captured") and not remaining else "cart_clear_unproven"
@@ -2913,6 +2952,7 @@ def run_adb_cart_clear(plan: dict[str, Any], serial: str, timeout: int) -> dict[
         "before": before,
         "tap_plan": tap_plan,
         "taps": taps,
+        "delete_confirm": delete_confirm,
         "after": after,
         "cart_review": {
             "before_items": details.get("visible_cart_items") or [],

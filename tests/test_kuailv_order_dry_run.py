@@ -16,6 +16,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     build_plan,
     delivery_store_match,
     detect_xml_add_controls,
+    delete_confirm_candidate,
     empty_cart_shop_candidate,
     filter_visible_xml_add_candidates,
     find_search_entry_candidates,
@@ -162,6 +163,25 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(item["title"], "黄皮洋葱普通")
         self.assertEqual(item["quantity"], "29")
         self.assertEqual(item["minus_center"], [824, 581])
+
+    def test_delete_confirm_candidate_requires_delete_dialog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            xml_path = Path(tmp) / "window_dump.xml"
+            xml_path.write_text(
+                """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="确认要删除此商品吗?" class="android.widget.TextView" bounds="[90,821][990,1029]" />
+  <node text="取消" class="android.widget.TextView" bounds="[267,1068][360,1127]" />
+  <node text="确认" class="android.widget.TextView" bounds="[717,1068][810,1127]" />
+</hierarchy>""",
+                encoding="utf-8",
+            )
+            snapshot = {"files": {"ui_xml": str(xml_path)}}
+
+            candidate = delete_confirm_candidate(snapshot)
+
+        self.assertIsNotNone(candidate)
+        self.assertEqual(candidate["center"], [763.5, 1097.5])
 
     def test_auto_add_pack_steps_expand_full_order_counts(self) -> None:
         order = {
