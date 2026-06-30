@@ -44,7 +44,7 @@
 - “自动化报告 / 任务报告 / 失败报告 / 补跑计划” 指 `scripts/agent_task_monitor.py` 生成的任务透明化报告；只生成 dry-run 补跑计划，不直接执行高风险任务。
 - “桌面文件 / 下载文件 / 表格任务 / 文件任务 / Excel / PDF / Word / 回传给我” 指私人工作助理任务，默认使用 `~/HermesPrivate` 做副本和产物，不上传 GitHub，不覆盖原文件。
 - “易代仓预约 / 入库预约 / 新增入库西兰花 100 件” 这类入库 Excel 任务可以调用 `scripts/private_spreadsheet_assistant.py process-text <用户原文>`，生成新文件到 `~/HermesPrivate/outbox/spreadsheets/`。
-- “生成 Excel 并回传 / 表格回传 / 附件发我” 优先调用 `scripts/private_spreadsheet_delivery.py <用户原文>`。它会生成文件并尝试通过微信回传；如果 iLink 限流，应保留文件路径并告知发送失败原因，不要重复刷屏。
+- “生成 Excel 并回传 / 表格回传 / 附件发我” 默认先调用 `scripts/private_spreadsheet_assistant.py process-text <用户原文>` 生成新文件并直接回复文件路径。微信附件发送受 iLink 限流影响，除非用户明确要求“发送附件”，否则不要走附件回传链路。
 - “Hermes 控制台 / Hermes 工作台 / agent 控制台 / 后台 / 透明化” 指 `scripts/build_hermes_console.py` 生成的 Hermes 可视化控制台，页面路径是 `ai-business-center/dashboard/hermes.html`，用于查看在线状态、任务结果、失败原因、文件产物、业务记忆和修复边界。
 
 ## 当前系统事实
