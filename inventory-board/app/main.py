@@ -9,6 +9,7 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
 import time
 from urllib import request as url_request
 from urllib.parse import quote
@@ -1279,10 +1280,14 @@ def _record_generated_outbound(result: dict, filename: str) -> None:
 
 
 def _notify_order_submit(result: dict, filename: str, download_url: str = "") -> None:
+    notify_type = os.environ.get("ORDER_NOTIFY_TYPE", "feishu").strip().lower()
+    if notify_type == "hermes":
+        _notify_order_submit_with_hermes(result, filename, download_url)
+        return
+
     webhook = os.environ.get("ORDER_NOTIFY_WEBHOOK", "").strip()
     if not webhook:
         return
-    notify_type = os.environ.get("ORDER_NOTIFY_TYPE", "feishu").strip().lower()
 
     items = result.get("items") or []
     store_name = items[0].get("store_name", "未知门店") if items else "未知门店"
@@ -1308,5 +1313,67 @@ def _notify_order_submit(result: dict, filename: str, download_url: str = "") ->
     req = url_request.Request(webhook, data=payload, method="POST", headers={"Content-Type": "application/json"})
     try:
         url_request.urlopen(req, timeout=6).read()
+    except Exception:
+        pass
+
+
+def _notify_order_submit_with_hermes(result: dict, filename: str, download_url: str = "") -> None:
+    message = _order_submit_hermes_message(result, filename, download_url)
+    if os.environ.get("ORDER_NOTIFY_DRY_RUN", "").strip().lower() in {"1", "true", "yes", "on"}:
+        _write_order_notify_log("dry-run", message)
+        return
+
+    hermes_bin = Path(os.environ.get("ORDER_HERMES_BIN", "~/.local/bin/hermes")).expanduser()
+    target = os.environ.get("ORDER_HERMES_TARGET", "熊小小牛排饭-易代仓仓储配送群").strip()
+    if not target:
+        _write_order_notify_log("failed", "ORDER_HERMES_TARGET 为空，已跳过 Hermes 发送")
+        return
+    try:
+        completed = subprocess.run(
+            [str(hermes_bin), "send", "--to", target, message],
+            check=False,
+            cwd=str(BASE_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=90,
+        )
+    except Exception as exc:
+        _write_order_notify_log("failed", f"{type(exc).__name__}: {exc}\n\n{message}")
+        return
+
+    status = "sent" if completed.returncode == 0 else "failed"
+    output = (completed.stdout or "").strip()
+    _write_order_notify_log(status, f"target={target}\nreturncode={completed.returncode}\noutput={output}\n\n{message}")
+
+
+def _order_submit_hermes_message(result: dict, filename: str, download_url: str = "") -> str:
+    items = result.get("items") or []
+    store_name = items[0].get("store_name", "未知门店") if items else "未知门店"
+    file_path = str(result.get("file") or "")
+    lines = [
+        f"{item.get('product_name', item.get('sku', '商品')).replace('熊小小牛排饭-', '')} {item.get('quantity', '')}{item.get('unit', '')}"
+        for item in items
+    ]
+    message_lines = [
+        "熊小小日配订货 Excel 已生成，文件见附件。",
+        f"门店：{store_name}",
+        f"明细：{len(items)} 行",
+        *lines,
+        f"文件：{filename}",
+    ]
+    if download_url:
+        message_lines.append(f"下载：{download_url}")
+    if file_path:
+        message_lines.extend([f"文件路径：{file_path}", f"MEDIA:{file_path}"])
+    return "\n".join(message_lines)
+
+
+def _write_order_notify_log(status: str, text: str) -> None:
+    log_dir = Path(os.environ.get("ORDER_NOTIFY_LOG_DIR", str(BASE_DIR / "data" / "notify_logs"))).expanduser()
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = now_iso().replace(":", "").replace("+", "_")
+        (log_dir / f"order-notify-{status}-{timestamp}.log").write_text(text + "\n", encoding="utf-8")
     except Exception:
         pass

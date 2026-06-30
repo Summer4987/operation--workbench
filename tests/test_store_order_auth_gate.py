@@ -244,6 +244,91 @@ def test_signed_daily_order_file_links_download_without_store_cookie(tmp_path, m
     assert blocked.status_code == 401
 
 
+def test_daily_order_submit_hermes_message_includes_media_attachment():
+    module = load_inventory_module()
+    result = {
+        "file": "/opt/inventory-board/data/order_outputs/熊小小牛排饭订单模板_20260630_120000.xlsx",
+        "items": [
+            {
+                "store_name": "银泰城店",
+                "product_name": "熊小小牛排饭-冷冻西兰花（冻）",
+                "quantity": 6,
+                "unit": "袋",
+            }
+        ],
+    }
+
+    message = module._order_submit_hermes_message(result, "熊小小牛排饭订单模板_20260630_120000.xlsx", "http://example.test/order-file.xlsx")
+
+    assert "熊小小日配订货 Excel 已生成，文件见附件。" in message
+    assert "门店：银泰城店" in message
+    assert "冷冻西兰花（冻） 6袋" in message
+    assert "下载：http://example.test/order-file.xlsx" in message
+    assert "MEDIA:/opt/inventory-board/data/order_outputs/熊小小牛排饭订单模板_20260630_120000.xlsx" in message
+
+
+def test_daily_order_submit_hermes_dry_run_writes_log_without_sending(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv("ORDER_NOTIFY_TYPE", "hermes")
+    monkeypatch.setenv("ORDER_NOTIFY_DRY_RUN", "1")
+    monkeypatch.setenv("ORDER_NOTIFY_LOG_DIR", str(tmp_path))
+
+    calls = []
+
+    def fake_run(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("dry-run should not call Hermes")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    module._notify_order_submit(
+        {
+            "file": "/tmp/order.xlsx",
+            "items": [{"store_name": "银泰城店", "product_name": "商品", "quantity": 1, "unit": "件"}],
+        },
+        "order.xlsx",
+        "",
+    )
+
+    logs = list(tmp_path.glob("order-notify-dry-run-*.log"))
+    assert not calls
+    assert len(logs) == 1
+    assert "MEDIA:/tmp/order.xlsx" in logs[0].read_text(encoding="utf-8")
+
+
+def test_daily_order_submit_hermes_uses_configured_group_target(monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv("ORDER_NOTIFY_TYPE", "hermes")
+    monkeypatch.delenv("ORDER_NOTIFY_DRY_RUN", raising=False)
+    monkeypatch.setenv("ORDER_HERMES_BIN", "/usr/local/bin/hermes")
+    monkeypatch.setenv("ORDER_HERMES_TARGET", "熊小小牛排饭-易代仓仓储配送群")
+
+    calls = []
+
+    class Completed:
+        returncode = 0
+        stdout = "ok"
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return Completed()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(module, "_write_order_notify_log", lambda status, text: None)
+
+    module._notify_order_submit(
+        {
+            "file": "/tmp/order.xlsx",
+            "items": [{"store_name": "银泰城店", "product_name": "商品", "quantity": 1, "unit": "件"}],
+        },
+        "order.xlsx",
+        "",
+    )
+
+    assert calls[0][0][:4] == ["/usr/local/bin/hermes", "send", "--to", "熊小小牛排饭-易代仓仓储配送群"]
+    assert "MEDIA:/tmp/order.xlsx" in calls[0][0][4]
+
+
 def test_daily_order_history_filters_to_authenticated_store(tmp_path, monkeypatch):
     module = load_inventory_module()
     db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
