@@ -25,6 +25,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     safe_tap_visual_proof,
     score_candidate_for_line,
     search_suggestion_candidate,
+    select_variant_option,
 )
 
 
@@ -431,6 +432,102 @@ class KuailvOrderDryRunTest(unittest.TestCase):
 
         self.assertEqual(order["order_id"], "DO-LOCAL")
         self.assertEqual(auto_add_pack_steps(build_plan(order))[0]["pack_label"], "")
+
+    def test_yumili_variant_policy_plans_identity_open_and_compare(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "保利中心店",
+            "submitted_at": "2026-06-30T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "CORN-001",
+                    "name": "玉米粒",
+                    "quantity": 1,
+                    "unit": "箱",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+
+        plan = build_plan(order)
+        step = auto_add_pack_steps(plan)[0]
+
+        self.assertEqual(step["line_name"], "玉米粒")
+        self.assertEqual(step["pack_label"], "")
+        self.assertEqual(step["count"], 1)
+        self.assertEqual(step["variant_policy"]["kind"], "compare_equivalent_specs")
+        self.assertIn("快驴·鹿手", plan["lines"][0]["preferred_spec_keywords"])
+
+    def test_variant_option_selects_cheaper_two_pack_equivalent(self) -> None:
+        policy = {
+            "options": [
+                {"name": "2包装x5", "spec_keywords": ["2包装", "两包装"], "count": 5},
+                {"name": "1箱x1", "spec_keywords": ["1箱", "整箱"], "count": 1},
+            ]
+        }
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="规格" bounds="[40,680][180,740]" />
+  <node text="2包装" bounds="[120,830][260,890]" />
+  <node text="¥18.00" bounds="[430,830][560,890]" />
+  <node text="+" bounds="[920,820][1010,910]" />
+  <node text="1箱" bounds="[120,1030][260,1090]" />
+  <node text="¥96.00" bounds="[430,1030][560,1090]" />
+  <node text="+" bounds="[920,1020][1010,1110]" />
+</hierarchy>"""
+        with tempfile.TemporaryDirectory() as tmp:
+            xml_path = Path(tmp) / "window_dump.xml"
+            xml_path.write_text(xml_text, encoding="utf-8")
+            snapshot = {
+                "files": {"ui_xml": str(xml_path)},
+                "ui_analysis": {
+                    "orange_add_candidates": [
+                        {"source": "xml_add_control", "control_text": "+", "center": [965, 865], "bounds": [920, 820, 1010, 910]},
+                        {"source": "xml_add_control", "control_text": "+", "center": [965, 1065], "bounds": [920, 1020, 1010, 1110]},
+                    ]
+                },
+            }
+
+            selected = select_variant_option(snapshot, policy)
+
+        self.assertTrue(selected["allowed"])
+        self.assertEqual(selected["selected"]["name"], "2包装x5")
+        self.assertEqual(selected["selected"]["total_price"], 90)
+
+    def test_variant_option_selects_cheaper_full_case_equivalent(self) -> None:
+        policy = {
+            "options": [
+                {"name": "2包装x5", "spec_keywords": ["2包装", "两包装"], "count": 5},
+                {"name": "1箱x1", "spec_keywords": ["1箱", "整箱"], "count": 1},
+            ]
+        }
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="2包装" bounds="[120,830][260,890]" />
+  <node text="¥20.00" bounds="[430,830][560,890]" />
+  <node text="+" bounds="[920,820][1010,910]" />
+  <node text="1箱" bounds="[120,1030][260,1090]" />
+  <node text="¥88.00" bounds="[430,1030][560,1090]" />
+  <node text="+" bounds="[920,1020][1010,1110]" />
+</hierarchy>"""
+        with tempfile.TemporaryDirectory() as tmp:
+            xml_path = Path(tmp) / "window_dump.xml"
+            xml_path.write_text(xml_text, encoding="utf-8")
+            snapshot = {
+                "files": {"ui_xml": str(xml_path)},
+                "ui_analysis": {
+                    "orange_add_candidates": [
+                        {"source": "xml_add_control", "control_text": "+", "center": [965, 865], "bounds": [920, 820, 1010, 910]},
+                        {"source": "xml_add_control", "control_text": "+", "center": [965, 1065], "bounds": [920, 1020, 1010, 1110]},
+                    ]
+                },
+            }
+
+            selected = select_variant_option(snapshot, policy)
+
+        self.assertTrue(selected["allowed"])
+        self.assertEqual(selected["selected"]["name"], "1箱x1")
+        self.assertEqual(selected["selected"]["total_price"], 88)
 
 
 if __name__ == "__main__":

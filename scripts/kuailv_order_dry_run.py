@@ -101,7 +101,24 @@ PACK_RULES: dict[str, dict[str, Any]] = {
         "lesson": "樟树椒不要直接按泛词青椒下单；青椒只作兜底搜索词，命中必须回到樟树椒。樟树椒按散称商品处理，购物车里按订单斤数调整和核对。",
     },
     "大蒜": {"pack_sizes": [5, 3, 1], "allowed_overage": 2, "keywords": ["大蒜"], "accept": ["大蒜"], "prefer": ["3斤", "5斤"]},
-    "玉米粒": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["玉米粒"], "accept": ["玉米粒"], "prefer": ["玉米粒"]},
+    "玉米粒": {
+        "pack_sizes": [1],
+        "allowed_overage": 0,
+        "keywords": ["玉米粒"],
+        "accept": ["甜玉米粒", "玉米粒"],
+        "prefer": ["快驴·鹿手", "甜玉米粒", "1kg", "两包装", "2包装", "1箱"],
+        "reject": ["带壳", "玉米带壳", "罐装", "玉米粒罐装", "甜玉米带壳"],
+        "variant_policy": {
+            "kind": "compare_equivalent_specs",
+            "equivalent_label": "1箱",
+            "options": [
+                {"name": "2包装x5", "spec_keywords": ["2包装", "两包装", "1kg×2", "1kgx2", "1kg x 2"], "count": 5},
+                {"name": "1箱x1", "spec_keywords": ["1箱", "整箱"], "count": 1},
+            ],
+            "choose": "lowest_total_price",
+        },
+        "lesson": "保利中心实跑确认：[快驴·鹿手]甜玉米粒1kg（精选云南玉米）是正确商品。1箱需求需要每天比较 2包装×5 与 1箱×1 的当前总价，选择更便宜的规格组合。",
+    },
     "鸡蛋": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["鸡蛋"], "accept": ["鸡蛋"], "prefer": ["360个", "箱"]},
     "大豆油": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["大豆油"], "accept": ["大豆油"], "prefer": ["桶"]},
     "薄盐生抽": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["薄盐生抽", "生抽"], "accept": ["薄盐生抽", "生抽"], "prefer": ["薄盐"]},
@@ -291,6 +308,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         "excluded_keywords": reject_keywords,
         "selection_mode": "identity_only" if variable_quantity else "pack_match",
         "quantity_adjust_required": variable_quantity,
+        "variant_policy": rule.get("variant_policy") or {},
         "target_quantity": quantity,
         "pack_strategy": [
             {
@@ -312,6 +330,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
             "商品标题或规格命中 excluded_keywords 时禁止加购。",
             "散称商品只按商品身份选择，订单数量在购物车内调整和核对，不把订单斤数当作商品卡片规格。",
             "固定包装商品多个候选同时可用时，优先命中 preferred_spec_keywords 且能用最少点击满足数量的规格。",
+            "存在 variant_policy 时，先按商品身份进入规格层，再按当天页面价格比较等价组合总价。",
             "需求数量与包装规格不完全匹配时，只允许在 overage 范围内略超；超出则转人工确认。",
         ],
         "cart_validation": {
@@ -578,6 +597,114 @@ def visible_text_nodes(nodes: list[dict[str, Any]], limit: int = 420) -> list[di
     return rows[:limit]
 
 
+def parse_price_text(text: str) -> list[float]:
+    prices = []
+    normalized = text.replace("￥", "¥").replace(",", "")
+    for match in re.finditer(r"(?:¥\s*)?(\d+(?:\.\d+)?)", normalized):
+        value = safe_float(match.group(1), 0)
+        if value > 0:
+            prices.append(value)
+    return prices
+
+
+def variant_option_rows(snapshot: dict[str, Any], policy: dict[str, Any]) -> list[dict[str, Any]]:
+    xml_text = snapshot_xml_text(snapshot)
+    if not xml_text or not policy:
+        return []
+    nodes = parse_ui_nodes(xml_text)
+    visible_nodes = [
+        node
+        for node in nodes
+        if node_text(node)
+        and len(node.get("bounds") or []) == 4
+        and node["bounds"] != [0, 0, 0, 0]
+        and node["bounds"][2] > node["bounds"][0]
+        and node["bounds"][3] > node["bounds"][1]
+    ]
+    add_controls = []
+    for candidate in (snapshot.get("ui_analysis") or {}).get("orange_add_candidates") or []:
+        control_text = str(candidate.get("control_text") or "")
+        center = candidate.get("center") or []
+        bounds = candidate.get("bounds") or []
+        if len(center) != 2 or len(bounds) != 4:
+            continue
+        if any(word in control_text for word in ["加入购物车", "加购物车", "加购"]) or candidate.get("source") in {"orange_image", "xml_add_control", "xml_target_card_control"}:
+            add_controls.append(candidate)
+
+    rows = []
+    for option in policy.get("options") or []:
+        keywords = [str(word) for word in option.get("spec_keywords") or [] if str(word)]
+        spec_nodes = [
+            node
+            for node in visible_nodes
+            if any(keyword.replace(" ", "") in node_text(node).replace(" ", "") for keyword in keywords)
+        ]
+        if not spec_nodes:
+            rows.append({**option, "available": False, "reasons": ["spec_keywords_not_found"], "keywords": keywords})
+            continue
+        spec = sorted(spec_nodes, key=lambda node: (node["bounds"][1], node["bounds"][0]))[0]
+        spec_bounds = tuple(spec["bounds"])
+        spec_cx, spec_cy = bounds_center(spec_bounds)
+        row_nodes = []
+        for node in visible_nodes:
+            bounds = tuple(node["bounds"])
+            nx, ny = bounds_center(bounds)
+            if abs(ny - spec_cy) <= 185 and nx >= 70:
+                row_nodes.append(node)
+        row_nodes.sort(key=lambda node: (node["bounds"][1], node["bounds"][0]))
+        row_texts = [node_text(node) for node in row_nodes]
+        price_candidates = []
+        for text in row_texts:
+            if "¥" in text or "￥" in text:
+                price_candidates.extend(parse_price_text(text))
+        if not price_candidates:
+            for text in row_texts:
+                if re.search(r"\d+\.\d+", text):
+                    price_candidates.extend(parse_price_text(text))
+        unit_price = min(price_candidates) if price_candidates else 0
+        count = int(option.get("count") or 1)
+        row_add_controls = []
+        for control in add_controls:
+            center = control.get("center") or []
+            if len(center) != 2:
+                continue
+            cx, cy = float(center[0]), float(center[1])
+            if abs(cy - spec_cy) <= 170 and cx >= spec_cx:
+                row_add_controls.append(control)
+        row_add_controls.sort(key=lambda item: (abs(float((item.get("center") or [0, 0])[1]) - spec_cy), -float((item.get("center") or [0, 0])[0])))
+        row = {
+            **option,
+            "available": bool(unit_price),
+            "keywords": keywords,
+            "spec_text": node_text(spec),
+            "spec_bounds": list(spec_bounds),
+            "spec_center": [round(spec_cx, 1), round(spec_cy, 1)],
+            "row_texts": row_texts[:18],
+            "unit_price": unit_price,
+            "count": count,
+            "total_price": round(unit_price * count, 4) if unit_price else 0,
+            "add_control": row_add_controls[0] if row_add_controls else None,
+            "reasons": [] if unit_price else ["price_not_found"],
+        }
+        if unit_price and not row.get("add_control"):
+            row["reasons"] = ["add_control_not_found"]
+        rows.append(row)
+    return rows
+
+
+def select_variant_option(snapshot: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
+    rows = variant_option_rows(snapshot, policy)
+    usable = [row for row in rows if row.get("available") and row.get("add_control")]
+    usable.sort(key=lambda row: (float(row.get("total_price") or 0), int(row.get("count") or 1)))
+    return {
+        "allowed": bool(usable),
+        "policy": policy,
+        "options": rows,
+        "selected": usable[0] if usable else None,
+        "reasons": [] if usable else ["no_variant_option_with_price_and_add_control"],
+    }
+
+
 def candidate_context(nodes: list[dict[str, Any]], center: tuple[float, float]) -> list[dict[str, Any]]:
     # Include the product title above the spec row, but keep the window narrow
     # enough that the previous product's risky spec does not bleed into a target row.
@@ -781,7 +908,7 @@ def detect_target_card_add_controls(
             for word in list(line.get("preferred_spec_keywords") or []) + required + line_pack_labels(line)
             if looks_like_spec_keyword(str(word))
         ]
-        identity_only = line.get("selection_mode") == "identity_only"
+        identity_only = line.get("selection_mode") == "identity_only" or bool(line.get("variant_policy"))
         if not identity_keywords or (not spec_keywords and not identity_only):
             continue
         title_nodes = [
@@ -1067,7 +1194,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
     identity_hits = [word for word in identity_keywords if word in all_text]
     target_line_name = str(candidate.get("target_line_name") or "")
-    identity_only = line.get("selection_mode") == "identity_only"
+    identity_only = line.get("selection_mode") == "identity_only" or bool(line.get("variant_policy"))
     reasons = []
     if target_line_name and target_line_name != str(line.get("name") or ""):
         reasons.append("target_line_name_mismatch")
@@ -1156,7 +1283,7 @@ def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, An
 
 
 def line_pack_labels(line: dict[str, Any]) -> list[str]:
-    if line.get("selection_mode") == "identity_only":
+    if line.get("selection_mode") == "identity_only" or line.get("variant_policy"):
         return [""]
     labels = [str(pack.get("label") or "").split(" x ", 1)[0] for pack in line.get("pack_strategy") or []]
     labels.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if re.search(r"\d", str(word)))
@@ -2434,7 +2561,7 @@ def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         search_terms = [str(term) for term in line.get("search_terms") or [] if term]
         for pack in line.get("pack_strategy") or []:
-            identity_only = line.get("selection_mode") == "identity_only"
+            identity_only = line.get("selection_mode") == "identity_only" or bool(line.get("variant_policy"))
             raw_pack_label = str(pack.get("label") or "").split(" x ", 1)[0]
             pack_label = "" if identity_only else raw_pack_label
             count = int(pack.get("count") or 0)
@@ -2450,6 +2577,7 @@ def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "pack_label": pack_label,
                     "display_pack_label": raw_pack_label,
                     "selection_mode": line.get("selection_mode", "pack_match"),
+                    "variant_policy": line.get("variant_policy") or {},
                     "target_quantity": line.get("target_quantity", line.get("requested_quantity")),
                     "count": count,
                     "search_query": query,
@@ -2457,7 +2585,11 @@ def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "unit": line.get("unit", ""),
                 }
             )
-    return [step for step in steps if step["line_name"] and (step["pack_label"] or step.get("selection_mode") == "identity_only") and step["count"] > 0]
+    return [
+        step
+        for step in steps
+        if step["line_name"] and (step["pack_label"] or step.get("selection_mode") == "identity_only" or step.get("variant_policy")) and step["count"] > 0
+    ]
 
 
 def run_adb_auto_add_cart(
@@ -2643,6 +2775,88 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(x), str(y)], timeout)
     time.sleep(1.5)
     after = save_adb_snapshot(serial, after_dir, timeout, plan)
+    variant_policy = target_line.get("variant_policy") or {}
+    if variant_policy:
+        variant_selection = select_variant_option(after, variant_policy)
+        if not variant_selection.get("allowed"):
+            return {
+                "status": "blocked",
+                "message": f"已打开 {item_name} 规格层，但没有拿到可自动比较的规格价格/加购按钮；已保存截图，等待训练。",
+                "device_serial": serial,
+                "session_dir": str(session_dir),
+                "selected": selected,
+                "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+                "before": before,
+                "after": after,
+                "variant_selection": variant_selection,
+                "visual_proof": visual_proof,
+                "safety": {
+                    "delivery_store_match_required": True,
+                    "target_visible_in_screenshot_required": True,
+                    "cart_review_required": True,
+                    "stopped_for_operator_training": True,
+                    "forbidden_actions": ["提交订单", "付款", "自动切换收货地址"],
+                },
+            }
+        variant = variant_selection.get("selected") or {}
+        add_control = variant.get("add_control") or {}
+        variant_center = add_control.get("center") or []
+        if len(variant_center) != 2:
+            return {
+                "status": "blocked",
+                "message": f"已比较 {item_name} 规格价格，但缺少可点击加购坐标；已保存截图，等待训练。",
+                "device_serial": serial,
+                "session_dir": str(session_dir),
+                "selected": selected,
+                "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+                "before": before,
+                "after": after,
+                "variant_selection": variant_selection,
+                "visual_proof": visual_proof,
+            }
+        vx, vy = int(round(float(variant_center[0]))), int(round(float(variant_center[1])))
+        variant_taps = []
+        for variant_tap_index in range(1, int(variant.get("count") or 1) + 1):
+            variant_tap = run_command(adb_base(serial) + ["shell", "input", "tap", str(vx), str(vy)], timeout)
+            variant_taps.append(
+                {
+                    "tap_index": variant_tap_index,
+                    "x": vx,
+                    "y": vy,
+                    "returncode": variant_tap.returncode,
+                    "stderr": variant_tap.stderr.strip(),
+                    "stdout": variant_tap.stdout.strip(),
+                }
+            )
+            time.sleep(0.7)
+        variant_after = save_adb_snapshot(serial, session_dir / "after-variant-add", timeout, plan)
+        post_tap_validation = validate_post_tap(selected, variant_after)
+        status = "tapped_for_manual_review" if tap_result.returncode == 0 and variant_after.get("captured") else "blocked"
+        return {
+            "status": status,
+            "message": (
+                f"已按当天价格比较规格并选择 {variant.get('name') or variant.get('spec_text')}，"
+                f"总价 {variant.get('total_price')}；已保存前后截图。未提交订单，未付款；加购结果仍需购物车复核。"
+            ),
+            "device_serial": serial,
+            "session_dir": str(session_dir),
+            "selected": selected,
+            "tap": {"x": x, "y": y, "returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+            "variant_selection": variant_selection,
+            "variant_taps": variant_taps,
+            "before": before,
+            "after": after,
+            "variant_after": variant_after,
+            "post_tap_validation": post_tap_validation,
+            "visual_proof": visual_proof,
+            "safety": {
+                "delivery_store_match_required": True,
+                "target_visible_in_screenshot_required": True,
+                "variant_price_comparison_required": True,
+                "cart_review_required": True,
+                "forbidden_actions": ["提交订单", "付款", "自动切换收货地址"],
+            },
+        }
     post_tap_validation = validate_post_tap(selected, after)
     status = "tapped_for_manual_review" if tap_result.returncode == 0 and after.get("captured") else "blocked"
     return {
