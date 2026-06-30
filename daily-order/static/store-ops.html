@@ -278,11 +278,11 @@
   <body>
     <main class="ops-shell">
       <section id="dailyPanel" class="ops-panel is-active" aria-label="日常订货">
-        <iframe class="ops-frame" src="/daily-order/" title="熊小小成都门店订货"></iframe>
+        <iframe class="ops-frame" src="/daily-order/?ui=20260701-compact-actions" title="熊小小成都门店订货"></iframe>
       </section>
 
       <section id="supplyPanel" class="ops-panel" aria-label="日配">
-        <iframe id="supplyFrame" class="ops-frame" src="/order-submit?token=xiongxiaoxiao-order" title="熊小小日配订货"></iframe>
+        <iframe id="supplyFrame" class="ops-frame" src="/order-submit?token=xiongxiaoxiao-order&ui=20260701-compact-actions" title="熊小小日配订货"></iframe>
       </section>
 
       <section id="logisticsPanel" class="ops-panel logistics-panel" aria-label="物流信息">
@@ -348,7 +348,7 @@
 
       const isLocalHost = ["127.0.0.1", "localhost", "::1"].includes(window.location.hostname);
       if (supplyFrame && isLocalHost && window.location.port && window.location.port !== "8000") {
-        supplyFrame.src = `${window.location.protocol}//${window.location.hostname}:8000/order-submit?token=xiongxiaoxiao-order`;
+        supplyFrame.src = `${window.location.protocol}//${window.location.hostname}:8000/order-submit?token=xiongxiaoxiao-order&ui=20260701-compact-actions`;
       }
 
       function activatePanel(targetId) {
