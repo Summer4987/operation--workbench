@@ -190,7 +190,7 @@ def modal_opened(page) -> bool:
 def open_bid_modal(page) -> None:
     if modal_opened(page):
         return
-    candidates = page.evaluate(
+    click_script = (
         """() => {
             const visible = (el) => {
                 if (!el) return false;
@@ -228,8 +228,65 @@ def open_bid_modal(page) -> None:
                 .slice(0, 12);
         }"""
     )
+    candidates = page.evaluate(click_script)
     for item in candidates:
-        page.mouse.click(item["x"], item["y"])
+        clicked = page.evaluate(
+            """(targetText) => {
+                const visible = (el) => {
+                    if (!el) return false;
+                    const rect = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0
+                        && style.display !== 'none'
+                        && style.visibility !== 'hidden';
+                };
+                const scoreNode = (el) => {
+                    let text = '';
+                    let node = el;
+                    for (let depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
+                        text += '\\n' + (node.innerText || '');
+                    }
+                    let score = 0;
+                    if (/门店出价|当前出价|最终出价|推广出价|出价设置|设置出价/.test(text)) score += 100;
+                    if (/出价助手|出价模式/.test(text)) score -= 80;
+                    if (/当前最终出价范围/.test(text)) score += 30;
+                    if (getComputedStyle(el).cursor === 'pointer') score += 20;
+                    if (/right-wrapper|cursor|arrow|action|edit|setting/i.test(String(el.className || ''))) score += 15;
+                    return { score, text: text.trim().slice(0, 500) };
+                };
+                const candidates = [...document.querySelectorAll(
+                    '.isomor-cpc-fresh-right-wrapper, [class*=right-wrapper], [class*=cursor], [class*=arrow], [class*=action], [class*=edit], button, [role="button"], a'
+                )]
+                    .filter(visible)
+                    .map((el) => ({ el, ...scoreNode(el) }))
+                    .filter((item) => item.score > 0)
+                    .sort((a, b) => b.score - a.score);
+                const item = candidates.find((candidate) => candidate.text === targetText) || candidates[0];
+                if (!item) return false;
+                const el = item.el;
+                el.scrollIntoView({ block: 'center', inline: 'center' });
+                const rect = el.getBoundingClientRect();
+                const eventInit = {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: rect.left + rect.width / 2,
+                    clientY: rect.top + rect.height / 2,
+                    button: 0,
+                    buttons: 1,
+                };
+                for (const EventType of [PointerEvent, MouseEvent]) {
+                    for (const name of EventType === PointerEvent ? ['pointerdown', 'pointerup'] : ['mousedown', 'mouseup', 'click']) {
+                        el.dispatchEvent(new EventType(name, eventInit));
+                    }
+                }
+                if (typeof el.click === 'function') el.click();
+                return true;
+            }""",
+            item.get("text", ""),
+        )
+        if not clicked:
+            page.mouse.click(item["x"], item["y"])
         time.sleep(1.2)
         if modal_opened(page):
             return
@@ -240,6 +297,7 @@ def open_bid_modal(page) -> None:
                 target = locator.nth(index)
                 if not target.is_visible():
                     continue
+                target.scroll_into_view_if_needed(timeout=3000)
                 box = target.bounding_box()
                 if not box:
                     continue
