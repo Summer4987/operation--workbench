@@ -54,6 +54,11 @@ LEDGER_FIELD_ORDER = [
     "raw_text",
     "note",
     "sync_status",
+    "sync_marked_ready_at",
+    "sync_marked_ready_by",
+    "synced_at",
+    "feishu_record_id",
+    "sync_error",
 ]
 
 
@@ -254,6 +259,20 @@ def ledger_draft_ids() -> set[str]:
     return {str(record.get("draft_id") or "") for record in read_jsonl(LEDGER_PATH) if record.get("draft_id")}
 
 
+def replace_ledger(updated: dict[str, Any]) -> None:
+    records = read_jsonl(LEDGER_PATH)
+    found = False
+    for index, record in enumerate(records):
+        if record.get("ledger_id") == updated.get("ledger_id"):
+            records[index] = updated
+            found = True
+            break
+    if not found:
+        raise SystemExit(f"未找到账本记录：{updated.get('ledger_id')}")
+    write_jsonl(LEDGER_PATH, records)
+    export_ledger_csv()
+
+
 def replace_draft(updated: dict[str, Any]) -> None:
     records = read_jsonl(DRAFTS_PATH)
     found = False
@@ -419,6 +438,55 @@ def command_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_list_ledger(args: argparse.Namespace) -> int:
+    records = read_jsonl(LEDGER_PATH)
+    if args.status:
+        records = [record for record in records if record.get("sync_status") == args.status]
+    if args.json:
+        print(json.dumps(records, ensure_ascii=False, indent=2))
+        return 0
+    if not records:
+        print("没有账本记录。")
+        return 0
+    for record in records:
+        print(
+            " | ".join(
+                [
+                    str(record.get("ledger_id") or ""),
+                    str(record.get("transaction_date") or ""),
+                    str(record.get("direction") or ""),
+                    f"{float(record.get('amount') or 0):.2f}",
+                    str(record.get("category") or ""),
+                    str(record.get("store") or ""),
+                    str(record.get("sync_status") or ""),
+                ]
+            )
+        )
+    return 0
+
+
+def command_mark_ready(args: argparse.Namespace) -> int:
+    ledger_id = args.ledger_id.strip()
+    operator = args.operator.strip()
+    if not operator:
+        raise SystemExit("标记飞书待同步必须提供 --operator。")
+    records = read_jsonl(LEDGER_PATH)
+    ledger = next((record for record in records if record.get("ledger_id") == ledger_id), None)
+    if not ledger:
+        raise SystemExit(f"未找到账本记录：{ledger_id}")
+    if ledger.get("sync_status") == "synced":
+        raise SystemExit(f"账本记录已经同步，不能重新标记：{ledger_id}")
+    ledger = dict(ledger)
+    ledger["sync_status"] = "ready_for_feishu"
+    ledger["sync_marked_ready_at"] = now_text()
+    ledger["sync_marked_ready_by"] = operator
+    ledger.pop("sync_error", None)
+    replace_ledger(ledger)
+    print(f"已标记为飞书待同步：{ledger_id}")
+    print("仍未写入飞书；需另行运行 scripts/finance_feishu_sync.py，并在 token 齐全时显式传入 --execute。")
+    return 0
+
+
 def command_schema(_: argparse.Namespace) -> int:
     print(SCHEMA_PATH.read_text(encoding="utf-8"))
     return 0
@@ -454,6 +522,16 @@ def build_parser() -> argparse.ArgumentParser:
     export = subparsers.add_parser("export", help="导出本地账本。")
     export.add_argument("--format", choices=["csv", "jsonl"], default="csv")
     export.set_defaults(func=command_export)
+
+    list_ledger = subparsers.add_parser("list-ledger", help="列出本地确认账本。")
+    list_ledger.add_argument("--status", choices=["local_only", "ready_for_feishu", "synced", "sync_failed"], help="按飞书同步状态过滤。")
+    list_ledger.add_argument("--json", action="store_true", help="输出 JSON。")
+    list_ledger.set_defaults(func=command_list_ledger)
+
+    mark_ready = subparsers.add_parser("mark-ready", help="人工标记一条本地账本为 ready_for_feishu。")
+    mark_ready.add_argument("--ledger-id", required=True, help="账本 ID。")
+    mark_ready.add_argument("--operator", required=True, help="标记人，必填。")
+    mark_ready.set_defaults(func=command_mark_ready)
 
     schema = subparsers.add_parser("schema", help="打印财务 schema 和飞书字段规划。")
     schema.set_defaults(func=command_schema)
