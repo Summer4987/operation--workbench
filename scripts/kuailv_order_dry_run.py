@@ -1721,7 +1721,7 @@ def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any]
 
     def is_title_node(text: str, bounds: list[int]) -> bool:
         x1, y1, x2, y2 = bounds
-        if not (408 <= x1 <= 418 and 500 <= y1 <= 1650 and x2 >= 500):
+        if not (408 <= x1 <= 418 and 340 <= y1 <= 1650 and x2 >= 500):
             return False
         if not re.search(r"[\u4e00-\u9fff]", text):
             return False

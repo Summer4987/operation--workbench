@@ -136,6 +136,33 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertIn("global_reject_keyword_seen", expectation["risk_flags"])
         self.assertIn("嫩豆腐", expectation["global_reject_hits"])
 
+    def test_cart_review_extracts_top_visible_cart_item_with_edit_quantity(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "保利中心店",
+            "submitted_at": "2026-06-30T10:00:00+08:00",
+            "items": [{"name": "洋葱", "quantity": 30, "unit": "斤", "purchase_channel": "快驴"}],
+        }
+        plan = build_plan(order)
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="黄皮洋葱普通" class="android.widget.TextView" bounds="[413,390][655,450]" />
+  <node text="5斤" class="android.widget.TextView" bounds="[413,458][472,511]" />
+  <node text="29" class="android.widget.EditText" clickable="true" bounds="[855,545][950,618]" />
+  <node text="全选" class="android.widget.TextView" bounds="[98,2106][199,2162]" />
+  <node text="合计:" class="android.widget.TextView" bounds="[486,2086][568,2145]" />
+  <node text="去结算 (1)" class="android.widget.TextView" bounds="[787,2103][995,2168]" />
+</hierarchy>"""
+
+        details = analyze_cart_review_xml(xml_text, plan)
+
+        self.assertTrue(details["reached_cart"])
+        self.assertEqual(len(details["visible_cart_items"]), 1)
+        item = details["visible_cart_items"][0]
+        self.assertEqual(item["title"], "黄皮洋葱普通")
+        self.assertEqual(item["quantity"], "29")
+        self.assertEqual(item["minus_center"], [824, 581])
+
     def test_auto_add_pack_steps_expand_full_order_counts(self) -> None:
         order = {
             "order_id": "DO-TEST",
