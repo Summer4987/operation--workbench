@@ -292,12 +292,15 @@
   ],
   "feishu_base_plan": {
     "app_token_env": "FEISHU_FINANCE_APP_TOKEN",
+    "app_id_env": "FEISHU_APP_ID",
+    "app_secret_env": "FEISHU_APP_SECRET",
+    "wiki_token_env": "FEISHU_FINANCE_WIKI_TOKEN",
     "table_id_env": "FEISHU_FINANCE_TABLE_ID",
     "tenant_access_token_env": "FEISHU_TENANT_ACCESS_TOKEN",
     "write_mode_when_tokens_missing": "export_only",
     "sync_script": "scripts/finance_feishu_sync.py",
     "sync_source_filter": "ledger.sync_status == ready_for_feishu",
-    "execute_guard": "必须显式传入 --execute 且 token/app/table 环境变量齐全才调用飞书 API。",
+    "execute_guard": "必须显式传入 --execute 且飞书鉴权、app/wiki/table 环境变量齐全才调用飞书 API。",
     "recommended_tables": [
       {
         "table_name": "财务草稿收件箱",

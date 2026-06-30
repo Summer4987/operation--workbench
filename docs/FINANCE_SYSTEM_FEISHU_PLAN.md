@@ -75,14 +75,23 @@ python3 scripts/finance_feishu_sync.py
 
 真实写入飞书必须同时满足：
 
-- 环境变量已在本机配置：`FEISHU_TENANT_ACCESS_TOKEN`、`FEISHU_FINANCE_APP_TOKEN`、`FEISHU_FINANCE_TABLE_ID`。
+- 环境变量已在本机配置：
+  - 方式 A：`FEISHU_TENANT_ACCESS_TOKEN`、`FEISHU_FINANCE_APP_TOKEN`、`FEISHU_FINANCE_TABLE_ID`。
+  - 方式 B：`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_FINANCE_WIKI_TOKEN`、`FEISHU_FINANCE_TABLE_ID`。
 - 命令显式带 `--execute`。
 - 待同步账本已经是 `sync_status=ready_for_feishu`。
 
+当前“熊小小财务系统”知识库链接：
+
+- `FEISHU_FINANCE_WIKI_TOKEN=S2cjweZDgiF9Ahk1utNct9ALnGb`
+- `FEISHU_FINANCE_TABLE_ID=tblhvLWzZljosVyG`
+- 开发者后台 App ID：`cli_aac9dcadd1f81cc8`
+
 ```bash
-FEISHU_TENANT_ACCESS_TOKEN="..." \
-FEISHU_FINANCE_APP_TOKEN="..." \
-FEISHU_FINANCE_TABLE_ID="..." \
+FEISHU_APP_ID="cli_aac9dcadd1f81cc8" \
+FEISHU_APP_SECRET="..." \
+FEISHU_FINANCE_WIKI_TOKEN="S2cjweZDgiF9Ahk1utNct9ALnGb" \
+FEISHU_FINANCE_TABLE_ID="tblhvLWzZljosVyG" \
 python3 scripts/finance_feishu_sync.py --execute
 ```
 
@@ -200,7 +209,7 @@ FINANCE_INBOX_DIR="$tmpdir" python3 scripts/finance_feishu_sync.py
 
 飞书多维表格接入使用独立同步脚本，不改 `confirm` 的默认行为：
 
-1. 环境变量读取 `FEISHU_TENANT_ACCESS_TOKEN`、`FEISHU_FINANCE_APP_TOKEN`、`FEISHU_FINANCE_TABLE_ID`。
+1. 环境变量读取 `FEISHU_TENANT_ACCESS_TOKEN`、`FEISHU_FINANCE_APP_TOKEN`、`FEISHU_FINANCE_TABLE_ID`；如果多维表是 `/wiki/...` 链接，也支持用 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_FINANCE_WIKI_TOKEN` 自动换取 token 并解析多维表 `app_token`。
 2. 只同步 `sync_status=ready_for_feishu` 的账本记录。
 3. 每次同步前打印 dry-run 摘要：记录数、金额合计、收支方向拆分。
 4. 需要显式 `--execute` 才调用飞书 API。

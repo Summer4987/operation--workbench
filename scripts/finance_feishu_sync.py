@@ -26,7 +26,10 @@ DEFAULT_JSON_EXPORT_PATH = EXPORT_DIR / "finance_ledger_feishu_payload.json"
 
 FEISHU_API_BASE = os.environ.get("FEISHU_API_BASE", "https://open.feishu.cn")
 TOKEN_ENV = "FEISHU_TENANT_ACCESS_TOKEN"
+APP_ID_ENV = "FEISHU_APP_ID"
+APP_SECRET_ENV = "FEISHU_APP_SECRET"
 APP_TOKEN_ENV = "FEISHU_FINANCE_APP_TOKEN"
+WIKI_TOKEN_ENV = "FEISHU_FINANCE_WIKI_TOKEN"
 TABLE_ID_ENV = "FEISHU_FINANCE_TABLE_ID"
 
 FEISHU_LEDGER_FIELD_MAP = {
@@ -159,6 +162,78 @@ def post_feishu_records(records: list[dict[str, Any]], token: str, app_token: st
     return created_record_ids
 
 
+def post_json(path: str, body: dict[str, Any], token: str | None = None) -> dict[str, Any]:
+    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json; charset=utf-8"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(f"{FEISHU_API_BASE}{path}", data=data, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        error_text = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"飞书 API HTTP {exc.code}: {error_text}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"飞书 API 网络失败：{exc.reason}") from exc
+
+
+def get_json(path: str, token: str) -> dict[str, Any]:
+    request = urllib.request.Request(
+        f"{FEISHU_API_BASE}{path}",
+        method="GET",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        error_text = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"飞书 API HTTP {exc.code}: {error_text}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"飞书 API 网络失败：{exc.reason}") from exc
+
+
+def get_tenant_access_token() -> tuple[str, str]:
+    preset_token = os.environ.get(TOKEN_ENV, "").strip()
+    if preset_token:
+        return preset_token, TOKEN_ENV
+    app_id = os.environ.get(APP_ID_ENV, "").strip()
+    app_secret = os.environ.get(APP_SECRET_ENV, "").strip()
+    missing = [name for name, value in [(APP_ID_ENV, app_id), (APP_SECRET_ENV, app_secret)] if not value]
+    if missing:
+        raise RuntimeError("缺少飞书鉴权环境变量 " + ", ".join(missing))
+    response = post_json(
+        "/open-apis/auth/v3/tenant_access_token/internal",
+        {"app_id": app_id, "app_secret": app_secret},
+    )
+    if response.get("code") != 0:
+        raise RuntimeError(f"获取 tenant_access_token 失败：{json.dumps(response, ensure_ascii=False)}")
+    token = str(response.get("tenant_access_token") or "")
+    if not token:
+        raise RuntimeError("获取 tenant_access_token 失败：响应中没有 token")
+    return token, f"{APP_ID_ENV}+{APP_SECRET_ENV}"
+
+
+def resolve_bitable_app_token(token: str) -> tuple[str, str]:
+    app_token = os.environ.get(APP_TOKEN_ENV, "").strip()
+    if app_token:
+        return app_token, APP_TOKEN_ENV
+    wiki_token = os.environ.get(WIKI_TOKEN_ENV, "").strip()
+    if not wiki_token:
+        raise RuntimeError(f"缺少 {APP_TOKEN_ENV}；如果链接是 /wiki/...，请设置 {WIKI_TOKEN_ENV}")
+    response = get_json(f"/open-apis/wiki/v2/spaces/get_node?token={wiki_token}", token)
+    if response.get("code") != 0:
+        raise RuntimeError(f"解析 Wiki 节点失败：{json.dumps(response, ensure_ascii=False)}")
+    node = response.get("data", {}).get("node", {})
+    if node.get("obj_type") != "bitable":
+        raise RuntimeError(f"Wiki 节点不是多维表格：obj_type={node.get('obj_type')}")
+    obj_token = str(node.get("obj_token") or "")
+    if not obj_token:
+        raise RuntimeError("解析 Wiki 节点失败：响应中没有 obj_token")
+    return obj_token, WIKI_TOKEN_ENV
+
+
 def rewrite_ledger_after_sync(records: list[dict[str, Any]], record_ids: list[str] | None = None, error: str | None = None) -> None:
     ledger_records = finance_inbox.read_jsonl(finance_inbox.LEDGER_PATH)
     target_ids = [str(record.get("ledger_id") or "") for record in records]
@@ -192,26 +267,28 @@ def command_sync(args: argparse.Namespace) -> int:
     print(f"已生成飞书导入 CSV：{csv_path}")
     print(f"已生成飞书 API payload：{json_path}")
 
-    token = os.environ.get(TOKEN_ENV, "").strip()
-    app_token = os.environ.get(APP_TOKEN_ENV, "").strip()
     table_id = os.environ.get(TABLE_ID_ENV, "").strip()
-    missing = [name for name, value in [(TOKEN_ENV, token), (APP_TOKEN_ENV, app_token), (TABLE_ID_ENV, table_id)] if not value]
-
     if not args.execute:
         print("当前为 dry-run/export-only：未传入 --execute，不会写入飞书。")
         return 0
-    if missing:
-        print("当前为 export-only：缺少飞书环境变量 " + ", ".join(missing) + "，不会写入飞书。")
+    if not table_id:
+        print(f"当前为 export-only：缺少飞书环境变量 {TABLE_ID_ENV}，不会写入飞书。")
         return 2
     if not records:
         print("没有 sync_status=ready_for_feishu 的账本记录，无需写入飞书。")
         return 0
 
     try:
+        token, token_source = get_tenant_access_token()
+        app_token, app_token_source = resolve_bitable_app_token(token)
+        print(f"飞书鉴权来源：{token_source}；多维表 token 来源：{app_token_source}。")
         record_ids = post_feishu_records(records, token, app_token, table_id)
     except RuntimeError as exc:
-        rewrite_ledger_after_sync(records, error=str(exc))
         print(str(exc))
+        if "缺少" in str(exc):
+            print("当前为 export-only：飞书鉴权或表配置不完整，不会写入飞书。")
+            return 2
+        rewrite_ledger_after_sync(records, error=str(exc))
         print("飞书写入失败；本地记录已标记 sync_failed。")
         return 1
 
