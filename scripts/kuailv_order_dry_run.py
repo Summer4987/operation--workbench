@@ -1355,7 +1355,7 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
         control_text = str(candidate.get("control_text") or "")
         safe_control = (candidate_source == "xml_target_card_control" and control_text == "orange_add_icon") or (
             candidate_source == "xml_add_control" and any(word in control_text for word in ADD_CONTROL_TEXTS)
-        )
+        ) or (candidate_source in {"", "orange_image"} and not control_text)
         if best.get("allowed") and safe_control:
             best_text = " ".join(
                 str(best.get(key) or "")
@@ -1481,7 +1481,7 @@ def select_safe_candidate(analysis: dict[str, Any], item_name: str, pack_label: 
         control_text = str(candidate.get("control_text") or "")
         safe_control = (candidate_source == "xml_target_card_control" and control_text == "orange_add_icon") or (
             candidate_source == "xml_add_control" and any(word in control_text for word in ADD_CONTROL_TEXTS)
-        )
+        ) or (candidate_source in {"", "orange_image"} and not control_text)
         if not safe_control:
             continue
         for score in candidate.get("line_scores") or []:

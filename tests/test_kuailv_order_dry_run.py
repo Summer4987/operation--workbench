@@ -27,6 +27,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     score_candidate_for_line,
     search_result_hits,
     search_suggestion_candidate,
+    select_safe_candidate,
     select_variant_option,
 )
 
@@ -625,6 +626,33 @@ class KuailvOrderDryRunTest(unittest.TestCase):
 
         self.assertEqual(result["page_text_hit_count"], 0)
         self.assertEqual(result["page_node_hit_count"], 0)
+
+    def test_select_safe_candidate_accepts_scored_image_orange_control(self) -> None:
+        analysis = {
+            "orange_add_candidates": [
+                {
+                    "source": None,
+                    "control_text": "",
+                    "center": [1018.5, 708.0],
+                    "bounds": [996, 681, 1041, 735],
+                    "line_scores": [
+                        {
+                            "allowed": True,
+                            "score": 153,
+                            "line_name": "圣女果",
+                            "pack_label": "3斤",
+                            "row_text": "圣女果 3斤 ¥4.18/斤",
+                            "context_text": "圣女果 3斤 共¥12.54",
+                        }
+                    ],
+                }
+            ]
+        }
+
+        selected = select_safe_candidate(analysis, "圣女果", "3斤")
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["candidate"]["center"], [1018.5, 708.0])
 
 
 if __name__ == "__main__":
