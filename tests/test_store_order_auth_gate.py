@@ -580,6 +580,31 @@ def test_logistics_store_account_only_reads_own_store(tmp_path, monkeypatch):
     assert items[0]["store_name"] == "银泰城店"
 
 
+def test_logistics_store_can_mark_picked_and_restore(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "银泰城店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "LOGISTICS_PATH", tmp_path / "logistics.json")
+    module._write_logistics_records(
+        [{"id": "log-1", "store_name": "银泰城店", "goods": "餐盒", "tracking_number": "A1"}]
+    )
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "store-user", "password": "secret"})
+    assert login.status_code == 200
+
+    picked = client.patch("/daily-order/api/logistics/log-1/picked", json={"picked": True})
+    assert picked.status_code == 200
+    assert picked.json()["item"]["picked_up"] is True
+    assert picked.json()["item"]["picked_up_at"]
+
+    restored = client.patch("/daily-order/api/logistics/log-1/picked", json={"picked": False})
+    assert restored.status_code == 200
+    assert restored.json()["item"]["picked_up"] is False
+
+
 def test_chengdu_daily_order_logout_clears_store_session(monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv(

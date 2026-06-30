@@ -372,6 +372,25 @@ async def ingest_logistics(request: Request, payload: dict):
     return _upsert_logistics_record(record)
 
 
+@app.patch("/daily-order/api/logistics/{record_id}/picked")
+async def update_public_logistics_picked(request: Request, record_id: str, payload: dict):
+    session = _require_store_order_auth(request)
+    picked = bool(payload.get("picked", True))
+    records = _read_logistics_records()
+    index = next((idx for idx, item in enumerate(records) if item.get("id") == record_id), None)
+    if index is None:
+        raise HTTPException(status_code=404, detail="物流记录不存在")
+    record = dict(records[index])
+    if not _store_order_can_access_logistics_record(session, record):
+        raise HTTPException(status_code=403, detail="无权操作该物流记录")
+    record["picked_up"] = "true" if picked else ""
+    record["picked_up_at"] = now_iso() if picked else ""
+    record["updated_at"] = now_iso()
+    records[index] = record
+    _write_logistics_records(records)
+    return {"status": "success", "item": _public_logistics_record(record)}
+
+
 def _upsert_logistics_record(record: dict) -> dict:
     records = _read_logistics_records()
     now = now_iso()
@@ -650,9 +669,12 @@ def _normalize_logistics_record(record: dict) -> dict:
         "created_at",
         "updated_at",
         "remark",
+        "picked_up",
+        "picked_up_at",
     ]
     result = {key: str(record.get(key) or "").strip() for key in keys}
     result["status"] = result["status"] or ("待取件" if result["pickup_code"] else "运输中")
+    result["picked_up"] = "true" if result["picked_up"].lower() in {"1", "true", "yes", "已取件"} else ""
     return result
 
 
@@ -692,8 +714,17 @@ def _public_logistics_record(record: dict) -> dict:
         "latest_trace": clean["latest_trace"],
         "eta": clean["eta"],
         "updated_at": clean["updated_at"],
-        "remark": clean["remark"],
+        "picked_up": clean["picked_up"] == "true",
+        "picked_up_at": clean["picked_up_at"],
     }
+
+
+def _store_order_can_access_logistics_record(account: dict | None, record: dict) -> bool:
+    if not account:
+        return False
+    if account.get("all_stores") or account.get("role") in {"owner", "super", "admin"}:
+        return True
+    return str(record.get("store_name") or "") == str(account.get("store_name") or "")
 
 
 def _default_purchase_channel(product: dict) -> str:

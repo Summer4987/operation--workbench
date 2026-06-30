@@ -38,6 +38,7 @@ def detail_ui_dump() -> str:
   <node text="中通快递 79015504368326" content-desc="" bounds="[0,60][500,110]" />
   <node text="复制" content-desc="" bounds="[0,120][100,170]" />
   <node text="运输中" content-desc="" bounds="[0,180][500,230]" />
+  <node text="06.30 21:35" content-desc="" bounds="[0,210][500,235]" />
   <node text="【成都市】 快件已到达 成都转运中心" content-desc="" bounds="[0,240][500,290]" />
   <node text="送至 成都市 武侯区 石羊街道 新街里6c区3楼3035号熊小小牛排饭" content-desc="" bounds="[0,300][500,350]" />
   <node text="唐 18418974867-1306" content-desc="" bounds="[0,360][500,410]" />
@@ -110,6 +111,11 @@ def test_parse_detail_page_excludes_recipient_phone_number():
     assert parsed["records"][0]["store_name"] == "金融城店"
     assert parsed["records"][0]["tracking_number"] == "79015504368326"
     assert parsed["records"][0]["status"] == "运输中"
+    assert parsed["records"][0]["goods"] == "一次性牛皮纸汤桶圆形粥桶汤杯纸碗外卖带盖圆形打包盒商用纸餐盒"
+    assert "06.30 21:35" in parsed["records"][0]["latest_trace"]
+    assert "快件已到达 成都转运中心" in parsed["records"][0]["latest_trace"]
+    assert "复制" not in parsed["records"][0]["latest_trace"]
+    assert parsed["records"][0]["remark"] == ""
 
 
 def test_list_detail_targets_ignores_group_header_and_limits():

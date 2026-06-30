@@ -83,7 +83,10 @@
       }
 
       .logistics-toolbar button,
-      .copy-button {
+      .copy-button,
+      .picked-button,
+      .restore-button,
+      .logistics-filter button {
         border: 1px solid var(--line);
         border-radius: 8px;
         background: #fff;
@@ -93,6 +96,18 @@
         font: inherit;
         font-size: 13px;
         font-weight: 900;
+      }
+
+      .logistics-filter {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .logistics-filter button.is-active {
+        border-color: #9fd5c8;
+        background: #e8f7f2;
+        color: #176556;
       }
 
       .logistics-list {
@@ -147,6 +162,11 @@
         color: #8a5a00;
       }
 
+      .logistics-status.picked {
+        background: #edf0f2;
+        color: #5b6670;
+      }
+
       .pickup-code {
         border-radius: 8px;
         background: #fff8e6;
@@ -178,7 +198,9 @@
 
       .logistics-actions {
         display: flex;
+        gap: 8px;
         justify-content: flex-end;
+        flex-wrap: wrap;
       }
 
       .bottom-nav {
@@ -269,6 +291,10 @@
             <h1 class="logistics-title">物流信息</h1>
             <button id="refreshLogisticsButton" type="button">刷新</button>
           </div>
+          <div class="logistics-filter" aria-label="物流状态筛选">
+            <button class="is-active" type="button" data-logistics-filter="active">未取件</button>
+            <button type="button" data-logistics-filter="picked">已取件</button>
+          </div>
           <div id="logisticsList" class="logistics-list">
             <div class="logistics-empty">
               <strong>正在读取物流记录</strong>
@@ -314,7 +340,10 @@
       const supplyFrame = document.querySelector("#supplyFrame");
       const logisticsList = document.querySelector("#logisticsList");
       const refreshLogisticsButton = document.querySelector("#refreshLogisticsButton");
+      const logisticsFilterButtons = Array.from(document.querySelectorAll("[data-logistics-filter]"));
       let logisticsLoaded = false;
+      let logisticsItems = [];
+      let logisticsFilter = "active";
 
       const isLocalHost = ["127.0.0.1", "localhost", "::1"].includes(window.location.hostname);
       if (supplyFrame && isLocalHost && window.location.port && window.location.port !== "8000") {
@@ -340,6 +369,13 @@
       });
 
       refreshLogisticsButton.addEventListener("click", () => loadLogistics(true));
+      logisticsFilterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          logisticsFilter = button.dataset.logisticsFilter;
+          logisticsFilterButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+          renderLogistics(logisticsItems);
+        });
+      });
 
       async function loadLogistics(force = false) {
         if (!force && logisticsLoaded) return;
@@ -353,20 +389,24 @@
           const payload = await response.json();
           if (!response.ok) throw new Error(payload.detail || "物流记录读取失败");
           logisticsLoaded = true;
-          renderLogistics(payload.items || []);
+          logisticsItems = payload.items || [];
+          renderLogistics(logisticsItems);
         } catch (error) {
           logisticsList.innerHTML = emptyLogistics("物流记录读取失败", error.message || "请稍后重试。");
         }
       }
 
       function renderLogistics(items) {
-        if (!items.length) {
-          logisticsList.innerHTML = emptyLogistics("暂无物流记录", "有快递单号、取件码或到件状态后会在这里显示。");
+        const visibleItems = items.filter((item) => logisticsFilter === "picked" ? item.picked_up : !item.picked_up);
+        if (!visibleItems.length) {
+          logisticsList.innerHTML = logisticsFilter === "picked"
+            ? emptyLogistics("暂无已取件记录", "点过已取件的快递会留在这里，方便误触后查询。")
+            : emptyLogistics("暂无待处理物流", "有快递单号、取件码或到件状态后会在这里显示。");
           return;
         }
-        logisticsList.innerHTML = items.map((item) => {
+        logisticsList.innerHTML = visibleItems.map((item) => {
           const pickup = item.pickup_code || "";
-          const statusClass = pickup || String(item.status || "").includes("取件") ? " pickup" : "";
+          const statusClass = item.picked_up ? " picked" : pickup || String(item.status || "").includes("取件") ? " pickup" : "";
           const copyText = [
             item.store_name ? `门店：${item.store_name}` : "",
             item.goods ? `货品：${item.goods}` : "",
@@ -375,6 +415,7 @@
             pickup ? `取件码：${pickup}` : "",
             item.latest_trace ? `状态：${item.latest_trace}` : item.status ? `状态：${item.status}` : "",
           ].filter(Boolean).join("\\n");
+          const pickedText = item.picked_up ? "已取件" : (item.status || "运输中");
           return `
             <article class="logistics-card">
               <header>
@@ -382,7 +423,7 @@
                   <strong>${escapeHtml(item.goods || item.supplier || item.tracking_number || "门店快递")}</strong>
                   <small>${escapeHtml(item.store_name || "")}${item.supplier ? ` · ${escapeHtml(item.supplier)}` : ""}</small>
                 </div>
-                <span class="logistics-status${statusClass}">${escapeHtml(item.status || "运输中")}</span>
+                <span class="logistics-status${statusClass}">${escapeHtml(pickedText)}</span>
               </header>
               ${pickup ? `<div class="pickup-code"><span>取件码</span><b>${escapeHtml(pickup)}</b></div>` : ""}
               <div class="logistics-meta">
@@ -390,10 +431,13 @@
                 ${item.latest_trace ? `<div>轨迹：${escapeHtml(item.latest_trace)}</div>` : ""}
                 ${item.eta ? `<div>预计到达：${escapeHtml(item.eta)}</div>` : ""}
                 ${item.updated_at ? `<div>更新：${escapeHtml(item.updated_at)}</div>` : ""}
-                ${item.remark ? `<div>备注：${escapeHtml(item.remark)}</div>` : ""}
+                ${item.picked_up_at ? `<div>取件：${escapeHtml(item.picked_up_at)}</div>` : ""}
               </div>
               <div class="logistics-actions">
                 <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}">复制取件信息</button>
+                ${item.picked_up
+                  ? `<button class="restore-button" type="button" data-id="${escapeHtml(item.id)}">恢复未取</button>`
+                  : `<button class="picked-button" type="button" data-id="${escapeHtml(item.id)}">已取件</button>`}
               </div>
             </article>
           `;
@@ -405,6 +449,25 @@
             setTimeout(() => { button.textContent = "复制取件信息"; }, 1200);
           });
         });
+        logisticsList.querySelectorAll(".picked-button, .restore-button").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const picked = button.classList.contains("picked-button");
+            await updatePicked(button.dataset.id, picked);
+          });
+        });
+      }
+
+      async function updatePicked(id, picked) {
+        const response = await fetch(`/daily-order/api/logistics/${encodeURIComponent(id)}/picked`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ picked }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.detail || "物流状态更新失败");
+        const index = logisticsItems.findIndex((item) => item.id === id);
+        if (index >= 0) logisticsItems[index] = payload.item;
+        renderLogistics(logisticsItems);
       }
 
       function emptyLogistics(title, text) {

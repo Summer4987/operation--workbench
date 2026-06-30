@@ -37,6 +37,7 @@ CARRIER_WORDS = ["顺丰", "中通", "圆通", "申通", "韵达", "极兔", "�
 STATUS_WORDS = ["待取件", "已入库", "已签收", "派送中", "运输中", "已揽收", "已发出", "到达", "已到"]
 NOISE_WORDS = ["手机号", "手机尾号", "隐私小号", "订单号", "运单号复制", "复制", "查看", "删除"]
 DETAIL_STATUS_WORDS = ["待取件", "已入库", "派送中", "运输中", "已签收", "已到"]
+TRACE_SKIP_WORDS = ["延迟得", "复制", "分享", "消息订阅", "全程预测", "隐私小号", "展开", "返回，按钮", "查看商品"]
 STORE_ADDRESS_HINTS = {
     "金融城店": ["新街里", "3035", "石羊街道"],
     "银泰城店": ["银泰城", "悦坊", "益州大道1999"],
@@ -222,6 +223,41 @@ def infer_store_name(texts: list[str], fallback: str = "") -> str:
     return fallback
 
 
+def infer_goods_name(texts: list[str]) -> str:
+    for text in texts:
+        if "买给" not in text and not text.startswith("淘宝 |"):
+            continue
+        clean = re.sub(r"^淘宝\s*\|\s*", "", text).strip()
+        clean = re.sub(r"^买给【[^】]+】的", "", clean).strip()
+        clean = re.sub(r"\s+", " ", clean)
+        if clean:
+            return clean[:42]
+    for text in texts:
+        if any(word in text for word in ["餐盒", "打包盒", "汤桶", "裙带菜", "海木耳", "包装袋", "纸碗"]):
+            return text[:42]
+    return "菜鸟裹裹包裹"
+
+
+def logistics_trace_summary(texts: list[str]) -> str:
+    rows = []
+    for text in texts:
+        if not text or any(word in text for word in TRACE_SKIP_WORDS):
+            continue
+        if re.search(r"\d{2}\.\d{2}\s+\d{2}:\d{2}", text) or text.startswith("【") or text.startswith("送至"):
+            rows.append(text)
+            continue
+        if any(word in text for word in ["已到达", "已发往", "派送", "签收", "待取件", "驿站", "已入库"]):
+            rows.append(text)
+    cleaned = []
+    seen = set()
+    for row in rows:
+        row = re.sub(r"\s+", " ", row).strip()
+        if row and row not in seen:
+            seen.add(row)
+            cleaned.append(row)
+    return "；".join(cleaned)[:300]
+
+
 def nearby_text(texts: list[str], index: int, radius: int = 4) -> str:
     start = max(0, index - radius)
     end = min(len(texts), index + radius + 1)
@@ -275,7 +311,9 @@ def find_tracking_numbers(texts: list[str]) -> list[tuple[str, int]]:
     return dedupe_pairs(found)
 
 
-def infer_status(context: str, pickup_code: str) -> str:
+def infer_status(context: str, pickup_code: str, status_hint: str = "") -> str:
+    if status_hint in STATUS_WORDS:
+        return "待取件" if status_hint in ["待取件", "已入库", "已到", "到达"] and pickup_code else status_hint
     for word in STATUS_WORDS:
         if word in context:
             return "待取件" if word in ["待取件", "已入库", "已到", "到达"] and pickup_code else word
@@ -289,6 +327,8 @@ def build_record(
     context: str,
     captured_at: str,
     index: int,
+    goods: str = "菜鸟裹裹包裹",
+    status_hint: str = "",
 ) -> dict[str, str]:
     carrier = first_match([context], CARRIER_WORDS)
     digest_source = "|".join([store_name, pickup_code, tracking_number, context])
@@ -296,29 +336,34 @@ def build_record(
     latest = context[:180]
     return {
         "store_name": store_name,
-        "goods": "菜鸟裹裹包裹",
+        "goods": goods or "菜鸟裹裹包裹",
         "supplier": "菜鸟裹裹",
         "carrier": carrier or "菜鸟裹裹",
         "tracking_number": tracking_number or fallback_tracking,
-        "status": infer_status(context, pickup_code),
+        "status": infer_status(context, pickup_code, status_hint),
         "pickup_code": pickup_code,
         "latest_trace": latest or "菜鸟裹裹采集到物流更新",
         "updated_at": captured_at,
-        "remark": f"安卓菜鸟裹裹自动采集 #{index}",
+        "remark": "",
     }
 
 
 def parse_logistics_records(xml_text: str, store_name: str, captured_at: str | None = None) -> dict[str, Any]:
     captured_at = captured_at or now_text()
     texts = extract_ui_texts(xml_text)
-    inferred_store_name = infer_store_name(texts, store_name)
+    detected_store_name = infer_store_name(texts, "")
+    inferred_store_name = detected_store_name or store_name
+    goods = infer_goods_name(texts)
+    trace_summary = logistics_trace_summary(texts)
+    prefer_trace_summary = bool(trace_summary and (detected_store_name or any(text.startswith("送至") for text in texts)))
+    status_hint = first_match(texts, STATUS_WORDS) if prefer_trace_summary else ""
     pickups = find_pickup_codes(texts)
     trackings = find_tracking_numbers(texts)
     records: list[dict[str, str]] = []
 
     used_tracking: set[str] = set()
     for row_index, (pickup, pickup_index) in enumerate(pickups, start=1):
-        context = nearby_text(texts, pickup_index)
+        context = trace_summary if prefer_trace_summary else nearby_text(texts, pickup_index)
         tracking = ""
         preceding = [(number, pickup_index - number_index) for number, number_index in trackings if 0 <= pickup_index - number_index <= 8]
         following = [(number, number_index - pickup_index) for number, number_index in trackings if 0 < number_index - pickup_index <= 3]
@@ -328,13 +373,14 @@ def parse_logistics_records(xml_text: str, store_name: str, captured_at: str | N
             tracking = min(following, key=lambda item: item[1])[0]
         if tracking:
             used_tracking.add(tracking)
-        records.append(build_record(inferred_store_name, pickup, tracking, context, captured_at, row_index))
+        records.append(build_record(inferred_store_name, pickup, tracking, context, captured_at, row_index, goods, status_hint))
 
     for number, number_index in trackings:
         if number in used_tracking:
             continue
-        context = forward_text(texts, number_index)
-        records.append(build_record(inferred_store_name, "", number, context, captured_at, len(records) + 1))
+        context = trace_summary if prefer_trace_summary else forward_text(texts, number_index)
+        record_status_hint = status_hint or first_match(forward_text(texts, number_index).split(" "), STATUS_WORDS)
+        records.append(build_record(inferred_store_name, "", number, context, captured_at, len(records) + 1, goods, record_status_hint))
 
     return {
         "captured_at": captured_at,

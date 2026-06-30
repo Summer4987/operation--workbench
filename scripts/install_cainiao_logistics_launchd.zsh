@@ -36,13 +36,19 @@ cat > "$PLIST" <<PLIST
       <key>Hour</key>
       <integer>10</integer>
       <key>Minute</key>
-      <integer>10</integer>
+      <integer>0</integer>
     </dict>
     <dict>
       <key>Hour</key>
-      <integer>18</integer>
+      <integer>14</integer>
       <key>Minute</key>
-      <integer>10</integer>
+      <integer>0</integer>
+    </dict>
+    <dict>
+      <key>Hour</key>
+      <integer>17</integer>
+      <key>Minute</key>
+      <integer>0</integer>
     </dict>
   </array>
   <key>StandardOutPath</key>
@@ -61,6 +67,6 @@ launchctl enable "gui/$(id -u)/$LABEL"
 launchctl kickstart -k "gui/$(id -u)/$LABEL" || true
 
 echo "已安装：$LABEL"
-echo "时间：每天 10:10、18:10"
+echo "时间：每天 10:00、14:00、17:00"
 echo "日志：$LOG_DIR/stdout.log / $LOG_DIR/stderr.log"
 echo "运行目录：$RUNTIME_ROOT"
