@@ -44,6 +44,15 @@ class AgentBridgeIntentTests(unittest.TestCase):
     def test_direct_promo_bid_action_detects_explicit_target_price(self) -> None:
         self.assertTrue(self.bridge.looks_like_direct_promo_bid_action("美团 银泰城店 点金出价调到 1.8 元"))
 
+    def test_promo_bid_help_is_not_system_config_dump(self) -> None:
+        text = self.bridge.route_natural_text("推广出价", limit=3)
+        self.assertIn("直接改价指令", text)
+        self.assertIn("美团 银泰城店 点金出价调到 1.8 元", text)
+        self.assertNotIn("中心：", text)
+        self.assertNotIn("风险：", text)
+        self.assertNotIn("安全命令：", text)
+        self.assertNotIn("安全边界：", text)
+
 
 if __name__ == "__main__":
     unittest.main()

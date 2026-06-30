@@ -121,7 +121,7 @@ def build_payload(text: str, *, execute: bool) -> dict[str, Any]:
             "generated_at": generated_at,
             "status": "needs_clarification",
             "request": request,
-            "message": "出价指令缺少：" + "、".join(request["missing_fields"]) + "。请补充后我才能执行。",
+            "message": "我还差" + "、".join(request["missing_fields"]) + "，补齐后我才能改出价。你可以直接说：美团 银泰城店 点金出价调到 1.8 元。",
             "execution": {"attempted": False, "executed": False, "reason": "missing_required_fields"},
         }
     if not execute:
@@ -137,12 +137,11 @@ def build_payload(text: str, *, execute: bool) -> dict[str, Any]:
         }
     return {
         "generated_at": generated_at,
-        "status": "executor_missing",
-        "request": request,
-        "message": (
-            "已识别直接改价指令，但当前缺少可用的真实平台出价执行器，不能假装已改。\n"
-            f"识别结果：{request['platform']}｜{request['store']}｜{request['scope']} -> {request['target_bid']}。\n"
-            "下一步需要接入对应平台的 Mac mini 执行器后，才可直接保存真实出价。"
+            "status": "executor_missing",
+            "request": request,
+            "message": (
+            f"我已经识别到要把 {request['store']} 的{request['scope']}调到 {request['target_bid']} 元，"
+            "但真实改价执行器还没接上，所以现在不能替你保存到平台。"
         ),
         "execution": {
             "attempted": True,
@@ -165,7 +164,6 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(payload["message"])
-        print(f"记录：{LATEST_PATH}")
     return 0
 
 

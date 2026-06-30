@@ -331,6 +331,9 @@ def format_task_detail(task: dict[str, Any]) -> str:
 
 
 def format_business_term(term: dict[str, Any]) -> str:
+    term_values = " ".join(str(value) for value in [term.get("name", ""), *(term.get("aliases") or [])])
+    if normalized_contains(term_values, PROMO_BID_WORDS):
+        return format_promo_bid_help()
     lines = [
         f"{term.get('name', '业务简称')}",
         f"中心：{term.get('center', 'unknown')}；风险：{term.get('risk', 'unknown')}",
@@ -347,6 +350,15 @@ def format_business_term(term: dict[str, Any]) -> str:
     if term.get("safe_note"):
         lines.append("安全边界：" + term["safe_note"])
     return "\n".join(lines)
+
+
+def format_promo_bid_help() -> str:
+    return (
+        "推广出价我能识别你的直接改价指令。"
+        "你直接说“美团/饿了么 + 门店 + 点金/关键词/推广出价 + 调到几元”就行，"
+        "例如：美团 银泰城店 点金出价调到 1.8 元。"
+        "目前真实平台改价执行器还没完全接上；字段完整时我会明确告诉你已识别但暂时不能保存，不会假装改好了。"
+    )
 
 
 def format_task_list(snapshot: dict[str, Any]) -> str:
@@ -494,6 +506,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
 
     if looks_like_direct_promo_bid_action(stripped):
         return run_checked([sys.executable, "scripts/promo_bid_direct_request.py", "--execute", stripped])
+
+    if normalized_contains(stripped, PROMO_BID_WORDS):
+        return format_promo_bid_help()
 
     if looks_like_private_spreadsheet_action(stripped):
         return run_checked(
