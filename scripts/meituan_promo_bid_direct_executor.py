@@ -123,6 +123,8 @@ def read_bid_snapshot(page) -> dict[str, Any]:
         "range_max": float(range_match.group(2)) if range_match else None,
         "current_bid": bid_candidates[0] if bid_candidates else None,
         "text_sample": " ".join(text.split())[:1000],
+        "is_paused": "已暂停" in text,
+        "budget_exhausted": "预算耗尽" in text or "预算已耗尽" in text,
     }
 
 
@@ -549,6 +551,12 @@ def run_meituan_direct_bid(store: str, target_bid: float, *, commit: bool) -> di
             if blocking:
                 raise RuntimeError("美团页面需要人工处理：" + "、".join(blocking))
             result["before"] = read_bid_snapshot(page)
+            if (
+                result["before"].get("range_min") == 0
+                and result["before"].get("range_max") == 0
+                and (result["before"].get("is_paused") or result["before"].get("budget_exhausted"))
+            ):
+                raise RuntimeError("美团点金推广当前已暂停或预算耗尽，平台出价范围为 0~0，暂时没有开放可编辑出价弹窗。先恢复推广或预算后才能改出价。")
             open_bid_modal(page)
             input_box = bid_input_locator(page)
             before_input, after_input = set_input_value(input_box, target_bid)
