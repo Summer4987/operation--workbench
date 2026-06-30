@@ -179,11 +179,15 @@ h1 {
   font-weight: 900;
 }
 
+.daily-order-page.shell {
+  padding-bottom: 76px;
+}
+
 .daily-order-page .compact-order-topbar {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(0, auto);
-  align-items: center;
+  grid-template-columns: 1fr;
+  align-items: stretch;
   gap: 10px;
   margin-bottom: 8px;
   padding: 10px 12px;
@@ -191,6 +195,10 @@ h1 {
 
 .daily-order-page .compact-title {
   min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
 }
 
 .daily-order-page .compact-title h1 {
@@ -202,7 +210,7 @@ h1 {
 .daily-order-page .compact-store-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
   min-width: 0;
 }
@@ -211,6 +219,10 @@ h1 {
   min-width: 132px;
   max-width: 260px;
   display: block;
+}
+
+.daily-order-page .compact-store-row .store-field:has(select[hidden]) {
+  display: none;
 }
 
 .daily-order-page .compact-store-row .store-field label {
@@ -224,31 +236,32 @@ h1 {
   font-weight: 900;
 }
 
-.daily-order-page .compact-store-row .verified-store {
+.daily-order-page .compact-title .verified-store {
   display: block;
-  min-height: 36px;
+  width: min(34vw, 168px);
+  min-height: 34px;
   border-color: #b5cbc7;
-  padding: 6px 9px;
+  padding: 5px 8px;
   line-height: 1.05;
 }
 
-.daily-order-page .compact-store-row .verified-store span {
+.daily-order-page .compact-title .verified-store span {
   display: block;
   font-size: 10px;
   line-height: 1.1;
 }
 
-.daily-order-page .compact-store-row .verified-store strong {
+.daily-order-page .compact-title .verified-store strong {
   display: block;
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.15;
 }
 
-.daily-order-page .compact-store-row .verified-store small {
+.daily-order-page .compact-title .verified-store small {
   display: none;
 }
 
@@ -280,6 +293,21 @@ h1 {
   margin-top: 0;
   border-top: 1px solid #eef2f6;
   padding-top: 8px;
+}
+
+.daily-order-body .submit-inner {
+  min-height: 58px;
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+}
+
+.daily-order-body .submit-summary {
+  display: none;
+}
+
+.daily-order-body button#submitButton {
+  width: 100%;
 }
 
 .beijing-order-page .store-panel {
@@ -1450,7 +1478,6 @@ dialog::backdrop {
   }
 
   .daily-order-page .compact-title {
-    display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
     gap: 8px;
@@ -1471,6 +1498,10 @@ dialog::backdrop {
     gap: 6px;
   }
 
+  .daily-order-page .compact-store-row:has(.store-field select[hidden]) {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .daily-order-page .compact-store-row .store-field {
     min-width: 0;
     max-width: none;
@@ -1481,6 +1512,7 @@ dialog::backdrop {
     min-height: 34px;
     padding: 0 8px;
     font-size: 12px;
+    width: 100%;
   }
 
   .catalog-grid,

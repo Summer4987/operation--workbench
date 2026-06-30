@@ -4,14 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>熊小小成都门店订货</title>
-    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260701-compact-order-top" />
+    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260701-compact-actions" />
   </head>
-  <body>
+  <body class="daily-order-body">
     <main class="shell daily-order-page">
       <header class="topbar compact-order-topbar">
         <div class="compact-title">
-          <span>熊小小订货</span>
-          <h1>熊小小成都门店订货</h1>
+          <div>
+            <span>熊小小订货</span>
+            <h1>熊小小成都门店订货</h1>
+          </div>
+          <div id="verifiedStore" class="verified-store" hidden></div>
         </div>
         <div class="compact-store-row">
           <div class="store-field">
@@ -19,7 +22,6 @@
             <select id="storeName" required>
               <option value="">请选择门店</option>
             </select>
-            <div id="verifiedStore" class="verified-store" hidden></div>
           </div>
           <button id="toggleOrdersButton" class="compact-orders-button" type="button" aria-expanded="false">已下单订单</button>
           <button id="logoutButton" class="quiet-logout" type="button">退出账号</button>
@@ -45,7 +47,7 @@
 
     <aside class="submit-bar">
       <div class="submit-inner">
-        <div>
+        <div class="submit-summary">
           <strong id="summaryText">还没有选择 SKU</strong>
           <span id="summaryDetail">填写数量后提交</span>
         </div>
@@ -79,6 +81,6 @@
       </div>
     </section>
 
-    <script src="/daily-order/static/app.js?v=20260701-compact-order-top"></script>
+    <script src="/daily-order/static/app.js?v=20260701-compact-actions"></script>
   </body>
 </html>
