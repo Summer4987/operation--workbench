@@ -8,7 +8,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from kuailv_order_agent import latest_saw_empty_cart, select_order, summarize_dry_run_latest  # noqa: E402
+from kuailv_order_agent import (  # noqa: E402
+    build_parser,
+    cart_clear_assessment,
+    latest_saw_empty_cart,
+    select_order,
+    summarize_dry_run_latest,
+)
 
 
 class KuailvOrderAgentTest(unittest.TestCase):
@@ -58,6 +64,26 @@ class KuailvOrderAgentTest(unittest.TestCase):
         child = {"latest_summary": summarize_dry_run_latest(latest)}
 
         self.assertTrue(latest_saw_empty_cart(child))
+
+    def test_cart_clear_assessment_accepts_empty_cart_text(self) -> None:
+        child = {
+            "latest_summary": {
+                "adb_status": "blocked",
+                "adb_message": "收货门店未匹配订单门店，未清理购物车。",
+                "detected_text_sample": ["首页", "购物车为空，快来选购吧", "去选购"],
+            }
+        }
+
+        assessment = cart_clear_assessment({}, child)
+
+        self.assertTrue(assessment["ok"])
+        self.assertTrue(assessment["clear_saw_empty_cart"])
+
+    def test_agent_defaults_use_enough_back_navigation_for_cart_recovery(self) -> None:
+        args = build_parser().parse_args([])
+
+        self.assertEqual(args.search_pre_back_count, 3)
+        self.assertEqual(args.cart_pre_back_count, 3)
 
 
 if __name__ == "__main__":

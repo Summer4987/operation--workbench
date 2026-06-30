@@ -134,6 +134,19 @@ def latest_saw_empty_cart(child: dict[str, Any]) -> bool:
     return "购物车为空" in text
 
 
+def cart_clear_assessment(cart_open: dict[str, Any] | None, cart_clear: dict[str, Any] | None) -> dict[str, Any]:
+    clear_status = latest_summary_status(cart_clear or {})
+    open_empty = latest_saw_empty_cart(cart_open or {})
+    clear_empty = latest_saw_empty_cart(cart_clear or {})
+    passed_by_status = clear_status in {"cart_already_empty", "cart_cleared_for_manual_review"}
+    return {
+        "ok": bool(passed_by_status or open_empty or clear_empty),
+        "clear_status": clear_status,
+        "open_saw_empty_cart": open_empty,
+        "clear_saw_empty_cart": clear_empty,
+    }
+
+
 def run_dry_tool(order_path: Path, mode: str, args: argparse.Namespace, extra: list[str] | None = None) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -198,15 +211,15 @@ def run_agent(args: argparse.Namespace) -> dict[str, Any]:
             ["--cart-pre-back-count", str(args.cart_pre_back_count)],
         )
         report["cart_clear"] = run_dry_tool(order_path, "adb-cart-clear", args)
-        clear_status = latest_summary_status(report["cart_clear"])
-        clear_ok = clear_status in {"cart_already_empty", "cart_cleared_for_manual_review"} or latest_saw_empty_cart(report["cart_open"]) or latest_saw_empty_cart(report["cart_clear"])
-        if not clear_ok:
+        report["cart_clear_assessment"] = cart_clear_assessment(report["cart_open"], report["cart_clear"])
+        if not report["cart_clear_assessment"]["ok"]:
             report["status"] = "blocked"
             report["message"] = "购物车清空步骤未通过，已停止整单加购。"
             write_json(run_dir / "report.json", report)
             write_json(LATEST_PATH, report)
             return report
 
+    auto_search_pre_back_count = max(args.search_pre_back_count, args.cart_pre_back_count if args.clear_cart_first else 0)
     report["auto_add"] = run_dry_tool(
         order_path,
         "adb-auto-add-cart",
@@ -214,7 +227,7 @@ def run_agent(args: argparse.Namespace) -> dict[str, Any]:
         [
             "--confirm-auto-add-cart",
             "--auto-search-pre-back-count",
-            str(args.search_pre_back_count),
+            str(auto_search_pre_back_count),
             "--auto-cart-pre-back-count",
             str(args.cart_pre_back_count),
         ],
@@ -238,8 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--adb-serial", default=os.environ.get("ADB_SERIAL", ""))
     parser.add_argument("--execute", action="store_true", help="执行 ADB 自动加购；未指定时只生成计划。")
     parser.add_argument("--clear-cart-first", action="store_true", help="执行前先打开并清空购物车。")
-    parser.add_argument("--search-pre-back-count", type=int, default=1)
-    parser.add_argument("--cart-pre-back-count", type=int, default=1)
+    parser.add_argument("--search-pre-back-count", type=int, default=3)
+    parser.add_argument("--cart-pre-back-count", type=int, default=3)
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--max-runtime", type=int, default=900)
     return parser
