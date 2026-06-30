@@ -2166,7 +2166,7 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         if width >= image_width * 0.35 and (has_search_text or has_search_resource or has_edit_text):
             score += 45
             reasons.append("wide_input_like")
-        if has_top_search_submit and text.strip() and 190 <= cx <= 875 and 190 <= cy <= 340 and not has_search_resource:
+        if has_top_search_submit and text.strip() and 190 <= cx <= 875 and 80 <= cy <= 340 and not has_search_resource:
             score += 65
             reasons.append("top_search_bar_text_with_submit")
         if text.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:

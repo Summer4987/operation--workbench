@@ -292,8 +292,8 @@ class KuailvOrderDryRunTest(unittest.TestCase):
     def test_search_entry_candidate_accepts_recommended_word_with_submit_button(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">
-  <node text="可乐" class="android.widget.TextView" bounds="[230,233][312,292]" />
-  <node text="洋葱圈 95%同行买过" class="android.widget.TextView" bounds="[230,309][601,368]" />
+  <node text="可乐" class="android.widget.TextView" bounds="[230,84][312,143]" />
+  <node text="洋葱圈 95%同行买过" class="android.widget.TextView" bounds="[230,160][601,219]" />
   <node text="搜索" class="android.widget.TextView" bounds="[891,225][1046,303]" />
 </hierarchy>"""
 
