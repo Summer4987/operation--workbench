@@ -15,7 +15,9 @@ from kuailv_order_dry_run import (  # noqa: E402
     auto_add_pack_steps,
     build_plan,
     delivery_store_match,
+    detect_xml_add_controls,
     empty_cart_shop_candidate,
+    filter_visible_xml_add_candidates,
     find_search_entry_candidates,
     load_order_json,
     parse_ui_nodes,
@@ -252,6 +254,19 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertGreaterEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["text"], "搜冻品，来冻品大单")
         self.assertEqual(candidates[0]["center"], [546.5, 264.0])
+
+    def test_visible_xml_add_candidates_keep_text_spec_control_without_orange_image(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="黄皮洋葱" class="android.widget.TextView" bounds="[475,821][649,883]" />
+  <node text="选规格" class="android.widget.TextView" bounds="[900,1023][1054,1094]" />
+</hierarchy>"""
+
+        candidates = detect_xml_add_controls(parse_ui_nodes(xml_text))
+        visible = filter_visible_xml_add_candidates(candidates, Path(""))
+
+        self.assertEqual(len(visible), 1)
+        self.assertEqual(visible[0]["control_text"], "选规格")
 
     def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
         config = {

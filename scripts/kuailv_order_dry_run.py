@@ -710,6 +710,10 @@ def filter_visible_xml_add_candidates(candidates: list[dict[str, Any]], image_pa
         if source not in {"xml_add_control", "xml_target_card_control"}:
             visible.append(candidate)
             continue
+        control_text = str(candidate.get("control_text") or "")
+        if source == "xml_add_control" and any(word in control_text for word in ["选规格", "加入购物车", "加购物车", "加购"]):
+            visible.append(candidate)
+            continue
         if image_has_orange_control(image_path, candidate.get("bounds") or []):
             visible.append(candidate)
     return visible
