@@ -32,6 +32,21 @@ def sample_ui_dump() -> str:
 """
 
 
+def detail_ui_dump() -> str:
+    return """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="中通快递 79015504368326" content-desc="" bounds="[0,60][500,110]" />
+  <node text="复制" content-desc="" bounds="[0,120][100,170]" />
+  <node text="运输中" content-desc="" bounds="[0,180][500,230]" />
+  <node text="【成都市】 快件已到达 成都转运中心" content-desc="" bounds="[0,240][500,290]" />
+  <node text="送至 成都市 武侯区 石羊街道 新街里6c区3楼3035号熊小小牛排饭" content-desc="" bounds="[0,300][500,350]" />
+  <node text="唐 18418974867-1306" content-desc="" bounds="[0,360][500,410]" />
+  <node text="隐私小号" content-desc="" bounds="[0,420][500,470]" />
+  <node text="淘宝 | 买给【唐】的一次性牛皮纸汤桶圆形粥桶汤杯纸碗外卖带盖圆形打包盒商用纸餐盒" content-desc="" bounds="[0,480][500,530]" />
+</hierarchy>
+"""
+
+
 def test_parse_logistics_records_reads_pickup_code_and_tracking_number():
     module = load_module()
 
@@ -57,6 +72,17 @@ def test_parse_tracking_only_record_without_pickup_code():
     assert tracking_only["pickup_code"] == ""
     assert tracking_only["status"] == "派送中"
     assert "SF987654321000" in tracking_only["latest_trace"]
+
+
+def test_parse_detail_page_excludes_recipient_phone_number():
+    module = load_module()
+
+    parsed = module.parse_logistics_records(detail_ui_dump(), "银泰城店", "2026-06-30 10:00:00+0800")
+
+    assert parsed["tracking_numbers"] == [{"number": "79015504368326", "index": 0}]
+    assert len(parsed["records"]) == 1
+    assert parsed["records"][0]["tracking_number"] == "79015504368326"
+    assert parsed["records"][0]["status"] == "运输中"
 
 
 def test_main_fixture_dry_run_writes_evidence(tmp_path, monkeypatch, capsys):

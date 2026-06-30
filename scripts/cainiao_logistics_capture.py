@@ -35,7 +35,7 @@ PICKUP_RE = re.compile(r"(?:取件码|取货码|提货码|凭证码|取件号)\s
 TRACKING_RE = re.compile(r"\b(?!20\d{6,})([A-Z]{1,6}[A-Z0-9]{7,24}|\d{10,24})\b", re.I)
 CARRIER_WORDS = ["顺丰", "中通", "圆通", "申通", "韵达", "极兔", "京东", "邮政", "EMS", "德邦", "菜鸟", "丹鸟"]
 STATUS_WORDS = ["待取件", "已入库", "已签收", "派送中", "运输中", "已揽收", "已发出", "到达", "已到"]
-NOISE_WORDS = ["手机号", "订单号", "运单号复制", "复制", "查看", "删除"]
+NOISE_WORDS = ["手机号", "手机尾号", "隐私小号", "订单号", "运单号复制", "复制", "查看", "删除"]
 
 
 def now_text() -> str:
@@ -175,7 +175,12 @@ def find_tracking_numbers(texts: list[str]) -> list[tuple[str, int]]:
             continue
         for match in TRACKING_RE.finditer(text):
             number = clean_code(match.group(1)).upper()
+            after = text[match.end() : match.end() + 6]
             if len(number) < 8 or number.startswith("400"):
+                continue
+            if re.fullmatch(r"1[3-9]\d{9}", number):
+                continue
+            if re.match(r"-\d{3,5}", after):
                 continue
             found.append((number, index))
     return dedupe_pairs(found)
