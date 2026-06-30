@@ -95,7 +95,7 @@ http://139.155.148.169/order-submit?token=xiongxiaoxiao-order
 
 ## 门店提交通知
 
-服务器支持 Hermes 普通微信、企业微信或飞书机器人通知。生产环境要把“熊小小日配订货”生成的 Excel 直接发到普通微信群时，推荐让 Mac mini 从云端拉取新 Excel，再通过本机 Hermes 发送到微信群。这样普通微信登录态和附件文件都在 Mac mini 本地。
+服务器支持 Mac mini 普通微信自动发送、Hermes、企业微信或飞书机器人通知。生产环境要把“熊小小日配订货”生成的 Excel 直接发到普通微信群时，推荐让 Mac mini 从云端拉取新 Excel，再通过已登录的本机微信窗口搜索群名并发送。这样普通微信登录态和附件文件都在 Mac mini 本地，不依赖企业微信 webhook。
 
 ```bash
 sudo nano /etc/inventory-board.env
@@ -110,7 +110,9 @@ python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --init-base
 之后定时运行：
 
 ```bash
-python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py
+python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py \
+  --sender wechat-gui \
+  --target 熊小小牛排饭-易代仓仓储配送群
 ```
 
 默认发送到：
@@ -123,14 +125,22 @@ python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py
 
 ```text
 --hermes-bin /Users/summer/.local/bin/hermes
+--sender wechat-gui
+--wechat-gui-bin /Users/summer/HermesPrivate/bin/wechat_gui_sender.py
 --target 熊小小牛排饭-易代仓仓储配送群
 --state-path ~/HermesPrivate/state/daily_order_hermes_delivery.json
+```
+
+`wechat-gui` 发送方式需要 Mac mini 已登录微信，并且运行脚本的进程具备 macOS“辅助功能”权限。可先做健康检查：
+
+```bash
+python3 inventory-board/scripts/wechat_gui_sender.py --health-check --json
 ```
 
 如果只想做健康检查、不真实发群，临时加：
 
 ```bash
-python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --dry-run
+python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --sender wechat-gui --dry-run
 ```
 
 企业微信机器人新增：
@@ -153,7 +163,7 @@ ORDER_NOTIFY_WEBHOOK=飞书机器人 webhook 地址
 sudo systemctl restart inventory-board
 ```
 
-配置后，门店每次提交都会生成 Excel；Mac mini 投递器会同步新文件并发送 `MEDIA:` 附件标记，让 Hermes 把 Excel 文件直接发送到目标普通微信群。
+配置后，门店每次提交都会生成 Excel；Mac mini 投递器会同步新文件、按状态文件去重，并通过本机微信把文本和 Excel 文件直接发送到目标普通微信群。
 
 如果要加访问密码：
 

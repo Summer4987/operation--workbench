@@ -26,6 +26,8 @@ def args(tmp_path, **overrides):
         "state_path": str(tmp_path / "state.json"),
         "log_dir": str(tmp_path / "logs"),
         "hermes_bin": "/usr/local/bin/hermes",
+        "sender": "hermes",
+        "wechat_gui_bin": str(tmp_path / "wechat_gui_sender.py"),
         "target": "熊小小牛排饭-易代仓仓储配送群",
         "latest": 20,
         "init_baseline": False,
@@ -95,6 +97,30 @@ def test_successful_delivery_calls_group_and_records_state(tmp_path, monkeypatch
     assert payload["sent"] == 1
     assert calls[0][1] == "熊小小牛排饭-易代仓仓储配送群"
     assert "MEDIA:" in calls[0][0]
+    assert module.item_key(item) in state["delivered"]
+
+
+def test_successful_delivery_can_use_wechat_gui_sender(tmp_path, monkeypatch):
+    module = load_delivery_module()
+    item = sample_item()
+    calls = []
+    monkeypatch.setattr(module, "fetch_order_files", lambda server, token, latest: [item])
+    monkeypatch.setattr(module, "fetch_bytes", lambda url: b"excel-bytes")
+
+    def fake_send(message, target, file_path, sender_bin):
+        calls.append((message, target, file_path, sender_bin))
+        return subprocess.CompletedProcess(args=["wechat-gui"], returncode=0, stdout='{"ok": true}')
+
+    monkeypatch.setattr(module, "send_with_wechat_gui", fake_send)
+
+    payload = module.deliver(args(tmp_path, sender="wechat-gui", target="皮皮球球备忘录"))
+    state = module.load_state(tmp_path / "state.json")
+
+    assert payload["sent"] == 1
+    assert calls[0][1] == "皮皮球球备忘录"
+    assert calls[0][2].name == item["filename"]
+    assert "MEDIA:" not in calls[0][0]
+    assert "文件：" in calls[0][0]
     assert module.item_key(item) in state["delivered"]
 
 

@@ -19,6 +19,8 @@ DEFAULT_LOG_DIR = Path.home() / "HermesPrivate" / "logs" / "daily_order_hermes_d
 DEFAULT_HERMES_BIN = Path.home() / ".local" / "bin" / "hermes"
 DEFAULT_TARGET = "熊小小牛排饭-易代仓仓储配送群"
 DEFAULT_LATEST = 20
+DEFAULT_SENDER = "hermes"
+DEFAULT_WECHAT_GUI_BIN = Path(__file__).resolve().with_name("wechat_gui_sender.py")
 
 
 def fetch_order_files(server: str, token: str, latest: int) -> list[dict[str, Any]]:
@@ -92,9 +94,39 @@ def build_message(path: Path, item: dict[str, Any]) -> str:
     )
 
 
+def build_wechat_gui_message(path: Path, item: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "熊小小日配订货 Excel 已生成，文件见附件。",
+            f"文件：{Path(str(item.get('filename') or path.name)).name}",
+        ]
+    )
+
+
 def send_with_hermes(message: str, target: str, hermes_bin: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(hermes_bin), "send", "--to", target, message],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=90,
+    )
+
+
+def send_with_wechat_gui(message: str, target: str, file_path: Path, sender_bin: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/usr/bin/python3",
+            str(sender_bin),
+            "--target",
+            target,
+            "--message",
+            message,
+            "--file",
+            str(file_path),
+            "--json",
+        ],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -131,14 +163,22 @@ def deliver(args: argparse.Namespace) -> dict[str, Any]:
     logs: list[str] = []
     for item in reversed(pending):
         path = download_item(server, item, output_dir)
-        message = build_message(path, item)
+        message = build_message(path, item) if args.sender == "hermes" else build_wechat_gui_message(path, item)
         if args.dry_run:
-            log_path = write_log(log_dir, Path(str(item.get("filename") or path.name)).name, {"status": "dry-run", "message": message, "item": item})
+            log_path = write_log(
+                log_dir,
+                Path(str(item.get("filename") or path.name)).name,
+                {"status": "dry-run", "sender": args.sender, "message": message, "file": str(path), "item": item},
+            )
             logs.append(str(log_path))
             continue
-        result = send_with_hermes(message, args.target, Path(args.hermes_bin).expanduser())
+        if args.sender == "wechat-gui":
+            result = send_with_wechat_gui(message, args.target, path, Path(args.wechat_gui_bin).expanduser())
+        else:
+            result = send_with_hermes(message, args.target, Path(args.hermes_bin).expanduser())
         payload = {
             "status": "sent" if result.returncode == 0 else "failed",
+            "sender": args.sender,
             "returncode": result.returncode,
             "output": (result.stdout or "").strip(),
             "target": args.target,
@@ -186,6 +226,8 @@ def main() -> int:
     parser.add_argument("--state-path", default=str(DEFAULT_STATE_PATH))
     parser.add_argument("--log-dir", default=str(DEFAULT_LOG_DIR))
     parser.add_argument("--hermes-bin", default=str(DEFAULT_HERMES_BIN))
+    parser.add_argument("--sender", choices=["hermes", "wechat-gui"], default=DEFAULT_SENDER)
+    parser.add_argument("--wechat-gui-bin", default=str(DEFAULT_WECHAT_GUI_BIN))
     parser.add_argument("--target", default=DEFAULT_TARGET)
     parser.add_argument("--latest", type=int, default=DEFAULT_LATEST)
     parser.add_argument("--init-baseline", action="store_true", help="只把当前云端文件标记为已处理，不发送历史文件")
