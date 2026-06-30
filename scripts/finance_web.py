@@ -9,6 +9,7 @@ import sys
 import urllib.parse
 import webbrowser
 from collections import Counter
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -105,6 +106,16 @@ th { color: var(--muted); font-weight: 700; background: var(--soft); }
 .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
 .metric { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .metric strong { display: block; font-size: 22px; line-height: 1.1; }
+.metric .down { color: var(--danger); }
+.metric .up { color: #166534; }
+.dashboard { display: grid; gap: 16px; margin: 16px 0 20px; }
+.report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.report-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.mini-table td, .mini-table th { padding: 8px 7px; }
+.number { text-align: right; font-variant-numeric: tabular-nums; }
+.period-form { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.period-form label { margin: 0; }
+.period-form input { width: 180px; }
 .record { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; background: #fff; }
 .record-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
 .raw { padding: 10px; background: var(--soft); border-radius: 6px; font-size: 13px; }
@@ -115,6 +126,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
   .layout { grid-template-columns: 1fr; }
   .split { grid-template-columns: 1fr; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-grid, .report-grid-3 { grid-template-columns: 1fr; }
   .row, .row-3 { grid-template-columns: 1fr; }
   main { padding: 14px; }
   header { padding: 14px; align-items: flex-start; flex-direction: column; }
@@ -173,6 +185,36 @@ def money(value: Any) -> str:
         return str(value)
 
 
+def signed_money(value: Any) -> str:
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    prefix = "+" if amount > 0 else ""
+    return f"{prefix}{amount:.2f}"
+
+
+def current_period() -> str:
+    return datetime.now().strftime("%Y-%m")
+
+
+def valid_period(value: str | None) -> str:
+    if value and len(value) == 7:
+        try:
+            datetime.strptime(value, "%Y-%m")
+            return value
+        except ValueError:
+            pass
+    return current_period()
+
+
+def previous_period(period: str) -> str:
+    date = datetime.strptime(period + "-01", "%Y-%m-%d")
+    if date.month == 1:
+        return f"{date.year - 1}-12"
+    return f"{date.year}-{date.month - 1:02d}"
+
+
 def select(name: str, options: list[str], selected: Any) -> str:
     selected_text = "" if selected is None else str(selected)
     items = []
@@ -180,6 +222,169 @@ def select(name: str, options: list[str], selected: Any) -> str:
         marker = " selected" if option == selected_text else ""
         items.append(f'<option value="{esc(option)}"{marker}>{esc(option)}</option>')
     return f'<select name="{esc(name)}">{"".join(items)}</select>'
+
+
+def records_for_period(records: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+    return [record for record in records if str(record.get("transaction_date") or "").startswith(period)]
+
+
+def amount_sum(records: list[dict[str, Any]], direction: str | None = None) -> float:
+    total = 0.0
+    for record in records:
+        if direction and record.get("direction") != direction:
+            continue
+        try:
+            total += float(record.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+    return round(total, 2)
+
+
+def grouped_amounts(records: list[dict[str, Any]], key: str) -> list[tuple[str, float, float, float]]:
+    buckets: dict[str, dict[str, float]] = {}
+    for record in records:
+        name = str(record.get(key) or "未填写")
+        bucket = buckets.setdefault(name, {"income": 0.0, "expense": 0.0, "transfer": 0.0})
+        try:
+            amount = float(record.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+        direction = str(record.get("direction") or "")
+        if direction in bucket:
+            bucket[direction] += amount
+    rows = []
+    for name, values in buckets.items():
+        net = round(values["income"] - values["expense"], 2)
+        rows.append((name, round(values["income"], 2), round(values["expense"], 2), net))
+    return sorted(rows, key=lambda item: abs(item[3]) + item[1] + item[2], reverse=True)
+
+
+def render_amount_rows(rows: list[tuple[str, float, float, float]], empty_text: str = "暂无数据") -> str:
+    if not rows:
+        return f'<div class="empty">{esc(empty_text)}</div>'
+    body = []
+    for name, income, expense, net in rows[:12]:
+        body.append(
+            "<tr>"
+            f"<td>{esc(name)}</td>"
+            f"<td class=\"number\">{esc(money(income))}</td>"
+            f"<td class=\"number\">{esc(money(expense))}</td>"
+            f"<td class=\"number\">{esc(signed_money(net))}</td>"
+            "</tr>"
+        )
+    return (
+        '<table class="mini-table"><thead><tr>'
+        "<th>项目</th><th class=\"number\">收入</th><th class=\"number\">支出</th><th class=\"number\">净额</th>"
+        "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table>"
+    )
+
+
+def category_expense_rows(records: list[dict[str, Any]]) -> list[tuple[str, float]]:
+    buckets: dict[str, float] = {}
+    for record in records:
+        if record.get("direction") != "expense":
+            continue
+        category = str(record.get("category") or "未填写")
+        try:
+            buckets[category] = buckets.get(category, 0.0) + float(record.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+    return sorted(((name, round(amount, 2)) for name, amount in buckets.items()), key=lambda item: item[1], reverse=True)
+
+
+def render_expense_rows(rows: list[tuple[str, float]]) -> str:
+    if not rows:
+        return '<div class="empty">本期暂无费用</div>'
+    total = sum(amount for _, amount in rows) or 1
+    body = []
+    for category, amount in rows[:12]:
+        body.append(
+            "<tr>"
+            f"<td>{esc(category)}</td>"
+            f"<td class=\"number\">{esc(money(amount))}</td>"
+            f"<td class=\"number\">{amount / total:.1%}</td>"
+            "</tr>"
+        )
+    return (
+        '<table class="mini-table"><thead><tr><th>科目</th><th class="number">金额</th><th class="number">占比</th></tr></thead><tbody>'
+        + "".join(body)
+        + "</tbody></table>"
+    )
+
+
+def render_finance_dashboard(period: str) -> str:
+    all_records = ledger_records()
+    records = records_for_period(all_records, period)
+    previous = records_for_period(all_records, previous_period(period))
+    income = amount_sum(records, "income")
+    expense = amount_sum(records, "expense")
+    transfer = amount_sum(records, "transfer")
+    net = round(income - expense, 2)
+    prev_net = round(amount_sum(previous, "income") - amount_sum(previous, "expense"), 2)
+    net_delta = round(net - prev_net, 2)
+    expense_rate = expense / income if income else 0.0
+    pending_count = len(pending_drafts())
+    ready_count = len(ledger_records("ready_for_feishu"))
+    failed_count = len(ledger_records("sync_failed"))
+    missing_store = sum(1 for record in records if not str(record.get("store") or "").strip())
+    missing_counterparty = sum(1 for record in records if not str(record.get("counterparty") or "").strip())
+    period_label = esc(period)
+    net_class = "up" if net >= 0 else "down"
+    delta_class = "up" if net_delta >= 0 else "down"
+    return f"""
+<div class="dashboard">
+  <section>
+    <div class="toolbar">
+      <h2>经营驾驶舱</h2>
+      <form class="period-form" method="get" action="/">
+        <label for="period">月份</label>
+        <input id="period" name="period" type="month" value="{period_label}">
+        <button class="ghost" type="submit">切换</button>
+      </form>
+    </div>
+    <div class="metrics">
+      <div class="metric"><strong>{esc(money(income))}</strong><span class="muted">{period_label} 收入</span></div>
+      <div class="metric"><strong>{esc(money(expense))}</strong><span class="muted">{period_label} 支出</span></div>
+      <div class="metric"><strong class="{net_class}">{esc(signed_money(net))}</strong><span class="muted">经营净额</span></div>
+      <div class="metric"><strong>{expense_rate:.1%}</strong><span class="muted">费用率</span></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><strong>{len(records)}</strong><span class="muted">本期确认记录</span></div>
+      <div class="metric"><strong>{esc(money(transfer))}</strong><span class="muted">内部转账流水</span></div>
+      <div class="metric"><strong class="{delta_class}">{esc(signed_money(net_delta))}</strong><span class="muted">较上月净额变化</span></div>
+      <div class="metric"><strong>{pending_count + ready_count + failed_count}</strong><span class="muted">待办总数</span></div>
+    </div>
+  </section>
+  <div class="report-grid">
+    <section>
+      <h2>费用科目</h2>
+      {render_expense_rows(category_expense_rows(records))}
+    </section>
+    <section>
+      <h2>门店经营</h2>
+      {render_amount_rows(grouped_amounts(records, "store"), "本期暂无门店数据")}
+    </section>
+  </div>
+  <div class="report-grid">
+    <section>
+      <h2>资金渠道</h2>
+      {render_amount_rows(grouped_amounts(records, "payment_method"), "本期暂无资金渠道数据")}
+    </section>
+    <section>
+      <h2>财务待办</h2>
+      <table class="mini-table"><tbody>
+        <tr><td>待确认草稿</td><td class="number">{pending_count}</td></tr>
+        <tr><td>待同步飞书</td><td class="number">{ready_count}</td></tr>
+        <tr><td>同步失败</td><td class="number">{failed_count}</td></tr>
+        <tr><td>本期缺门店</td><td class="number">{missing_store}</td></tr>
+        <tr><td>本期缺交易对方</td><td class="number">{missing_counterparty}</td></tr>
+      </tbody></table>
+    </section>
+  </div>
+</div>
+"""
 
 
 def render_metrics() -> str:
@@ -316,7 +521,8 @@ def run_finance_action(action: str, args: argparse.Namespace) -> tuple[int, str]
     return code, buffer.getvalue().strip()
 
 
-def render_home(message: str = "", error: str = "", sync_output: str = "") -> bytes:
+def render_home(message: str = "", error: str = "", sync_output: str = "", period: str | None = None) -> bytes:
+    period = valid_period(period)
     notice = ""
     if message:
         notice = f'<div class="notice">{html.escape(message)}</div>'
@@ -324,6 +530,7 @@ def render_home(message: str = "", error: str = "", sync_output: str = "") -> by
         notice = f'<div class="notice error">{html.escape(error)}</div>'
     body = f"""
 {notice}
+{render_finance_dashboard(period)}
 {render_metrics()}
 <div class="layout">
   <div class="stack">
@@ -381,10 +588,13 @@ def render_home(message: str = "", error: str = "", sync_output: str = "") -> by
 
 class FinanceHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if urllib.parse.urlparse(self.path).path not in {"/", "/index.html"}:
+        parsed_url = urllib.parse.urlparse(self.path)
+        if parsed_url.path not in {"/", "/index.html"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
-        self.respond(render_home())
+        query = urllib.parse.parse_qs(parsed_url.query)
+        period = (query.get("period") or [""])[0]
+        self.respond(render_home(period=period))
 
     def do_POST(self) -> None:
         parsed_path = urllib.parse.urlparse(self.path).path

@@ -1,6 +1,6 @@
 {
-  "schema_version": "2026-06-30.finance-inbox-mvp.v1",
-  "system_name": "feishu_finance_inbox_mvp",
+  "schema_version": "2026-06-30.finance-workspace.v2",
+  "system_name": "xiongxiaoxiao_finance_workspace",
   "safety_policy": {
     "default_mode": "local_draft_only",
     "auto_confirm": false,
@@ -19,6 +19,28 @@
     "ledger_jsonl": "finance_ledger.jsonl",
     "ledger_csv": "finance_ledger.csv"
   },
+  "reporting_views": [
+    {
+      "name": "经营驾驶舱",
+      "description": "按月份汇总收入、支出、经营净额、费用率、上月净额变化和待办数量。"
+    },
+    {
+      "name": "费用科目",
+      "description": "按财务分类汇总本期费用金额和占比。"
+    },
+    {
+      "name": "门店经营",
+      "description": "按门店汇总收入、支出和经营净额。"
+    },
+    {
+      "name": "资金渠道",
+      "description": "按收付款方式汇总本期流入、流出和净额。"
+    },
+    {
+      "name": "财务待办",
+      "description": "跟踪待确认草稿、待同步飞书、同步失败、缺门店和缺交易对方记录。"
+    }
+  ],
   "draft_fields": [
     {
       "name": "draft_id",
