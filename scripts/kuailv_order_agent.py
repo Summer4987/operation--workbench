@@ -210,8 +210,19 @@ def run_agent(args: argparse.Namespace) -> dict[str, Any]:
             args,
             ["--cart-pre-back-count", str(args.cart_pre_back_count)],
         )
-        report["cart_clear"] = run_dry_tool(order_path, "adb-cart-clear", args)
-        report["cart_clear_assessment"] = cart_clear_assessment(report["cart_open"], report["cart_clear"])
+        report["cart_clear_attempts"] = []
+        report["cart_clear"] = None
+        report["cart_clear_assessment"] = {"ok": False}
+        for attempt in range(1, max(1, args.max_cart_clear_attempts) + 1):
+            cart_clear = run_dry_tool(order_path, "adb-cart-clear", args)
+            cart_clear["attempt"] = attempt
+            report["cart_clear_attempts"].append(cart_clear)
+            report["cart_clear"] = cart_clear
+            report["cart_clear_assessment"] = cart_clear_assessment(report["cart_open"], cart_clear)
+            if report["cart_clear_assessment"]["ok"]:
+                break
+            if report["cart_clear_assessment"].get("clear_status") != "cart_clear_unproven":
+                break
         if not report["cart_clear_assessment"]["ok"]:
             report["status"] = "blocked"
             report["message"] = "购物车清空步骤未通过，已停止整单加购。"
@@ -253,6 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--clear-cart-first", action="store_true", help="执行前先打开并清空购物车。")
     parser.add_argument("--search-pre-back-count", type=int, default=3)
     parser.add_argument("--cart-pre-back-count", type=int, default=3)
+    parser.add_argument("--max-cart-clear-attempts", type=int, default=8)
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--max-runtime", type=int, default=900)
     return parser

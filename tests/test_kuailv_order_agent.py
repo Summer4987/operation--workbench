@@ -84,6 +84,7 @@ class KuailvOrderAgentTest(unittest.TestCase):
 
         self.assertEqual(args.search_pre_back_count, 3)
         self.assertEqual(args.cart_pre_back_count, 3)
+        self.assertEqual(args.max_cart_clear_attempts, 8)
 
 
 if __name__ == "__main__":
