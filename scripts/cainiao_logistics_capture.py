@@ -36,6 +36,13 @@ TRACKING_RE = re.compile(r"\b(?!20\d{6,})([A-Z]{1,6}[A-Z0-9]{7,24}|\d{10,24})\b"
 CARRIER_WORDS = ["顺丰", "中通", "圆通", "申通", "韵达", "极兔", "京东", "邮政", "EMS", "德邦", "菜鸟", "丹鸟"]
 STATUS_WORDS = ["待取件", "已入库", "已签收", "派送中", "运输中", "已揽收", "已发出", "到达", "已到"]
 NOISE_WORDS = ["手机号", "手机尾号", "隐私小号", "订单号", "运单号复制", "复制", "查看", "删除"]
+DETAIL_STATUS_WORDS = ["待取件", "已入库", "派送中", "运输中", "已签收", "已到"]
+STORE_ADDRESS_HINTS = {
+    "金融城店": ["新街里", "3035", "石羊街道"],
+    "银泰城店": ["银泰城", "悦坊", "益州大道1999"],
+    "万象城店": ["万象城", "华润柒公馆", "双福一路58"],
+    "保利中心店": ["保利中心", "玉林街道", "东区C座"],
+}
 
 
 def now_text() -> str:
@@ -74,6 +81,19 @@ def run_command(args: list[str], timeout: int) -> dict[str, Any]:
         return {"args": args, "returncode": -1, "stdout": "", "stderr": str(exc)}
 
 
+def run_command_with_input(args: list[str], payload: bytes, timeout: int) -> dict[str, Any]:
+    try:
+        result = subprocess.run(args, input=payload, capture_output=True, timeout=timeout, check=False)
+        return {
+            "args": args,
+            "returncode": result.returncode,
+            "stdout": result.stdout.decode("utf-8", errors="replace"),
+            "stderr": result.stderr.decode("utf-8", errors="replace"),
+        }
+    except Exception as exc:
+        return {"args": args, "returncode": -1, "stdout": "", "stderr": str(exc)}
+
+
 def ensure_ok(result: dict[str, Any], action: str) -> None:
     if result["returncode"] != 0:
         detail = (result.get("stderr") or result.get("stdout") or "").strip()
@@ -88,15 +108,15 @@ def launch_cainiao(serial: str, package: str, timeout: int) -> list[dict[str, An
     return commands
 
 
-def capture_from_device(serial: str, package: str, evidence_dir: Path, timeout: int) -> tuple[str, Path, list[dict[str, Any]]]:
-    commands = launch_cainiao(serial, package, timeout)
+def capture_snapshot(serial: str, evidence_dir: Path, timeout: int, label: str = "window") -> tuple[str, Path, list[dict[str, Any]]]:
+    commands: list[dict[str, Any]] = []
     base = adb_base(serial)
 
     dump = run_command(base + ["shell", "uiautomator", "dump", REMOTE_XML_PATH], timeout)
     commands.append(dump)
     ensure_ok(dump, "导出安卓控件树")
 
-    xml_path = evidence_dir / "window_dump.xml"
+    xml_path = evidence_dir / f"{label}_dump.xml"
     pull_xml = run_command(base + ["pull", REMOTE_XML_PATH, str(xml_path)], timeout)
     commands.append(pull_xml)
     ensure_ok(pull_xml, "拉取安卓控件树")
@@ -104,10 +124,40 @@ def capture_from_device(serial: str, package: str, evidence_dir: Path, timeout: 
     shot = run_command(base + ["shell", "screencap", "-p", REMOTE_SCREENSHOT_PATH], timeout)
     commands.append(shot)
     if shot["returncode"] == 0:
-        pull_shot = run_command(base + ["pull", REMOTE_SCREENSHOT_PATH, str(evidence_dir / "screen.png")], timeout)
+        pull_shot = run_command(base + ["pull", REMOTE_SCREENSHOT_PATH, str(evidence_dir / f"{label}.png")], timeout)
         commands.append(pull_shot)
 
     return xml_path.read_text(encoding="utf-8", errors="replace"), xml_path, commands
+
+
+def capture_from_device(serial: str, package: str, evidence_dir: Path, timeout: int) -> tuple[str, Path, list[dict[str, Any]]]:
+    commands = launch_cainiao(serial, package, timeout)
+    xml_text, xml_path, capture_commands = capture_snapshot(serial, evidence_dir, timeout, "window")
+    return xml_text, xml_path, commands + capture_commands
+
+
+def parse_bounds(value: str) -> list[int]:
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", value or "")
+    if not match:
+        return []
+    return [int(part) for part in match.groups()]
+
+
+def bounds_center(bounds: list[int]) -> tuple[int, int]:
+    x1, y1, x2, y2 = bounds
+    return ((x1 + x2) // 2, (y1 + y2) // 2)
+
+
+def extract_ui_nodes(xml_text: str) -> list[dict[str, Any]]:
+    root = ET.fromstring(xml_text)
+    nodes = []
+    for node in root.iter("node"):
+        text = str(node.attrib.get("text") or node.attrib.get("content-desc") or "").strip()
+        bounds = parse_bounds(str(node.attrib.get("bounds") or ""))
+        if text and bounds:
+            nodes.append({"text": text, "bounds": bounds, "clickable": node.attrib.get("clickable") == "true"})
+    nodes.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return nodes
 
 
 def extract_ui_texts(xml_text: str) -> list[str]:
@@ -121,6 +171,26 @@ def extract_ui_texts(xml_text: str) -> list[str]:
     return texts
 
 
+def list_detail_targets(xml_text: str, max_details: int) -> list[dict[str, int]]:
+    targets: list[dict[str, int]] = []
+    seen_y: set[int] = set()
+    for node in extract_ui_nodes(xml_text):
+        text = node["text"]
+        bounds = node["bounds"]
+        x1, y1, x2, y2 = bounds
+        if x1 < 250 or y1 < 850 or y2 > 2240:
+            continue
+        if not any(word in text for word in DETAIL_STATUS_WORDS):
+            continue
+        cx, cy = bounds_center(bounds)
+        key_y = round(cy / 80) * 80
+        if key_y in seen_y:
+            continue
+        seen_y.add(key_y)
+        targets.append({"x": max(500, cx), "y": cy, "text": text})
+    return targets[:max_details]
+
+
 def clean_code(value: str) -> str:
     return re.sub(r"^[：:\s]+|[，。,.;；\s]+$", "", value.strip())
 
@@ -131,6 +201,14 @@ def first_match(words: list[str], candidates: list[str]) -> str:
             if candidate and candidate in word:
                 return candidate
     return ""
+
+
+def infer_store_name(texts: list[str], fallback: str = "") -> str:
+    context = " ".join(texts)
+    for store_name, hints in STORE_ADDRESS_HINTS.items():
+        if any(hint in context for hint in hints):
+            return store_name
+    return fallback
 
 
 def nearby_text(texts: list[str], index: int, radius: int = 4) -> str:
@@ -222,6 +300,7 @@ def build_record(
 def parse_logistics_records(xml_text: str, store_name: str, captured_at: str | None = None) -> dict[str, Any]:
     captured_at = captured_at or now_text()
     texts = extract_ui_texts(xml_text)
+    inferred_store_name = infer_store_name(texts, store_name)
     pickups = find_pickup_codes(texts)
     trackings = find_tracking_numbers(texts)
     records: list[dict[str, str]] = []
@@ -238,16 +317,17 @@ def parse_logistics_records(xml_text: str, store_name: str, captured_at: str | N
             tracking = min(following, key=lambda item: item[1])[0]
         if tracking:
             used_tracking.add(tracking)
-        records.append(build_record(store_name, pickup, tracking, context, captured_at, row_index))
+        records.append(build_record(inferred_store_name, pickup, tracking, context, captured_at, row_index))
 
     for number, number_index in trackings:
         if number in used_tracking:
             continue
         context = forward_text(texts, number_index)
-        records.append(build_record(store_name, "", number, context, captured_at, len(records) + 1))
+        records.append(build_record(inferred_store_name, "", number, context, captured_at, len(records) + 1))
 
     return {
         "captured_at": captured_at,
+        "store_name": inferred_store_name,
         "text_count": len(texts),
         "texts": texts,
         "pickup_codes": [{"code": code, "index": index} for code, index in pickups],
@@ -268,6 +348,110 @@ def post_logistics_record(server: str, token: str, record: dict[str, str], timeo
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def post_logistics_record_via_ssh(host: str, token: str, record: dict[str, str], timeout: int) -> dict[str, Any]:
+    query = urllib.parse.urlencode({"token": token})
+    remote_url = f"http://127.0.0.1:8010/daily-order/api/admin/logistics?{query}"
+    payload = json.dumps(record, ensure_ascii=False).encode("utf-8")
+    command = [
+        "ssh",
+        host,
+        f"curl -fsS -X POST {remote_url!r} -H 'Content-Type: application/json' --data-binary @-",
+    ]
+    result = run_command_with_input(command, payload, timeout)
+    ensure_ok(result, f"通过 {host} 写入物流看板")
+    return json.loads(result["stdout"])
+
+
+def dedupe_records(records: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str, str, str]] = set()
+    rows = []
+    for record in records:
+        key = (
+            record.get("store_name", ""),
+            record.get("tracking_number", ""),
+            record.get("pickup_code", ""),
+            record.get("latest_trace", ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(record)
+    return rows
+
+
+def scan_detail_pages(
+    serial: str,
+    package: str,
+    evidence_dir: Path,
+    store_name: str,
+    captured_at: str,
+    max_details: int,
+    scroll_pages: int,
+    timeout: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    commands = launch_cainiao(serial, package, timeout)
+    all_records: list[dict[str, str]] = []
+    detail_summaries = []
+    scanned = 0
+    base = adb_base(serial)
+    for page_index in range(scroll_pages + 1):
+        page_dir = evidence_dir / f"list-page-{page_index + 1}"
+        page_dir.mkdir(parents=True, exist_ok=True)
+        list_xml, _list_path, list_commands = capture_snapshot(serial, page_dir, timeout, "list")
+        commands.extend(list_commands)
+        targets = list_detail_targets(list_xml, max_details - scanned)
+        write_json(page_dir / "targets.json", targets)
+        if not targets and page_index == 0:
+            parsed = parse_logistics_records(list_xml, store_name, captured_at)
+            all_records.extend(parsed["records"])
+            detail_summaries.append({"kind": "current-page", "record_count": len(parsed["records"]), "store_name": parsed["store_name"]})
+            break
+        for target_index, target in enumerate(targets, start=1):
+            if scanned >= max_details:
+                break
+            scanned += 1
+            tap = run_command(base + ["shell", "input", "tap", str(target["x"]), str(target["y"])], timeout)
+            commands.append(tap)
+            ensure_ok(tap, "点击包裹详情")
+            time.sleep(2)
+            detail_dir = evidence_dir / f"detail-{scanned:02d}"
+            detail_dir.mkdir(parents=True, exist_ok=True)
+            detail_xml, _detail_path, detail_commands = capture_snapshot(serial, detail_dir, timeout, "detail")
+            commands.extend(detail_commands)
+            parsed = parse_logistics_records(detail_xml, store_name, captured_at)
+            write_json(detail_dir / "parsed.json", parsed)
+            write_json(detail_dir / "target.json", target)
+            all_records.extend(parsed["records"])
+            detail_summaries.append(
+                {
+                    "kind": "detail",
+                    "target": target,
+                    "record_count": len(parsed["records"]),
+                    "tracking_numbers": [item["number"] for item in parsed["tracking_numbers"]],
+                    "pickup_codes": [item["code"] for item in parsed["pickup_codes"]],
+                    "store_name": parsed["store_name"],
+                }
+            )
+            back = run_command(base + ["shell", "input", "keyevent", "4"], timeout)
+            commands.append(back)
+            time.sleep(1)
+        if scanned >= max_details or page_index >= scroll_pages:
+            break
+        swipe = run_command(base + ["shell", "input", "swipe", "520", "2050", "520", "900", "500"], timeout)
+        commands.append(swipe)
+        time.sleep(1)
+    records = dedupe_records([record for record in all_records if record.get("store_name")])
+    parsed = {
+        "captured_at": captured_at,
+        "scan_details": True,
+        "detail_count": scanned,
+        "record_count": len(records),
+        "records": records,
+        "details": detail_summaries,
+    }
+    return parsed, commands
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -291,12 +475,16 @@ def error_payload(exc: Exception, evidence_dir: Path) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="从安卓菜鸟裹裹采集物流单号、取件码，并同步到门店物流看板。")
-    parser.add_argument("--store-name", required=True, help="写入物流看板的门店名，例如：银泰城店。")
+    parser.add_argument("--store-name", default="", help="门店名兜底值；详情页有地址时会自动识别门店。")
     parser.add_argument("--server", default=os.environ.get("DAILY_ORDER_SERVER", DEFAULT_SERVER))
     parser.add_argument("--token", default=os.environ.get("DAILY_ORDER_ADMIN_TOKEN", DEFAULT_TOKEN))
+    parser.add_argument("--commit-via-ssh", default=os.environ.get("DAILY_ORDER_COMMIT_SSH", ""), help="通过 SSH 到云主机本机接口写入，例如 ubuntu@139.155.148.169。")
     parser.add_argument("--serial", default=os.environ.get("CAINIAO_ADB_SERIAL", ""))
     parser.add_argument("--package", default=os.environ.get("CAINIAO_PACKAGE", DEFAULT_PACKAGE))
     parser.add_argument("--fixture-ui-dump", default="", help="用于测试/调试的安卓 uiautomator XML 文件；提供后不连接真机。")
+    parser.add_argument("--scan-details", action="store_true", help="从菜鸟列表页逐个点击包裹详情采集。")
+    parser.add_argument("--max-details", type=int, default=8)
+    parser.add_argument("--scroll-pages", type=int, default=0)
     parser.add_argument("--commit", action="store_true", help="真实写入物流看板；默认只生成证据包和解析结果。")
     parser.add_argument("--timeout", type=int, default=20)
     parser.add_argument("--evidence-dir", default="")
@@ -316,27 +504,45 @@ def main() -> int:
     }
     try:
         commands: list[dict[str, Any]] = []
-        if args.fixture_ui_dump:
+        if args.scan_details and args.fixture_ui_dump:
+            raise RuntimeError("--scan-details 不能和 --fixture-ui-dump 同时使用。")
+        if args.scan_details:
+            parsed, commands = scan_detail_pages(
+                args.serial,
+                args.package,
+                evidence_dir,
+                args.store_name,
+                summary["captured_at"],
+                args.max_details,
+                args.scroll_pages,
+                args.timeout,
+            )
+        elif args.fixture_ui_dump:
             xml_path = Path(args.fixture_ui_dump).expanduser()
             xml_text = xml_path.read_text(encoding="utf-8", errors="replace")
             shutil.copyfile(xml_path, evidence_dir / "window_dump.xml")
+            parsed = parse_logistics_records(xml_text, args.store_name, summary["captured_at"])
         else:
             xml_text, _xml_path, commands = capture_from_device(args.serial, args.package, evidence_dir, args.timeout)
+            parsed = parse_logistics_records(xml_text, args.store_name, summary["captured_at"])
         write_json(evidence_dir / "commands.json", commands)
 
-        parsed = parse_logistics_records(xml_text, args.store_name, summary["captured_at"])
         write_json(evidence_dir / "parsed.json", parsed)
         responses = []
         if args.commit:
             for record in parsed["records"]:
-                responses.append(post_logistics_record(args.server, args.token, record, args.timeout))
+                if args.commit_via_ssh:
+                    responses.append(post_logistics_record_via_ssh(args.commit_via_ssh, args.token, record, args.timeout))
+                else:
+                    responses.append(post_logistics_record(args.server, args.token, record, args.timeout))
         summary.update(
             {
                 "ok": True,
                 "record_count": len(parsed["records"]),
+                "detail_count": parsed.get("detail_count", 0),
                 "records_written": len(responses),
-                "pickup_codes": [item["code"] for item in parsed["pickup_codes"]],
-                "tracking_numbers": [item["number"] for item in parsed["tracking_numbers"]],
+                "pickup_codes": [item.get("pickup_code") for item in parsed["records"] if item.get("pickup_code")],
+                "tracking_numbers": [item.get("tracking_number") for item in parsed["records"] if item.get("tracking_number")],
                 "evidence_dir": str(evidence_dir),
             }
         )

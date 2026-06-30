@@ -47,6 +47,21 @@ def detail_ui_dump() -> str:
 """
 
 
+def list_ui_dump() -> str:
+    return """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="查收28" content-desc="" bounds="[46,727][223,812]" />
+  <node text="运输中" content-desc="" bounds="[106,847][235,905]" />
+  <node text="运输中" content-desc="" bounds="[319,936][448,994]" />
+  <node text="90%概率明天送达" content-desc="" bounds="[460,936][809,994]" />
+  <node text="淘宝 | 买给【唐】的一次性牛皮纸汤桶圆形粥桶汤杯纸碗外卖带盖圆形打包盒商用纸餐盒" content-desc="" bounds="[319,1008][973,1058]" />
+  <node text="运输中" content-desc="" bounds="[319,1172][448,1230]" />
+  <node text="90%概率明天送达" content-desc="" bounds="[460,1172][809,1230]" />
+  <node text="淘宝 | 买给【安美灵】的【1件包邮】裙带菜 海木耳 海螺旋藻 海藻干货500g 散装称重" content-desc="" bounds="[319,1244][973,1294]" />
+</hierarchy>
+"""
+
+
 def test_parse_logistics_records_reads_pickup_code_and_tracking_number():
     module = load_module()
 
@@ -77,12 +92,28 @@ def test_parse_tracking_only_record_without_pickup_code():
 def test_parse_detail_page_excludes_recipient_phone_number():
     module = load_module()
 
-    parsed = module.parse_logistics_records(detail_ui_dump(), "银泰城店", "2026-06-30 10:00:00+0800")
+    parsed = module.parse_logistics_records(detail_ui_dump(), "", "2026-06-30 10:00:00+0800")
 
     assert parsed["tracking_numbers"] == [{"number": "79015504368326", "index": 0}]
     assert len(parsed["records"]) == 1
+    assert parsed["store_name"] == "金融城店"
+    assert parsed["records"][0]["store_name"] == "金融城店"
     assert parsed["records"][0]["tracking_number"] == "79015504368326"
     assert parsed["records"][0]["status"] == "运输中"
+
+
+def test_list_detail_targets_ignores_group_header_and_limits():
+    module = load_module()
+
+    targets = module.list_detail_targets(list_ui_dump(), 1)
+
+    assert targets == [{"x": 500, "y": 965, "text": "运输中"}]
+
+
+def test_infer_store_name_falls_back_when_address_unknown():
+    module = load_module()
+
+    assert module.infer_store_name(["送至 未知地址"], "银泰城店") == "银泰城店"
 
 
 def test_main_fixture_dry_run_writes_evidence(tmp_path, monkeypatch, capsys):
