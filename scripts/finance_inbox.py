@@ -37,12 +37,27 @@ VALID_CATEGORIES = {
 }
 CONFIRMABLE_CATEGORIES = VALID_CATEGORIES - {"unknown"}
 VALID_PAYMENT_METHODS = {"wechat_pay", "alipay", "bank", "cash", "platform_balance", "unknown"}
+VALID_LEDGER_SIDES = {"store", "supply_chain"}
+VALID_BUSINESS_ACCOUNTS = {
+    "cash_revenue",
+    "cash_expense",
+    "accounts_receivable",
+    "accounts_payable",
+    "inventory",
+    "transfer",
+    "other",
+}
+VALID_SETTLEMENT_STATUS = {"settled", "uncollected", "unpaid", "partial", "none"}
 LEDGER_FIELD_ORDER = [
     "ledger_id",
     "draft_id",
     "confirmed_at",
     "confirmed_by",
     "transaction_date",
+    "ledger_side",
+    "business_account",
+    "settlement_status",
+    "due_date",
     "direction",
     "amount",
     "currency",
@@ -50,6 +65,10 @@ LEDGER_FIELD_ORDER = [
     "counterparty",
     "category",
     "payment_method",
+    "inventory_item",
+    "quantity",
+    "unit",
+    "unit_cost",
     "source_channel",
     "raw_text",
     "note",
@@ -201,6 +220,67 @@ def parse_payment_method(text: str) -> str:
     return "unknown"
 
 
+def parse_ledger_side(text: str, category: str) -> str:
+    if any(word in text for word in ("供应链", "中央厨房", "仓库", "采购中心", "供应商", "原料", "进货")):
+        return "supply_chain"
+    if category == "procurement":
+        return "supply_chain"
+    return "store"
+
+
+def parse_business_account(text: str, direction: str, category: str, payment_method: str) -> str:
+    if any(word in text for word in ("应收", "赊销", "未收", "待收")):
+        return "accounts_receivable"
+    if any(word in text for word in ("应付", "赊购", "未付", "待付", "欠款")):
+        return "accounts_payable"
+    if any(word in text for word in ("入库", "库存", "盘点", "原料")) or category == "procurement":
+        return "inventory"
+    if direction == "transfer":
+        return "transfer"
+    if direction == "income":
+        return "accounts_receivable" if payment_method == "unknown" else "cash_revenue"
+    if direction == "expense":
+        return "accounts_payable" if payment_method == "unknown" else "cash_expense"
+    return "other"
+
+
+def parse_settlement_status(text: str, business_account: str, payment_method: str) -> str:
+    if business_account == "accounts_receivable":
+        return "uncollected"
+    if business_account == "accounts_payable":
+        return "unpaid"
+    if business_account in {"cash_revenue", "cash_expense", "inventory"} and payment_method != "unknown":
+        return "settled"
+    if "部分" in text:
+        return "partial"
+    return "none"
+
+
+def parse_due_date(text: str) -> str:
+    match = re.search(r"(?:到期|付款日|收款日|账期)[:： ]*(20[0-9]{2}[-/.年](?:1[0-2]|0?[1-9])[-/.月](?:3[01]|[12][0-9]|0?[1-9]))", text)
+    if not match:
+        return ""
+    value = match.group(1).replace("年", "-").replace("月", "-").replace("/", "-").replace(".", "-")
+    parts = [part for part in value.split("-") if part]
+    if len(parts) != 3:
+        return ""
+    return f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+
+
+def parse_inventory_item(text: str, category: str) -> str:
+    if category != "procurement" and not any(word in text for word in ("库存", "入库", "原料")):
+        return ""
+    patterns = [
+        r"(?:采购|进货|入库|原料)[:： ]*([^\s，,。；;]+)",
+        r"([^\s，,。；;]+)(?:入库|库存)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
 def parse_store(text: str) -> str:
     match = re.search(r"(熊小小[^\s，,。；;：:]{0,12}(?:店|中心|城|门店)?)", text)
     return match.group(1).strip() if match else ""
@@ -233,15 +313,23 @@ def parse_wechat_text(text: str) -> dict[str, Any]:
     payment_method = parse_payment_method(text)
     if payment_method == "unknown":
         warnings.append("未识别收付款方式，确认前建议补充。")
+    ledger_side = parse_ledger_side(text, category)
+    business_account = parse_business_account(text, direction, category, payment_method)
+    settlement_status = parse_settlement_status(text, business_account, payment_method)
     return {
         "parsed_transaction_date": transaction_date,
         "parsed_direction": direction,
         "parsed_amount": amount,
         "parsed_currency": "CNY",
+        "parsed_ledger_side": ledger_side,
+        "parsed_business_account": business_account,
+        "parsed_settlement_status": settlement_status,
+        "parsed_due_date": parse_due_date(text),
         "parsed_store": parse_store(text),
         "parsed_counterparty": parse_counterparty(text),
         "parsed_category": category,
         "parsed_payment_method": payment_method,
+        "parsed_inventory_item": parse_inventory_item(text, category),
         "parse_warnings": warnings,
     }
 
@@ -301,6 +389,18 @@ def require_amount(value: Any) -> float:
     if amount <= 0:
         raise SystemExit("金额必须大于 0。")
     return round(amount, 2)
+
+
+def optional_number(value: Any, label: str) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(f"{label} 必须是数字。") from exc
+    if number < 0:
+        raise SystemExit(f"{label} 不能小于 0。")
+    return round(number, 4)
 
 
 def export_ledger_csv(path: Path = LEDGER_CSV_PATH) -> None:
@@ -393,13 +493,33 @@ def command_confirm(args: argparse.Namespace) -> int:
     direction = require_choice(args.direction or draft.get("parsed_direction") or "", CONFIRMABLE_DIRECTIONS, "收支方向")
     category = require_choice(args.category or draft.get("parsed_category") or "", CONFIRMABLE_CATEGORIES, "财务分类")
     payment_method = require_choice(args.payment_method or draft.get("parsed_payment_method") or "unknown", VALID_PAYMENT_METHODS, "收付款方式")
+    ledger_side = require_choice(args.ledger_side or draft.get("parsed_ledger_side") or "store", VALID_LEDGER_SIDES, "账本端")
+    business_account = require_choice(
+        args.business_account or draft.get("parsed_business_account") or "other",
+        VALID_BUSINESS_ACCOUNTS,
+        "业务科目",
+    )
+    settlement_status = require_choice(
+        args.settlement_status or draft.get("parsed_settlement_status") or "none",
+        VALID_SETTLEMENT_STATUS,
+        "结算状态",
+    )
     amount = require_amount(args.amount if args.amount is not None else draft.get("parsed_amount"))
+    quantity = optional_number(args.quantity, "数量")
+    unit_cost = optional_number(args.unit_cost, "单价")
+    due_date = (args.due_date if args.due_date is not None else draft.get("parsed_due_date") or "").strip()
+    if due_date and not re.fullmatch(r"20[0-9]{2}-[01][0-9]-[0-3][0-9]", due_date):
+        raise SystemExit("到期日必须是 YYYY-MM-DD。")
     ledger = {
         "ledger_id": short_id("fin-ledger"),
         "draft_id": draft_id,
         "confirmed_at": now_text(),
         "confirmed_by": operator,
         "transaction_date": transaction_date,
+        "ledger_side": ledger_side,
+        "business_account": business_account,
+        "settlement_status": settlement_status,
+        "due_date": due_date,
         "direction": direction,
         "amount": amount,
         "currency": "CNY",
@@ -407,6 +527,10 @@ def command_confirm(args: argparse.Namespace) -> int:
         "counterparty": (args.counterparty if args.counterparty is not None else draft.get("parsed_counterparty") or "").strip(),
         "category": category,
         "payment_method": payment_method,
+        "inventory_item": (args.inventory_item if args.inventory_item is not None else draft.get("parsed_inventory_item") or "").strip(),
+        "quantity": quantity,
+        "unit": args.unit.strip(),
+        "unit_cost": unit_cost,
         "source_channel": draft.get("source_channel") or "wechat_text",
         "raw_text": draft.get("raw_text") or "",
         "note": args.note.strip(),
@@ -456,6 +580,8 @@ def command_list_ledger(args: argparse.Namespace) -> int:
                     str(record.get("transaction_date") or ""),
                     str(record.get("direction") or ""),
                     f"{float(record.get('amount') or 0):.2f}",
+                    str(record.get("ledger_side") or ""),
+                    str(record.get("business_account") or ""),
                     str(record.get("category") or ""),
                     str(record.get("store") or ""),
                     str(record.get("sync_status") or ""),
@@ -493,7 +619,7 @@ def command_schema(_: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="飞书财务系统 MVP：本地财务草稿收件箱和确认账本，不自动发布。")
+    parser = argparse.ArgumentParser(description="熊小小财务系统：草稿、门店账本、供应链账本、应收应付、库存和飞书同步。")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     intake = subparsers.add_parser("intake", help="录入一条微信财务文本为待确认草稿。")
@@ -514,8 +640,16 @@ def build_parser() -> argparse.ArgumentParser:
     confirm.add_argument("--amount", type=float, help="覆盖金额。")
     confirm.add_argument("--category", choices=sorted(CONFIRMABLE_CATEGORIES), help="覆盖财务分类。")
     confirm.add_argument("--payment-method", choices=sorted(VALID_PAYMENT_METHODS), help="覆盖收付款方式。")
+    confirm.add_argument("--ledger-side", choices=sorted(VALID_LEDGER_SIDES), help="账本端：门店端或供应链端。")
+    confirm.add_argument("--business-account", choices=sorted(VALID_BUSINESS_ACCOUNTS), help="业务科目：现金、应收、应付、库存等。")
+    confirm.add_argument("--settlement-status", choices=sorted(VALID_SETTLEMENT_STATUS), help="结算状态。")
+    confirm.add_argument("--due-date", help="应收/应付到期日，格式 YYYY-MM-DD。")
     confirm.add_argument("--store", help="覆盖门店。")
     confirm.add_argument("--counterparty", help="覆盖交易对方。")
+    confirm.add_argument("--inventory-item", help="库存品项。")
+    confirm.add_argument("--quantity", type=float, help="库存数量。")
+    confirm.add_argument("--unit", default="", help="库存单位。")
+    confirm.add_argument("--unit-cost", type=float, help="库存单价。")
     confirm.add_argument("--note", default="", help="确认备注。")
     confirm.set_defaults(func=command_confirm)
 

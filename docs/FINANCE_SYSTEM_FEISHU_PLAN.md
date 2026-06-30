@@ -1,13 +1,13 @@
 # 飞书财务系统交付说明
 
-目标：把微信里的财务文本变成可追溯、可人工确认的财务工作台流程，再把确认后的记录安全同步到飞书多维表格。
+目标：把微信里的财务文本变成可追溯、可人工确认的财务工作台流程，区分门店端和供应链端两套账本，覆盖应收、应付和库存，再把确认后的记录安全同步到飞书多维表格。
 
 日常使用请优先看 `docs/FINANCE_SYSTEM_RUNBOOK.md`；正式入口是 `python3 scripts/finance_system.py <命令>`。
 
 ## 当前交付
 
 - `scripts/finance_system.py`：熊小小财务系统正式入口。
-- `scripts/finance_web.py`：本地网页工作台，支持录入草稿、人工确认入账、标记待同步、飞书预检/同步。
+- `scripts/finance_web.py`：本地网页工作台，支持录入草稿、人工确认入账、两套账本、应收应付库存、标记待同步、飞书预检/同步。
 - `熊小小财务系统.command`：双击启动网页工作台。
 - `scripts/finance_inbox.py`：命令行财务收件箱。
 - `scripts/finance_feishu_sync.py`：飞书确认账本同步/导出脚本，默认 dry-run/export-only。
@@ -28,6 +28,7 @@
 - 系统不会自动确认草稿。
 - 系统不会自动发布到飞书。
 - 确认账本必须显式传入 `--draft-id` 和 `--operator`。
+- 确认账本必须选择或复核 `ledger_side`、`business_account`、`settlement_status`，否则不能作为可靠财务口径。
 - 金额、日期、收支方向、分类识别不确定时会写入 `parse_warnings`，确认前必须人工复核。
 - 新确认账本记录默认是 `local_only`。
 - 账本必须经人工执行 `mark-ready` 后才会变成 `ready_for_feishu`。
@@ -61,10 +62,22 @@ python3 scripts/finance_inbox.py intake --text "今天 熊小小万象城 微信
 python3 scripts/finance_inbox.py list-drafts
 ```
 
-人工确认到本地账本：
+人工确认到本地账本，示例为供应链端库存：
 
 ```bash
-python3 scripts/finance_inbox.py confirm --draft-id "<草稿ID>" --operator "summer" --category procurement --direction expense --payment-method wechat_pay
+python3 scripts/finance_inbox.py confirm \
+  --draft-id "<草稿ID>" \
+  --operator "summer" \
+  --category procurement \
+  --direction expense \
+  --payment-method wechat_pay \
+  --ledger-side supply_chain \
+  --business-account inventory \
+  --settlement-status settled \
+  --inventory-item "原料" \
+  --quantity 10 \
+  --unit "斤" \
+  --unit-cost 12.85
 ```
 
 导出账本 CSV：
@@ -191,9 +204,14 @@ FINANCE_INBOX_DIR="$tmpdir" python3 scripts/finance_feishu_sync.py
 - 解析业务日期：日期，对应 `parsed_transaction_date`。
 - 解析收支方向：单选，对应 `parsed_direction`。
 - 解析金额：货币，对应 `parsed_amount`。
+- 解析账本端：单选，对应 `parsed_ledger_side`，可选 `store`、`supply_chain`。
+- 解析业务科目：单选，对应 `parsed_business_account`。
+- 解析结算状态：单选，对应 `parsed_settlement_status`。
+- 解析到期日：日期，对应 `parsed_due_date`。
 - 解析门店：文本，对应 `parsed_store`。
 - 解析交易对方：文本，对应 `parsed_counterparty`。
 - 解析财务分类：单选，对应 `parsed_category`。
+- 解析库存品项：文本，对应 `parsed_inventory_item`。
 - 解析提醒：多行文本，对应 `parse_warnings`。
 
 ### 财务确认账本
@@ -207,6 +225,10 @@ FINANCE_INBOX_DIR="$tmpdir" python3 scripts/finance_feishu_sync.py
 - 确认时间：日期时间，对应 `confirmed_at`。
 - 确认人：文本，对应 `confirmed_by`。
 - 业务日期：日期，对应 `transaction_date`。
+- 账本端：单选，对应 `ledger_side`，可选 `store`、`supply_chain`。
+- 业务科目：单选，对应 `business_account`，可选 `cash_revenue`、`cash_expense`、`accounts_receivable`、`accounts_payable`、`inventory`、`transfer`、`other`。
+- 结算状态：单选，对应 `settlement_status`，可选 `settled`、`uncollected`、`unpaid`、`partial`、`none`。
+- 到期日：日期，对应 `due_date`。
 - 收支方向：单选，对应 `direction`，可选 `income`、`expense`、`transfer`。
 - 金额：货币或数字，对应 `amount`；如果用数字字段，格式必须设为 `0.00`，显示 2 位小数。
 - 币种：单选，对应 `currency`。
@@ -214,10 +236,16 @@ FINANCE_INBOX_DIR="$tmpdir" python3 scripts/finance_feishu_sync.py
 - 交易对方：文本，对应 `counterparty`。
 - 财务分类：单选，对应 `category`。
 - 收付款方式：单选，对应 `payment_method`。
+- 库存品项：文本，对应 `inventory_item`。
+- 数量：数字，对应 `quantity`。
+- 单位：文本，对应 `unit`。
+- 单价：货币或数字，对应 `unit_cost`。
 - 来源渠道：单选，对应 `source_channel`。
 - 原始文本：多行文本，对应 `raw_text`。
 - 备注：多行文本，对应 `note`。
 - 飞书同步状态：单选，对应 `sync_status`，可选 `local_only`、`ready_for_feishu`、`synced`、`sync_failed`。
+
+过渡说明：新增的两套账本、应收、应付和库存字段已经进入本地账本和 CSV。当前飞书 API 写入仍只使用已验证字段，避免飞书表尚未新增字段时同步失败；等多维表字段建好后，再把这些字段加入 `scripts/finance_feishu_sync.py` 的 API 映射。
 
 完整字段定义维护在 `ai-business-center/config/finance_schema.json`。
 

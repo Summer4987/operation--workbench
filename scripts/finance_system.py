@@ -116,8 +116,16 @@ def command_confirm(args: argparse.Namespace) -> int:
         "--amount": args.amount,
         "--category": args.category,
         "--payment-method": args.payment_method,
+        "--ledger-side": args.ledger_side,
+        "--business-account": args.business_account,
+        "--settlement-status": args.settlement_status,
+        "--due-date": args.due_date,
         "--store": args.store,
         "--counterparty": args.counterparty,
+        "--inventory-item": args.inventory_item,
+        "--quantity": args.quantity,
+        "--unit": args.unit,
+        "--unit-cost": args.unit_cost,
         "--note": args.note,
     }
     for name, value in optional.items():
@@ -177,8 +185,16 @@ def build_parser() -> argparse.ArgumentParser:
     confirm.add_argument("--amount", type=float)
     confirm.add_argument("--category", choices=sorted(finance_inbox.CONFIRMABLE_CATEGORIES))
     confirm.add_argument("--payment-method", choices=sorted(finance_inbox.VALID_PAYMENT_METHODS))
+    confirm.add_argument("--ledger-side", choices=sorted(finance_inbox.VALID_LEDGER_SIDES))
+    confirm.add_argument("--business-account", choices=sorted(finance_inbox.VALID_BUSINESS_ACCOUNTS))
+    confirm.add_argument("--settlement-status", choices=sorted(finance_inbox.VALID_SETTLEMENT_STATUS))
+    confirm.add_argument("--due-date")
     confirm.add_argument("--store")
     confirm.add_argument("--counterparty")
+    confirm.add_argument("--inventory-item")
+    confirm.add_argument("--quantity", type=float)
+    confirm.add_argument("--unit")
+    confirm.add_argument("--unit-cost", type=float)
     confirm.add_argument("--note", default="")
     confirm.set_defaults(func=command_confirm)
 
