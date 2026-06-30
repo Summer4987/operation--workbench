@@ -527,6 +527,34 @@ def test_logistics_admin_upsert_and_owner_can_read_all(tmp_path, monkeypatch):
     assert items[0]["pickup_code"] == "8-1234"
 
 
+def test_logistics_ingest_token_upserts_record(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv("DAILY_ORDER_LOGISTICS_INGEST_TOKEN", "ingest-secret")
+    monkeypatch.setattr(module, "LOGISTICS_PATH", tmp_path / "logistics.json")
+    monkeypatch.setattr(
+        module,
+        "_load_catalog",
+        lambda path=module.CATALOG_PATH: {
+            "stores": [{"name": "金融城店"}],
+            "items": [],
+        },
+    )
+
+    client = TestClient(module.app)
+    rejected = client.post(
+        "/daily-order/api/logistics-ingest?token=wrong",
+        json={"store_name": "金融城店", "tracking_number": "ZT123"},
+    )
+    assert rejected.status_code == 403
+
+    accepted = client.post(
+        "/daily-order/api/logistics-ingest?token=ingest-secret",
+        json={"store_name": "金融城店", "carrier": "中通", "tracking_number": "ZT123"},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["item"]["store_name"] == "金融城店"
+
+
 def test_logistics_store_account_only_reads_own_store(tmp_path, monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv(

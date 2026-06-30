@@ -362,6 +362,17 @@ def admin_logistics(request: Request):
 async def upsert_admin_logistics(request: Request, payload: dict):
     _require_admin(request)
     record = _normalize_logistics_payload(payload)
+    return _upsert_logistics_record(record)
+
+
+@app.post("/daily-order/api/logistics-ingest")
+async def ingest_logistics(request: Request, payload: dict):
+    _require_logistics_ingest(request)
+    record = _normalize_logistics_payload(payload)
+    return _upsert_logistics_record(record)
+
+
+def _upsert_logistics_record(record: dict) -> dict:
     records = _read_logistics_records()
     now = now_iso()
     record_id = record.get("id") or _logistics_record_id(record)
@@ -1211,6 +1222,13 @@ def _require_admin(request: Request) -> None:
     supplied = request.query_params.get("token", "")
     if supplied != token:
         raise HTTPException(status_code=403, detail="后台链接无效")
+
+
+def _require_logistics_ingest(request: Request) -> None:
+    token = os.environ.get("DAILY_ORDER_LOGISTICS_INGEST_TOKEN", os.environ.get("DAILY_ORDER_ADMIN_TOKEN", "daily-order-admin"))
+    supplied = request.query_params.get("token", "")
+    if supplied != token:
+        raise HTTPException(status_code=403, detail="物流写入链接无效")
 
 
 def _notify_order(order: dict) -> None:

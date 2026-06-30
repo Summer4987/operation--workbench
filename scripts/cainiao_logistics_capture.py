@@ -349,7 +349,7 @@ def parse_logistics_records(xml_text: str, store_name: str, captured_at: str | N
 
 def post_logistics_record(server: str, token: str, record: dict[str, str], timeout: int) -> dict[str, Any]:
     query = urllib.parse.urlencode({"token": token})
-    url = f"{server.rstrip('/')}/daily-order/api/admin/logistics?{query}"
+    url = f"{server.rstrip('/')}/daily-order/api/logistics-ingest?{query}"
     data = json.dumps(record, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         url,
