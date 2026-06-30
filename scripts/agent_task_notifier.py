@@ -100,22 +100,29 @@ def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
 
 
 def build_batch_message(messages: list[str]) -> str:
-    if len(messages) == 1:
-        return messages[0]
-    header = f"我整理了 {len(messages)} 条 Mac mini 自动化更新："
-    body = "\n\n---\n\n".join(messages)
-    text = f"{header}\n\n{body}"
+    clean_messages = [compact_message(message) for message in messages if compact_message(message)]
+    if not clean_messages:
+        return ""
+    if len(clean_messages) == 1:
+        return clean_messages[0]
+    header = f"我整理了 {len(clean_messages)} 条 Mac mini 自动化更新："
+    body = "；".join(clean_messages)
+    text = f"{header} {body}"
     if len(text) <= MAX_BATCH_MESSAGE_CHARS:
         return text
     truncated: list[str] = []
     remaining = MAX_BATCH_MESSAGE_CHARS - len(header) - 20
-    for message in messages:
+    for message in clean_messages:
         if remaining <= 0:
             break
         chunk = message[: max(0, remaining)]
         truncated.append(chunk.rstrip())
         remaining -= len(chunk) + 8
-    return f"{header}\n\n" + "\n\n---\n\n".join(truncated).rstrip() + "\n…内容过长，已截断。"
+    return f"{header} " + "；".join(truncated).rstrip() + "。内容过长，已截断。"
+
+
+def compact_message(message: str) -> str:
+    return " ".join(str(message or "").split())
 
 
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> str:
@@ -174,7 +181,7 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
         details.append(f"证据 {log_path}")
     if details:
         lines.append("细节：" + "；".join(details))
-    return "\n".join(lines)
+    return compact_message(" ".join(lines))
 
 
 def notify(args: argparse.Namespace) -> dict[str, Any]:
@@ -186,10 +193,6 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     sent = previous_state.get("sent") if isinstance(previous_state.get("sent"), dict) else {}
     policy_rows = load_policy_rows()
     task_candidates = dict(tasks)
-    for task_id, row in policy_rows.items():
-        synthetic = synthetic_task_from_policy_row(row)
-        if synthetic:
-            task_candidates[task_id] = synthetic
     notifications = []
     pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
@@ -221,7 +224,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
 
     if notifications and not args.dry_run:
         batch_message = build_batch_message([str(item["message"]) for item in notifications])
-        delivered, delivery_output = send_weixin(batch_message, args.target, args.hermes_bin)
+        delivered, delivery_output = send_weixin(batch_message, args.target, args.hermes_bin) if batch_message else (False, "empty-message")
         for item in notifications:
             item["delivered"] = delivered
             item["delivery_output"] = delivery_output

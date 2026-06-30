@@ -100,7 +100,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertEqual(first["notification_count"], 1)
             self.assertEqual(second["notification_count"], 0)
 
-    def test_notify_reports_health_attention_even_when_run_succeeded(self) -> None:
+    def test_notify_ignores_health_attention_until_user_asks_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             runs_path = tmp_path / "runs.json"
@@ -116,6 +116,17 @@ class AgentTaskNotifierTests(unittest.TestCase):
                                 "step": "发布工作台云端数据",
                                 "finished_at": "2026-06-30 20:01:15",
                             }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "sent": {
+                            "ops.realtime_order_income": "success|2026-06-30 20:01:15|实时单量收入采集完成。|发布工作台云端数据"
                         }
                     },
                     ensure_ascii=False,
@@ -155,10 +166,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             finally:
                 self.notifier.load_policy_rows = original_loader
 
-            self.assertEqual(payload["notification_count"], 1)
-            message = payload["notifications"][0]["message"]
-            self.assertIn("实时单量和营业额采集需要看一下。", message)
-            self.assertIn("云端发布权限错误", message)
+            self.assertEqual(payload["notification_count"], 0)
 
     def test_notify_batches_multiple_messages_into_one_send(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -212,6 +220,8 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertIn("我整理了 2 条 Mac mini 自动化更新：", sent_messages[0])
             self.assertIn("任务一", sent_messages[0])
             self.assertIn("任务二", sent_messages[0])
+            self.assertNotIn("\n", sent_messages[0])
+            self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
 
 if __name__ == "__main__":
