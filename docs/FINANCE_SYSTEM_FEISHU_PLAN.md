@@ -2,8 +2,11 @@
 
 目标：先把微信里的财务文本变成可追溯、可人工确认的本地财务收件箱，再把确认后的记录导出为飞书多维表格可接收的账本结构。
 
+日常使用请优先看 `docs/FINANCE_SYSTEM_RUNBOOK.md`；正式入口是 `python3 scripts/finance_system.py <命令>`。
+
 ## 当前交付
 
+- `scripts/finance_system.py`：熊小小财务系统正式入口。
 - `scripts/finance_inbox.py`：命令行财务收件箱。
 - `scripts/finance_feishu_sync.py`：飞书确认账本同步/导出脚本，默认 dry-run/export-only。
 - `ai-business-center/config/finance_schema.json`：草稿、账本和飞书多维表格字段规划。
