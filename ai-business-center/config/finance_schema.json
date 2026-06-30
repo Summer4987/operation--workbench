@@ -258,6 +258,36 @@
         "sync_failed"
       ],
       "feishu_field": "飞书同步状态"
+    },
+    {
+      "name": "sync_marked_ready_at",
+      "type": "datetime",
+      "required": false,
+      "description": "人工标记 ready_for_feishu 的时间，只保存在本地审计记录。"
+    },
+    {
+      "name": "sync_marked_ready_by",
+      "type": "text",
+      "required": false,
+      "description": "人工标记 ready_for_feishu 的操作者，只保存在本地审计记录。"
+    },
+    {
+      "name": "synced_at",
+      "type": "datetime",
+      "required": false,
+      "description": "飞书 API 返回成功后写入的本地同步时间。"
+    },
+    {
+      "name": "feishu_record_id",
+      "type": "text",
+      "required": false,
+      "description": "飞书 API 返回成功后的多维表记录 ID。"
+    },
+    {
+      "name": "sync_error",
+      "type": "multiline_text",
+      "required": false,
+      "description": "飞书同步失败时的错误摘要，不用于声明成功。"
     }
   ],
   "feishu_base_plan": {
@@ -265,6 +295,9 @@
     "table_id_env": "FEISHU_FINANCE_TABLE_ID",
     "tenant_access_token_env": "FEISHU_TENANT_ACCESS_TOKEN",
     "write_mode_when_tokens_missing": "export_only",
+    "sync_script": "scripts/finance_feishu_sync.py",
+    "sync_source_filter": "ledger.sync_status == ready_for_feishu",
+    "execute_guard": "必须显式传入 --execute 且 token/app/table 环境变量齐全才调用飞书 API。",
     "recommended_tables": [
       {
         "table_name": "财务草稿收件箱",
