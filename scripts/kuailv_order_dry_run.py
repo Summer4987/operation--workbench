@@ -2866,8 +2866,6 @@ def run_adb_cart_clear(plan: dict[str, Any], serial: str, timeout: int) -> dict[
 
     analysis = before.get("ui_analysis") or {}
     details = before.get("cart_review_details") or {}
-    if not analysis.get("delivery_store_match"):
-        return {"status": "blocked", "message": "收货门店未匹配订单门店，未清理购物车。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
     if not details.get("reached_cart"):
         return {"status": "blocked", "message": "当前未识别为购物车检查页，未清理购物车。", "device_serial": serial, "session_dir": str(session_dir), "before": before}
     if any(node.get("text") == "提交订单" or node.get("text") == "付款" for node in details.get("checkout_nodes") or []):
@@ -2921,9 +2919,10 @@ def run_adb_cart_clear(plan: dict[str, Any], serial: str, timeout: int) -> dict[
             "after_items": remaining,
             "unexpected_before": details.get("unexpected_visible_cart_items") or [],
             "reached_cart_after": after_details.get("reached_cart"),
+            "delivery_store_match_before": bool(analysis.get("delivery_store_match")),
         },
         "safety": {
-            "delivery_store_match_required": True,
+            "delivery_store_match_required": False,
             "cart_review_page_required": True,
             "only_minus_controls": True,
             "forbidden_actions": ["切换收货地址", "提交订单", "付款"],
