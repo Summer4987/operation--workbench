@@ -353,6 +353,46 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         self.assertEqual(decision["selection"][0]["spec"], "10斤")
         self.assertEqual(decision["selection"][0]["count"], 1)
 
+    def test_explicit_price_unit_mismatch_is_ranked_as_risk(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "CARROT-001",
+                    "name": "胡萝卜",
+                    "quantity": 10,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        candidates = {
+            "胡萝卜": [
+                {
+                    "title": "断节胡萝卜",
+                    "spec": "10斤",
+                    "unit_price": 0.31,
+                    "monthly_sales": 16000,
+                    "sort_mode": "price_asc",
+                    "search_page": 1,
+                    "available": True,
+                    "row_texts": ["断节胡萝卜", "10斤", "¥", "0.31", "/盒"],
+                }
+            ]
+        }
+
+        payload = build_payload(order, candidates, 2, ["price_asc"])
+
+        decision = payload["decisions"][0]
+        self.assertEqual(decision["status"], "blocked")
+        self.assertEqual(decision["safe_candidate_count"], 0)
+        self.assertEqual(decision["top_candidates"][0]["rank"], 1)
+        self.assertEqual(decision["top_candidates"][0]["price_unit"], "盒")
+        self.assertIn("断节胡萝卜", decision["top_candidates"][0]["candidate_text"])
+        self.assertIn("unit_mismatch", decision["top_candidates"][0]["risk_flags"])
+
 
 if __name__ == "__main__":
     unittest.main()

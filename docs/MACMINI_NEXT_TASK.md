@@ -147,5 +147,6 @@ ANDROID_ADB_BIN="$HOME/Library/Android/sdk/platform-tools/adb" /bin/zsh scripts/
 - `plan-only` 应能从今天订单中随机抽到一个快驴订单，并输出每个商品的筛选规则。
 - 豆腐规则必须包含强排除词：`嫩豆腐`、`5斤`、`2盒`。
 - 圣女果 5 斤需求允许生成 6 斤整件策略。
+- 快驴采购决策 dry-run 应输出每个品项的 ranked `top_candidates`，包含排名、候选文本、价格单位、包装折算、风险标记和原因；如果候选明确显示 `/盒`、`/袋` 等价格单位与订单单位不一致，必须标记 `unit_mismatch` 并禁止自动择优。
 - ADB 可用时会生成 `outputs/kuailv_order_dry_run/<时间>/screen.png` 和 `window_dump.xml`。
 - 即使 ADB 阻塞，也不能影响安全边界：脚本只生成计划或现场证据，不提交订单、不付款。

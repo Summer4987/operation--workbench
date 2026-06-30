@@ -34,6 +34,17 @@ UNIT_ALIASES = {
     "份": ["份"],
 }
 
+PRICE_UNIT_ALIASES = {
+    "斤": {"斤"},
+    "盒": {"盒"},
+    "袋": {"袋"},
+    "份": {"份"},
+    "桶": {"桶"},
+    "瓶": {"瓶"},
+    "箱": {"箱"},
+    "个": {"个"},
+}
+
 
 def now_text() -> str:
     return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S%z")
@@ -98,6 +109,23 @@ def candidate_full_text(candidate: dict[str, Any]) -> str:
             ]
             + [row_blob]
         )
+    )
+
+
+def candidate_display_text(candidate: dict[str, Any]) -> str:
+    row_texts = candidate.get("row_texts") or []
+    if isinstance(row_texts, list):
+        row_blob = " ".join(str(row) for row in row_texts[:12])
+    else:
+        row_blob = str(row_texts or "")
+    return " ".join(
+        part
+        for part in [
+            str(candidate.get("title") or candidate.get("name") or "").strip(),
+            str(candidate.get("spec") or candidate.get("pack_label") or "").strip(),
+            row_blob.strip(),
+        ]
+        if part
     )
 
 
@@ -168,6 +196,29 @@ def candidate_unit_price(candidate: dict[str, Any], unit: str, pack_quantity: fl
     return price / pack_quantity
 
 
+def candidate_price_unit(candidate: dict[str, Any]) -> str:
+    for key in ["price_unit", "unit_price_unit", "sale_unit", "unit"]:
+        unit = normalize_text(candidate.get(key))
+        if unit:
+            return unit.lstrip("/")
+    row_texts = candidate.get("row_texts") or []
+    rows = row_texts if isinstance(row_texts, list) else [row_texts]
+    for row in rows:
+        match = re.search(r"/\s*(斤|kg|g|克|盒|袋|份|桶|瓶|箱|个)", str(row), re.I)
+        if match:
+            return normalize_text(match.group(1))
+    return ""
+
+
+def price_unit_matches_request(price_unit: str, requested_unit: str) -> bool:
+    price_unit = normalize_text(price_unit)
+    requested_unit = normalize_text(requested_unit)
+    if not price_unit or not requested_unit:
+        return True
+    aliases = PRICE_UNIT_ALIASES.get(requested_unit, {requested_unit})
+    return price_unit in aliases
+
+
 @dataclass
 class CandidateScore:
     candidate: dict[str, Any]
@@ -235,6 +286,7 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
 
     pack_quantity = candidate_pack_quantity(candidate, requested_unit)
     unit_price = candidate_unit_price(candidate, requested_unit, pack_quantity)
+    price_unit = candidate_price_unit(candidate)
     page = candidate_search_page(candidate)
     sort_mode = candidate_sort_mode(candidate)
     sales = candidate_sales(candidate)
@@ -309,6 +361,12 @@ def score_candidate(candidate: dict[str, Any], line: dict[str, Any]) -> Candidat
     if min_order > 1:
         score -= min_order * 2
         reasons.append(f"起订量 {min_order:g}")
+
+    if price_unit and not price_unit_matches_request(price_unit, requested_unit):
+        allowed = False
+        score -= 160
+        risk_flags.append("unit_mismatch")
+        reasons.append(f"价格单位 /{price_unit} 与订单单位 {requested_unit or '未标注'} 不一致")
 
     if candidate.get("bought_before") or candidate.get("purchased_before") or "买过" in text:
         reasons.append("历史买过，仅作参考，不作为复用依据")
@@ -520,10 +578,13 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
         "safe_candidate_count": sum(1 for score in scores if score.allowed),
         "top_candidates": [
             {
+                "rank": rank,
                 "candidate_id": candidate_id(score.candidate),
                 "title": score.candidate.get("title") or score.candidate.get("name"),
                 "spec": score.candidate.get("spec") or score.candidate.get("pack_label"),
+                "candidate_text": candidate_display_text(score.candidate),
                 "price": score.candidate.get("price") or score.candidate.get("sale_price") or score.candidate.get("final_price"),
+                "price_unit": candidate_price_unit(score.candidate),
                 "pack_quantity": score.pack_quantity,
                 "unit_price": score.unit_price,
                 "sales": score.sales,
@@ -535,7 +596,7 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
                 "reasons": score.reasons,
                 "risk_flags": score.risk_flags,
             }
-            for score in scores[:8]
+            for rank, score in enumerate(scores[:8], start=1)
         ],
     }
 
