@@ -17,6 +17,7 @@ DEFAULT_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 DEFAULT_STATE_PATH = ROOT / "outputs" / "agent_task_notifications" / "state.json"
 DEFAULT_LOG_PATH = ROOT / "outputs" / "agent_task_notifications" / "latest.log"
 DEFAULT_TARGET = "weixin"
+MAX_BATCH_MESSAGE_CHARS = 3600
 TERMINAL_STATUSES = {"success", "failed", "skipped", "warning", "missing"}
 STATUS_LABELS = {
     "success": "成功",
@@ -91,6 +92,25 @@ def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
     return result.returncode == 0, output
 
 
+def build_batch_message(messages: list[str]) -> str:
+    if len(messages) == 1:
+        return messages[0]
+    header = f"Mac mini 自动化任务通知：{len(messages)} 条"
+    body = "\n\n---\n\n".join(messages)
+    text = f"{header}\n\n{body}"
+    if len(text) <= MAX_BATCH_MESSAGE_CHARS:
+        return text
+    truncated: list[str] = []
+    remaining = MAX_BATCH_MESSAGE_CHARS - len(header) - 20
+    for message in messages:
+        if remaining <= 0:
+            break
+        chunk = message[: max(0, remaining)]
+        truncated.append(chunk.rstrip())
+        remaining -= len(chunk) + 8
+    return f"{header}\n\n" + "\n\n---\n\n".join(truncated).rstrip() + "\n…内容过长，已截断。"
+
+
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> str:
     status = str(task.get("status") or "")
     status_label = STATUS_LABELS.get(status, status or "未知")
@@ -157,6 +177,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         if synthetic:
             task_candidates[task_id] = synthetic
     notifications = []
+    pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
 
     for task_id, task in sorted(task_candidates.items()):
@@ -173,21 +194,27 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             continue
         row = policy_rows.get(task_id, {"id": task_id, "name": task_id, "rerun": {}})
         message = build_message(task_id, task, row)
-        delivered = False
-        delivery_output = "dry-run"
-        if not args.dry_run:
-            delivered, delivery_output = send_weixin(message, args.target, args.hermes_bin)
         notifications.append(
             {
                 "task_id": task_id,
                 "status": status,
                 "message": message,
-                "delivered": delivered,
-                "delivery_output": delivery_output,
+                "delivered": bool(args.dry_run),
+                "delivery_output": "dry-run" if args.dry_run else "pending-batch-send",
             }
         )
-        if args.dry_run or delivered:
-            now_sent[task_id] = signature
+        pending_signatures[task_id] = signature
+
+    if notifications and not args.dry_run:
+        batch_message = build_batch_message([str(item["message"]) for item in notifications])
+        delivered, delivery_output = send_weixin(batch_message, args.target, args.hermes_bin)
+        for item in notifications:
+            item["delivered"] = delivered
+            item["delivery_output"] = delivery_output
+        if delivered:
+            now_sent.update(pending_signatures)
+    elif args.dry_run:
+        now_sent.update(pending_signatures)
 
     payload = {
         "runs_path": str(runs_path),

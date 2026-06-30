@@ -157,6 +157,59 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertIn("[注意] Mac mini 自动化任务：实时单量和营业额采集", message)
             self.assertIn("云端发布权限错误", message)
 
+    def test_notify_batches_multiple_messages_into_one_send(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.one": {"status": "success", "message": "完成 1", "finished_at": "2026-06-30 17:00:00"},
+                            "ops.two": {"status": "failed", "message": "失败 2", "finished_at": "2026-06-30 17:01:00"},
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": False,
+                    "no_write": False,
+                },
+            )()
+            sent_messages: list[str] = []
+            original_loader = self.notifier.load_policy_rows
+            original_sender = self.notifier.send_weixin
+            try:
+                self.notifier.load_policy_rows = lambda: {
+                    "ops.one": {"id": "ops.one", "name": "任务一", "rerun": {}},
+                    "ops.two": {"id": "ops.two", "name": "任务二", "rerun": {}},
+                }
+                self.notifier.send_weixin = lambda message, target, hermes_bin: (sent_messages.append(message) or True, "ok")
+
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+                self.notifier.send_weixin = original_sender
+
+            self.assertEqual(payload["notification_count"], 2)
+            self.assertEqual(len(sent_messages), 1)
+            self.assertIn("Mac mini 自动化任务通知：2 条", sent_messages[0])
+            self.assertIn("任务一", sent_messages[0])
+            self.assertIn("任务二", sent_messages[0])
+
 
 if __name__ == "__main__":
     unittest.main()
