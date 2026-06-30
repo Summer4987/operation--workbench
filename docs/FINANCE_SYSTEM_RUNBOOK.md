@@ -4,7 +4,21 @@
 
 ## 正式入口
 
-统一入口：
+日常录入入口：
+
+```bash
+./熊小小财务系统.command
+```
+
+双击项目根目录里的 `熊小小财务系统.command` 也可以。它会打开本地网页：
+
+```text
+http://127.0.0.1:8765/
+```
+
+今天的支出、收入、采购、房租、水电等，都先从这个网页录入。网页提交后只会生成待确认草稿，不会自动入账。
+
+后台统一入口：
 
 ```bash
 python3 scripts/finance_system.py <命令>
@@ -19,13 +33,20 @@ Hermes/微信入口：
 ./scripts/hermes_business_center.zsh 财务账本
 ./scripts/hermes_business_center.zsh 财务同步
 ./scripts/hermes_business_center.zsh 财务说明
+./scripts/hermes_business_center.zsh 财务入口
 ```
 
 ## 日常流程
 
 ### 1. 录入微信财务记录
 
-微信或 Hermes 里发：
+方式 A：打开网页录入口，填写财务文本：
+
+```bash
+./熊小小财务系统.command
+```
+
+方式 B：微信或 Hermes 里发：
 
 ```bash
 ./scripts/hermes_business_center.zsh 财务记录 今天 熊小小万象城 微信支付采购原料 128.50 元 供应商:张三冻品

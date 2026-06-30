@@ -19,6 +19,7 @@ from scripts import finance_inbox  # noqa: E402
 
 FINANCE_INBOX = ROOT / "scripts" / "finance_inbox.py"
 FEISHU_SYNC = ROOT / "scripts" / "finance_feishu_sync.py"
+FINANCE_WEB = ROOT / "scripts" / "finance_web.py"
 RUNBOOK = ROOT / "docs" / "FINANCE_SYSTEM_RUNBOOK.md"
 
 
@@ -141,6 +142,10 @@ def command_guide(_: argparse.Namespace) -> int:
     return 0
 
 
+def command_serve(args: argparse.Namespace) -> int:
+    return run_script(FINANCE_WEB, ["--host", args.host, "--port", str(args.port)])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="熊小小财务系统正式入口：草稿、确认账本、飞书同步。")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -188,6 +193,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     guide = subparsers.add_parser("guide", aliases=["说明", "手册"], help="打印财务系统使用说明。")
     guide.set_defaults(func=command_guide)
+
+    serve = subparsers.add_parser("serve", aliases=["入口", "网页"], help="启动财务系统网页录入口。")
+    serve.add_argument("--host", default="127.0.0.1", help="监听地址。")
+    serve.add_argument("--port", type=int, default=8765, help="监听端口。")
+    serve.set_defaults(func=command_serve)
     return parser
 
 
