@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+app/__pycache__/
+data/
+!data/
+data/*
+!data/templates/
+!data/templates/*
+.DS_Store

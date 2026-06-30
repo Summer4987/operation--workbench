@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="木鱼精">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff7df" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#c7a233" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <rect x="84" y="53" width="73" height="24" rx="7" fill="#725b17"/>
+  <rect x="74" y="76" width="92" height="111" rx="23" fill="#fff7eb" stroke="#725b17" stroke-width="5"/>
+  <path d="M82 131c24-14 52-14 76 0v35H82v-35Z" fill="#c7a233" opacity=".82"/>
+  <path d="M94 98h52" stroke="#fff" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+  <circle cx="114" cy="148" r="6" fill="#fff" opacity=".6"/>
+</svg>

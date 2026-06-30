@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="豆腐">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff7df" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#c7a233" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M76 98l54-27 55 27v73l-55 28-54-28V98Z" fill="#f1dfa0" stroke="#725b17" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M76 98l54 28 55-28M130 126v73" fill="none" stroke="#725b17" stroke-width="5" opacity=".65"/>
+  <path d="M96 104l54-27" stroke="#fff" stroke-width="8" opacity=".7" stroke-linecap="round"/><path d="M91 151h58" stroke="#c7a233" stroke-width="10" opacity=".55" stroke-linecap="round"/>
+</svg>

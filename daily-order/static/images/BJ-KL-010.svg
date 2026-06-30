@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="西兰花">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f4fbf8" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#2f9b83" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M104 116c-14-13-11-37 9-47 14-7 31-3 40 8 12-6 29-4 39 7 15 16 8 43-13 49 2 20-15 38-37 33-9 14-30 17-44 4-10-9-12-22-6-33-20-1-33-22-24-41 7-16 24-23 36-20Z" fill="#4fae66" stroke="#1d6658" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="91" cy="108" r="23" fill="#74c77d" stroke="#1d6658" stroke-width="4"/>
+  <circle cx="122" cy="86" r="25" fill="#5fbb70" stroke="#1d6658" stroke-width="4"/>
+  <circle cx="154" cy="94" r="26" fill="#66c078" stroke="#1d6658" stroke-width="4"/>
+  <circle cx="174" cy="122" r="25" fill="#4fae66" stroke="#1d6658" stroke-width="4"/>
+  <circle cx="112" cy="124" r="29" fill="#67bf79" stroke="#1d6658" stroke-width="4"/>
+  <path d="M119 145c4 18 2 33-5 48m24-49c-3 20 0 34 9 48" fill="none" stroke="#2f6f38" stroke-width="10" stroke-linecap="round"/>
+  <path d="M89 94c14-14 34-19 52-12" fill="none" stroke="#d6f1ce" stroke-width="8" opacity=".65" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "task_aliases": {
+    "ops.morning_one_click": [
+      "上午采集",
+      "上午运营",
+      "上午运营采集",
+      "上午一键采集",
+      "10点采集",
+      "早上自动化",
+      "今早自动化",
+      "一键采集"
+    ],
+    "ops.daily_report_publish": [
+      "经营日报",
+      "日报",
+      "日报采集",
+      "日报发布",
+      "双平台日报",
+      "直营日报",
+      "云端日报看板"
+    ],
+    "ops.reviews_download": [
+      "评价",
+      "评价下载",
+      "双平台评价",
+      "评价处理",
+      "差评",
+      "评价看板"
+    ],
+    "ops.balance_inspection": [
+      "余额",
+      "余额巡检",
+      "推广余额",
+      "低余额提醒",
+      "门店余额"
+    ],
+    "promotion.sync_budget_config": [
+      "同步预算",
+      "同步云端预算",
+      "云端预算配置",
+      "预算配置同步",
+      "预算覆盖配置"
+    ],
+    "promotion.preview_budget": [
+      "推广初始化预算",
+      "初始化预算",
+      "预算预览",
+      "推广预算预览",
+      "生成预算预览",
+      "当前预算预览"
+    ],
+    "promotion.workbench_build": [
+      "工作台数据",
+      "运营工作台数据",
+      "看板数据",
+      "云端看板数据",
+      "首页数据",
+      "workbench数据"
+    ],
+    "promotion.workbench_deploy": [
+      "云端看板",
+      "云端看板更新",
+      "工作台发布",
+      "云端发布",
+      "发布工作台",
+      "首页发布",
+      "更新云端首页"
+    ],
+    "inventory.sync_orders": [
+      "同步出库单",
+      "出库单同步",
+      "订货同步",
+      "库存同步",
+      "货流同步",
+      "云端出库单"
+    ],
+    "franchise.placeholder": [
+      "加盟",
+      "加盟合同",
+      "合同模板",
+      "加盟资料",
+      "加盟流程"
+    ]
+  },
+  "business_terms": [
+    {
+      "name": "实时数据采集",
+      "aliases": ["实时", "实时数据", "实时单量", "实时营业额", "实时订单", "实时收入"],
+      "center": "operations",
+      "risk": "medium",
+      "status": "已在工作台/任务体系中有产物和脚本，但尚未登记到 ai-business-center/config/tasks.json 的健康任务。",
+      "command": "python3 scripts/realtime_order_income.py",
+      "safe_note": "只读采集；遇到登录、Chrome/CDP、平台页面变更时应先回报阻塞。"
+    },
+    {
+      "name": "熊小小日配订货",
+      "aliases": ["日配订货", "日配", "旧订货链接", "xiongxiaoxiao-order"],
+      "center": "inventory",
+      "risk": "high",
+      "url": "http://139.155.148.169/order-submit?token=xiongxiaoxiao-order",
+      "safe_note": "这是正式订货入口；没有明确确认时只做查询、预览或健康检查。"
+    },
+    {
+      "name": "熊小小成都门店订货",
+      "aliases": ["门店订货", "成都门店订货", "成都订货", "日常订货"],
+      "center": "inventory",
+      "risk": "high",
+      "url": "http://139.155.148.169/daily-order/",
+      "safe_note": "这是正式订货入口；没有明确确认时只做查询、预览或健康检查。"
+    },
+    {
+      "name": "熊小小北京门店订货",
+      "aliases": ["北京门店订货", "北京订货"],
+      "center": "inventory",
+      "risk": "high",
+      "url": "http://139.155.148.169/beijing-order/",
+      "safe_note": "这是正式订货入口；没有明确确认时只做查询、预览或健康检查。"
+    },
+    {
+      "name": "快驴订货 dry-run",
+      "aliases": ["快驴", "快驴订货", "安卓订货", "安卓手机订货", "订货自动化", "快驴dryrun"],
+      "center": "inventory",
+      "risk": "high",
+      "command": "python3 scripts/kuailv_order_dry_run.py --mode plan-only --date $(date +%F)",
+      "safe_note": "只能 plan-only 或 dry-run；不要提交订单、不要付款、不要自动替换缺货商品、不要切换收货地址。"
+    },
+    {
+      "name": "推广出价",
+      "aliases": ["出价", "推广出价", "点金出价", "出价调整", "竞价"],
+      "center": "promotion",
+      "risk": "high",
+      "command": "python3 scripts/build_promo_bid_advice.py",
+      "safe_note": "默认只生成建议和审批队列；真实出价调整必须等待明确确认。"
+    },
+    {
+      "name": "用户待办队列",
+      "aliases": ["待办", "待办队列", "人工待办", "审批队列", "用户动作队列"],
+      "center": "operations",
+      "risk": "low",
+      "command": "python3 scripts/build_user_action_queue.py",
+      "safe_note": "只生成/查看待办，不直接执行高风险动作。"
+    },
+    {
+      "name": "财务收件箱",
+      "aliases": ["财务", "财务系统", "财务入口", "财务录入入口", "财务记录", "财务变动", "记账", "财务草稿", "待确认财务", "财务状态", "财务账本", "财务同步", "飞书财务同步"],
+      "center": "finance",
+      "risk": "high",
+      "command": "python3 scripts/finance_system.py status",
+      "safe_note": "正式入口是 scripts/finance_system.py；微信录入只生成 pending_confirmation 草稿，确认入账、标记待同步和飞书 --execute 必须人工显式执行。"
+    },
+    {
+      "name": "自动化任务透明化报告",
+      "aliases": ["自动化报告", "任务报告", "失败报告", "补跑计划", "任务透明化"],
+      "center": "operations",
+      "risk": "low",
+      "command": "python3 scripts/agent_task_monitor.py",
+      "safe_note": "只生成任务完成/失败/原因和 dry-run 补跑计划，不直接执行生产补跑。"
+    }
+  ]
+}

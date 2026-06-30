@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="嫩肩牛肉">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fef2f2" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#b91c1c" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M60 126c5-45 60-70 102-48 29 15 34 50 11 75-28 30-86 32-107 4-7-9-9-20-6-31Z" fill="#a63a32" stroke="#7f1d1d" stroke-width="5"/>
+  <path d="M84 105c32 5 60 3 84-7M77 134c34 14 67 15 98 3" fill="none" stroke="#ffd6c2" stroke-width="9" stroke-linecap="round" opacity=".8"/>
+</svg>

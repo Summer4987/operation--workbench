@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="订书针">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f6f8fb" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#6e7f91" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <rect x="71" y="85" width="98" height="82" rx="12" fill="#dce5ee" stroke="#34465c" stroke-width="5"/>
+  <path d="M91 116h58M91 137h58" stroke="#6e7f91" stroke-width="8" stroke-linecap="round"/>
+  <path d="M83 180c25 10 54 10 79 0" stroke="#34465c" stroke-width="6" opacity=".35" stroke-linecap="round"/>
+</svg>

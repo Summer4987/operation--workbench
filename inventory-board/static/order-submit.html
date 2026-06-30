@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>熊小小日配订货</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --ink: #17202a;
+        --muted: #657386;
+        --line: #dce4ed;
+        --brand: #176b5f;
+        --blue: #2d72d9;
+        --danger: #c83b3b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(980px, calc(100% - 24px));
+        margin: 0 auto;
+        padding: 16px 0 88px;
+      }
+
+      .top {
+        position: relative;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 18px;
+      }
+
+      .eyebrow {
+        color: var(--brand);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      h1 {
+        margin: 5px 0 6px;
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .quiet-logout {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        min-height: 28px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #7b8794;
+        padding: 0 6px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .quiet-logout:hover {
+        background: #f0f4f7;
+        color: #3f4c5a;
+      }
+
+      .store-box,
+      .products {
+        margin-top: 12px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: #273747;
+        font-weight: 900;
+      }
+
+      select {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        padding: 0 12px;
+        font-size: 16px;
+      }
+
+      .store-info {
+        display: none;
+        margin-top: 10px;
+        border: 1px solid #e6edf4;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 10px 12px;
+        color: #273747;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .store-info strong {
+        display: block;
+        margin-bottom: 2px;
+        color: var(--ink);
+        font-size: 15px;
+      }
+
+      .store-info .verified-label {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--brand);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .order-history-actions {
+        margin-top: 10px;
+      }
+
+      .history-button {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #cbd8e6;
+        border-radius: 8px;
+        background: #f7fafc;
+        color: #273747;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      .history-panel {
+        display: none;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .history-panel.is-open {
+        display: grid;
+      }
+
+      .history-card {
+        border: 1px solid #e6edf4;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 10px 12px;
+        color: #273747;
+        line-height: 1.45;
+        font-size: 14px;
+      }
+
+      .history-card summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .history-card summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .history-card strong {
+        display: block;
+        color: var(--ink);
+        word-break: break-all;
+      }
+
+      .history-card small {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+      }
+
+      .history-card b {
+        color: var(--brand);
+        white-space: nowrap;
+      }
+
+      .history-card ul {
+        display: grid;
+        gap: 7px;
+        margin: 10px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .history-card li {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: baseline;
+        border-top: 1px solid #edf2f7;
+        padding-top: 7px;
+      }
+
+      .history-card li span {
+        min-width: 0;
+      }
+
+      .history-card li b {
+        color: #17202a;
+      }
+
+      .history-card a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        margin-top: 8px;
+        border-radius: 8px;
+        background: var(--brand);
+        color: #fff;
+        padding: 0 12px;
+        font-weight: 900;
+        text-decoration: none;
+      }
+
+      .products-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .products-head strong {
+        font-size: 16px;
+      }
+
+      .products-head span {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+        gap: 10px;
+      }
+
+      .item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 128px;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid #e6edf4;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 10px;
+      }
+
+      .item.unavailable {
+        opacity: .58;
+        background: #f3f5f7;
+      }
+
+      .stock-note {
+        display: inline-block;
+        margin-top: 4px;
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .item.unavailable .stock-note {
+        color: #b33b3b;
+      }
+
+      .name {
+        display: block;
+        color: #1e2d3c;
+        font-weight: 900;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .meta {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .qty-control {
+        width: 128px;
+        display: grid;
+        grid-template-columns: 36px 1fr 36px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        overflow: hidden;
+      }
+
+      .qty-button {
+        width: 36px;
+        min-height: 40px;
+        border: 0;
+        border-radius: 0;
+        background: #eef3f7;
+        color: #243447;
+        font-size: 20px;
+        line-height: 1;
+        font-weight: 900;
+      }
+
+      .qty-button:disabled,
+      input:disabled {
+        cursor: not-allowed;
+        color: #9aa6b2;
+        background: #edf1f5;
+      }
+
+      .qty-button:active {
+        background: #dfe8ef;
+      }
+
+      input {
+        width: 56px;
+        min-height: 40px;
+        border: 0;
+        background: white;
+        padding: 0 4px;
+        font-size: 17px;
+        font-weight: 900;
+        text-align: center;
+      }
+
+      input::-webkit-outer-spin-button,
+      input::-webkit-inner-spin-button {
+        margin: 0;
+        -webkit-appearance: none;
+      }
+
+      .submit-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, .94);
+        backdrop-filter: blur(12px);
+      }
+
+      .submit-inner {
+        width: min(980px, calc(100% - 24px));
+        min-height: 70px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 180px;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .message {
+        min-height: 20px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .message.ok { color: var(--brand); }
+      .message.error { color: var(--danger); }
+
+      button {
+        min-height: 46px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--blue);
+        color: white;
+        font-size: 16px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+      }
+
+      .success-screen {
+        min-height: 100vh;
+        display: none;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .confirm-screen {
+        width: min(720px, calc(100% - 24px));
+        margin: 0 auto;
+        padding: 16px 0 98px;
+        display: none;
+      }
+
+      .confirm-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: white;
+        padding: 18px;
+      }
+
+      .confirm-card h2 {
+        margin: 0 0 6px;
+        font-size: 24px;
+        letter-spacing: 0;
+      }
+
+      .confirm-meta {
+        margin-top: 12px;
+        border: 1px solid #e6edf4;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 10px 12px;
+        color: #273747;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .summary-list {
+        margin-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+
+      .summary-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 0;
+      }
+
+      .summary-row strong {
+        display: block;
+        overflow-wrap: anywhere;
+      }
+
+      .summary-row span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .summary-qty {
+        color: var(--brand);
+        font-size: 18px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .confirm-actions {
+        width: min(720px, calc(100% - 24px));
+        margin: 0 auto;
+        min-height: 70px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .ghost-button {
+        border: 1px solid var(--line);
+        background: white;
+        color: #273747;
+      }
+
+      .success-card {
+        width: min(520px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+        padding: 30px 24px;
+        text-align: center;
+      }
+
+      .success-mark {
+        width: 62px;
+        height: 62px;
+        margin: 0 auto 14px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: #e9f6f2;
+        color: var(--brand);
+        font-size: 34px;
+        font-weight: 900;
+      }
+
+      .success-card h2 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        letter-spacing: 0;
+      }
+
+      .success-card p {
+        margin: 0;
+      }
+
+      @media (max-width: 720px) {
+        h1 { font-size: 24px; }
+        .grid { grid-template-columns: 1fr; }
+        .submit-inner { grid-template-columns: 1fr; padding: 10px 0; }
+        .confirm-actions { grid-template-columns: 1fr; padding: 10px 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="orderFormView">
+      <section class="top">
+        <span class="eyebrow">熊小小牛排饭</span>
+        <h1>熊小小日配订货</h1>
+        <p>选择门店，填写需要配送的数量。没有订的商品留空即可。</p>
+        <button id="logoutButton" class="quiet-logout" type="button">退出账号</button>
+      </section>
+
+      <section class="store-box">
+        <label for="storeSelect">门店</label>
+        <select id="storeSelect"></select>
+        <div id="storeInfo" class="store-info"></div>
+        <div class="order-history-actions">
+          <button id="historyButton" class="history-button" type="button" aria-expanded="false">查看已下单订单</button>
+        </div>
+        <div id="historyPanel" class="history-panel"></div>
+      </section>
+
+      <section class="products">
+        <div class="products-head">
+          <strong>商品数量</strong>
+          <span id="itemCount">加载中</span>
+        </div>
+        <div id="productGrid" class="grid"></div>
+      </section>
+    </main>
+
+    <div class="submit-bar">
+      <div id="submitActions" class="submit-inner">
+        <div id="message" class="message">填写后提交，系统会自动生成出库单。</div>
+        <button id="submitButton" type="button">提交订货</button>
+      </div>
+      <div id="confirmActions" class="confirm-actions" style="display:none">
+        <button id="editButton" class="ghost-button" type="button">返回修改</button>
+        <button id="confirmButton" type="button">确认提交</button>
+      </div>
+    </div>
+
+    <main id="confirmView" class="confirm-screen">
+      <section class="confirm-card">
+        <span class="eyebrow">确认订货</span>
+        <h2>请核对本次订货</h2>
+        <p>确认无误后再提交，提交后会生成出库单并扣减库存。</p>
+        <div id="confirmMeta" class="confirm-meta"></div>
+        <div id="summaryList" class="summary-list"></div>
+      </section>
+    </main>
+
+    <section id="successView" class="success-screen">
+      <div class="success-card">
+        <div class="success-mark">✓</div>
+        <h2>已提交</h2>
+        <p id="successText">订货单已生成，请勿重复提交。</p>
+      </div>
+    </section>
+
+    <script>
+      const token = new URLSearchParams(location.search).get("token") || "";
+      const els = {
+        formView: document.querySelector("#orderFormView"),
+        submitBar: document.querySelector(".submit-bar"),
+        successView: document.querySelector("#successView"),
+        successText: document.querySelector("#successText"),
+        confirmView: document.querySelector("#confirmView"),
+        submitActions: document.querySelector("#submitActions"),
+        confirmActions: document.querySelector("#confirmActions"),
+        edit: document.querySelector("#editButton"),
+        confirm: document.querySelector("#confirmButton"),
+        confirmMeta: document.querySelector("#confirmMeta"),
+        summaryList: document.querySelector("#summaryList"),
+        store: document.querySelector("#storeSelect"),
+        storeBox: document.querySelector(".store-box"),
+        storeLabel: document.querySelector("label[for='storeSelect']"),
+        storeInfo: document.querySelector("#storeInfo"),
+        historyButton: document.querySelector("#historyButton"),
+        historyPanel: document.querySelector("#historyPanel"),
+        grid: document.querySelector("#productGrid"),
+        itemCount: document.querySelector("#itemCount"),
+        message: document.querySelector("#message"),
+        submit: document.querySelector("#submitButton"),
+        logout: document.querySelector("#logoutButton"),
+      };
+
+      let products = [];
+      let stores = [];
+      let authenticatedStore = null;
+      let pendingItems = [];
+      let historyLoaded = false;
+      const minOrderQuantity = 5;
+
+      els.logout.addEventListener("click", logoutAccount);
+
+      async function loadCatalog() {
+        setMessage("正在加载商品...");
+        try {
+          const payload = await fetchJson(`/api/public-order/catalog?token=${encodeURIComponent(token)}`);
+          products = payload.products || [];
+          authenticatedStore = normalizeStore(payload.authenticated_store);
+          stores = (payload.stores || []).map(normalizeStore).filter((store) => store.name);
+          if (authenticatedStore.name && !stores.some((store) => store.name === authenticatedStore.name)) {
+            stores.unshift(authenticatedStore);
+          }
+          els.store.innerHTML = [
+            `<option value="">请选择门店</option>`,
+            ...stores.map((store) => {
+              const detail = [store.contact, store.phone].filter(Boolean).join(" ");
+              return `<option value="${escapeHtml(store.name)}">${escapeHtml(store.name)}${detail ? ` - ${escapeHtml(detail)}` : ""}</option>`;
+            }),
+          ].join("");
+          const boundStore = authenticatedStore.name ? authenticatedStore : stores.length === 1 ? stores[0] : null;
+          if (boundStore) {
+            els.store.value = boundStore.name;
+            els.storeBox.hidden = false;
+            els.store.hidden = true;
+            els.storeLabel.hidden = true;
+          } else {
+            els.storeBox.hidden = false;
+            els.store.hidden = false;
+            els.storeLabel.hidden = false;
+          }
+          els.grid.innerHTML = products.map((item) => `
+            <div class="item ${item.available ? "" : "unavailable"}">
+              <div>
+                <span class="name">${escapeHtml(item.name)}</span>
+                <span class="meta">${escapeHtml(item.spec || "")} · ${escapeHtml(item.unit || "件")}</span>
+                <span class="stock-note">${item.available ? `库存 ${formatNumber(item.stock)}` : "库存 0，暂不可订"}</span>
+              </div>
+              <div class="qty-control" data-sku="${escapeHtml(item.sku)}">
+                <button class="qty-button" type="button" data-step="-1" aria-label="${escapeHtml(item.name)}减少" ${item.available ? "" : "disabled"}>−</button>
+                <input type="number" min="0" step="1" inputmode="numeric" data-sku="${escapeHtml(item.sku)}" placeholder="0" ${item.available ? "" : "disabled"} />
+                <button class="qty-button" type="button" data-step="1" aria-label="${escapeHtml(item.name)}增加" ${item.available ? "" : "disabled"}>+</button>
+              </div>
+            </div>
+          `).join("");
+          bindQuantityButtons();
+          els.itemCount.textContent = `${products.filter((item) => item.available).length}/${products.length} 个可订`;
+          renderStoreInfo();
+          setMessage(`合计满 ${minOrderQuantity} 件后提交。`);
+        } catch (error) {
+          setMessage(error.message, "error");
+          els.submit.disabled = true;
+        }
+      }
+
+      function previewSummary() {
+        const items = selectedItems();
+        if (!els.store.value) {
+          setMessage("请先选择门店", "error");
+          return;
+        }
+        if (!items.length) {
+          setMessage("请至少填写一个商品数量", "error");
+          return;
+        }
+        if (!hasMinimumQuantity(items)) return;
+
+        pendingItems = items;
+        renderConfirm(items);
+        showConfirm();
+      }
+
+      async function submitOrder() {
+        const items = pendingItems.length ? pendingItems : selectedItems();
+        if (!hasMinimumQuantity(items)) return;
+        els.confirm.disabled = true;
+        els.edit.disabled = true;
+        setMessage("正在提交...");
+        try {
+          const payload = await fetchJson(`/api/public-order/submit?token=${encodeURIComponent(token)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ store_name: els.store.value, items }),
+          });
+          showSuccess(`已生成 ${payload.line_count} 行出库明细，请勿重复提交。`);
+        } catch (error) {
+          setMessage(error.message, "error");
+          els.confirm.disabled = false;
+          els.edit.disabled = false;
+        }
+      }
+
+      function selectedItems() {
+        return [...document.querySelectorAll("input[data-sku]")]
+          .filter((input) => !input.disabled)
+          .map((input) => ({ sku: input.dataset.sku, quantity: Number(input.value || 0) }))
+          .filter((item) => item.quantity > 0);
+      }
+
+      function totalQuantity(items) {
+        return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      }
+
+      function hasMinimumQuantity(items) {
+        const total = totalQuantity(items);
+        if (total < minOrderQuantity) {
+          setMessage(`日配订货满 ${minOrderQuantity} 件才可以提交，当前合计 ${formatNumber(total)} 件`, "error");
+          return false;
+        }
+        return true;
+      }
+
+      async function fetchJson(url, options) {
+        const response = await fetch(url, options);
+        if (response.status === 401) {
+          location.href = `/order-submit?token=${encodeURIComponent(token)}`;
+          throw new Error("需要门店登录");
+        }
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || "操作失败");
+        return payload;
+      }
+
+      async function logoutAccount() {
+        if (!window.confirm("确认退出当前门店账号？")) return;
+        els.logout.disabled = true;
+        try {
+          await fetch(`/api/public-order/auth/logout?token=${encodeURIComponent(token)}`, { method: "POST" });
+        } finally {
+          location.href = `/order-submit?token=${encodeURIComponent(token)}&logout_at=${Date.now()}`;
+        }
+      }
+
+      function setMessage(text, type = "") {
+        els.message.textContent = text;
+        els.message.className = `message ${type}`;
+      }
+
+      function showSuccess(text) {
+        els.successText.textContent = text;
+        els.formView.style.display = "none";
+        els.confirmView.style.display = "none";
+        els.submitBar.style.display = "none";
+        els.successView.style.display = "grid";
+      }
+
+      async function toggleOrderHistory() {
+        const isOpen = els.historyPanel.classList.toggle("is-open");
+        els.historyButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        els.historyButton.textContent = isOpen ? "收起已下单订单" : "查看已下单订单";
+        if (isOpen && !historyLoaded) {
+          await loadOrderHistory();
+        }
+      }
+
+      async function loadOrderHistory() {
+        els.historyPanel.innerHTML = `<div class="history-card">正在读取已下单订单...</div>`;
+        try {
+          const payload = await fetchJson(`/api/public-order/orders?token=${encodeURIComponent(token)}`);
+          const orders = payload.items || [];
+          historyLoaded = true;
+          if (!orders.length) {
+            els.historyPanel.innerHTML = `<div class="history-card">当前门店还没有可查看的日配订单。</div>`;
+            return;
+          }
+          els.historyPanel.innerHTML = orders.map((order) => `
+            <details class="history-card">
+              <summary>
+                <span>
+                  <strong>${escapeHtml(order.filename || "日配订单")}</strong>
+                  <small>${escapeHtml(formatDate(order.created_at))} · ${Number(order.item_count || order.line_count || 0)} 个 SKU · 合计 ${formatNumber(order.total_quantity)} 件</small>
+                </span>
+                <b>明细</b>
+              </summary>
+              <ul>
+                ${(order.items || []).map((item) => `<li><span>${escapeHtml(item.name || item.sku)} ${escapeHtml(item.spec || "")}</span><b>${formatNumber(item.quantity)}${escapeHtml(item.unit || "")}</b></li>`).join("")}
+              </ul>
+              <a href="${escapeHtml(order.download_url)}" target="_blank" rel="noopener">下载 Excel</a>
+            </details>
+          `).join("");
+        } catch (error) {
+          els.historyPanel.innerHTML = `<div class="history-card">${escapeHtml(error.message || "订单读取失败")}</div>`;
+        }
+      }
+
+      function showConfirm() {
+        els.formView.style.display = "none";
+        els.confirmView.style.display = "block";
+        els.submitActions.style.display = "none";
+        els.confirmActions.style.display = "grid";
+        setMessage("请核对后确认提交。");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function showForm() {
+        els.formView.style.display = "block";
+        els.confirmView.style.display = "none";
+        els.submitActions.style.display = "grid";
+        els.confirmActions.style.display = "none";
+        els.confirm.disabled = false;
+        els.edit.disabled = false;
+        setMessage(`合计满 ${minOrderQuantity} 件后提交。`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function renderConfirm(items) {
+        const store = findStore(els.store.value);
+        const total = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+        els.confirmMeta.innerHTML = `
+          <strong>${escapeHtml((store && store.name) || els.store.value)}</strong>
+          <div>联系人：${escapeHtml((store && store.contact) || "-")} ${escapeHtml((store && store.phone) || "")}</div>
+          <div>地址：${escapeHtml((store && store.address) || "-")}</div>
+          <div>合计：${items.length} 个商品，${formatNumber(total)} 件</div>
+        `;
+        els.summaryList.innerHTML = items.map((item) => {
+          const product = products.find((product) => product.sku === item.sku) || {};
+          return `
+            <div class="summary-row">
+              <div>
+                <strong>${escapeHtml(product.name || item.sku)}</strong>
+                <span>${escapeHtml(product.spec || "")} · ${escapeHtml(product.unit || "件")}</span>
+              </div>
+              <div class="summary-qty">${formatNumber(item.quantity)} ${escapeHtml(product.unit || "件")}</div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function bindQuantityButtons() {
+        document.querySelectorAll(".qty-button").forEach((button) => {
+          button.addEventListener("click", () => {
+            const control = button.closest(".qty-control");
+            const input = control.querySelector("input");
+            const step = Number(button.dataset.step || 0);
+            const current = Number(input.value || 0);
+            input.value = Math.max(0, current + step) || "";
+          });
+        });
+      }
+
+      function renderStoreInfo() {
+        const store = findStore(els.store.value);
+        if (!store) {
+          els.storeInfo.style.display = "none";
+          els.storeInfo.innerHTML = "";
+          return;
+        }
+        els.storeInfo.style.display = "block";
+        els.storeInfo.innerHTML = `
+          ${stores.length === 1 ? `<span class="verified-label">已校验门店</span>` : ""}
+          <strong>${escapeHtml(store.name)}</strong>
+          <div>联系人：${escapeHtml(store.contact || "-")} ${escapeHtml(store.phone || "")}</div>
+          <div>地址：${escapeHtml(store.address || "-")}</div>
+        `;
+      }
+
+      function normalizeStore(store) {
+        if (!store) return { name: "", address: "", contact: "", phone: "" };
+        if (typeof store === "string") return { name: store, address: "", contact: "", phone: "" };
+        return {
+          name: String(store.name || store.store_name || ""),
+          address: String(store.address || ""),
+          contact: String(store.contact || ""),
+          phone: String(store.phone || ""),
+        };
+      }
+
+      function findStore(name) {
+        const cleanName = String(name || "");
+        if (authenticatedStore && authenticatedStore.name === cleanName) return authenticatedStore;
+        return stores.find((item) => item.name === cleanName);
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        }[char]));
+      }
+
+      function formatNumber(value) {
+        const number = Number(value || 0);
+        return Number.isInteger(number) ? String(number) : String(Number(number.toFixed(2)));
+      }
+
+      function formatDate(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      }
+
+      els.submit.addEventListener("click", previewSummary);
+      els.edit.addEventListener("click", showForm);
+      els.confirm.addEventListener("click", submitOrder);
+      els.store.addEventListener("change", renderStoreInfo);
+      els.historyButton.addEventListener("click", toggleOrderHistory);
+      loadCatalog();
+    </script>
+  </body>
+</html>

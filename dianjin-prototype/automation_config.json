@@ -1,0 +1,29 @@
+{
+  "chrome": {
+    "debugUrl": "http://127.0.0.1:9222",
+    "profileNote": "复用 business-report-dashboard 的常用 Chrome 调试端口"
+  },
+  "eleme": {
+    "entryUrl": "https://melody.shop.ele.me/",
+    "promotionUrl": "https://r.ele.me/doujin-isv-manage/index.html?__path__=eleCpcChain/oldBranch",
+    "readyTexts": ["饿了么", "商家版", "点金", "推广"],
+    "selectors": {
+      "storeSwitcher": "",
+      "storeSearchInput": "input[placeholder=\"搜索门店名称或ID\"]",
+      "storeSearchResult": "",
+      "currentStoreName": "",
+      "budgetInput": "",
+      "bidInput": "",
+      "spendText": "",
+      "saveButton": "",
+      "table": ".ant-table",
+      "knownColumns": ["门店名称/ID", "门店出价", "每日预算", "今日花费(元)", "预算使用率", "投放开关"]
+    }
+  },
+  "safety": {
+    "dryRun": false,
+    "requireStoreNameCheck": true,
+    "requireBeforeSaveConfirm": true,
+    "screenshotBeforeSave": true
+  }
+}

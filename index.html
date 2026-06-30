@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>熊小小AI管理系统</title>
+    <link rel="stylesheet" href="./workbench.css?v=20260620-flow-clear-v5" />
+  </head>
+  <body>
+    <main class="app">
+      <aside class="side">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><span class="brand-emoji">🐻</span></span>
+          <div>
+            <strong>熊小小AI管理系统</strong>
+            <span>运营 · 推广 · 货流 · 工具</span>
+          </div>
+        </div>
+        <nav class="nav" aria-label="业务中心导航">
+          <section class="nav-section" aria-labelledby="nav-direct-ops">
+            <h2 id="nav-direct-ops">直营店运营数据中心</h2>
+            <div class="nav-subgroup">
+              <a href="#direct-daily">直营店日报看板</a>
+              <a href="#direct-reviews">直营店评价看板</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-ops">
+            <h2 id="nav-ops">加盟店运营数据中心</h2>
+            <div class="nav-subgroup">
+              <a class="nav-home active" href="#overview">加盟店实时数据看板</a>
+              <a href="#daily">加盟店日报看板</a>
+              <a href="#reviews">加盟店评价看板</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-growth">
+            <h2 id="nav-growth">全品牌推广中心</h2>
+            <div class="nav-subgroup">
+              <a href="#budget">推广预算全自动设置</a>
+              <a href="#bidding">推广出价调整</a>
+              <a href="#balances">推广余额预警</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-flow">
+            <h2 id="nav-flow">直营店货流中心</h2>
+            <div class="nav-subgroup">
+              <a href="#ordering">直营店订货管理</a>
+              <a href="#inventory">成都仓库存管理</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-tools">
+            <h2 id="nav-tools">小工具仓库</h2>
+            <div class="nav-subgroup">
+              <a href="#sales-receipts">销售单生成器</a>
+              <a href="#franchise-contract">加盟合同生成器</a>
+            </div>
+          </section>
+
+          <section class="nav-section" aria-labelledby="nav-system">
+            <h2 id="nav-system">系统状态</h2>
+            <div class="nav-subgroup">
+              <a href="#ops-health">自动化任务健康报告</a>
+            </div>
+          </section>
+        </nav>
+      </aside>
+
+      <section class="main">
+        <header class="topbar" id="overview">
+          <div>
+            <p class="kicker" id="generatedAt">等待数据</p>
+            <h1>熊小小AI管理系统</h1>
+          </div>
+        </header>
+
+        <section class="command-board" aria-label="加盟店实时数据看板">
+          <article class="hero-card hero-realtime" id="realtime">
+            <div class="module-head">
+              <div>
+                <p>加盟店实时订单量</p>
+                <h2>半小时/一小时采集快照</h2>
+              </div>
+              <span class="tag testing" id="realtimeStatus">待采集</span>
+            </div>
+            <div class="realtime-summary">
+              <div><span>当前单量</span><strong id="realtimeOrders">-</strong></div>
+              <div><span>当前营业额</span><strong id="realtimeIncome">-</strong></div>
+              <div><span>昨日同时段</span><strong id="realtimeCompare">-</strong></div>
+            </div>
+            <p class="realtime-meta" id="realtimeMeta">等待实时数据。</p>
+            <div class="realtime-store-grid" id="realtimeStoreRows"></div>
+          </article>
+
+          <aside class="priority-stack" aria-label="昨日简报和重点预警">
+            <article class="summary-card">
+              <div class="module-head">
+                <div>
+                  <p>昨日日报简报</p>
+                  <h2>只看关键数字</h2>
+                </div>
+                <span class="tag ready">日报</span>
+              </div>
+              <div class="brief-strip">
+                <div>
+                  <span>单量</span>
+                  <strong id="briefOrders">-</strong>
+                  <em id="briefOrdersCompare">较前日 -</em>
+                </div>
+                <div>
+                  <span>营业额</span>
+                  <strong id="briefIncome">-</strong>
+                  <em id="briefIncomeCompare">较前日 -</em>
+                </div>
+              </div>
+              <p id="dailySummary">等待日报数据。</p>
+              <div class="overview-daily-block">
+                <h3>分门店 / 分平台</h3>
+                <div class="overview-daily-store-grid" id="overviewDailyStoreCards"></div>
+              </div>
+            </article>
+          </aside>
+        </section>
+
+        <section class="summary-card alert-card overview-alert">
+          <div class="module-head">
+            <div>
+              <p>重点预警</p>
+              <h2>需要先处理的事</h2>
+            </div>
+            <span class="tag danger" id="priorityStatus">待检查</span>
+          </div>
+          <div class="priority-list" id="priorityRows"></div>
+        </section>
+
+        <section class="center-section" id="ops-health">
+          <div class="section-head">
+            <p>加盟店运营数据中心</p>
+            <h2>自动化任务健康报告</h2>
+          </div>
+          <div class="center-grid health-grid">
+            <article class="module wide-module">
+              <div class="module-head">
+                <div>
+                  <p>自动化任务</p>
+                  <h2>运行记录与异常原因</h2>
+                </div>
+                <span class="tag ready" id="healthStatus">已接入</span>
+              </div>
+              <div class="module-body">
+                <p id="healthSummary">等待自动化运行记录。</p>
+                <div class="health-block-title">上午自动化任务</div>
+                <div class="health-task-list morning-task-list" id="morningTaskRows"></div>
+                <div class="health-block-title">任务当前状态</div>
+                <div class="health-task-list" id="healthRows"></div>
+                <div class="health-block-title">最近运行记录</div>
+                <div class="health-task-list health-run-list" id="healthRunRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section report-section" id="daily">
+          <div class="section-head">
+            <p>加盟店运营数据中心</p>
+            <h2>加盟店日报看板</h2>
+          </div>
+          <iframe
+            class="daily-report-frame"
+            data-report-src="business-report-dashboard/"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            title="加盟店日报看板"
+          ></iframe>
+        </section>
+
+        <section class="center-section report-section" id="direct-daily">
+          <div class="section-head">
+            <p>直营店运营数据中心</p>
+            <h2>直营店日报看板</h2>
+          </div>
+          <iframe
+            class="daily-report-frame"
+            data-report-src="business-report-dashboard/direct-dashboard/"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            title="直营店日报看板"
+          ></iframe>
+        </section>
+
+        <section class="center-section" id="reviews">
+          <div class="section-head">
+            <p>加盟店运营数据中心</p>
+            <h2>加盟店评价看板</h2>
+          </div>
+          <article class="module module-review wide-module">
+            <div class="module-head">
+              <div>
+                <p>评价</p>
+                <h2>昨日评价与差评重点</h2>
+              </div>
+              <span class="tag testing" id="reviewStatus">待同步</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="reviewCount">-</div>
+              <p id="reviewSummary">等待评价数据。</p>
+              <div class="review-command-grid" id="reviewCommandRows"></div>
+              <div class="mini-table review-weekly-list" id="reviewWeeklyRows"></div>
+              <div class="mini-table review-list" id="reviewRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="http://139.155.148.169/business-report-dashboard/">打开评价日报</a>
+            </div>
+          </article>
+        </section>
+
+        <section class="center-section" id="direct-reviews">
+          <div class="section-head">
+            <p>直营店运营数据中心</p>
+            <h2>直营店评价看板</h2>
+          </div>
+          <article class="module module-review wide-module">
+            <div class="module-head">
+              <div>
+                <p>评价</p>
+                <h2>直营店昨日评价与差评重点</h2>
+              </div>
+              <span class="tag testing" id="directReviewStatus">待同步</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="directReviewCount">-</div>
+              <p id="directReviewSummary">等待直营店评价数据。</p>
+              <div class="review-command-grid" id="directReviewCommandRows"></div>
+              <div class="mini-table review-list" id="directReviewRows"></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="center-section" id="budget">
+          <div class="section-head">
+            <p>全品牌推广中心</p>
+            <h2>推广预算全自动设置</h2>
+          </div>
+          <div class="center-grid">
+            <article class="module module-budget">
+              <div class="module-head">
+                <div>
+                  <p>预算</p>
+                  <h2>云端预算与录入区</h2>
+                </div>
+                <span class="tag ready">上午按钮</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="budgetCount">-</div>
+                <p id="budgetSummary">等待预算预览。</p>
+                <div class="budget-current-list" id="budgetRows"></div>
+                <div class="budget-editor-panel">
+                  <div class="budget-editor-head">
+                    <div>
+                      <span>录入预算</span>
+                      <strong>工作日 / 周末</strong>
+                    </div>
+                    <button class="confirm-button" id="budgetSaveButton" type="button">保存到云端</button>
+                  </div>
+                  <div class="save-status" id="budgetSaveStatus"></div>
+                  <div class="budget-editor-grid" id="budgetEditorRows"></div>
+                </div>
+                <div class="mini-table" id="budgetRetryRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="bidding">
+          <div class="section-head">
+            <p>全品牌推广中心</p>
+            <h2>推广出价调整</h2>
+          </div>
+          <article class="module wide-module">
+            <div class="module-head">
+              <div>
+                <p>出价</p>
+                <h2>新逻辑待接入</h2>
+              </div>
+              <span class="tag planning" id="biddingStatus">建设中</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="biddingCount">框架保留</div>
+              <p id="biddingSummary">建设中：旧的推广出价调整逻辑已从页面移除，等待接入新的出价规则。</p>
+              <div class="mini-table" id="biddingRows"></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="center-section" id="balances">
+          <div class="section-head">
+            <p>全品牌推广中心</p>
+            <h2>推广余额不足预警</h2>
+          </div>
+          <article class="module module-balance wide-module">
+            <div class="module-head">
+              <div>
+                <p>余额</p>
+                <h2>双平台推广余额</h2>
+              </div>
+              <span class="tag testing" id="balanceStatus">巡检</span>
+            </div>
+            <div class="module-body">
+              <div class="big-number" id="balanceWarningCount">-</div>
+              <p id="balanceSummary">等待余额巡检数据。</p>
+              <div class="mini-table" id="balanceRows"></div>
+            </div>
+            <div class="module-actions">
+              <a href="./store-inspection/index.html">打开余额页</a>
+            </div>
+          </article>
+        </section>
+
+        <section class="center-section" id="ordering">
+          <div class="section-head">
+            <p>直营店货流中心</p>
+            <h2>直营店订货管理</h2>
+          </div>
+          <div class="embedded-board-shell ordering-admin-shell">
+            <div class="embedded-board-bar">
+              <div>
+                <span>日常订货处理看板</span>
+                <strong>门店订单 · 渠道处理 · 已处理/未处理</strong>
+              </div>
+              <a href="/daily-order/admin?token=daily-order-admin" target="_blank" rel="noreferrer">独立打开</a>
+            </div>
+            <iframe
+              class="ordering-admin-frame"
+              data-ordering-admin-src="/daily-order/admin?token=daily-order-admin"
+              title="日常订货处理看板"
+            ></iframe>
+          </div>
+        </section>
+
+        <section class="center-section inventory-section" id="inventory">
+          <div class="section-head">
+            <p>直营店货流中心</p>
+            <h2>成都仓库存管理</h2>
+          </div>
+          <iframe
+            class="inventory-board-frame"
+            data-inventory-src="/"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            title="成都仓库存管理"
+          ></iframe>
+        </section>
+
+        <section class="center-section" id="sales-receipts">
+          <div class="section-head">
+            <p>小工具仓库</p>
+            <h2>销售单生成器</h2>
+          </div>
+          <iframe
+            class="tool-page-frame"
+            src="./sales-receipt-generator/index.html"
+            title="销售单生成器"
+          ></iframe>
+          <div class="center-grid tool-status-grid">
+            <article class="module module-receipt">
+              <div class="module-head">
+                <div>
+                  <p>销售单</p>
+                  <h2>销售单据生成器</h2>
+                </div>
+                <span class="tag ready" id="salesReceiptStatus">已接入</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="salesReceiptCount">-</div>
+                <p id="salesReceiptSummary">等待工具状态。</p>
+                <div class="mini-table" id="salesReceiptRows"></div>
+              </div>
+              <div class="module-actions">
+                <a href="./sales-receipt-generator/index.html">打开销售单</a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="center-section" id="franchise-contract">
+          <div class="section-head">
+            <p>小工具仓库</p>
+            <h2>加盟合同生成器</h2>
+          </div>
+          <div class="center-grid">
+            <article class="module module-contract">
+              <div class="module-head">
+                <div>
+                  <p>合同</p>
+                  <h2>加盟合同生成器</h2>
+                </div>
+                <span class="tag planning" id="franchiseContractStatus">待模板</span>
+              </div>
+              <div class="module-body">
+                <div class="big-number" id="franchiseContractCount">-</div>
+                <p id="franchiseContractSummary">等待合同模板字段。</p>
+                <div class="mini-table" id="franchiseContractRows"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
+    <script src="./workbench.js?v=20260620-flow-clear-v5"></script>
+  </body>
+</html>
