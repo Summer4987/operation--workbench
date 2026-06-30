@@ -503,6 +503,40 @@ def parse_ui_nodes(xml_text: str) -> list[dict[str, Any]]:
     return nodes
 
 
+def snapshot_xml_text(snapshot: dict[str, Any]) -> str:
+    xml_path = Path((snapshot.get("files") or {}).get("ui_xml") or "")
+    if not xml_path.exists() or not xml_path.is_file():
+        return ""
+    return xml_path.read_text(encoding="utf-8", errors="ignore")
+
+
+def empty_cart_shop_candidate(xml_text: str) -> dict[str, Any] | None:
+    text_blob = " ".join(all_page_text(xml_text))
+    if "购物车为空" not in text_blob or "去选购" not in text_blob:
+        return None
+    if any(word in text_blob for word in ["提交订单", "付款", "去结算", "合计:"]):
+        return None
+    candidates = []
+    for node in parse_ui_nodes(xml_text):
+        if node_text(node) != "去选购":
+            continue
+        bounds = tuple(node.get("bounds") or [])
+        if len(bounds) != 4:
+            continue
+        center = bounds_center(bounds)
+        candidates.append(
+            {
+                "kind": "empty_cart_go_shop",
+                "text": "去选购",
+                "bounds": list(bounds),
+                "center": [round(center[0], 1), round(center[1], 1)],
+                "reasons": ["empty_cart_text_visible", "go_shop_text_visible", "no_checkout_risk_text"],
+            }
+        )
+    candidates.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+    return candidates[0] if candidates else None
+
+
 def nearby_texts(nodes: list[dict[str, Any]], center: tuple[float, float], radius_y: int = 140, radius_x: int = 760, limit: int = 12) -> list[dict[str, Any]]:
     cx, cy = center
     rows = []
@@ -2962,6 +2996,22 @@ def run_adb_search(
         after_back = save_adb_snapshot(serial, session_dir / "after-back", timeout, plan)
         analysis = (after_back.get("ui_analysis") or {}) if after_back.get("captured") else analysis
 
+    current_snapshot = after_back if after_back and after_back.get("captured") else before
+    empty_cart_exit = None
+    if analysis.get("cart_review_page"):
+        candidate = empty_cart_shop_candidate(snapshot_xml_text(current_snapshot))
+        if candidate:
+            tap_result = run_command(adb_base(serial) + ["shell", "input", "tap", str(int(candidate["center"][0])), str(int(candidate["center"][1]))], timeout)
+            time.sleep(1.2)
+            after_empty_cart_exit = save_adb_snapshot(serial, session_dir / "after-empty-cart-exit", timeout, plan)
+            empty_cart_exit = {
+                "candidate": candidate,
+                "tap": {"returncode": tap_result.returncode, "stderr": tap_result.stderr.strip(), "stdout": tap_result.stdout.strip()},
+                "after": after_empty_cart_exit,
+            }
+            if after_empty_cart_exit.get("captured"):
+                current_snapshot = after_empty_cart_exit
+                analysis = after_empty_cart_exit.get("ui_analysis") or analysis
     if analysis.get("cart_review_page"):
         return {
             "status": "blocked",
@@ -2971,8 +3021,8 @@ def run_adb_search(
             "before": before,
             "after_back": after_back,
             "back_results": back_results,
+            "empty_cart_exit": empty_cart_exit,
         }
-    current_snapshot = after_back if after_back and after_back.get("captured") else before
     if analysis.get("product_detail_page") and not is_search_overlay_snapshot(current_snapshot):
         return {
             "status": "blocked",

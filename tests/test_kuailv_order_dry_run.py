@@ -15,6 +15,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     auto_add_pack_steps,
     build_plan,
     delivery_store_match,
+    empty_cart_shop_candidate,
     load_order_json,
     safe_tap_visual_proof,
     score_candidate_for_line,
@@ -213,6 +214,28 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertIsNotNone(candidate)
         self.assertEqual(candidate["text"], "黄皮洋葱")
         self.assertEqual(candidate["center"], [426.0, 295.0])
+
+    def test_empty_cart_shop_candidate_accepts_go_shop_only_on_empty_cart(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="购物车为空，快来选购吧" bounds="[289,781][790,849]" />
+  <node text="去选购" bounds="[433,888][646,990]" />
+</hierarchy>"""
+
+        candidate = empty_cart_shop_candidate(xml_text)
+
+        self.assertIsNotNone(candidate)
+        self.assertEqual(candidate["center"], [539.5, 939.0])
+
+    def test_empty_cart_shop_candidate_blocks_checkout_risk_text(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="购物车为空，快来选购吧" bounds="[289,781][790,849]" />
+  <node text="去选购" bounds="[433,888][646,990]" />
+  <node text="去结算" bounds="[820,2140][1040,2240]" />
+</hierarchy>"""
+
+        self.assertIsNone(empty_cart_shop_candidate(xml_text))
 
     def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
         config = {
