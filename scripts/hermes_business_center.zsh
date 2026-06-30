@@ -21,7 +21,7 @@ case "${1:-status}" in
     python3 ai-business-center/agent_bridge.py task "$@"
     ;;
   commands|help|命令|帮助)
-    python3 ai-business-center/center.py agent-commands
+    python3 ai-business-center/agent_bridge.py commands
     ;;
   aliases|alias|简称|简称表)
     python3 ai-business-center/agent_bridge.py aliases
@@ -45,8 +45,6 @@ case "${1:-status}" in
     python3 scripts/finance_inbox.py schema
     ;;
   *)
-    echo "未知命令：$1"
-    python3 ai-business-center/center.py agent-commands
-    exit 2
+    python3 ai-business-center/agent_bridge.py route "$@"
     ;;
 esac

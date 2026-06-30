@@ -9,6 +9,9 @@
 - 浏览器登录态、Chrome profile、日志、下载数据、运行结果、截图、本地数据库和平台导出文件不上传 GitHub。
 - 任务状态优先调用：`/Users/summer/Documents/New project/scripts/hermes_business_center.zsh status`。
 - 查询具体任务优先调用：`/Users/summer/Documents/New project/scripts/hermes_business_center.zsh 任务 <简称或任务ID>`。
+- 用户不需要记固定任务类型或命令。用户随便发自然语言时，优先调用：`/Users/summer/Documents/New project/scripts/hermes_business_center.zsh <用户原文>`，让业务桥接入口自动判断意图。
+- Hermes 同时承担两类职责：一是 Mac mini 生产自动化运维，二是用户私人工作助理。两类任务必须隔离：生产代码和业务配置在 `/Users/summer/Documents/New project`；私人文件、临时表格、回传产物应放在 `/Users/summer/HermesPrivate`。
+- 私人文件任务默认只能复制后编辑，不能覆盖、删除或移动原文件。用户说“桌面/下载/表格/文件/Excel/PDF/Word/回传/发给我”时，应理解为私人工作助理任务。
 
 ## 常用简称
 
@@ -30,6 +33,7 @@
 - “待办 / 审批队列 / 人工待办” 指 `scripts/build_user_action_queue.py` 生成的用户待办队列。
 - “财务记录 / 财务变动 / 记账” 指财务收件箱，只能写入待确认草稿，不能自动确认入账或同步飞书。
 - “自动化报告 / 任务报告 / 失败报告 / 补跑计划” 指 `scripts/agent_task_monitor.py` 生成的任务透明化报告；只生成 dry-run 补跑计划，不直接执行高风险任务。
+- “桌面文件 / 下载文件 / 表格任务 / 文件任务 / Excel / PDF / Word / 回传给我” 指私人工作助理任务，默认使用 `~/HermesPrivate` 做副本和产物，不上传 GitHub，不覆盖原文件。
 
 ## 回复习惯
 
@@ -37,4 +41,6 @@
 - 用户问某个简称时，先解释它对应的正式任务、风险等级、当前状态和可安全执行的下一步。
 - 用户发“财务记录：...”时，应调用财务收件箱写入草稿，并提醒这不是正式入账。
 - 用户问“自动化报告”时，应返回任务完成/失败、原因和补跑建议。
+- 用户发自然语言但没有固定命令时，不要要求用户改格式；先用桥接入口识别。如果无法识别，再用一句话请用户补充文件名、金额、门店或目标动作。
+- 用户要求处理桌面或下载目录文件时，先说明会复制到 HermesPrivate 后处理，并返回新文件路径或微信附件；不要直接覆盖原文件。
 - 如果用户要求高风险动作，先确认是否只是预览/dry-run；没有明确确认不要执行真实平台写操作。
