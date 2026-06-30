@@ -407,7 +407,16 @@ def scan_detail_pages(
             parsed = parse_logistics_records(list_xml, store_name, captured_at)
             all_records.extend(parsed["records"])
             detail_summaries.append({"kind": "current-page", "record_count": len(parsed["records"]), "store_name": parsed["store_name"]})
-            break
+            if parsed["records"]:
+                back = run_command(base + ["shell", "input", "keyevent", "4"], timeout)
+                commands.append(back)
+                time.sleep(1)
+                list_xml, _list_path, list_commands = capture_snapshot(serial, page_dir, timeout, "list_after_back")
+                commands.extend(list_commands)
+                targets = list_detail_targets(list_xml, max_details - scanned)
+                write_json(page_dir / "targets_after_back.json", targets)
+            if not targets:
+                break
         for target_index, target in enumerate(targets, start=1):
             if scanned >= max_details:
                 break
