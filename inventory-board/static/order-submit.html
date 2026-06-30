@@ -29,7 +29,7 @@
       main {
         width: min(980px, calc(100% - 24px));
         margin: 0 auto;
-        padding: 16px 0 88px;
+        padding: 16px 0 66px;
       }
 
       .top {
@@ -368,16 +368,18 @@
 
       .submit-inner {
         width: min(980px, calc(100% - 24px));
-        min-height: 70px;
+        min-height: 58px;
         margin: 0 auto;
         display: grid;
-        grid-template-columns: 1fr 180px;
+        grid-template-columns: 1fr;
         align-items: center;
-        gap: 12px;
+        gap: 0;
+        padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
       }
 
       .message {
-        min-height: 20px;
+        display: none;
+        min-height: 0;
         color: var(--muted);
         font-size: 14px;
         font-weight: 800;
@@ -399,7 +401,8 @@
 
       button:disabled {
         cursor: not-allowed;
-        opacity: .55;
+        background: #8fb3e6;
+        opacity: 1;
       }
 
       .success-screen {
@@ -522,7 +525,7 @@
       @media (max-width: 720px) {
         h1 { font-size: 24px; }
         .grid { grid-template-columns: 1fr; }
-        .submit-inner { grid-template-columns: 1fr; padding: 10px 0; }
+        .submit-inner { padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); }
         .confirm-actions { grid-template-columns: 1fr; padding: 10px 0; }
       }
     </style>
@@ -665,7 +668,7 @@
           bindQuantityButtons();
           els.itemCount.textContent = `${products.filter((item) => item.available).length}/${products.length} 个可订`;
           renderStoreInfo();
-          setMessage(`合计满 ${minOrderQuantity} 件后提交。`);
+          updateSubmitState();
         } catch (error) {
           setMessage(error.message, "error");
           els.submit.disabled = true;
@@ -723,10 +726,24 @@
       function hasMinimumQuantity(items) {
         const total = totalQuantity(items);
         if (total < minOrderQuantity) {
-          setMessage(`日配订货满 ${minOrderQuantity} 件才可以提交，当前合计 ${formatNumber(total)} 件`, "error");
+          updateSubmitState("error");
           return false;
         }
         return true;
+      }
+
+      function updateSubmitState(type = "") {
+        const items = selectedItems();
+        const total = totalQuantity(items);
+        const remaining = Math.max(0, minOrderQuantity - total);
+        const canSubmit = total >= minOrderQuantity;
+        els.submit.disabled = !canSubmit;
+        els.submit.textContent = canSubmit
+          ? `提交订货（${formatNumber(total)}件）`
+          : `满${minOrderQuantity}件提交，还差${formatNumber(remaining)}件`;
+        setMessage(canSubmit
+          ? `已选 ${formatNumber(total)} 件，可以提交。`
+          : `合计满 ${minOrderQuantity} 件后提交，当前 ${formatNumber(total)} 件。`, type);
       }
 
       async function fetchJson(url, options) {
@@ -820,7 +837,7 @@
         els.confirmActions.style.display = "none";
         els.confirm.disabled = false;
         els.edit.disabled = false;
-        setMessage(`合计满 ${minOrderQuantity} 件后提交。`);
+        updateSubmitState();
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
 
@@ -855,6 +872,13 @@
             const step = Number(button.dataset.step || 0);
             const current = Number(input.value || 0);
             input.value = Math.max(0, current + step) || "";
+            updateSubmitState();
+          });
+        });
+        document.querySelectorAll("input[data-sku]").forEach((input) => {
+          input.addEventListener("input", () => {
+            input.value = Math.max(0, Number(input.value || 0)) || "";
+            updateSubmitState();
           });
         });
       }

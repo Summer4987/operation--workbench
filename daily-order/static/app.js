@@ -430,7 +430,7 @@ function renderOrdersPanelState() {
   els.storeOrdersPanel.classList.toggle("is-collapsed", !state.ordersExpanded);
   els.storeOrdersPanel.hidden = !state.ordersExpanded;
   els.storeOrdersList.hidden = !state.ordersExpanded;
-  els.toggleOrders.textContent = state.ordersExpanded ? "收起已下单订单" : "查看已下单订单";
+  els.toggleOrders.textContent = state.ordersExpanded ? "收起订单" : "已下单订单";
   els.toggleOrders.setAttribute("aria-expanded", String(state.ordersExpanded));
   els.refreshOrders.hidden = !state.ordersExpanded;
 }

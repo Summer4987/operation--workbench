@@ -4,28 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>熊小小成都门店订货</title>
-    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260625-secondary-tabs" />
+    <link rel="stylesheet" href="/daily-order/static/styles.css?v=20260701-compact-order-top" />
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <div>
+    <main class="shell daily-order-page">
+      <header class="topbar compact-order-topbar">
+        <div class="compact-title">
           <span>熊小小订货</span>
           <h1>熊小小成都门店订货</h1>
         </div>
-        <button id="logoutButton" class="quiet-logout" type="button">退出账号</button>
-      </header>
-
-      <section class="store-panel">
-        <div class="store-field">
-          <label for="storeName">门店名称</label>
-          <select id="storeName" required>
-            <option value="">请选择门店</option>
-          </select>
-          <div id="verifiedStore" class="verified-store" hidden></div>
-        </div>
-        <div class="store-actions">
-          <button id="toggleOrdersButton" type="button" aria-expanded="false">查看已下单订单</button>
+        <div class="compact-store-row">
+          <div class="store-field">
+            <label for="storeName">门店</label>
+            <select id="storeName" required>
+              <option value="">请选择门店</option>
+            </select>
+            <div id="verifiedStore" class="verified-store" hidden></div>
+          </div>
+          <button id="toggleOrdersButton" class="compact-orders-button" type="button" aria-expanded="false">已下单订单</button>
+          <button id="logoutButton" class="quiet-logout" type="button">退出账号</button>
         </div>
         <div id="storeOrdersPanel" class="store-orders-panel">
           <div class="store-orders-toolbar">
@@ -36,7 +33,7 @@
             <p>选择门店后可查看本设备提交的订单。</p>
           </div>
         </div>
-      </section>
+      </header>
 
       <section class="filters">
         <input id="searchInput" type="search" placeholder="搜索品名 / SKU / 备注" />
@@ -82,6 +79,6 @@
       </div>
     </section>
 
-    <script src="/daily-order/static/app.js?v=20260629-store-check"></script>
+    <script src="/daily-order/static/app.js?v=20260701-compact-order-top"></script>
   </body>
 </html>

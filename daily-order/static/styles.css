@@ -179,6 +179,109 @@ h1 {
   font-weight: 900;
 }
 
+.daily-order-page .compact-order-topbar {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+}
+
+.daily-order-page .compact-title {
+  min-width: 0;
+}
+
+.daily-order-page .compact-title h1 {
+  margin-top: 1px;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.daily-order-page .compact-store-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.daily-order-page .compact-store-row .store-field {
+  min-width: 132px;
+  max-width: 260px;
+  display: block;
+}
+
+.daily-order-page .compact-store-row .store-field label {
+  display: none;
+}
+
+.daily-order-page .compact-store-row .store-field select {
+  min-height: 36px;
+  border-color: var(--line);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.daily-order-page .compact-store-row .verified-store {
+  display: block;
+  min-height: 36px;
+  border-color: #b5cbc7;
+  padding: 6px 9px;
+  line-height: 1.05;
+}
+
+.daily-order-page .compact-store-row .verified-store span {
+  display: block;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.daily-order-page .compact-store-row .verified-store strong {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.daily-order-page .compact-store-row .verified-store small {
+  display: none;
+}
+
+.daily-order-page .compact-orders-button,
+.daily-order-page .compact-store-row .quiet-logout {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.daily-order-page .compact-orders-button {
+  border: 1px solid #b5cbc7;
+  background: #f0faf7;
+  color: var(--brand);
+}
+
+.daily-order-page .compact-store-row .quiet-logout {
+  align-self: center;
+  border: 0;
+}
+
+.daily-order-page .compact-order-topbar .store-orders-panel {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  border-top: 1px solid #eef2f6;
+  padding-top: 8px;
+}
+
 .beijing-order-page .store-panel {
   display: block;
   padding: 0;
@@ -1340,6 +1443,46 @@ dialog::backdrop {
 }
 
 @media (max-width: 620px) {
+  .daily-order-page .compact-order-topbar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .daily-order-page .compact-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
+  }
+
+  .daily-order-page .compact-title span {
+    grid-column: 1 / -1;
+    font-size: 11px;
+  }
+
+  .daily-order-page .compact-title h1 {
+    font-size: 20px;
+  }
+
+  .daily-order-page .compact-store-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+  }
+
+  .daily-order-page .compact-store-row .store-field {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .daily-order-page .compact-orders-button,
+  .daily-order-page .compact-store-row .quiet-logout {
+    min-height: 34px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
   .catalog-grid,
   .submit-inner,
   .dialog-actions {
