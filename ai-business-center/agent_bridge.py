@@ -334,22 +334,51 @@ def format_business_term(term: dict[str, Any]) -> str:
     term_values = " ".join(str(value) for value in [term.get("name", ""), *(term.get("aliases") or [])])
     if normalized_contains(term_values, PROMO_BID_WORDS):
         return format_promo_bid_help()
-    lines = [
-        f"{term.get('name', '业务简称')}",
-        f"中心：{term.get('center', 'unknown')}；风险：{term.get('risk', 'unknown')}",
-    ]
-    if term.get("status"):
-        lines.append(f"状态：{term['status']}")
+    name = term.get("name") or "这个业务"
+    safe_note = str(term.get("safe_note") or "")
+    status = str(term.get("status") or "")
+    lines = [format_business_term_intro(name, term)]
+    if status:
+        lines.append(format_business_term_status(name, status))
     if term.get("url"):
-        lines.append(f"链接：{term['url']}")
-    if term.get("command"):
-        lines.append(f"安全命令：{term['command']}")
+        lines.append(f"入口是 {term['url']}。")
     aliases = term.get("aliases") or []
     if aliases:
-        lines.append("可识别简称：" + "、".join(aliases))
-    if term.get("safe_note"):
-        lines.append("安全边界：" + term["safe_note"])
-    return "\n".join(lines)
+        lines.append("你也可以简称它：" + "、".join(str(alias) for alias in aliases[:5]) + "。")
+    if safe_note:
+        lines.append(format_safe_note(safe_note))
+    return " ".join(line for line in lines if line)
+
+
+def format_business_term_intro(name: str, term: dict[str, Any]) -> str:
+    center = str(term.get("center") or "")
+    if center == "operations":
+        return f"{name}我可以帮你查运行结果、最近日志和失败原因。"
+    if center == "inventory":
+        return f"{name}我可以帮你查入口、做预览和检查状态。"
+    if center == "finance":
+        return f"{name}我可以帮你记录财务信息、整理草稿和查看待确认内容。"
+    if center == "promotion":
+        return f"{name}我可以帮你看推广相关状态和执行进展。"
+    return f"{name}我可以帮你处理。"
+
+
+def format_business_term_status(name: str, status: str) -> str:
+    if "尚未登记" in status and "健康任务" in status:
+        return f"目前{name}已经有脚本和产物，但还没完全纳入健康巡检清单。"
+    return "当前状态：" + status.rstrip("。") + "。"
+
+
+def format_safe_note(note: str) -> str:
+    if "只读采集" in note:
+        return "这类任务只读采集；如果遇到登录、Chrome 或页面变化，我会直接告诉你卡在哪里。"
+    if "正式订货入口" in note:
+        return "这是正式订货入口；没有明确确认时，我只做查询、预览或健康检查。"
+    if "plan-only" in note or "dry-run" in note:
+        return "默认只做计划或预演，不会提交订单、付款或替换商品。"
+    if "pending_confirmation" in note or "财务" in note:
+        return "微信里先生成待确认草稿，正式入账或同步需要你明确说执行。"
+    return note.rstrip("。") + "。"
 
 
 def format_promo_bid_help() -> str:

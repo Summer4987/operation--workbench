@@ -55,6 +55,17 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertNotIn("安全命令：", text)
         self.assertNotIn("安全边界：", text)
 
+    def test_business_term_reply_is_conversational(self) -> None:
+        text = self.bridge.route_natural_text("实时数据采集", limit=3)
+        self.assertIn("实时数据采集我可以帮你查运行结果", text)
+        self.assertIn("还没完全纳入健康巡检清单", text)
+        self.assertIn("只读采集", text)
+        self.assertNotIn("中心：", text)
+        self.assertNotIn("风险：", text)
+        self.assertNotIn("安全命令：", text)
+        self.assertNotIn("安全边界：", text)
+        self.assertNotIn("python3 scripts", text)
+
 
 if __name__ == "__main__":
     unittest.main()
