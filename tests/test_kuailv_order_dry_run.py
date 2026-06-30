@@ -17,6 +17,8 @@ from kuailv_order_dry_run import (  # noqa: E402
     delivery_store_match,
     load_order_json,
     safe_tap_visual_proof,
+    score_candidate_for_line,
+    search_suggestion_candidate,
 )
 
 
@@ -191,12 +193,26 @@ class KuailvOrderDryRunTest(unittest.TestCase):
             "context_texts": [{"text": "黄皮洋葱", "bounds": [410, 820, 620, 880]}],
         }
 
-        from kuailv_order_dry_run import score_candidate_for_line  # noqa: E402
-
         score = score_candidate_for_line(candidate, line, "")
 
         self.assertTrue(score["allowed"])
         self.assertNotIn("pack_label_not_in_card_context", score["reasons"])
+
+    def test_search_suggestion_prefers_exact_non_risk_query(self) -> None:
+        snapshot = {
+            "ui_analysis": {
+                "visible_text_nodes": [
+                    {"text": "黄皮洋葱", "bounds": [45, 264, 807, 326]},
+                    {"text": "黄皮洋葱食堂", "bounds": [45, 641, 1035, 703]},
+                ]
+            }
+        }
+
+        candidate = search_suggestion_candidate(snapshot, "黄皮洋葱", ["黄皮洋葱"])
+
+        self.assertIsNotNone(candidate)
+        self.assertEqual(candidate["text"], "黄皮洋葱")
+        self.assertEqual(candidate["center"], [426.0, 295.0])
 
     def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
         config = {

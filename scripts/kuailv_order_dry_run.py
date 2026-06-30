@@ -2190,6 +2190,39 @@ def query_visible_in_snapshot(snapshot: dict[str, Any], query: str) -> bool:
     return bool(compact_query and (query in text_blob or compact_query in compact_blob))
 
 
+def search_suggestion_candidate(snapshot: dict[str, Any], query: str, target_words: list[str]) -> dict[str, Any] | None:
+    compact_query = re.sub(r"\s+", "", str(query or ""))
+    if not compact_query:
+        return None
+    risk_words = set(GLOBAL_REJECT_KEYWORDS + ["食堂"])
+    candidates = []
+    for node in (snapshot.get("ui_analysis") or {}).get("visible_text_nodes") or []:
+        text = str(node.get("text") or "")
+        compact_text = re.sub(r"\s+", "", text)
+        bounds = node.get("bounds") or []
+        if len(bounds) != 4:
+            continue
+        x1, y1, x2, y2 = [int(value) for value in bounds]
+        if not (220 <= y1 <= 850 and x1 <= 120 and x2 >= 300):
+            continue
+        if any(word and word in text for word in risk_words):
+            continue
+        if compact_text != compact_query and not any(word and word in text for word in target_words):
+            continue
+        exact = compact_text == compact_query
+        candidates.append(
+            {
+                "text": text,
+                "bounds": bounds,
+                "center": [round((x1 + x2) / 2, 1), round((y1 + y2) / 2, 1)],
+                "score": (100 if exact else 0) - y1,
+                "reasons": ["exact_query_suggestion" if exact else "target_word_suggestion"],
+            }
+        )
+    candidates.sort(key=lambda item: item["score"], reverse=True)
+    return candidates[0] if candidates else None
+
+
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
     text = " ".join(detect_page_text(xml_text))
     hits = []
@@ -3013,6 +3046,8 @@ def run_adb_search(
     after_search_key = None
     submit_tap_retry = None
     after_submit_tap = None
+    suggestion_tap_retry = None
+    after_suggestion_tap = None
     scroll_retry = None
     scroll_retries = []
     after_target_scroll = None
@@ -3045,6 +3080,24 @@ def run_adb_search(
             if submit_check.get("safe_candidate_hit_count") or submit_check.get("page_text_hit_count"):
                 after = after_submit_tap
                 result_check = submit_check
+                after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
+                query_visible_after = query_visible_in_snapshot(after, query)
+
+    if press_enter and after.get("captured") and query_visible_after and not result_check.get("safe_candidate_hit_count"):
+        suggestion = search_suggestion_candidate(after, query, target_words)
+        if suggestion:
+            sx, sy = [int(round(float(value))) for value in suggestion.get("center", [0, 0])]
+            tap_suggestion = run_command(adb_base(serial) + ["shell", "input", "tap", str(sx), str(sy)], timeout)
+            suggestion_tap_retry = {
+                "candidate": suggestion,
+                "tap": {"x": sx, "y": sy, "returncode": tap_suggestion.returncode, "stderr": tap_suggestion.stderr.strip(), "stdout": tap_suggestion.stdout.strip()},
+            }
+            time.sleep(2.0)
+            after_suggestion_tap = save_adb_snapshot(serial, session_dir / "after-suggestion-tap", timeout, plan)
+            suggestion_check = search_result_hits(after_suggestion_tap, target_words)
+            if suggestion_check.get("safe_candidate_hit_count") or suggestion_check.get("page_text_hit_count"):
+                after = after_suggestion_tap
+                result_check = suggestion_check
                 after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
                 query_visible_after = query_visible_in_snapshot(after, query)
 
@@ -3105,11 +3158,13 @@ def run_adb_search(
         "after": after,
         "after_search_key": after_search_key,
         "after_submit_tap": after_submit_tap,
+        "after_suggestion_tap": after_suggestion_tap,
         "after_target_scroll": after_target_scroll,
         "query_visible_after": query_visible_after,
         "search_result_check": result_check,
         "search_key_retry": search_key_retry,
         "submit_tap_retry": submit_tap_retry,
+        "suggestion_tap_retry": suggestion_tap_retry,
         "scroll_retry": scroll_retry,
         "scroll_retries": scroll_retries,
         "safety": {
@@ -3117,6 +3172,7 @@ def run_adb_search(
             "pre_back_count": pre_back_count,
             "single_search_tap_only": True,
             "single_search_submit_retry": bool(submit_tap_retry),
+            "single_search_suggestion_retry": bool(suggestion_tap_retry),
             "controlled_scroll_retry": bool(scroll_retries),
             "max_controlled_scroll_retries": 3,
             "forbidden_actions": ["加购", "删除", "清空", "切换收货地址", "提交订单", "付款"],
