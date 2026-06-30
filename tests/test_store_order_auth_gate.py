@@ -268,6 +268,78 @@ def test_chengdu_catalog_returns_authenticated_store(monkeypatch):
     assert payload["stores"][0]["name"] == "测试门店"
 
 
+def test_chengdu_owner_account_can_see_all_stores(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"owner": {"password": "secret", "role": "owner"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_catalog",
+        lambda path=module.CATALOG_PATH: {
+            "stores": [{"name": "银泰城店"}, {"name": "金融城店"}],
+            "items": [],
+        },
+    )
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "owner", "password": "secret"})
+    assert login.status_code == 200
+
+    response = client.get("/daily-order/api/catalog")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "authenticated_store" not in payload
+    assert [store["name"] for store in payload["stores"]] == ["银泰城店", "金融城店"]
+
+
+def test_chengdu_owner_account_can_submit_for_selected_store(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"owner": {"password": "secret", "role": "owner"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "SUBMISSION_DIR", tmp_path / "submissions")
+    monkeypatch.setattr(module, "ORDER_LINES_PATH", tmp_path / "order-lines.csv")
+    monkeypatch.setattr(module, "_notify_order", lambda order: None)
+    monkeypatch.setattr(module, "_notify_wechat_addon", lambda order: None)
+    monkeypatch.setattr(
+        module,
+        "_load_catalog",
+        lambda path=module.CATALOG_PATH: {
+            "stores": [{"name": "银泰城店", "address": "成都银泰"}],
+            "items": [
+                {
+                    "sku": "SKU-1",
+                    "source": "测试",
+                    "purchase_channel": "快驴",
+                    "category": "食材",
+                    "name": "测试商品",
+                    "spec": "",
+                    "unit": "袋",
+                    "note": "",
+                    "stock_status": "有货",
+                }
+            ],
+        },
+    )
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "owner", "password": "secret"})
+    assert login.status_code == 200
+
+    response = client.post(
+        "/daily-order/api/orders",
+        json={"store_name": "银泰城店", "items": [{"sku": "SKU-1", "quantity": 2}]},
+    )
+
+    assert response.status_code == 200
+    saved = json.loads(next((tmp_path / "submissions").glob("*.json")).read_text(encoding="utf-8"))
+    assert saved["store_name"] == "银泰城店"
+
+
 def test_chengdu_daily_order_logout_clears_store_session(monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv(

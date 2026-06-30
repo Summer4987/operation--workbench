@@ -97,7 +97,7 @@ async def daily_order_login(request: Request, payload: dict):
     )
     result.set_cookie(
         "store_order_session",
-        _sign_store_order_session(account["username"], account["store_name"]),
+        _sign_store_order_session(account["username"], account["store_name"], account.get("role", "store")),
         max_age=30 * 24 * 60 * 60,
         httponly=True,
         samesite="lax",
@@ -144,7 +144,7 @@ def admin():
 def catalog(request: Request):
     account = _require_store_order_auth(request)
     catalog_data = _load_catalog()
-    if account:
+    if account and not _is_store_order_owner(account):
         catalog_data = _catalog_for_store(catalog_data, account["store_name"])
         stores = catalog_data.get("stores") or []
         verified_store = stores[0] if stores else {"name": account["store_name"], "address": "", "contact": "", "phone": ""}
@@ -173,7 +173,8 @@ def beijing_health():
 @app.post("/daily-order/api/orders")
 async def submit_order(request: Request, payload: dict):
     account = _require_store_order_auth(request)
-    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO", True, account["store_name"] if account else None)
+    bound_store_name = account["store_name"] if account and not _is_store_order_owner(account) else None
+    return await _submit_order(request, payload, CATALOG_PATH, SUBMISSION_DIR, ORDER_LINES_PATH, "DO", True, bound_store_name)
 
 
 @app.post("/beijing-order/api/orders")
@@ -274,7 +275,7 @@ async def _submit_order(request: Request, payload: dict, catalog_path: Path, sub
 @app.get("/daily-order/api/orders")
 def recent_store_orders(request: Request, store_name: str, order_ids: str = ""):
     account = _require_store_order_auth(request)
-    if account:
+    if account and not _is_store_order_owner(account):
         store_name = account["store_name"]
     return {"items": _public_store_orders(store_name, order_ids, SUBMISSION_DIR, CATALOG_PATH)}
 
@@ -781,8 +782,16 @@ def _store_order_accounts() -> dict[str, dict]:
             continue
         password = str(item.get("password") or "")
         store_name = str(item.get("store_name") or "")
-        if username and password and store_name:
-            clean[str(username)] = {"username": str(username), "password": password, "store_name": store_name}
+        role = str(item.get("role") or "").strip().lower()
+        all_stores = bool(item.get("all_stores")) or role in {"owner", "super", "admin"}
+        if username and password and (store_name or all_stores):
+            clean[str(username)] = {
+                "username": str(username),
+                "password": password,
+                "store_name": store_name,
+                "role": "owner" if all_stores else "store",
+                "all_stores": all_stores,
+            }
     return clean
 
 
@@ -815,10 +824,14 @@ def _verify_store_order_credentials(username: str, password: str) -> dict | None
     return account
 
 
-def _sign_store_order_session(username: str, store_name: str) -> str:
+def _is_store_order_owner(account: dict | None) -> bool:
+    return bool(account and (account.get("all_stores") or account.get("role") in {"owner", "super", "admin"}))
+
+
+def _sign_store_order_session(username: str, store_name: str, role: str = "store") -> str:
     expires = int(time.time()) + 30 * 24 * 60 * 60
     payload = base64.urlsafe_b64encode(
-        json.dumps({"username": username, "store_name": store_name, "expires": expires}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        json.dumps({"username": username, "store_name": store_name, "role": role, "expires": expires}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ).decode("ascii")
     signature = hmac.new(_store_order_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{payload}.{signature}"
@@ -844,7 +857,12 @@ def _store_order_session(request: Request) -> dict | None:
     expected = hmac.new(_store_order_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
     if not secrets.compare_digest(signature, expected):
         return None
-    return {"username": username, "store_name": store_name}
+    return {
+        "username": username,
+        "store_name": store_name,
+        "role": account.get("role", "store"),
+        "all_stores": bool(account.get("all_stores")),
+    }
 
 
 def _require_store_order_auth(request: Request) -> dict | None:
