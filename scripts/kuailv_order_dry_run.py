@@ -2129,11 +2129,30 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
 
     rows = []
     forbidden_words = ["去结算", "提交订单", "付款", "合计", "全选"]
-    has_top_search_submit = any(
-        node_text(node).strip() == "搜索" and 760 <= bounds_center(tuple(node["bounds"]))[0] <= image_width and 180 <= bounds_center(tuple(node["bounds"]))[1] <= 360
+    top_search_submit_nodes = [
+        node
         for node in nodes
         if len(node.get("bounds") or []) == 4
-    )
+        and node_text(node).strip() == "搜索"
+        and 760 <= bounds_center(tuple(node["bounds"]))[0] <= image_width
+        and 180 <= bounds_center(tuple(node["bounds"]))[1] <= 360
+    ]
+    has_top_search_submit = bool(top_search_submit_nodes)
+    if top_search_submit_nodes:
+        _sx, sy = bounds_center(tuple(top_search_submit_nodes[0]["bounds"]))
+        rows.append(
+            {
+                "kind": "search_entry",
+                "center": [546.5, round(sy, 1)],
+                "bounds": [230, max(0, int(round(sy - 40))), 863, int(round(sy + 40))],
+                "score": 95,
+                "reasons": ["synthetic_top_search_bar_from_submit"],
+                "text": "top_search_bar",
+                "clickable": False,
+                "class": "",
+                "resource_id": "",
+            }
+        )
     for node in nodes:
         text = node_text(node)
         visible_label = " ".join(str(node.get(key) or "").strip() for key in ("text", "content_desc") if str(node.get(key) or "").strip())
@@ -2167,10 +2186,6 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         if width >= image_width * 0.35 and (has_search_text or has_search_resource or has_edit_text):
             score += 45
             reasons.append("wide_input_like")
-        navigation_labels = {"首页", "冻品", "门店", "精选", "收藏"}
-        if has_top_search_submit and visible_label.strip() and visible_label.strip() not in navigation_labels and 190 <= cx <= 875 and 80 <= cy <= 340 and not has_search_resource:
-            score += 65
-            reasons.append("top_search_bar_text_with_submit")
         if visible_label.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
             score -= 95
             reasons.append("small_search_submit_button")

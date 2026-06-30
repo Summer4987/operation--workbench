@@ -289,7 +289,7 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(candidates[0]["text"], "搜冻品，来冻品大单")
         self.assertEqual(candidates[0]["center"], [546.5, 264.0])
 
-    def test_search_entry_candidate_accepts_recommended_word_with_submit_button(self) -> None:
+    def test_search_entry_candidate_uses_synthetic_bar_with_submit_button(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">
   <node text="" resource-id="index-page-header" class="android.view.View" bounds="[0,0][1080,334]" />
@@ -301,11 +301,11 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         candidates = find_search_entry_candidates(parse_ui_nodes(xml_text), Path(""))
 
         self.assertGreaterEqual(len(candidates), 1)
-        self.assertEqual(candidates[0]["text"], "可乐")
-        self.assertIn("top_search_bar_text_with_submit", candidates[0]["reasons"])
+        self.assertEqual(candidates[0]["text"], "top_search_bar")
+        self.assertIn("synthetic_top_search_bar_from_submit", candidates[0]["reasons"])
         self.assertNotEqual(candidates[0]["resource_id"], "index-page-header")
 
-    def test_search_entry_candidate_rejects_navigation_label_with_submit_button(self) -> None:
+    def test_search_entry_candidate_does_not_use_navigation_label_with_submit_button(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">
   <node text="冻品" class="android.widget.TextView" bounds="[458,112][554,180]" />
@@ -314,7 +314,9 @@ class KuailvOrderDryRunTest(unittest.TestCase):
 
         candidates = find_search_entry_candidates(parse_ui_nodes(xml_text), Path(""))
 
-        self.assertEqual(candidates, [])
+        self.assertGreaterEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["text"], "top_search_bar")
+        self.assertTrue(all(candidate["text"] != "冻品" for candidate in candidates))
 
     def test_visible_xml_add_candidates_keep_text_spec_control_without_orange_image(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
