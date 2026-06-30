@@ -64,6 +64,19 @@ for file in "${FILES[@]}"; do
   test -s "$tmp_dir/$file"
 done
 
+python3 - "$tmp_dir/index.html" "$latest_sha" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+html = path.read_text(encoding="utf-8")
+for name in ("workbench-data.js", "workbench.js"):
+    html = re.sub(rf'(\./{re.escape(name)}\?v=)[^"]+', rf'\g<1>{version}', html)
+path.write_text(html, encoding="utf-8")
+PY
+
 for file in "${FILES[@]}"; do
   cp "$tmp_dir/$file" "$REMOTE_DIR/$file"
   chmod 644 "$REMOTE_DIR/$file"
