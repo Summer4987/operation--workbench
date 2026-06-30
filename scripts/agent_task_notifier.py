@@ -17,11 +17,13 @@ DEFAULT_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 DEFAULT_STATE_PATH = ROOT / "outputs" / "agent_task_notifications" / "state.json"
 DEFAULT_LOG_PATH = ROOT / "outputs" / "agent_task_notifications" / "latest.log"
 DEFAULT_TARGET = "weixin"
-TERMINAL_STATUSES = {"success", "failed", "skipped"}
+TERMINAL_STATUSES = {"success", "failed", "skipped", "warning", "missing"}
 STATUS_LABELS = {
     "success": "成功",
     "failed": "失败",
     "skipped": "跳过",
+    "warning": "注意",
+    "missing": "未记录",
 }
 
 
@@ -47,6 +49,22 @@ def task_signature(task: dict[str, Any]) -> str:
             str(task.get("step") or ""),
         ]
     )
+
+
+def synthetic_task_from_policy_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    status = str(row.get("status") or "")
+    if status not in {"attention", "missing", "failed"}:
+        return None
+    mapped_status = "failed" if status == "failed" else "warning" if status == "attention" else "missing"
+    return {
+        "status": mapped_status,
+        "message": row.get("failure_reason") or row.get("reason") or row.get("status_text") or "",
+        "step": row.get("last_run_step") or "",
+        "log_path": row.get("evidence") or "",
+        "failure_type": row.get("failure_type") or "",
+        "updated_at": row.get("last_run_at") or "",
+        "finished_at": row.get("last_run_at") or "",
+    }
 
 
 def load_policy_rows() -> dict[str, dict[str, Any]]:
@@ -93,7 +111,7 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
     if step:
         lines.append(f"步骤：{step}")
     if message:
-        label = "失败原因" if status == "failed" else "说明"
+        label = "失败原因" if status == "failed" else "需关注" if status in {"warning", "missing"} else "说明"
         lines.append(f"{label}：{message}")
     if failure_type and status == "failed":
         lines.append(f"失败分类：{failure_type}")
@@ -109,6 +127,15 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
             lines.append(f"处理建议：{reason}")
         else:
             lines.append("处理建议：先查看日志，再决定是否人工补跑。")
+    elif status in {"warning", "missing"}:
+        if rerun.get("suggested") and rerun.get("auto_allowed"):
+            command = " ".join(str(part) for part in rerun.get("command") or [])
+            lines.append(f"处理建议：该任务需关注，可进入 dry-run 补跑计划：{command}")
+        elif rerun.get("suggested"):
+            reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
+            lines.append(f"处理建议：{reason}")
+        else:
+            lines.append("处理建议：先查看日志，再决定是否人工处理。")
     elif status == "success":
         lines.append("处理结果：任务已完成。")
     elif status == "skipped":
@@ -124,10 +151,15 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     previous_state = read_json(state_path, {"sent": {}})
     sent = previous_state.get("sent") if isinstance(previous_state.get("sent"), dict) else {}
     policy_rows = load_policy_rows()
+    task_candidates = dict(tasks)
+    for task_id, row in policy_rows.items():
+        synthetic = synthetic_task_from_policy_row(row)
+        if synthetic:
+            task_candidates[task_id] = synthetic
     notifications = []
     now_sent = dict(sent)
 
-    for task_id, task in sorted(tasks.items()):
+    for task_id, task in sorted(task_candidates.items()):
         if not isinstance(task, dict):
             continue
         status = str(task.get("status") or "")

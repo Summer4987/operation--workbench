@@ -86,11 +86,76 @@ class AgentTaskNotifierTests(unittest.TestCase):
                 },
             )()
 
-            first = self.notifier.notify(args)
-            second = self.notifier.notify(args)
+            original_loader = self.notifier.load_policy_rows
+            try:
+                self.notifier.load_policy_rows = lambda: {}
+                first = self.notifier.notify(args)
+                second = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
 
             self.assertEqual(first["notification_count"], 1)
             self.assertEqual(second["notification_count"], 0)
+
+    def test_notify_reports_health_attention_even_when_run_succeeded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.realtime_order_income": {
+                                "status": "success",
+                                "message": "实时单量收入采集完成。",
+                                "step": "发布工作台云端数据",
+                                "finished_at": "2026-06-30 20:01:15",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": True,
+                    "no_write": False,
+                },
+            )()
+            original_loader = self.notifier.load_policy_rows
+            try:
+                self.notifier.load_policy_rows = lambda: {
+                    "ops.realtime_order_income": {
+                        "id": "ops.realtime_order_income",
+                        "name": "实时单量和营业额采集",
+                        "status": "attention",
+                        "failure_reason": "实时采集数据已生成，但云端发布权限错误。",
+                        "last_run_at": "2026-06-30 20:01:15",
+                        "last_run_step": "发布工作台云端数据",
+                        "evidence": "/tmp/realtime.log",
+                        "rerun": {"suggested": True, "auto_allowed": True, "command": ["/bin/zsh", "scripts/run_realtime_order_income.zsh"]},
+                    }
+                }
+
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+
+            self.assertEqual(payload["notification_count"], 1)
+            message = payload["notifications"][0]["message"]
+            self.assertIn("[注意] Mac mini 自动化任务：实时单量和营业额采集", message)
+            self.assertIn("云端发布权限错误", message)
 
 
 if __name__ == "__main__":

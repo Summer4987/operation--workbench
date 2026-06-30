@@ -107,6 +107,37 @@ def path_mtime(path: Path) -> datetime | None:
     return latest or datetime.fromtimestamp(path.stat().st_mtime)
 
 
+def read_tail(path: Path, max_chars: int = 20000) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return ""
+    return text[-max_chars:]
+
+
+def realtime_publish_issue(now: datetime) -> tuple[str, str]:
+    candidates = [
+        ROOT / "outputs" / "realtime_order_income" / "logs" / f"{now:%Y-%m-%d}.log",
+        Path.home() / "Library" / "Logs" / "xiong-operation" / "realtime_order_income" / f"{now:%Y-%m-%d}.log",
+    ]
+    issue_patterns = (
+        ("Operation not permitted", "云端发布权限错误：rsync Operation not permitted。"),
+        ("发布校验失败", "云端发布校验失败，本地与云端文件不一致。"),
+        ("rsync error", "云端发布 rsync 失败。"),
+        ("Permission denied", "云端发布权限被拒绝。"),
+    )
+    for path in candidates:
+        if not path.exists():
+            continue
+        tail = read_tail(path)
+        if not tail:
+            continue
+        for pattern, message in issue_patterns:
+            if pattern in tail:
+                return message, str(path)
+    return "", ""
+
+
 def relative_path(value: str) -> Path | None:
     text = str(value or "").strip()
     if not text or text.startswith("云端 ") or text.startswith("浏览器") or text.startswith("http"):
@@ -221,8 +252,9 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
 
     run_status = task_run.get("status")
     if run_status == "success":
-        row["status"] = "ok"
-        row["reason"] = task_run.get("message") or "最近一次运行成功。"
+        if row.get("status") not in {"warn", "danger"}:
+            row["status"] = "ok"
+            row["reason"] = task_run.get("message") or "最近一次运行成功。"
     elif run_status == "running":
         row["status"] = "warn"
         row["reason"] = task_run.get("message") or "任务正在运行。"
@@ -418,8 +450,16 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         elif generated_at:
             last_success = status_payload.get("last_success_at") or payload.get("generated_at", "")
             row.update(status="ok", reason=f"实时采集覆盖 {summary.get('platform_store_count') or '-'} 个平台门店，最近成功 {last_success or '-'}。")
+        publish_issue, publish_log = realtime_publish_issue(now)
+        if publish_issue:
+            row.update(status="warn", reason=f"实时采集数据已生成，但{publish_issue}")
+            row["failure_type"] = "publish_failure"
+            row["human_action"] = "检查云端发布权限和 rsync 输出；确认云端看板是否更新。"
+            if publish_log:
+                row["evidence"] = publish_log
         row["last_seen_at"] = generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else row["last_seen_at"]
-        row["evidence"] = "outputs/realtime_order_income_status/latest.json" if status_payload else "outputs/realtime_order_income/latest.json"
+        if not publish_issue:
+            row["evidence"] = "outputs/realtime_order_income_status/latest.json" if status_payload else "outputs/realtime_order_income/latest.json"
 
     elif task_id == "ops.daily_report":
         payload = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
