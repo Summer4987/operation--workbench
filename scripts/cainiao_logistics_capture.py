@@ -447,12 +447,18 @@ def scan_detail_pages(
     max_details: int,
     scroll_pages: int,
     timeout: int,
+    reset_list: bool = True,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     commands = launch_cainiao(serial, package, timeout)
     all_records: list[dict[str, str]] = []
     detail_summaries = []
     scanned = 0
     base = adb_base(serial)
+    if reset_list:
+        for _ in range(3):
+            swipe_down = run_command(base + ["shell", "input", "swipe", "520", "900", "520", "2050", "500"], timeout)
+            commands.append(swipe_down)
+            time.sleep(0.5)
     for page_index in range(scroll_pages + 1):
         page_dir = evidence_dir / f"list-page-{page_index + 1}"
         page_dir.mkdir(parents=True, exist_ok=True)
@@ -567,6 +573,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scan-details", action="store_true", help="从菜鸟列表页逐个点击包裹详情采集。")
     parser.add_argument("--max-details", type=int, default=8)
     parser.add_argument("--scroll-pages", type=int, default=0)
+    parser.add_argument("--no-reset-list", action="store_true", help="不在扫描前把菜鸟列表拉回顶部。")
     parser.add_argument("--commit", action="store_true", help="真实写入物流看板；默认只生成证据包和解析结果。")
     parser.add_argument("--timeout", type=int, default=20)
     parser.add_argument("--evidence-dir", default="")
@@ -598,6 +605,7 @@ def main() -> int:
                 args.max_details,
                 args.scroll_pages,
                 args.timeout,
+                not args.no_reset_list,
             )
         elif args.fixture_ui_dump:
             xml_path = Path(args.fixture_ui_dump).expanduser()

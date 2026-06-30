@@ -427,6 +427,7 @@
               </header>
               ${pickup ? `<div class="pickup-code"><span>取件码</span><b>${escapeHtml(pickup)}</b></div>` : ""}
               <div class="logistics-meta">
+                ${item.goods ? `<div>商品：${escapeHtml(item.goods)}</div>` : ""}
                 ${item.carrier || item.tracking_number ? `<div>快递：${escapeHtml([item.carrier, item.tracking_number].filter(Boolean).join(" · "))}</div>` : ""}
                 ${item.latest_trace ? `<div>轨迹：${escapeHtml(item.latest_trace)}</div>` : ""}
                 ${item.eta ? `<div>预计到达：${escapeHtml(item.eta)}</div>` : ""}
