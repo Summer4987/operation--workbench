@@ -190,7 +190,7 @@ FINANCE_INBOX_DIR="$tmpdir" python3 scripts/finance_feishu_sync.py
 - 确认人：文本，对应 `confirmed_by`。
 - 业务日期：日期，对应 `transaction_date`。
 - 收支方向：单选，对应 `direction`，可选 `income`、`expense`、`transfer`。
-- 金额：货币，对应 `amount`。
+- 金额：货币或数字，对应 `amount`；如果用数字字段，格式必须设为 `0.00`，显示 2 位小数。
 - 币种：单选，对应 `currency`。
 - 门店：文本，对应 `store`。
 - 交易对方：文本，对应 `counterparty`。

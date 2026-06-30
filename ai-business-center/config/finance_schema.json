@@ -175,6 +175,7 @@
       "name": "amount",
       "type": "currency",
       "required": true,
+      "description": "飞书字段可用货币或数字；数字字段必须设置 formatter=0.00，显示 2 位小数。",
       "feishu_field": "金额"
     },
     {
