@@ -554,9 +554,13 @@ def run_meituan_direct_bid(store: str, target_bid: float, *, commit: bool) -> di
             if (
                 result["before"].get("range_min") == 0
                 and result["before"].get("range_max") == 0
-                and (result["before"].get("is_paused") or result["before"].get("budget_exhausted"))
+                and (
+                    result["before"].get("current_bid") == 0
+                    or result["before"].get("is_paused")
+                    or result["before"].get("budget_exhausted")
+                )
             ):
-                raise RuntimeError("美团点金推广当前已暂停或预算耗尽，平台出价范围为 0~0，暂时没有开放可编辑出价弹窗。先恢复推广或预算后才能改出价。")
+                raise RuntimeError("美团点金推广当前出价为 0 且平台出价范围为 0~0，暂时没有开放可编辑出价弹窗。先恢复推广、预算或平台允许的出价范围后才能改出价。")
             open_bid_modal(page)
             input_box = bid_input_locator(page)
             before_input, after_input = set_input_value(input_box, target_bid)
