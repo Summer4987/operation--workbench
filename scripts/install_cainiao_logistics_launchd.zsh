@@ -64,7 +64,6 @@ PLIST
 launchctl bootout "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 launchctl enable "gui/$(id -u)/$LABEL"
-launchctl kickstart -k "gui/$(id -u)/$LABEL" || true
 
 echo "已安装：$LABEL"
 echo "时间：每天 10:00、14:00、17:00"
