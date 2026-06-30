@@ -130,8 +130,8 @@
       "aliases": ["出价", "推广出价", "点金出价", "出价调整", "竞价"],
       "center": "promotion",
       "risk": "high",
-      "command": "python3 scripts/build_promo_bid_advice.py",
-      "safe_note": "默认只生成建议和审批队列；真实出价调整必须等待明确确认。"
+      "command": "python3 scripts/promo_bid_direct_request.py --execute '<用户原文>'",
+      "safe_note": "明确平台、门店/对象和目标价格时直接执行；缺字段时追问。当前若真实执行器未接入，必须明确报告缺执行器。"
     },
     {
       "name": "用户待办队列",

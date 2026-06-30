@@ -132,6 +132,15 @@ CONSOLE_WORDS = {
     "agent工作台",
     "agent后台",
 }
+PROMO_BID_WORDS = {
+    "出价",
+    "点金",
+    "竞价",
+    "推广价",
+    "推广价格",
+    "cpc",
+    "bid",
+}
 
 
 def normalize_alias(value: str) -> str:
@@ -434,6 +443,18 @@ def looks_like_private_spreadsheet_action(text: str) -> bool:
     return normalized_contains(text, FILE_WORDS) and normalized_contains(text, PRIVATE_SPREADSHEET_ACTION_WORDS)
 
 
+def looks_like_direct_promo_bid_action(text: str) -> bool:
+    if not normalized_contains(text, PROMO_BID_WORDS):
+        return False
+    return bool(
+        re.search(
+            r"(?:调到|调整到|改到|改为|改成|设为|设置为|到)\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*元",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
 def route_natural_text(text: str, *, limit: int) -> str:
     stripped = text.strip()
     if not stripped:
@@ -470,6 +491,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
             latest = MONITOR_OUTPUT_PATH.read_text(encoding="utf-8").strip()
             return latest or output
         return output
+
+    if looks_like_direct_promo_bid_action(stripped):
+        return run_checked([sys.executable, "scripts/promo_bid_direct_request.py", "--execute", stripped])
 
     if looks_like_private_spreadsheet_action(stripped):
         return run_checked(

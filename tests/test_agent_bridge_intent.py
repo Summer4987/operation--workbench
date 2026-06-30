@@ -41,6 +41,9 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertIn("HermesPrivate", text)
         self.assertIn("不覆盖原件", text)
 
+    def test_direct_promo_bid_action_detects_explicit_target_price(self) -> None:
+        self.assertTrue(self.bridge.looks_like_direct_promo_bid_action("美团 银泰城店 点金出价调到 1.8 元"))
+
 
 if __name__ == "__main__":
     unittest.main()

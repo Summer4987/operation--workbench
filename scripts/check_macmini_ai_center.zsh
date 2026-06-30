@@ -61,6 +61,7 @@ echo "== 配置与语法检查 =="
   scripts/build_promo_bid_approval_queue.py \
   scripts/build_promo_bid_execution_plan.py \
   scripts/build_promo_bid_signal_status.py \
+  scripts/promo_bid_direct_request.py \
   scripts/init_promo_bid_signals.py \
   scripts/build_macmini_smoke_status.py \
   scripts/build_store_inspection_evidence_manifest.py \
