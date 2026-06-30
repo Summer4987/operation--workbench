@@ -162,10 +162,9 @@ def enter_promo_settings(page) -> None:
     raise RuntimeError("没有进入美团推广设置页，当前页面仍不是出价设置区域")
 
 
-def modal_opened(page) -> bool:
-    return bool(
-        page.evaluate(
-            """() => {
+def active_setting_modal(page) -> dict[str, Any]:
+    return page.evaluate(
+        """() => {
                 const visible = (el) => {
                     if (!el) return false;
                     const rect = el.getBoundingClientRect();
@@ -174,17 +173,38 @@ def modal_opened(page) -> bool:
                         && style.display !== 'none'
                         && style.visibility !== 'hidden';
                 };
-                const text = document.body.innerText || '';
-                const hasBidModalText = /设置出价|出价设置|门店出价|推广出价/.test(text);
-                const inputs = [...document.querySelectorAll('input')]
-                    .filter((el) => visible(el) && !el.disabled && !el.readOnly);
-                const buttons = [...document.querySelectorAll('button,[role="button"],a')]
+                const textOf = (el) => (el?.innerText || el?.textContent || '').replace(/\\s+/g, ' ').trim();
+                const roots = [...document.querySelectorAll('[role="dialog"],[class*=modal],[class*=Modal],[class*=popover],[class*=drawer]')]
                     .filter(visible)
-                    .map((el) => (el.innerText || el.textContent || '').replace(/\\s/g, ''));
-                return hasBidModalText && inputs.length > 0 && buttons.some((item) => item === '确定');
+                    .filter((el) => {
+                        const text = textOf(el);
+                        const inputs = [...el.querySelectorAll('input')].filter((item) => visible(item) && !item.disabled && !item.readOnly);
+                        const buttons = [...el.querySelectorAll('button,[role="button"],a')].filter(visible).map((item) => textOf(item).replace(/\\s/g, ''));
+                        return inputs.length > 0 && buttons.some((item) => item === '确定') && /预算|出价/.test(text);
+                    });
+                const root = roots.at(-1);
+                if (!root) return { kind: '', text: '', hasInput: false };
+                const text = textOf(root);
+                const kind = /出价/.test(text) && !/预算设置|设置预算/.test(text) ? 'bid' : /预算/.test(text) ? 'budget' : '';
+                return { kind, text: text.slice(0, 1200), hasInput: true };
             }"""
-        )
     )
+
+
+def modal_opened(page) -> bool:
+    return active_setting_modal(page).get("kind") == "bid"
+
+
+def budget_modal_opened(page) -> bool:
+    return active_setting_modal(page).get("kind") == "budget"
+
+
+def close_active_modal(page) -> None:
+    try:
+        page.keyboard.press("Escape")
+        time.sleep(0.5)
+    except Exception:
+        pass
 
 
 def dismiss_non_bid_modal(page) -> None:
@@ -270,6 +290,9 @@ def open_bid_modal(page) -> None:
         time.sleep(1.2)
         if modal_opened(page):
             return
+        if budget_modal_opened(page):
+            close_active_modal(page)
+            raise RuntimeError("误打开了预算设置弹窗，已停止；不会把出价写进预算")
         dismiss_non_bid_modal(page)
     click_script = (
         """() => {
@@ -371,6 +394,9 @@ def open_bid_modal(page) -> None:
         time.sleep(1.2)
         if modal_opened(page):
             return
+        if budget_modal_opened(page):
+            close_active_modal(page)
+            continue
         dismiss_non_bid_modal(page)
     for label in ["门店出价", "当前出价", "最终出价", "推广出价", "出价"]:
         locator = page.get_by_text(label)
@@ -388,12 +414,18 @@ def open_bid_modal(page) -> None:
                     time.sleep(1.0)
                     if modal_opened(page):
                         return
+                    if budget_modal_opened(page):
+                        close_active_modal(page)
+                        break
             except Exception:
                 continue
     raise RuntimeError("没有打开出价设置弹窗，可能美团页面结构已变化或当前门店不允许改出价")
 
 
 def bid_input_locator(page):
+    modal = active_setting_modal(page)
+    if modal.get("kind") != "bid":
+        raise RuntimeError(f"当前打开的不是出价设置弹窗：{modal.get('kind') or 'unknown'}")
     scored = []
     for frame in page.frames:
         try:
