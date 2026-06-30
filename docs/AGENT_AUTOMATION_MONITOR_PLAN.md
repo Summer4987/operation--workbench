@@ -89,9 +89,40 @@ Hermes/微信入口：
 
 入口会刷新 `outputs/agent_task_monitor/latest.json` 和 `latest.txt`，然后返回微信可读文本。
 
+生成补跑 dry-run 计划：
+
+```bash
+python3 scripts/agent_rerun_dry_run.py
+```
+
+这个执行器只读取 `rerun_plan` 并输出“如果补跑会执行什么”，不会真正执行命令；高风险任务会被强制归入只报告。
+
+## 任务结束后调用方式
+
+新接入的 Mac mini 自动化任务建议通过通用包装器运行：
+
+```bash
+python3 scripts/agent_task_wrapper.py ops.realtime_order_income -- /bin/zsh scripts/run_realtime_order_income.zsh
+```
+
+包装器会：
+
+- 在任务开始时写入 `outputs/task_runs/latest.json` 的 `running` 状态。
+- 任务退出后按退出码写入 `success` 或 `failed`，失败时记录退出码和失败分类。
+- 任务结束后刷新 `outputs/task_health/latest.json` 和 `outputs/agent_task_monitor/latest.json` / `latest.txt`。
+- 不安装 launchd，不执行额外生产动作；正式定时任务仍只在 Mac mini 从 GitHub `main` 拉取后配置。
+
+已有任务若已经手写了状态记录，也可以只在结束后调用：
+
+```bash
+python3 scripts/build_task_health.py
+python3 scripts/agent_task_monitor.py
+python3 scripts/agent_rerun_dry_run.py
+```
+
 ## 后续接入建议
 
 1. Mac mini 定时任务结束后调用 `python3 scripts/agent_task_monitor.py`，刷新本地报告。
 2. Hermes 读取 `outputs/agent_task_monitor/latest.txt` 作为微信通知正文。
-3. 若要做真实补跑，新增独立执行器读取 `rerun_plan`，并继续保留高风险任务人工确认闸。
+3. 若要做真实补跑，必须另建独立执行器读取 `rerun_plan`，并继续保留高风险任务人工确认闸；当前 `agent_rerun_dry_run.py` 不执行任何命令。
 4. 对 `report_only` 任务只发送失败原因、证据路径和人工处理建议。
