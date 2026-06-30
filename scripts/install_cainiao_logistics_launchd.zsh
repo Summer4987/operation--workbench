@@ -8,6 +8,8 @@ LABEL="com.summer.operation.cainiao-logistics"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="$ROOT/outputs/cainiao_logistics_launchd"
 RUNNER="$ROOT/scripts/run_cainiao_logistics_capture.zsh"
+ADB="${ANDROID_ADB_BIN:-$HOME/Library/Android/sdk/platform-tools/adb}"
+INLINE_COMMAND="set -e; cd \"$ROOT\"; export ANDROID_ADB_BIN=\"$ADB\"; mkdir -p \"$ROOT/outputs/cainiao_logistics\"; STAMP=\$(date +%Y%m%d-%H%M%S); python3 scripts/cainiao_logistics_capture.py --scan-details --max-details \"\${CAINIAO_MAX_DETAILS:-12}\" --scroll-pages \"\${CAINIAO_SCROLL_PAGES:-1}\" --evidence-dir \"$ROOT/outputs/cainiao_logistics/scheduled-\$STAMP\" --commit"
 
 mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
 chmod +x "$RUNNER"
@@ -23,7 +25,7 @@ cat > "$PLIST" <<PLIST
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>cd "$ROOT" &amp;&amp; "$RUNNER"</string>
+    <string>$INLINE_COMMAND</string>
   </array>
   <key>StartCalendarInterval</key>
   <array>
