@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 import center
@@ -15,6 +16,7 @@ HEALTH_PATH = center.STATE_DIR / "health.json"
 ALIASES_PATH = center.CENTER_ROOT / "config" / "business_aliases.json"
 ROOT = center.ROOT
 MONITOR_OUTPUT_PATH = ROOT / "outputs" / "agent_task_monitor" / "latest.txt"
+BUNDLED_PYTHON = Path.home() / ".cache" / "codex-runtimes" / "codex-primary-runtime" / "dependencies" / "python" / "bin" / "python3"
 BAD_STATUSES = {
     "broken",
     "invalid_evidence",
@@ -89,6 +91,14 @@ FILE_WORDS = {
     "回传",
     "发给我",
 }
+PRIVATE_SPREADSHEET_ACTION_WORDS = {
+    "易代仓",
+    "预约",
+    "入库",
+    "新增",
+    "西兰花",
+    "西蓝花",
+}
 HELP_WORDS = {
     "你能做什么",
     "能做什么",
@@ -130,6 +140,12 @@ def run_checked(command: list[str]) -> str:
     if completed.returncode != 0:
         return output or f"命令执行失败，退出码 {completed.returncode}。"
     return output
+
+
+def python_for_private_spreadsheets() -> str:
+    if BUNDLED_PYTHON.exists():
+        return str(BUNDLED_PYTHON)
+    return sys.executable
 
 
 def load_aliases() -> dict[str, Any]:
@@ -361,6 +377,10 @@ def format_file_task_guidance(text: str) -> str:
     )
 
 
+def looks_like_private_spreadsheet_action(text: str) -> bool:
+    return normalized_contains(text, FILE_WORDS) and normalized_contains(text, PRIVATE_SPREADSHEET_ACTION_WORDS)
+
+
 def route_natural_text(text: str, *, limit: int) -> str:
     stripped = text.strip()
     if not stripped:
@@ -399,6 +419,16 @@ def route_natural_text(text: str, *, limit: int) -> str:
         if kind == "task":
             return format_task_detail(item)
         return format_business_term(item)
+
+    if looks_like_private_spreadsheet_action(stripped):
+        return run_checked(
+            [
+                python_for_private_spreadsheets(),
+                "scripts/private_spreadsheet_assistant.py",
+                "process-text",
+                stripped,
+            ]
+        )
 
     if normalized_contains(stripped, FILE_WORDS):
         return format_file_task_guidance(stripped)

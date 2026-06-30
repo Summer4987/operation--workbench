@@ -44,6 +44,14 @@ case "${1:-status}" in
   finance-schema|财务字段|财务系统)
     python3 scripts/finance_inbox.py schema
     ;;
+  route|自然语言)
+    shift || true
+    if [[ $# -lt 1 ]]; then
+      python3 ai-business-center/agent_bridge.py commands
+      exit 0
+    fi
+    python3 ai-business-center/agent_bridge.py route "$@"
+    ;;
   *)
     python3 ai-business-center/agent_bridge.py route "$@"
     ;;
