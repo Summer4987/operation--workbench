@@ -14,6 +14,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     android_auto_add_gate,
     auto_add_pack_steps,
     build_plan,
+    cart_clear_tap_plan,
     delivery_store_match,
     detect_xml_add_controls,
     delete_confirm_candidate,
@@ -165,6 +166,33 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(item["title"], "黄皮洋葱普通")
         self.assertEqual(item["quantity"], "29")
         self.assertEqual(item["minus_center"], [824, 581])
+
+    def test_cart_clear_treats_yumili_reject_spec_as_unexpected(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "保利中心店",
+            "submitted_at": "2026-06-30T10:00:00+08:00",
+            "items": [{"name": "玉米粒", "quantity": 1, "unit": "箱", "purchase_channel": "快驴"}],
+        }
+        plan = build_plan(order)
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="[鹿手]速冻甜玉米粒2.5kg" class="android.widget.TextView" bounds="[413,390][860,450]" />
+  <node text="2.5kg" class="android.widget.TextView" bounds="[413,458][520,511]" />
+  <node text="1" class="android.widget.EditText" clickable="true" bounds="[855,517][950,590]" />
+  <node text="全选" class="android.widget.TextView" bounds="[98,2106][199,2162]" />
+  <node text="合计:" class="android.widget.TextView" bounds="[486,2086][568,2145]" />
+  <node text="去结算 (1)" class="android.widget.TextView" bounds="[787,2103][995,2168]" />
+</hierarchy>"""
+
+        details = analyze_cart_review_xml(xml_text, plan)
+        tap_plan = cart_clear_tap_plan({"cart_review_details": details})
+
+        item = details["visible_cart_items"][0]
+        self.assertTrue(item["unexpected"])
+        self.assertIn("2.5kg", item["reject_hits"])
+        self.assertEqual(tap_plan[0]["title"], "[鹿手]速冻甜玉米粒2.5kg")
+        self.assertEqual(tap_plan[0]["minus_center"], [824, 553])
 
     def test_delete_confirm_candidate_requires_delete_dialog(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

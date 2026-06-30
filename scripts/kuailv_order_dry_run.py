@@ -1750,6 +1750,16 @@ def plan_expected_cart_terms(plan: dict[str, Any] | None) -> list[str]:
     return list(dict.fromkeys(term for term in terms if term))
 
 
+def plan_reject_cart_terms(plan: dict[str, Any] | None) -> list[str]:
+    terms = []
+    for line in (plan or {}).get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        terms.extend(str(word) for word in line.get("excluded_keywords") or [] if word)
+        terms.extend(str(word) for word in (line.get("cart_validation") or {}).get("reject_if_seen") or [] if word)
+    return list(dict.fromkeys(term for term in terms if term))
+
+
 def plan_expected_cart_lines(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
     lines = []
     for line in (plan or {}).get("lines") or []:
@@ -1832,7 +1842,7 @@ def build_cart_review_expectation(plan: dict[str, Any] | None, visible_items: li
     if any(word in text_blob for word in ["提交订单", "付款"]):
         risk_flags.append("submit_or_payment_text_visible")
     return {
-        "status": "ready" if expected_lines and not missing and not unexpected and not global_reject_hits else "needs_review",
+        "status": "ready" if expected_lines and not risk_flags else "needs_review",
         "expected_line_count": len(expected_lines),
         "matched_line_count": len(matched),
         "missing_line_count": len(missing),
@@ -1850,6 +1860,7 @@ def build_cart_review_expectation(plan: dict[str, Any] | None, visible_items: li
 
 def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     expected_terms = plan_expected_cart_terms(plan)
+    reject_terms = plan_reject_cart_terms(plan)
     excluded_prefixes = ("月售", "买过", "比上次", "同品", "推荐", "自营", "特价", "快驴自营", "全部", "查看更多")
 
     def is_title_node(text: str, bounds: list[int]) -> bool:
@@ -1918,7 +1929,9 @@ def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any]
         minus_center = []
         if len(quantity_bounds) == 4:
             minus_center = [max(0, int(quantity_bounds[0]) - 31), int((int(quantity_bounds[1]) + int(quantity_bounds[3])) / 2)]
+        row_text = " ".join(texts)
         expected_hits = [term for term in expected_terms if term and term in title_text]
+        reject_hits = [term for term in reject_terms if term and term in row_text]
         items.append(
             {
                 "title": title_text,
@@ -1930,7 +1943,8 @@ def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any]
                 "bounds": title["bounds"],
                 "row_texts": texts[:24],
                 "expected_hits": expected_hits,
-                "unexpected": not bool(expected_hits),
+                "reject_hits": reject_hits,
+                "unexpected": not bool(expected_hits) or bool(reject_hits),
             }
         )
     return merge_visible_cart_item_fragments(items)[:20]
