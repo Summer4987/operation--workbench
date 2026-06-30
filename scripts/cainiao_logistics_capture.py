@@ -412,6 +412,14 @@ def scan_detail_pages(
         page_dir.mkdir(parents=True, exist_ok=True)
         list_xml, _list_path, list_commands = capture_snapshot(serial, page_dir, timeout, "list")
         commands.extend(list_commands)
+        popup = popup_cancel_target(list_xml)
+        if popup:
+            cancel = run_command(base + ["shell", "input", "tap", str(popup["x"]), str(popup["y"])], timeout)
+            commands.append(cancel)
+            time.sleep(1)
+            list_xml, _list_path, list_commands = capture_snapshot(serial, page_dir, timeout, "list_after_popup")
+            commands.extend(list_commands)
+            write_json(page_dir / "popup_cancelled.json", popup)
         targets = list_detail_targets(list_xml, max_details - scanned)
         write_json(page_dir / "targets.json", targets)
         if not targets and page_index == 0:
