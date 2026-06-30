@@ -282,7 +282,7 @@ run_budget_step "推广预算重试策略刷新" "${BUDGET_REFRESH_TIMEOUT_SECON
 run_budget_step "运营总看板数据刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_workbench_data.py || true
 if [[ "$MODE" == "commit" ]]; then
   echo "发布运营总看板..."
-  run_budget_step "运营总看板发布" "${WORKBENCH_DEPLOY_TIMEOUT_SECONDS:-240}" "${DEPLOY_STEP_RETRIES:-2}" /bin/zsh "$DEPLOY_RUNNER" || true
+  run_budget_step "运营总看板发布" "${WORKBENCH_DEPLOY_TIMEOUT_SECONDS:-240}" "${DEPLOY_STEP_RETRIES:-2}" env OPERATION_ROOT="$ROOT" /bin/zsh "$DEPLOY_RUNNER" || true
 else
   echo "预演模式：不发布云端看板。"
 fi

@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="${OPERATION_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 SERVER="${OPERATION_CLOUD_SERVER:-ubuntu@139.155.148.169}"
 REMOTE_DIR="${OPERATION_CLOUD_REMOTE_DIR:-/var/www/html/operation-workbench}"
 PUBLIC_URL="${OPERATION_CLOUD_PUBLIC_URL:-http://139.155.148.169/operation-workbench/}"

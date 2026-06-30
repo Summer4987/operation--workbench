@@ -22,16 +22,19 @@ cat > "$SCRIPT_DIR/run_realtime_order_income.zsh" <<EOF
 set -uo pipefail
 
 ROOT="${ROOT}"
+cd "\$ROOT"
 LOG_DIR="\$HOME/Library/Logs/xiong-operation/realtime_order_income"
 mkdir -p "\$LOG_DIR"
 
-PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
 if [ ! -x "\$PYTHON" ]; then
-  PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
+  PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
 fi
 if [ ! -x "\$PYTHON" ]; then
   PYTHON="python3"
 fi
+export PYTHONUNBUFFERED=1
+export PYTHONNOUSERSITE=1
 export PYTHONPATH="\$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
 
 LOG_FILE="\$LOG_DIR/\$(date +%F).log"
@@ -69,29 +72,7 @@ record_task_run() {
 }
 
 latest_failure_message() {
-  REALTIME_ROOT="\$ROOT" "\$PYTHON" - <<'PY'
-import json
-import os
-from pathlib import Path
-
-path = Path(os.environ["REALTIME_ROOT"]) / "outputs" / "realtime_order_income" / "last_failed.json"
-try:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-except Exception:
-    print("实时单量收入采集失败，已保留上一份成功数据。")
-    raise SystemExit
-
-summary = payload.get("summary") or {}
-parts = [
-    f"实时单量收入采集失败：已采集 {summary.get('platform_store_count', 0)} 个平台门店",
-    f"缺失 {summary.get('missing_count', 0)} 个",
-]
-errors = [str(item) for item in payload.get("errors") or [] if item]
-if errors:
-    parts.append("；".join(errors[:2]))
-parts.append("已拒绝覆盖 latest.json，保留上一份成功数据。")
-print("，".join(parts))
-PY
+  echo "实时单量收入采集失败，已拒绝覆盖 latest.json，保留上一份成功数据。"
 }
 
 run_followup_step() {
@@ -167,7 +148,7 @@ fi
   run_followup_step "生成实时采集状态" "\${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "\$PYTHON" "\$ROOT/scripts/build_realtime_collection_status.py" || true
   run_followup_step "生成任务健康状态" "\${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "\$PYTHON" "\$ROOT/scripts/build_task_health.py" || true
   run_followup_step "生成工作台数据" "\${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "\$PYTHON" "\$ROOT/scripts/build_workbench_data.py" || true
-  run_followup_step "发布工作台云端数据" "\${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" /bin/zsh "\$HOME/Library/Scripts/xiong-operation/deploy_workbench_to_cloud.zsh" || true
+  run_followup_step "发布工作台云端数据" "\${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" env OPERATION_ROOT="\$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only /bin/zsh "\$HOME/Library/Scripts/xiong-operation/deploy_workbench_to_cloud.zsh" || true
   if [[ "\$COLLECT_RC" -eq 0 && "\$FINAL_RC" -eq 0 ]]; then
     record_task_run "\$TASK_ID" success --message "实时单量收入采集完成。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode 0
   else
@@ -307,6 +288,8 @@ ssh "\${SSH_OPTS[@]}" "\$SERVER" "find '\$REMOTE_DIR' -type d -exec chmod 755 {}
 echo "运营总看板已发布：\$PUBLIC_URL"
 EOF
 chmod +x "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
+/bin/cp "$ROOT/scripts/deploy_workbench_to_cloud.zsh" "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
+chmod +x "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
 
 cat > "$SCRIPT_DIR/run_morning_ops.zsh" <<EOF
 #!/bin/zsh
@@ -324,6 +307,8 @@ LOG_DIR="\$HOME/Library/Logs/xiong-operation/morning"
 mkdir -p "\$LOG_DIR"
 export MORNING_OPS_LOG_DIR="\$LOG_DIR"
 export AI_BUSINESS_CENTER_ENV="production"
+export PYTHONUNBUFFERED=1
+export PYTHONNOUSERSITE=1
 
 now_hhmm="\$(date +%H%M)"
 if [ "\$now_hhmm" -lt 800 ] || [ "\$now_hhmm" -gt 1050 ]; then
@@ -353,28 +338,33 @@ run_with_timeout() {
   return "\$exit_status"
 }
 
-PYTHON=""
-for candidate in \
-  "\$ROOT/business-report-dashboard/.venv/bin/python" \
-  "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3" \
-  "python3"
-do
-  if command -v "\$candidate" >/dev/null 2>&1 || [ -x "\$candidate" ]; then
-    if run_with_timeout "\${MORNING_OPS_PYTHON_PREFLIGHT_TIMEOUT_SECONDS:-30}" "\$candidate" -c "import sys; print(sys.executable)" >> "\$LOG_DIR/scheduler.log" 2>&1; then
-      PYTHON="\$candidate"
-      break
-    fi
-    echo "[\$(date '+%F %T')] Python 预检失败，尝试下一个解释器：\$candidate" >> "\$LOG_DIR/scheduler.log"
-  fi
-done
-if [ -z "\$PYTHON" ]; then
-  echo "[\$(date '+%F %T')] 未找到可用 Python，上午运营采集停止。" >> "\$LOG_DIR/scheduler.log"
+PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
+if [ ! -x "\$PYTHON" ]; then
+  echo "[\$(date '+%F %T')] 未找到业务 Python venv：\$PYTHON，上午运营采集停止。" >> "\$LOG_DIR/scheduler.log"
+  "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3" "\$ROOT/scripts/record_task_run.py" ops.morning_collection failed --message "上午运营未执行：缺少业务 Python venv。" --step "Python 环境检查" --log-path "\$LOG_DIR/scheduler.log" --returncode 127 --failure-type "execution_failed" || true
   exit 127
+fi
+set +e
+run_with_timeout "\${MORNING_OPS_PYTHON_PREFLIGHT_TIMEOUT_SECONDS:-20}" "\$PYTHON" -c "import sys; import playwright; print(sys.executable)" >> "\$LOG_DIR/scheduler.log" 2>&1
+rc="\$?"
+set -e
+if [[ "\$rc" -ne 0 ]]; then
+  echo "[\$(date '+%F %T')] 业务 Python 预检失败，上午运营采集停止：\$PYTHON" >> "\$LOG_DIR/scheduler.log"
+  "\$PYTHON" "\$ROOT/scripts/record_task_run.py" ops.morning_collection failed --message "上午运营未执行：业务 Python/Playwright 预检失败。" --step "Python 环境检查" --log-path "\$LOG_DIR/scheduler.log" --returncode "\$rc" --failure-type "execution_failed" || true
+  exit "\$rc"
 fi
 
 echo "[\$(date '+%F %T')] 开始上午运营采集。" >> "\$LOG_DIR/scheduler.log"
-run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-7200}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" >> "\$LOG_DIR/scheduler.log" 2>&1
+set +e
+run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-5400}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" >> "\$LOG_DIR/scheduler.log" 2>&1
+rc="\$?"
+set -e
+if [[ "\$rc" -ne 0 ]]; then
+  echo "[\$(date '+%F %T')] 上午运营采集异常结束，退出码：\$rc" >> "\$LOG_DIR/scheduler.log"
+  "\$PYTHON" "\$ROOT/scripts/record_task_run.py" ops.morning_collection failed --message "上午运营一键采集异常结束，退出码：\$rc。" --step "launchd 包装器" --log-path "\$LOG_DIR/scheduler.log" --returncode "\$rc" || true
+fi
 echo "[\$(date '+%F %T')] 上午运营采集结束。" >> "\$LOG_DIR/scheduler.log"
+exit "\$rc"
 EOF
 chmod +x "$SCRIPT_DIR/run_morning_ops.zsh"
 
