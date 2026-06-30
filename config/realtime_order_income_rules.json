@@ -1,7 +1,0 @@
-{
-  "closed_stores": {},
-  "meituan_page_row_validation": {
-    "min_ticket": 8,
-    "max_ticket": 120
-  }
-}

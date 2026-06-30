@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="玉米淀粉盒">
-  <rect width="240" height="240" rx="30" fill="#fff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff8ec" stroke="#e3ebf3" stroke-width="2"/>
-  <circle cx="196" cy="42" r="18" fill="#d4872f" opacity=".12"/>
-  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <path d="M72 91h96l14 35-15 57H73l-15-57 14-35Z" fill="#f4d49b" stroke="#8a4f18" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M72 91c20 18 73 18 96 0M61 126h119" fill="none" stroke="#8a4f18" stroke-width="5" opacity=".5"/>
-  <path d="M88 158h65" stroke="#d4872f" stroke-width="10" opacity=".6" stroke-linecap="round"/>
-</svg>

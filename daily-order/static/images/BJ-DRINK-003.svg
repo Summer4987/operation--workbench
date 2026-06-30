@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="椰子水">
-  <rect width="240" height="240" rx="36" fill="#eefbf6"/>
-  <path d="M64 121c0-44 28-73 61-73s61 29 61 73c0 49-28 87-61 87s-61-38-61-87z" fill="#ffffff" stroke="#54a787" stroke-width="8"/>
-  <path d="M92 91c15-21 52-21 67 0" fill="none" stroke="#c6e7d9" stroke-width="12" stroke-linecap="round"/>
-  <circle cx="125" cy="134" r="37" fill="#d9f3e9" stroke="#54a787" stroke-width="7"/>
-  <path d="M110 134h30" stroke="#54a787" stroke-width="7" stroke-linecap="round"/>
-  <path d="M125 119v30" stroke="#54a787" stroke-width="7" stroke-linecap="round"/>
-  <path d="M144 53l26-22" stroke="#54a787" stroke-width="8" stroke-linecap="round"/>
-</svg>

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="菲力牛排">
-  <rect width="240" height="240" rx="30" fill="#fff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#fff7ed" stroke="#e3ebf3" stroke-width="2"/>
-  <circle cx="196" cy="42" r="18" fill="#dc2626" opacity=".12"/>
-  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <circle cx="119" cy="121" r="56" fill="#b91c1c" stroke="#7f1d1d" stroke-width="5"/>
-  <circle cx="119" cy="121" r="34" fill="#d94a43"/>
-  <path d="M93 103c19-13 42-12 60 3M88 136c22 13 46 14 68 1" fill="none" stroke="#ffd8c8" stroke-width="8" stroke-linecap="round" opacity=".8"/>
-</svg>

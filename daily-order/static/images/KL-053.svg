@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="大垃圾袋">
-  <rect width="240" height="240" rx="30" fill="#fff"/>
-  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f2fbff" stroke="#e3ebf3" stroke-width="2"/>
-  <circle cx="196" cy="42" r="18" fill="#3d8ec7" opacity=".12"/>
-  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
-  <path d="M94 80c-14 24-20 52-16 105h84c5-31-2-62-17-105l-12 18-13-25-14 25-12-18Z" fill="#2d3745" stroke="#1e5b82" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M91 151c25 11 55 10 82-2" stroke="#fff" stroke-width="7" opacity=".2" stroke-linecap="round"/>
-</svg>
