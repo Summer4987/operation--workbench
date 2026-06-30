@@ -35,6 +35,7 @@ def require_meituan_helpers() -> None:
             classify_failure as imported_classify_failure,
             context_for_task as imported_context_for_task,
             enter_dianjin_with_recovery as imported_enter_dianjin_with_recovery,
+            click_visible_text as imported_click_visible_text,
             load_direct_meituan_accounts as imported_load_direct_meituan_accounts,
             page_text as imported_page_text,
             save_failure_evidence as imported_save_failure_evidence,
@@ -51,6 +52,7 @@ def require_meituan_helpers() -> None:
             "classify_failure": imported_classify_failure,
             "context_for_task": imported_context_for_task,
             "enter_dianjin_with_recovery": imported_enter_dianjin_with_recovery,
+            "click_visible_text": imported_click_visible_text,
             "load_direct_meituan_accounts": imported_load_direct_meituan_accounts,
             "page_text": imported_page_text,
             "save_failure_evidence": imported_save_failure_evidence,
@@ -122,6 +124,42 @@ def read_bid_snapshot(page) -> dict[str, Any]:
         "current_bid": bid_candidates[0] if bid_candidates else None,
         "text_sample": " ".join(text.split())[:1000],
     }
+
+
+def enter_promo_settings(page) -> None:
+    def ready() -> bool:
+        text = page_text(page)
+        return "推广出价" in text and ("每日预算" in text or "推广模式" in text)
+
+    if ready() and "推广实况地图" not in page_text(page):
+        return
+
+    clicked = False
+    for label in ["推广设置", "设置"]:
+        try:
+            clicked = click_visible_text(page, label)
+        except Exception:
+            clicked = False
+        if clicked:
+            break
+    if clicked:
+        for _ in range(12):
+            time.sleep(1)
+            if ready() and "推广实况地图" not in page_text(page):
+                return
+
+    current_url = page.url
+    if "realtime" in current_url:
+        target_url = current_url.replace("/realtime", "/setting").replace("realtime?", "setting?")
+        if target_url != current_url:
+            page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+            if ready():
+                return
+
+    if ready():
+        return
+    raise RuntimeError("没有进入美团推广设置页，当前页面仍不是出价设置区域")
 
 
 def modal_opened(page) -> bool:
@@ -332,6 +370,7 @@ def run_meituan_direct_bid(store: str, target_bid: float, *, commit: bool) -> di
             page.goto(base_url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
             enter_dianjin_with_recovery(page, base_url)
+            enter_promo_settings(page)
             wait_setting_ready(page)
             text = page_text(page)
             blocking = [word for word in AUTH_WORDS if word in text or word in page.url]
