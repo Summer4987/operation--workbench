@@ -103,12 +103,20 @@ def build_task_report(
     run_status = str(run_item.get("status") or health_item.get("last_run_status") or "")
     completion_status = classify_completion(health_status, run_status)
     failure_type = run_item.get("failure_type") or health_item.get("failure_type") or ""
-    reason = first_text(
-        run_item.get("message"),
-        health_item.get("reason"),
-        policy.get("missing_message") if completion_status == "missing" else "",
-        "没有找到任务运行记录。",
-    )
+    if completion_status == "attention":
+        reason = first_text(
+            health_item.get("reason"),
+            run_item.get("message"),
+            policy.get("missing_message") if completion_status == "missing" else "",
+            "没有找到任务运行记录。",
+        )
+    else:
+        reason = first_text(
+            run_item.get("message"),
+            health_item.get("reason"),
+            policy.get("missing_message") if completion_status == "missing" else "",
+            "没有找到任务运行记录。",
+        )
     failed = completion_status == "failed"
     rerun_decision = build_rerun_decision(completion_status, health_item, run_item, policy)
 
