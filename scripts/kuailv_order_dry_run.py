@@ -2136,6 +2136,7 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
     )
     for node in nodes:
         text = node_text(node)
+        visible_label = " ".join(str(node.get(key) or "").strip() for key in ("text", "content_desc") if str(node.get(key) or "").strip())
         blob = f"{text} {node.get('class') or ''} {node.get('resource_id') or ''}".lower()
         bounds = tuple(node["bounds"])
         if bounds == (0, 0, 0, 0) or bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
@@ -2147,7 +2148,7 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
             continue
         reasons = []
         score = 0
-        has_search_text = any(word in text for word in ["搜索", "请输入", "搜"])
+        has_search_text = any(word in visible_label for word in ["搜索", "请输入", "搜"])
         has_search_resource = "search" in blob
         has_edit_text = "edittext" in blob
         if has_search_text:
@@ -2166,10 +2167,10 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         if width >= image_width * 0.35 and (has_search_text or has_search_resource or has_edit_text):
             score += 45
             reasons.append("wide_input_like")
-        if has_top_search_submit and text.strip() and 190 <= cx <= 875 and 80 <= cy <= 340 and not has_search_resource:
+        if has_top_search_submit and visible_label.strip() and 190 <= cx <= 875 and 80 <= cy <= 340 and not has_search_resource:
             score += 65
             reasons.append("top_search_bar_text_with_submit")
-        if text.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
+        if visible_label.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
             score -= 95
             reasons.append("small_search_submit_button")
         if cy <= image_height * 0.22:
@@ -2184,7 +2185,7 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
                 "bounds": list(bounds),
                 "score": score,
                 "reasons": reasons,
-                "text": text,
+                "text": visible_label or text,
                 "clickable": node.get("clickable"),
                 "class": node.get("class", ""),
                 "resource_id": node.get("resource_id", ""),
