@@ -48,6 +48,8 @@ class AgentBridgeIntentTests(unittest.TestCase):
         text = self.bridge.route_natural_text("推广出价", limit=3)
         self.assertIn("直接改价指令", text)
         self.assertIn("美团 银泰城店 点金出价调到 1.8 元", text)
+        self.assertIn("美团会进入 Mac mini 真实执行器", text)
+        self.assertIn("饿了么 direct 指令还在接入中", text)
         self.assertNotIn("中心：", text)
         self.assertNotIn("风险：", text)
         self.assertNotIn("安全命令：", text)

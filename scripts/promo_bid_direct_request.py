@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "promo_bid_direct_request"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+EXECUTOR_LATEST_PATH = ROOT / "outputs" / "promo_bid_direct_executor" / "latest.json"
 
 PLATFORM_ALIASES = {
     "meituan": ("美团", "美团外卖", "mt"),
@@ -113,6 +116,49 @@ def write_latest(payload: dict[str, Any]) -> None:
     LATEST_PATH.chmod(0o600)
 
 
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def run_executor(request: dict[str, Any]) -> dict[str, Any]:
+    command = [
+        sys.executable,
+        "scripts/meituan_promo_bid_direct_executor.py",
+        "--platform",
+        str(request["platform"]),
+        "--store",
+        str(request["store"]),
+        "--target-bid",
+        str(request["target_bid"]),
+        "--commit",
+        "--json",
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=180,
+    )
+    payload = read_json(EXECUTOR_LATEST_PATH)
+    if not payload:
+        payload = {
+            "status": "failed",
+            "message": (completed.stdout or "").strip() or f"执行器退出码 {completed.returncode}",
+            "execution": {"attempted": True, "executed": False, "reason": "executor_output_missing"},
+        }
+    payload["returncode"] = completed.returncode
+    payload["command"] = command
+    if completed.returncode != 0 and payload.get("status") in {"success", "preflight_ok"}:
+        payload["status"] = "failed"
+    return payload
+
+
 def build_payload(text: str, *, execute: bool) -> dict[str, Any]:
     request = parse_request(text)
     generated_at = now_text()
@@ -135,20 +181,19 @@ def build_payload(text: str, *, execute: bool) -> dict[str, Any]:
             ),
             "execution": {"attempted": False, "executed": False, "reason": "execute_not_requested"},
         }
+    executor_payload = run_executor(request)
+    executed = bool((executor_payload.get("execution") or {}).get("executed"))
+    if executed:
+        message = f"已把 {request['store']} 的{request['scope']}调到 {request['target_bid']} 元。"
+    else:
+        message = executor_payload.get("message") or "出价执行失败，我已记录执行日志。"
     return {
         "generated_at": generated_at,
-            "status": "executor_missing",
-            "request": request,
-            "message": (
-            f"我已经识别到要把 {request['store']} 的{request['scope']}调到 {request['target_bid']} 元，"
-            "但真实改价执行器还没接上，所以现在不能替你保存到平台。"
-        ),
-        "execution": {
-            "attempted": True,
-            "executed": False,
-            "reason": "executor_missing",
-            "required_executor": "promo_bid_direct_executor",
-        },
+        "status": "executed" if executed else executor_payload.get("status") or "failed",
+        "request": request,
+        "message": message,
+        "execution": executor_payload.get("execution") or {"attempted": True, "executed": False, "reason": "execution_failed"},
+        "executor": executor_payload,
     }
 
 
