@@ -82,13 +82,13 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def feishu_fields(record: dict[str, Any]) -> dict[str, Any]:
+def feishu_fields(record: dict[str, Any], field_types: dict[str, int] | None = None) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     for local_name, feishu_name in FEISHU_LEDGER_FIELD_MAP.items():
         value = record.get(local_name)
         if value is None:
             continue
-        if local_name in FEISHU_DATE_FIELDS:
+        if local_name in FEISHU_DATE_FIELDS and field_types and field_types.get(feishu_name) == 5:
             value = feishu_date_value(str(value), local_name)
         fields[feishu_name] = value
     return fields
@@ -132,11 +132,23 @@ def chunked(records: list[dict[str, Any]], size: int) -> list[list[dict[str, Any
     return [records[index : index + size] for index in range(0, len(records), size)]
 
 
+def feishu_field_types(token: str, app_token: str, table_id: str) -> dict[str, int]:
+    response = get_json(f"/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/fields?page_size=100", token)
+    if response.get("code") != 0:
+        raise RuntimeError(f"读取飞书字段失败：{json.dumps(response, ensure_ascii=False)}")
+    return {
+        str(item.get("field_name") or ""): int(item.get("type") or 0)
+        for item in response.get("data", {}).get("items", [])
+        if item.get("field_name")
+    }
+
+
 def post_feishu_records(records: list[dict[str, Any]], token: str, app_token: str, table_id: str) -> list[str]:
     created_record_ids: list[str] = []
     endpoint = f"{FEISHU_API_BASE}/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records/batch_create"
+    field_types = feishu_field_types(token, app_token, table_id)
     for batch in chunked(records, 500):
-        body = json.dumps({"records": [{"fields": feishu_fields(record)} for record in batch]}, ensure_ascii=False).encode("utf-8")
+        body = json.dumps({"records": [{"fields": feishu_fields(record, field_types)} for record in batch]}, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             endpoint,
             data=body,

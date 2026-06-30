@@ -84,14 +84,14 @@ python3 scripts/finance_feishu_sync.py
 当前“熊小小财务系统”知识库链接：
 
 - `FEISHU_FINANCE_WIKI_TOKEN=S2cjweZDgiF9Ahk1utNct9ALnGb`
-- `FEISHU_FINANCE_TABLE_ID=tblhvLWzZljosVyG`
+- `FEISHU_FINANCE_TABLE_ID=tbl4k7A9bHAqPAuI`
 - 开发者后台 App ID：`cli_aac9dcadd1f81cc8`
 
 ```bash
 FEISHU_APP_ID="cli_aac9dcadd1f81cc8" \
 FEISHU_APP_SECRET="..." \
 FEISHU_FINANCE_WIKI_TOKEN="S2cjweZDgiF9Ahk1utNct9ALnGb" \
-FEISHU_FINANCE_TABLE_ID="tblhvLWzZljosVyG" \
+FEISHU_FINANCE_TABLE_ID="tbl4k7A9bHAqPAuI" \
 python3 scripts/finance_feishu_sync.py --execute
 ```
 
