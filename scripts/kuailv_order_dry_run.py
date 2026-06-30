@@ -35,13 +35,14 @@ ADB_COMMON_PATHS = [
 
 PACK_RULES: dict[str, dict[str, Any]] = {
     "洋葱": {
-        "pack_sizes": [20, 10, 5],
+        "pack_sizes": [1],
         "allowed_overage": 0,
+        "variable_quantity": True,
         "keywords": ["黄皮洋葱", "洋葱"],
         "accept": ["黄皮洋葱"],
-        "prefer": ["黄皮洋葱", "20斤", "10斤", "5斤"],
+        "prefer": ["黄皮洋葱"],
         "reject": ["白皮洋葱", "白皮 洋葱", "红皮洋葱", "红皮 洋葱", "紫皮洋葱"],
-        "lesson": "默认洋葱按黄皮洋葱处理；白皮、红皮、紫皮只能在订单明确指定时再放开。40 斤需求优先按 20斤 x2。",
+        "lesson": "默认洋葱按黄皮洋葱处理；白皮、红皮、紫皮只能在订单明确指定时再放开。洋葱是散称商品，先加购明确的黄皮洋葱，再在购物车按订单斤数调整和核对。",
     },
     "白玉菇": {
         "pack_sizes": [4, 1],
@@ -53,12 +54,13 @@ PACK_RULES: dict[str, dict[str, Any]] = {
         "lesson": "银泰城实跑时白玉菇按 4斤规格连加；食堂菜禁用后，带食堂菜标签的白玉菇散装不能用，优先搜白玉菇4斤/白玉菇散菇继续找非食堂菜候选。",
     },
     "土豆": {
-        "pack_sizes": [10, 5],
-        "allowed_overage": 5,
-        "keywords": ["土豆5斤", "土豆10斤", "土豆"],
+        "pack_sizes": [1],
+        "allowed_overage": 0,
+        "variable_quantity": True,
+        "keywords": ["土豆"],
         "accept": ["土豆"],
-        "prefer": ["10斤", "5斤", "20斤"],
-        "lesson": "银泰城实跑时 15/20 斤优先用 10斤和 5斤拆分；如果前两页找不到 5斤，允许 20斤 x1 作为 fallback。",
+        "prefer": ["土豆"],
+        "lesson": "土豆按散称商品处理；先加购明确的土豆，再在购物车按订单斤数调整和核对，不把订单斤数当作卡片规格。",
     },
     "圣女果": {
         "pack_sizes": [6, 5, 3],
@@ -80,21 +82,23 @@ PACK_RULES: dict[str, dict[str, Any]] = {
         "lesson": "银泰城实跑误点过“嫩豆腐 5斤 x2盒”；脚本必须把嫩豆腐、5斤、2盒列为强排除，购物车里也要复核删除。",
     },
     "胡萝卜": {
-        "pack_sizes": [10, 5],
+        "pack_sizes": [1],
         "allowed_overage": 0,
-        "keywords": ["胡萝卜5斤", "胡萝卜10斤", "胡萝卜"],
+        "variable_quantity": True,
+        "keywords": ["胡萝卜"],
         "accept": ["胡萝卜"],
-        "prefer": ["10斤", "5斤"],
-        "lesson": "银泰城实跑前已定策略：10 斤需求先比 5斤 x2 与 10斤 x1；食堂菜禁用后优先搜胡萝卜5斤/10斤以找到断节胡萝卜规格。",
+        "prefer": ["胡萝卜"],
+        "lesson": "胡萝卜按散称商品处理；先加购明确的胡萝卜，再在购物车按订单斤数调整和核对。",
     },
     "樟树椒": {
-        "pack_sizes": [5, 3, 1],
-        "allowed_overage": 2,
+        "pack_sizes": [1],
+        "allowed_overage": 0,
+        "variable_quantity": True,
         "keywords": ["樟树椒", "青椒"],
         "accept": ["樟树椒"],
-        "prefer": ["5斤", "3斤", "1斤"],
+        "prefer": ["樟树椒"],
         "reject": ["螺丝椒", "尖椒", "小米椒"],
-        "lesson": "樟树椒不要直接按泛词青椒下单；青椒只作兜底搜索词，命中必须回到樟树椒。",
+        "lesson": "樟树椒不要直接按泛词青椒下单；青椒只作兜底搜索词，命中必须回到樟树椒。樟树椒按散称商品处理，购物车里按订单斤数调整和核对。",
     },
     "大蒜": {"pack_sizes": [5, 3, 1], "allowed_overage": 2, "keywords": ["大蒜"], "accept": ["大蒜"], "prefer": ["3斤", "5斤"]},
     "玉米粒": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["玉米粒"], "accept": ["玉米粒"], "prefer": ["玉米粒"]},
@@ -260,10 +264,13 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
     quantity = float(item.get("quantity") or 0)
     unit = str(item.get("unit") or "")
     rule = PACK_RULES.get(name, {"pack_sizes": [1], "allowed_overage": 0, "keywords": [name]})
+    variable_quantity = bool(rule.get("variable_quantity"))
     pack_sizes = [float(v) for v in rule["pack_sizes"]]
     allowed_overage = float(rule.get("allowed_overage") or 0)
     prefer_single_pack = float(rule.get("prefer_single_pack") or 0)
-    if prefer_single_pack and quantity <= prefer_single_pack <= quantity + allowed_overage:
+    if variable_quantity:
+        pack_lines, planned_quantity = [{"pack_size": quantity, "count": 1.0}], quantity
+    elif prefer_single_pack and quantity <= prefer_single_pack <= quantity + allowed_overage:
         pack_lines, planned_quantity = [{"pack_size": prefer_single_pack, "count": 1.0}], prefer_single_pack
     else:
         pack_lines, planned_quantity = split_packs(quantity, pack_sizes, allowed_overage)
@@ -282,11 +289,16 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         "required_keywords": accept_keywords,
         "preferred_spec_keywords": prefer_keywords,
         "excluded_keywords": reject_keywords,
+        "selection_mode": "identity_only" if variable_quantity else "pack_match",
+        "quantity_adjust_required": variable_quantity,
+        "target_quantity": quantity,
         "pack_strategy": [
             {
                 "pack_size": line["pack_size"],
                 "count": int(line["count"]),
-                "label": f"{format_number(line['pack_size'])}{unit} x {int(line['count'])}",
+                "label": f"{format_number(quantity)}{unit}目标 x 1"
+                if variable_quantity
+                else f"{format_number(line['pack_size'])}{unit} x {int(line['count'])}",
             }
             for line in pack_lines
         ],
@@ -298,13 +310,15 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         "selection_policy": [
             "商品标题或规格必须命中 required_keywords。",
             "商品标题或规格命中 excluded_keywords 时禁止加购。",
-            "多个候选同时可用时，优先命中 preferred_spec_keywords 且能用最少点击满足数量的规格。",
+            "散称商品只按商品身份选择，订单数量在购物车内调整和核对，不把订单斤数当作商品卡片规格。",
+            "固定包装商品多个候选同时可用时，优先命中 preferred_spec_keywords 且能用最少点击满足数量的规格。",
             "需求数量与包装规格不完全匹配时，只允许在 overage 范围内略超；超出则转人工确认。",
         ],
         "cart_validation": {
             "expected_name_keywords": accept_keywords,
             "expected_quantity": planned_quantity,
             "expected_unit": unit,
+            "quantity_adjust_required": variable_quantity,
             "reject_if_seen": reject_keywords,
         },
     }
@@ -729,7 +743,8 @@ def detect_target_card_add_controls(
             for word in list(line.get("preferred_spec_keywords") or []) + required + line_pack_labels(line)
             if looks_like_spec_keyword(str(word))
         ]
-        if not identity_keywords or not spec_keywords:
+        identity_only = line.get("selection_mode") == "identity_only"
+        if not identity_keywords or (not spec_keywords and not identity_only):
             continue
         title_nodes = [
             node
@@ -744,6 +759,49 @@ def detect_target_card_add_controls(
         for title in title_nodes:
             title_bounds = tuple(title["bounds"])
             title_cx, title_cy = bounds_center(title_bounds)
+            if identity_only:
+                target_text = node_text(title)
+                if not any(word in target_text for word in identity_keywords):
+                    continue
+                if any(word in target_text for word in excluded):
+                    continue
+                for add_control in add_controls:
+                    add_bounds = tuple(add_control.get("bounds") or [])
+                    center = add_control.get("center") or []
+                    if len(add_bounds) != 4 or len(center) != 2:
+                        continue
+                    cx, cy = float(center[0]), float(center[1])
+                    if cy < title_cy - 220 or cy > title_cy + 260:
+                        continue
+                    if cx <= title_cx or cx < 700:
+                        continue
+                    y1 = max(0, min(title_bounds[1], add_bounds[1]) - 90)
+                    y2 = max(title_bounds[3], add_bounds[3]) + 90
+                    rows = []
+                    for node in nodes:
+                        text = node_text(node)
+                        if not text:
+                            continue
+                        bounds = tuple(node["bounds"])
+                        nx, ny = bounds_center(bounds)
+                        if y1 <= ny <= y2 and nx <= cx + 120:
+                            rows.append({"text": text, "bounds": node["bounds"], "distance_y": round(abs(ny - cy), 1)})
+                    rows.sort(key=lambda item: (item["bounds"][1], item["bounds"][0]))
+                    candidates.append(
+                        {
+                            "center": [round(cx, 1), round(cy, 1)],
+                            "bounds": list(add_bounds),
+                            "source": "xml_target_card_control",
+                            "control_text": "orange_add_icon",
+                            "nearby_texts": rows[:24],
+                            "context_texts": rows[:24],
+                            "target_title_text": node_text(title),
+                            "target_spec_text": "",
+                            "detection_reasons": ["image_target_card_identity_add_aligned"],
+                            "target_line_name": line.get("name", ""),
+                        }
+                    )
+                continue
             for spec in spec_nodes:
                 spec_bounds = tuple(spec["bounds"])
                 spec_cx, spec_cy = bounds_center(spec_bounds)
@@ -971,6 +1029,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     identity_keywords = [word for word in required if not looks_like_spec_keyword(word)]
     identity_hits = [word for word in identity_keywords if word in all_text]
     target_line_name = str(candidate.get("target_line_name") or "")
+    identity_only = line.get("selection_mode") == "identity_only"
     reasons = []
     if target_line_name and target_line_name != str(line.get("name") or ""):
         reasons.append("target_line_name_mismatch")
@@ -982,7 +1041,7 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         reasons.append("excluded_keyword_seen")
     if other_product_hits:
         reasons.append("other_product_context_seen")
-    if pack_label and not pack_hits:
+    if pack_label and not identity_only and not pack_hits:
         reasons.append("pack_label_not_in_card_context")
     allowed = not reasons
     score = 0
@@ -1059,6 +1118,8 @@ def annotate_add_candidates(candidates: list[dict[str, Any]], plan: dict[str, An
 
 
 def line_pack_labels(line: dict[str, Any]) -> list[str]:
+    if line.get("selection_mode") == "identity_only":
+        return [""]
     labels = [str(pack.get("label") or "").split(" x ", 1)[0] for pack in line.get("pack_strategy") or []]
     labels.extend(str(word) for word in line.get("preferred_spec_keywords") or [] if re.search(r"\d", str(word)))
     labels = list(dict.fromkeys(label for label in labels if label))
@@ -1078,7 +1139,7 @@ def search_target_words(plan: dict[str, Any], query: str) -> list[str]:
         if not normalized_query or not any(name and (name in normalized_query or normalized_query in name) for name in compact_names):
             continue
         words.extend(str(word) for word in line.get("required_keywords") or [] if word)
-        spec_words = [
+        spec_words = [] if line.get("selection_mode") == "identity_only" else [
             str(word)
             for word in list(line.get("preferred_spec_keywords") or []) + line_pack_labels(line)
             if looks_like_spec_keyword(str(word))
@@ -1118,7 +1179,7 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
                 str(best.get(key) or "")
                 for key in ("line_name", "pack_label", "row_text", "context_text", "target_title_text", "target_spec_text")
             )
-            spec_targets = [word for word in target_words if word and looks_like_spec_keyword(str(word))]
+            spec_targets = [] if not str(best.get("pack_label") or "") else [word for word in target_words if word and looks_like_spec_keyword(str(word))]
             identity_targets = [word for word in target_words if word and not looks_like_spec_keyword(str(word))]
             identity_hits = [word for word in identity_targets if word in best_text]
             spec_hits = [word for word in spec_targets if valid_pack_label_hit(best_text, str(word))]
@@ -1522,6 +1583,7 @@ def plan_expected_cart_lines(plan: dict[str, Any] | None) -> list[dict[str, Any]
                 "expected_quantity": validation.get("expected_quantity", line.get("planned_quantity")),
                 "expected_cart_count": sum(int(pack.get("count") or 0) for pack in line.get("pack_strategy") or []),
                 "expected_unit": validation.get("expected_unit", line.get("unit", "")),
+                "quantity_adjust_required": validation.get("quantity_adjust_required", line.get("quantity_adjust_required", False)),
                 "reject_if_seen": validation.get("reject_if_seen") or line.get("excluded_keywords") or [],
                 "pack_labels": line_pack_labels(line),
             }
@@ -1555,7 +1617,10 @@ def build_cart_review_expectation(plan: dict[str, Any] | None, visible_items: li
             missing.append(expected)
             risk_flags.append("expected_item_missing")
             continue
-        expected_quantity = safe_float(expected.get("expected_cart_count") or expected.get("expected_quantity"), 0)
+        if expected.get("quantity_adjust_required"):
+            expected_quantity = safe_float(expected.get("expected_quantity"), 0)
+        else:
+            expected_quantity = safe_float(expected.get("expected_cart_count") or expected.get("expected_quantity"), 0)
         quantity_ok = True
         if expected_quantity > 0:
             quantity_ok = any(abs(cart_item_quantity(item.get("quantity")) - expected_quantity) < 0.000001 for item in matches)
@@ -2256,8 +2321,12 @@ def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         search_terms = [str(term) for term in line.get("search_terms") or [] if term]
         for pack in line.get("pack_strategy") or []:
-            pack_label = str(pack.get("label") or "").split(" x ", 1)[0]
+            identity_only = line.get("selection_mode") == "identity_only"
+            raw_pack_label = str(pack.get("label") or "").split(" x ", 1)[0]
+            pack_label = "" if identity_only else raw_pack_label
             count = int(pack.get("count") or 0)
+            if identity_only:
+                count = int(round(safe_float(line.get("target_quantity") or line.get("requested_quantity"), 0)))
             query = next((term for term in search_terms if pack_label and pack_label in term), "")
             if not query:
                 query = str(line.get("preferred_keyword") or (search_terms[0] if search_terms else line.get("name") or ""))
@@ -2266,13 +2335,16 @@ def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "line_name": line.get("name", ""),
                     "sku": line.get("sku", ""),
                     "pack_label": pack_label,
+                    "display_pack_label": raw_pack_label,
+                    "selection_mode": line.get("selection_mode", "pack_match"),
+                    "target_quantity": line.get("target_quantity", line.get("requested_quantity")),
                     "count": count,
                     "search_query": query,
                     "expected_quantity": pack.get("pack_size"),
                     "unit": line.get("unit", ""),
                 }
             )
-    return [step for step in steps if step["line_name"] and step["pack_label"] and step["count"] > 0]
+    return [step for step in steps if step["line_name"] and (step["pack_label"] or step.get("selection_mode") == "identity_only") and step["count"] > 0]
 
 
 def run_adb_auto_add_cart(
@@ -2314,6 +2386,7 @@ def run_adb_auto_add_cart(
 
     executed_steps = []
     for index, step in enumerate(steps, start=1):
+        step_label = step.get("display_pack_label") or step.get("pack_label") or f"{format_number(safe_float(step.get('target_quantity'), 0))}{step.get('unit', '')}目标"
         search_result = run_adb_search(
             plan,
             serial,
@@ -2329,6 +2402,9 @@ def run_adb_auto_add_cart(
             "index": index,
             "line_name": step["line_name"],
             "pack_label": step["pack_label"],
+            "display_pack_label": step_label,
+            "selection_mode": step.get("selection_mode"),
+            "target_quantity": step.get("target_quantity"),
             "count": step["count"],
             "search_query": step["search_query"],
             "search": search_result,
@@ -2338,7 +2414,7 @@ def run_adb_auto_add_cart(
         if search_result.get("status") != "search_ready_for_manual_review":
             return {
                 "status": "blocked",
-                "message": f"整单自动加购在搜索 {step['line_name']} / {step['pack_label']} 时停止：{search_result.get('message')}",
+                "message": f"整单自动加购在搜索 {step['line_name']} / {step_label} 时停止：{search_result.get('message')}",
                 "device_serial": serial,
                 "started_at": started_at,
                 "gate": gate,
@@ -2355,7 +2431,7 @@ def run_adb_auto_add_cart(
             if tap_result.get("status") != "tapped_for_manual_review":
                 return {
                     "status": "blocked",
-                    "message": f"整单自动加购在加购 {step['line_name']} / {step['pack_label']} 第 {tap_index} 次时停止：{tap_result.get('message')}",
+                    "message": f"整单自动加购在加购 {step['line_name']} / {step_label} 第 {tap_index} 次时停止：{tap_result.get('message')}",
                     "device_serial": serial,
                     "started_at": started_at,
                     "gate": gate,
@@ -2398,8 +2474,9 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     serial, blocked = resolve_adb_serial(serial, timeout)
     if blocked:
         return blocked
-    if not item_name or not pack_label:
-        return {"status": "blocked", "message": "safe-tap 需要同时指定 --tap-item 和 --tap-pack。", "device_serial": serial}
+    target_line = next((line for line in plan.get("lines") or [] if str(line.get("name") or "") == item_name), {})
+    if not item_name or (not pack_label and target_line.get("selection_mode") != "identity_only"):
+        return {"status": "blocked", "message": "safe-tap 需要指定 --tap-item；固定包装商品还需要 --tap-pack。", "device_serial": serial}
 
     session = datetime.now().strftime("%Y%m%d-%H%M%S-safe-tap")
     session_dir = OUTPUT_DIR / session

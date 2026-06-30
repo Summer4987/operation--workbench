@@ -62,10 +62,10 @@ class KuailvOrderDryRunTest(unittest.TestCase):
             "submitted_at": "2026-06-17T10:00:00+08:00",
             "items": [
                 {
-                    "sku": "ONION-001",
-                    "name": "洋葱",
-                    "quantity": 40,
-                    "unit": "斤",
+                    "sku": "TOFU-001",
+                    "name": "豆腐",
+                    "quantity": 2,
+                    "unit": "盒",
                     "purchase_channel": "快驴",
                 }
             ],
@@ -77,9 +77,9 @@ class KuailvOrderDryRunTest(unittest.TestCase):
   <node text="全选" bounds="[40,2140][140,2200]" />
   <node text="合计:" bounds="[480,2140][580,2200]" />
   <node text="去结算" bounds="[820,2140][1040,2240]" />
-  <node text="黄皮洋葱" bounds="[410,820][620,880]" />
-  <node text="20斤" bounds="[410,900][500,960]" />
-  <node text="¥24.00" bounds="[410,980][550,1040]" />
+  <node text="[其辉]胆水老豆腐" bounds="[410,820][720,880]" />
+  <node text="400g" bounds="[410,900][500,960]" />
+  <node text="¥3.20" bounds="[410,980][550,1040]" />
   <node text="2" bounds="[820,1010][850,1060]" />
 </hierarchy>"""
 
@@ -155,11 +155,48 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         steps = auto_add_pack_steps(build_plan(order))
 
         self.assertEqual(steps[0]["line_name"], "洋葱")
-        self.assertEqual(steps[0]["pack_label"], "20斤")
-        self.assertEqual(steps[0]["count"], 2)
+        self.assertEqual(steps[0]["pack_label"], "")
+        self.assertEqual(steps[0]["display_pack_label"], "40斤目标")
+        self.assertEqual(steps[0]["selection_mode"], "identity_only")
+        self.assertEqual(steps[0]["count"], 40)
         potato_steps = [step for step in steps if step["line_name"] == "土豆"]
-        self.assertEqual([step["pack_label"] for step in potato_steps], ["10斤", "5斤"])
-        self.assertEqual([step["search_query"] for step in potato_steps], ["土豆10斤", "土豆5斤"])
+        self.assertEqual([step["pack_label"] for step in potato_steps], [""])
+        self.assertEqual([step["display_pack_label"] for step in potato_steps], ["15斤目标"])
+        self.assertEqual([step["search_query"] for step in potato_steps], ["土豆"])
+        self.assertEqual([step["count"] for step in potato_steps], [15])
+
+    def test_identity_only_line_does_not_require_pack_quantity_on_card(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "保利中心店",
+            "submitted_at": "2026-06-30T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "ONION-001",
+                    "name": "洋葱",
+                    "quantity": 30,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        line = build_plan(order)["lines"][0]
+        candidate = {
+            "source": "xml_target_card_control",
+            "control_text": "orange_add_icon",
+            "target_line_name": "洋葱",
+            "target_title_text": "黄皮洋葱",
+            "target_spec_text": "",
+            "nearby_texts": [{"text": "黄皮洋葱", "bounds": [410, 820, 620, 880]}],
+            "context_texts": [{"text": "黄皮洋葱", "bounds": [410, 820, 620, 880]}],
+        }
+
+        from kuailv_order_dry_run import score_candidate_for_line  # noqa: E402
+
+        score = score_candidate_for_line(candidate, line, "")
+
+        self.assertTrue(score["allowed"])
+        self.assertNotIn("pack_label_not_in_card_context", score["reasons"])
 
     def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
         config = {
@@ -213,7 +250,7 @@ class KuailvOrderDryRunTest(unittest.TestCase):
             _payload, order = load_order_json(str(path))
 
         self.assertEqual(order["order_id"], "DO-LOCAL")
-        self.assertEqual(auto_add_pack_steps(build_plan(order))[0]["pack_label"], "20斤")
+        self.assertEqual(auto_add_pack_steps(build_plan(order))[0]["pack_label"], "")
 
 
 if __name__ == "__main__":
