@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "promo_bid_direct_request"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 EXECUTOR_LATEST_PATH = ROOT / "outputs" / "promo_bid_direct_executor" / "latest.json"
+PLAYWRIGHT_PYTHON = ROOT / "business-report-dashboard" / ".venv" / "bin" / "python"
 
 PLATFORM_ALIASES = {
     "meituan": ("美团", "美团外卖", "mt"),
@@ -124,8 +125,9 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def run_executor(request: dict[str, Any]) -> dict[str, Any]:
+    python_bin = str(PLAYWRIGHT_PYTHON) if PLAYWRIGHT_PYTHON.exists() else sys.executable
     command = [
-        sys.executable,
+        python_bin,
         "scripts/meituan_promo_bid_direct_executor.py",
         "--platform",
         str(request["platform"]),
