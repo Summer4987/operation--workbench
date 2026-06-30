@@ -302,6 +302,7 @@ def format_result(result: dict[str, Any]) -> str:
             f"处理方式：复制原文件后，在 {result['sheet']} 第 {result['row']} 行新增入库预约。",
             f"新增内容：{result['date']}｜{result['name']}｜{result['quantity']:g}{result['unit']}｜商品编码 {result['sku']}。",
             f"新文件：{result['output_path']}",
+            str(result["output_path"]),
             "安全说明：没有覆盖桌面原文件。",
         ]
     )
