@@ -193,6 +193,23 @@ def load_order(server: str, token: str, date_text: str, order_id: str, seed: str
     return payload, selected
 
 
+def load_order_json(path_text: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    path = Path(path_text)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload.get("order"), dict):
+        return payload, payload["order"]
+    if isinstance(payload.get("selected_order"), dict):
+        return payload, payload["selected_order"]
+    if isinstance(payload.get("orders"), list) and payload["orders"]:
+        orders = [order for order in payload["orders"] if kuailv_items(order)]
+        if not orders:
+            raise RuntimeError(f"{path} 中没有包含快驴商品的订单。")
+        return payload, orders[0]
+    if isinstance(payload.get("items"), list):
+        return {"orders": [payload]}, payload
+    raise RuntimeError(f"{path} 不是可识别的订单 JSON；需要包含 order、selected_order、orders 或订单 items。")
+
+
 def split_packs(quantity: float, pack_sizes: list[float], allowed_overage: float) -> tuple[list[dict[str, float]], float]:
     target = float(quantity)
     best: tuple[float, float, int, list[dict[str, float]]] | None = None
@@ -3050,6 +3067,7 @@ def main() -> int:
     parser.add_argument("--token", default=os.environ.get("DAILY_ORDER_ADMIN_TOKEN", DEFAULT_TOKEN), help="daily-order 后台 token")
     parser.add_argument("--date", default=today_text(), help="订单日期，默认今天")
     parser.add_argument("--order-id", default="", help="指定订单；为空时从日期内快驴订单随机选择")
+    parser.add_argument("--order-json", default="", help="从本地订单 JSON 读取；用于 admin token 不可用时的生产兜底")
     parser.add_argument("--seed", default="", help="随机种子；为空时按日期稳定随机")
     parser.add_argument(
         "--mode",
@@ -3082,7 +3100,12 @@ def main() -> int:
     started_at = now_text()
     try:
         install_process_watchdog(args.max_runtime)
-        _, order = load_order(args.server, args.token, args.date, args.order_id.strip(), args.seed, args.timeout)
+        if args.order_json.strip():
+            _, order = load_order_json(args.order_json.strip())
+            source = str(Path(args.order_json.strip()))
+        else:
+            _, order = load_order(args.server, args.token, args.date, args.order_id.strip(), args.seed, args.timeout)
+            source = admin_summary_url(args.server, "***")
         plan = build_plan(order)
         if args.mode == "adb-dry-run":
             adb_result = run_adb_dry_run(plan, args.adb_serial.strip(), args.timeout)
@@ -3129,7 +3152,7 @@ def main() -> int:
             "generated_at": started_at,
             "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review", "cart_cleared_for_manual_review", "cart_already_empty", "auto_add_cart_ready"} else "blocked",
             "mode": args.mode,
-            "source": admin_summary_url(args.server, "***"),
+            "source": source,
             "message": "快驴订货计划已生成；未提交订单，未付款。",
             "plan": plan,
             "adb": adb_result,

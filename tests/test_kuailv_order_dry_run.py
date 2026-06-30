@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     android_auto_add_gate,
     auto_add_pack_steps,
     build_plan,
+    load_order_json,
     safe_tap_visual_proof,
 )
 
@@ -177,6 +179,27 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertTrue(allowed["allowed"])
         self.assertFalse(no_flag["allowed"])
         self.assertIn("auto_add_to_cart_not_allowed_by_config", no_flag["reasons"])
+
+    def test_load_order_json_accepts_direct_order_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "order.json"
+            path.write_text(
+                """{
+  "order_id": "DO-LOCAL",
+  "store_name": "银泰城店",
+  "submitted_at": "2026-06-30T10:00:00+08:00",
+  "items": [
+    {"sku": "ONION-001", "name": "洋葱", "quantity": 40, "unit": "斤", "purchase_channel": "快驴"}
+  ]
+}
+""",
+                encoding="utf-8",
+            )
+
+            _payload, order = load_order_json(str(path))
+
+        self.assertEqual(order["order_id"], "DO-LOCAL")
+        self.assertEqual(auto_add_pack_steps(build_plan(order))[0]["pack_label"], "20斤")
 
 
 if __name__ == "__main__":
