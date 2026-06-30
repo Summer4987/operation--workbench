@@ -26,6 +26,7 @@ from kuailv_order_dry_run import (
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "kuailv_order_agent"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+AUTO_ADD_READY_STATUSES = {"auto_add_cart_ready", "auto_add_cart_ready_with_skips"}
 
 
 def now_text() -> str:
@@ -241,10 +242,11 @@ def run_agent(args: argparse.Namespace) -> dict[str, Any]:
             str(auto_search_pre_back_count),
             "--auto-cart-pre-back-count",
             str(args.cart_pre_back_count),
+            "--skip-missing-items",
         ],
     )
     latest = report["auto_add"].get("latest_summary") or {}
-    report["status"] = "ready" if latest.get("adb_status") == "auto_add_cart_ready" else "blocked"
+    report["status"] = "ready" if latest.get("adb_status") in AUTO_ADD_READY_STATUSES else "blocked"
     report["message"] = latest.get("adb_message") or "快驴 agent 已完成执行。"
     write_json(run_dir / "report.json", report)
     write_json(LATEST_PATH, report)

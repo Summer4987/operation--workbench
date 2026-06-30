@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from kuailv_order_agent import (  # noqa: E402
+    AUTO_ADD_READY_STATUSES,
     build_parser,
     cart_clear_assessment,
     latest_saw_empty_cart,
@@ -85,6 +86,10 @@ class KuailvOrderAgentTest(unittest.TestCase):
         self.assertEqual(args.search_pre_back_count, 3)
         self.assertEqual(args.cart_pre_back_count, 3)
         self.assertEqual(args.max_cart_clear_attempts, 8)
+
+    def test_auto_add_ready_statuses_include_skip_missing_completion(self) -> None:
+        self.assertIn("auto_add_cart_ready", AUTO_ADD_READY_STATUSES)
+        self.assertIn("auto_add_cart_ready_with_skips", AUTO_ADD_READY_STATUSES)
 
 
 if __name__ == "__main__":

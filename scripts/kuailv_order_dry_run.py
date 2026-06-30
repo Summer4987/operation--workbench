@@ -2620,6 +2620,7 @@ def run_adb_auto_add_cart(
     confirm: bool,
     search_pre_back_count: int,
     cart_pre_back_count: int,
+    skip_missing_items: bool = False,
 ) -> dict[str, Any]:
     config = read_android_execution_config()
     gate = android_auto_add_gate(config, confirm)
@@ -2651,6 +2652,7 @@ def run_adb_auto_add_cart(
         }
 
     executed_steps = []
+    skipped_steps = []
     for index, step in enumerate(steps, start=1):
         step_label = step.get("display_pack_label") or step.get("pack_label") or f"{format_number(safe_float(step.get('target_quantity'), 0))}{step.get('unit', '')}目标"
         search_result = run_adb_search(
@@ -2678,6 +2680,19 @@ def run_adb_auto_add_cart(
         }
         executed_steps.append(step_record)
         if search_result.get("status") != "search_ready_for_manual_review":
+            if skip_missing_items:
+                step_record["skipped"] = True
+                step_record["skip_reason"] = search_result.get("message")
+                skipped_steps.append(
+                    {
+                        "index": index,
+                        "line_name": step["line_name"],
+                        "display_pack_label": step_label,
+                        "stage": "search",
+                        "reason": search_result.get("message"),
+                    }
+                )
+                continue
             return {
                 "status": "blocked",
                 "message": f"整单自动加购在搜索 {step['line_name']} / {step_label} 时停止：{search_result.get('message')}",
@@ -2695,6 +2710,20 @@ def run_adb_auto_add_cart(
             tap_result = run_adb_safe_tap(plan, serial, timeout, step["line_name"], step["pack_label"])
             step_record["taps"].append({"tap_index": tap_index, "result": tap_result})
             if tap_result.get("status") != "tapped_for_manual_review":
+                if skip_missing_items:
+                    step_record["skipped"] = True
+                    step_record["skip_reason"] = tap_result.get("message")
+                    skipped_steps.append(
+                        {
+                            "index": index,
+                            "line_name": step["line_name"],
+                            "display_pack_label": step_label,
+                            "stage": "tap",
+                            "tap_index": tap_index,
+                            "reason": tap_result.get("message"),
+                        }
+                    )
+                    break
                 return {
                     "status": "blocked",
                     "message": f"整单自动加购在加购 {step['line_name']} / {step_label} 第 {tap_index} 次时停止：{tap_result.get('message')}",
@@ -2714,22 +2743,29 @@ def run_adb_auto_add_cart(
     cart_details = ((cart_result.get("after") or {}).get("cart_review_details") or {})
     expectation = cart_details.get("expectation") or {}
     ready = cart_result.get("status") == "cart_review_ready" and expectation.get("status") == "ready"
+    ready_with_skips = cart_result.get("status") == "cart_review_ready" and bool(skipped_steps)
     return {
-        "status": "auto_add_cart_ready" if ready else "blocked",
+        "status": "auto_add_cart_ready" if ready else ("auto_add_cart_ready_with_skips" if ready_with_skips else "blocked"),
         "message": "整单自动加购完成，购物车核对通过；已停在购物车复核阶段，未提交订单、未付款。"
         if ready
-        else "整单自动加购已停止在购物车复核阶段，但购物车核对未通过；未提交订单、未付款。",
+        else (
+            f"整单自动加购已跳过 {len(skipped_steps)} 个找不到/不确定品项并停在购物车复核阶段；未提交订单、未付款。"
+            if ready_with_skips
+            else "整单自动加购已停止在购物车复核阶段，但购物车核对未通过；未提交订单、未付款。"
+        ),
         "device_serial": serial,
         "started_at": started_at,
         "finished_at": now_text(),
         "gate": gate,
         "planned_steps": steps,
         "executed_steps": executed_steps,
+        "skipped_steps": skipped_steps,
         "cart_open": cart_result,
         "cart_expectation": expectation,
         "safety": {
             "cart_review_required": True,
             "stopped_before_submit": True,
+            "skip_missing_items": bool(skip_missing_items),
             "auto_payment_allowed": False,
             "forbidden_actions": ["提交订单", "付款", "切换收货地址", "自动替换缺货商品"],
         },
@@ -3650,6 +3686,7 @@ def main() -> int:
     parser.add_argument("--search-pre-back-count", type=int, default=0, help="adb-search 前先按 Back 的次数，用于关闭购物车浮层；仍会保存中间截图")
     parser.add_argument("--search-no-enter", action="store_true", help="adb-search 输入后不按 Enter，仅保存输入后的页面")
     parser.add_argument("--confirm-auto-add-cart", action="store_true", help="确认执行整单自动加购到购物车；仍禁止提交订单、付款、切换地址")
+    parser.add_argument("--skip-missing-items", action="store_true", help="adb-auto-add-cart 遇到找不到或不确定品项时记录跳过并继续后续品项")
     parser.add_argument("--auto-search-pre-back-count", type=int, default=0, help="adb-auto-add-cart 每次搜索前先按 Back 的次数")
     parser.add_argument("--auto-cart-pre-back-count", type=int, default=0, help="adb-auto-add-cart 最终打开购物车前先按 Back 的次数")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
@@ -3704,12 +3741,13 @@ def main() -> int:
                 args.confirm_auto_add_cart,
                 max(0, args.auto_search_pre_back_count),
                 max(0, args.auto_cart_pre_back_count),
+                args.skip_missing_items,
             )
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
             "generated_at": started_at,
-            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review", "cart_cleared_for_manual_review", "cart_already_empty", "auto_add_cart_ready"} else "blocked",
+            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review", "cart_cleared_for_manual_review", "cart_already_empty", "auto_add_cart_ready", "auto_add_cart_ready_with_skips"} else "blocked",
             "mode": args.mode,
             "source": source,
             "message": "快驴订货计划已生成；未提交订单，未付款。",
