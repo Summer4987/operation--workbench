@@ -70,6 +70,7 @@ def build_config(args: argparse.Namespace) -> dict[str, Any]:
     ]
     config["safety"] = {
         "dry_run": True,
+        "allow_auto_add_to_cart": args.allow_auto_add_to_cart,
         "forbidden_actions": forbidden_actions,
     }
     return config
@@ -114,6 +115,7 @@ def main() -> int:
         help="供应渠道，格式：渠道名|目标App|账号提示|地址提示。可重复传多个。",
     )
     parser.add_argument("--forbidden-actions", default="", help="逗号分隔的禁止动作；默认包含自动提交订单、自动付款等")
+    parser.add_argument("--allow-auto-add-to-cart", action="store_true", help="允许整单自动加购到购物车；仍禁止提交订单和付款")
     parser.add_argument("--no-screen-unlock", action="store_true", help="设备执行前不要求解锁屏幕")
     parser.add_argument("--write", action="store_true", help="写入 config/android_execution.json")
     parser.add_argument("--force", action="store_true", help="覆盖已有 config/android_execution.json")

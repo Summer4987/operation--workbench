@@ -105,6 +105,7 @@ def build_payload() -> dict[str, Any]:
         missing.append("至少启用 1 个供应渠道 channels[].enabled=true。")
     if payment.get("auto_payment_allowed"):
         missing.append("payment.auto_payment_allowed 必须保持 false。")
+    auto_add_allowed = bool(safety.get("allow_auto_add_to_cart", False))
     forbidden = set(safety.get("forbidden_actions") or [])
     for action in ("自动提交订单", "自动付款"):
         if action not in forbidden:
@@ -146,6 +147,7 @@ def build_payload() -> dict[str, Any]:
         "safety": {
             "dry_run": bool(safety.get("dry_run", True)),
             "auto_payment_allowed": bool(payment.get("auto_payment_allowed", False)),
+            "allow_auto_add_to_cart": auto_add_allowed,
             "forbidden_actions": safety.get("forbidden_actions") or [],
         },
         "message": "远控安卓连接配置可用。" if status == "ready" else "远控安卓连接配置缺少必要信息。",

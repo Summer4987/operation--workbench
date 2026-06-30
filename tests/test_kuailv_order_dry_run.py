@@ -8,7 +8,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from kuailv_order_dry_run import analyze_cart_review_xml, build_plan, safe_tap_visual_proof  # noqa: E402
+from kuailv_order_dry_run import (  # noqa: E402
+    analyze_cart_review_xml,
+    android_auto_add_gate,
+    auto_add_pack_steps,
+    build_plan,
+    safe_tap_visual_proof,
+)
 
 
 class KuailvOrderDryRunTest(unittest.TestCase):
@@ -119,6 +125,58 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertIn("expected_item_missing", expectation["risk_flags"])
         self.assertIn("global_reject_keyword_seen", expectation["risk_flags"])
         self.assertIn("嫩豆腐", expectation["global_reject_hits"])
+
+    def test_auto_add_pack_steps_expand_full_order_counts(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "ONION-001",
+                    "name": "洋葱",
+                    "quantity": 40,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                },
+                {
+                    "sku": "POTATO-001",
+                    "name": "土豆",
+                    "quantity": 15,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                },
+            ],
+        }
+
+        steps = auto_add_pack_steps(build_plan(order))
+
+        self.assertEqual(steps[0]["line_name"], "洋葱")
+        self.assertEqual(steps[0]["pack_label"], "20斤")
+        self.assertEqual(steps[0]["count"], 2)
+        potato_steps = [step for step in steps if step["line_name"] == "土豆"]
+        self.assertEqual([step["pack_label"] for step in potato_steps], ["10斤", "5斤"])
+        self.assertEqual([step["search_query"] for step in potato_steps], ["土豆10斤", "土豆5斤"])
+
+    def test_auto_add_gate_requires_confirm_and_private_config_flag(self) -> None:
+        config = {
+            "payment": {"auto_payment_allowed": False},
+            "channels": [{"channel": "快驴", "enabled": True}],
+            "safety": {
+                "allow_auto_add_to_cart": True,
+                "forbidden_actions": ["自动提交订单", "自动付款", "自动切换收货地址"],
+            },
+        }
+
+        blocked = android_auto_add_gate(config, confirm=False)
+        allowed = android_auto_add_gate(config, confirm=True)
+        no_flag = android_auto_add_gate({**config, "safety": {**config["safety"], "allow_auto_add_to_cart": False}}, confirm=True)
+
+        self.assertFalse(blocked["allowed"])
+        self.assertIn("missing_confirm_auto_add_to_cart", blocked["reasons"])
+        self.assertTrue(allowed["allowed"])
+        self.assertFalse(no_flag["allowed"])
+        self.assertIn("auto_add_to_cart_not_allowed_by_config", no_flag["reasons"])
 
 
 if __name__ == "__main__":

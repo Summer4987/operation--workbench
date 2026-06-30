@@ -30,6 +30,7 @@
   ],
   "safety": {
     "dry_run": true,
+    "allow_auto_add_to_cart": false,
     "forbidden_actions": [
       "自动提交订单",
       "自动付款",

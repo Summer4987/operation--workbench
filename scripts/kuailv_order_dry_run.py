@@ -22,6 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "kuailv_order_dry_run"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+ANDROID_CONFIG_PATH = ROOT / "config" / "android_execution.json"
 DEFAULT_SERVER = "http://139.155.148.169"
 DEFAULT_TOKEN = "daily-order-admin"
 CHANNEL = "快驴"
@@ -2145,6 +2146,187 @@ def resolve_adb_serial(serial: str, timeout: int) -> tuple[str, dict[str, Any] |
     return serial, None
 
 
+def read_android_execution_config() -> dict[str, Any]:
+    try:
+        return json.loads(ANDROID_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def android_auto_add_gate(config: dict[str, Any], confirm: bool) -> dict[str, Any]:
+    safety = config.get("safety") or {}
+    payment = config.get("payment") or {}
+    channels = config.get("channels") or []
+    forbidden = set(safety.get("forbidden_actions") or [])
+    reasons = []
+    if not confirm:
+        reasons.append("missing_confirm_auto_add_to_cart")
+    if not config:
+        reasons.append("missing_android_execution_config")
+    if not safety.get("allow_auto_add_to_cart"):
+        reasons.append("auto_add_to_cart_not_allowed_by_config")
+    if payment.get("auto_payment_allowed"):
+        reasons.append("auto_payment_allowed_must_remain_false")
+    for action in ("自动提交订单", "自动付款", "自动切换收货地址"):
+        if action not in forbidden:
+            reasons.append(f"missing_forbidden_action:{action}")
+    if not any(item.get("enabled") and CHANNEL in str(item.get("channel") or "") for item in channels if isinstance(item, dict)):
+        reasons.append("kuailv_channel_not_enabled")
+    return {
+        "allowed": not reasons,
+        "reasons": reasons,
+        "config_path": str(ANDROID_CONFIG_PATH),
+        "allow_auto_add_to_cart": bool(safety.get("allow_auto_add_to_cart")),
+        "auto_payment_allowed": bool(payment.get("auto_payment_allowed")),
+        "enabled_channels": [item.get("channel") for item in channels if isinstance(item, dict) and item.get("enabled")],
+    }
+
+
+def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    steps = []
+    for line in plan.get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        search_terms = [str(term) for term in line.get("search_terms") or [] if term]
+        for pack in line.get("pack_strategy") or []:
+            pack_label = str(pack.get("label") or "").split(" x ", 1)[0]
+            count = int(pack.get("count") or 0)
+            query = next((term for term in search_terms if pack_label and pack_label in term), "")
+            if not query:
+                query = str(line.get("preferred_keyword") or (search_terms[0] if search_terms else line.get("name") or ""))
+            steps.append(
+                {
+                    "line_name": line.get("name", ""),
+                    "sku": line.get("sku", ""),
+                    "pack_label": pack_label,
+                    "count": count,
+                    "search_query": query,
+                    "expected_quantity": pack.get("pack_size"),
+                    "unit": line.get("unit", ""),
+                }
+            )
+    return [step for step in steps if step["line_name"] and step["pack_label"] and step["count"] > 0]
+
+
+def run_adb_auto_add_cart(
+    plan: dict[str, Any],
+    serial: str,
+    timeout: int,
+    confirm: bool,
+    search_pre_back_count: int,
+    cart_pre_back_count: int,
+) -> dict[str, Any]:
+    config = read_android_execution_config()
+    gate = android_auto_add_gate(config, confirm)
+    device = config.get("device") or {}
+    serial = serial or str(device.get("adb_serial") or "")
+    if not gate.get("allowed"):
+        return {
+            "status": "blocked",
+            "message": "整单自动加购门控未通过，未连接安卓、未搜索、未加购。",
+            "gate": gate,
+            "planned_steps": auto_add_pack_steps(plan),
+            "safety": {
+                "forbidden_actions": ["提交订单", "付款", "切换收货地址", "自动替换缺货商品"],
+            },
+        }
+    serial, blocked = resolve_adb_serial(serial, timeout)
+    if blocked:
+        return {**blocked, "gate": gate, "planned_steps": auto_add_pack_steps(plan)}
+
+    started_at = now_text()
+    steps = auto_add_pack_steps(plan)
+    if not steps:
+        return {
+            "status": "blocked",
+            "message": "订单没有可自动加购的快驴计划行。",
+            "device_serial": serial,
+            "gate": gate,
+            "planned_steps": [],
+        }
+
+    executed_steps = []
+    for index, step in enumerate(steps, start=1):
+        search_result = run_adb_search(
+            plan,
+            serial,
+            timeout,
+            step["search_query"],
+            0,
+            0,
+            0,
+            max(0, search_pre_back_count),
+            True,
+        )
+        step_record = {
+            "index": index,
+            "line_name": step["line_name"],
+            "pack_label": step["pack_label"],
+            "count": step["count"],
+            "search_query": step["search_query"],
+            "search": search_result,
+            "taps": [],
+        }
+        executed_steps.append(step_record)
+        if search_result.get("status") != "search_ready_for_manual_review":
+            return {
+                "status": "blocked",
+                "message": f"整单自动加购在搜索 {step['line_name']} / {step['pack_label']} 时停止：{search_result.get('message')}",
+                "device_serial": serial,
+                "started_at": started_at,
+                "gate": gate,
+                "planned_steps": steps,
+                "executed_steps": executed_steps,
+                "safety": {
+                    "stopped_before_submit": True,
+                    "forbidden_actions": ["提交订单", "付款", "切换收货地址", "自动替换缺货商品"],
+                },
+            }
+        for tap_index in range(1, int(step["count"]) + 1):
+            tap_result = run_adb_safe_tap(plan, serial, timeout, step["line_name"], step["pack_label"])
+            step_record["taps"].append({"tap_index": tap_index, "result": tap_result})
+            if tap_result.get("status") != "tapped_for_manual_review":
+                return {
+                    "status": "blocked",
+                    "message": f"整单自动加购在加购 {step['line_name']} / {step['pack_label']} 第 {tap_index} 次时停止：{tap_result.get('message')}",
+                    "device_serial": serial,
+                    "started_at": started_at,
+                    "gate": gate,
+                    "planned_steps": steps,
+                    "executed_steps": executed_steps,
+                    "safety": {
+                        "stopped_before_submit": True,
+                        "cart_review_required": True,
+                        "forbidden_actions": ["提交订单", "付款", "切换收货地址", "自动替换缺货商品"],
+                    },
+                }
+
+    cart_result = run_adb_cart_open(plan, serial, timeout, 0, 0, 0, max(0, cart_pre_back_count), 0, 0)
+    cart_details = ((cart_result.get("after") or {}).get("cart_review_details") or {})
+    expectation = cart_details.get("expectation") or {}
+    ready = cart_result.get("status") == "cart_review_ready" and expectation.get("status") == "ready"
+    return {
+        "status": "auto_add_cart_ready" if ready else "blocked",
+        "message": "整单自动加购完成，购物车核对通过；已停在购物车复核阶段，未提交订单、未付款。"
+        if ready
+        else "整单自动加购已停止在购物车复核阶段，但购物车核对未通过；未提交订单、未付款。",
+        "device_serial": serial,
+        "started_at": started_at,
+        "finished_at": now_text(),
+        "gate": gate,
+        "planned_steps": steps,
+        "executed_steps": executed_steps,
+        "cart_open": cart_result,
+        "cart_expectation": expectation,
+        "safety": {
+            "cart_review_required": True,
+            "stopped_before_submit": True,
+            "auto_payment_allowed": False,
+            "forbidden_actions": ["提交订单", "付款", "切换收货地址", "自动替换缺货商品"],
+        },
+    }
+
+
 def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name: str, pack_label: str) -> dict[str, Any]:
     serial, blocked = resolve_adb_serial(serial, timeout)
     if blocked:
@@ -2871,9 +3053,9 @@ def main() -> int:
     parser.add_argument("--seed", default="", help="随机种子；为空时按日期稳定随机")
     parser.add_argument(
         "--mode",
-        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open", "adb-cart-clear", "adb-search"],
+        choices=["plan-only", "adb-dry-run", "adb-safe-tap", "adb-cart-open", "adb-cart-clear", "adb-search", "adb-auto-add-cart"],
         default="plan-only",
-        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap；adb-cart-clear 受保护清理购物车；adb-search 只允许一次受保护搜索输入",
+        help="plan-only 只生成计划；adb-dry-run 采集安卓现场；adb-safe-tap 只允许一次受保护加购 tap；adb-cart-open 只允许一次购物车导航 tap；adb-cart-clear 受保护清理购物车；adb-search 只允许一次受保护搜索输入；adb-auto-add-cart 整单自动加购到购物车并核对",
     )
     parser.add_argument("--adb-serial", default=os.environ.get("ANDROID_ADB_SERIAL", ""), help="ADB 设备号")
     parser.add_argument("--tap-item", default="", help="adb-safe-tap 的目标品项名，例如：豆腐")
@@ -2890,6 +3072,9 @@ def main() -> int:
     parser.add_argument("--search-tap-y", type=int, default=0, help="adb-search 坐标覆盖：指定 y 时仍会执行前后截图和守卫")
     parser.add_argument("--search-pre-back-count", type=int, default=0, help="adb-search 前先按 Back 的次数，用于关闭购物车浮层；仍会保存中间截图")
     parser.add_argument("--search-no-enter", action="store_true", help="adb-search 输入后不按 Enter，仅保存输入后的页面")
+    parser.add_argument("--confirm-auto-add-cart", action="store_true", help="确认执行整单自动加购到购物车；仍禁止提交订单、付款、切换地址")
+    parser.add_argument("--auto-search-pre-back-count", type=int, default=0, help="adb-auto-add-cart 每次搜索前先按 Back 的次数")
+    parser.add_argument("--auto-cart-pre-back-count", type=int, default=0, help="adb-auto-add-cart 最终打开购物车前先按 Back 的次数")
     parser.add_argument("--timeout", type=int, default=12, help="网络和 adb 命令超时秒数")
     parser.add_argument("--max-runtime", type=int, default=240, help="脚本整体最长运行秒数；0 表示不启用进程级 watchdog")
     args = parser.parse_args()
@@ -2929,11 +3114,20 @@ def main() -> int:
                 max(0, args.search_pre_back_count),
                 not args.search_no_enter,
             )
+        elif args.mode == "adb-auto-add-cart":
+            adb_result = run_adb_auto_add_cart(
+                plan,
+                args.adb_serial.strip(),
+                args.timeout,
+                args.confirm_auto_add_cart,
+                max(0, args.auto_search_pre_back_count),
+                max(0, args.auto_cart_pre_back_count),
+            )
         else:
             adb_result = {"status": "skipped", "message": "plan-only 模式未连接安卓。"}
         payload = {
             "generated_at": started_at,
-            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review", "cart_cleared_for_manual_review", "cart_already_empty"} else "blocked",
+            "status": "ready" if adb_result.get("status") in {"skipped", "ready_for_manual_review", "tapped_for_manual_review", "cart_review_ready", "search_ready_for_manual_review", "cart_cleared_for_manual_review", "cart_already_empty", "auto_add_cart_ready"} else "blocked",
             "mode": args.mode,
             "source": admin_summary_url(args.server, "***"),
             "message": "快驴订货计划已生成；未提交订单，未付款。",
