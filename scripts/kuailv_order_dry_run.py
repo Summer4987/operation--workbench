@@ -2720,7 +2720,7 @@ def run_adb_safe_tap(plan: dict[str, Any], serial: str, timeout: int, item_name:
     if blocked:
         return blocked
     target_line = next((line for line in plan.get("lines") or [] if str(line.get("name") or "") == item_name), {})
-    if not item_name or (not pack_label and target_line.get("selection_mode") != "identity_only"):
+    if not item_name or (not pack_label and target_line.get("selection_mode") != "identity_only" and not target_line.get("variant_policy")):
         return {"status": "blocked", "message": "safe-tap 需要指定 --tap-item；固定包装商品还需要 --tap-pack。", "device_serial": serial}
 
     session = datetime.now().strftime("%Y%m%d-%H%M%S-safe-tap")
