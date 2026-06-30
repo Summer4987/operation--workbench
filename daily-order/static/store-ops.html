@@ -292,7 +292,8 @@
             <button id="refreshLogisticsButton" type="button">刷新</button>
           </div>
           <div class="logistics-filter" aria-label="物流状态筛选">
-            <button class="is-active" type="button" data-logistics-filter="active">未取件</button>
+            <button class="is-active" type="button" data-logistics-filter="pickup">待取件</button>
+            <button type="button" data-logistics-filter="transit">运输中</button>
             <button type="button" data-logistics-filter="picked">已取件</button>
           </div>
           <div id="logisticsList" class="logistics-list">
@@ -343,7 +344,7 @@
       const logisticsFilterButtons = Array.from(document.querySelectorAll("[data-logistics-filter]"));
       let logisticsLoaded = false;
       let logisticsItems = [];
-      let logisticsFilter = "active";
+      let logisticsFilter = "pickup";
 
       const isLocalHost = ["127.0.0.1", "localhost", "::1"].includes(window.location.hostname);
       if (supplyFrame && isLocalHost && window.location.port && window.location.port !== "8000") {
@@ -397,16 +398,15 @@
       }
 
       function renderLogistics(items) {
-        const visibleItems = items.filter((item) => logisticsFilter === "picked" ? item.picked_up : !item.picked_up);
+        const visibleItems = items.filter((item) => logisticsCategory(item) === logisticsFilter);
         if (!visibleItems.length) {
-          logisticsList.innerHTML = logisticsFilter === "picked"
-            ? emptyLogistics("暂无已取件记录", "点过已取件的快递会留在这里，方便误触后查询。")
-            : emptyLogistics("暂无待处理物流", "有快递单号、取件码或到件状态后会在这里显示。");
+          logisticsList.innerHTML = emptyLogistics(...emptyLogisticsCopy(logisticsFilter));
           return;
         }
         logisticsList.innerHTML = visibleItems.map((item) => {
           const pickup = item.pickup_code || "";
-          const statusClass = item.picked_up ? " picked" : pickup || String(item.status || "").includes("取件") ? " pickup" : "";
+          const category = logisticsCategory(item);
+          const statusClass = category === "picked" ? " picked" : category === "pickup" ? " pickup" : "";
           const copyText = [
             item.store_name ? `门店：${item.store_name}` : "",
             item.goods ? `货品：${item.goods}` : "",
@@ -415,7 +415,8 @@
             pickup ? `取件码：${pickup}` : "",
             item.latest_trace ? `状态：${item.latest_trace}` : item.status ? `状态：${item.status}` : "",
           ].filter(Boolean).join("\\n");
-          const pickedText = item.picked_up ? "已取件" : (item.status || "运输中");
+          const statusText = category === "picked" ? "已取件" : category === "pickup" ? "待取件" : "运输中";
+          const copyButtonText = category === "pickup" ? "复制取件信息" : "复制物流信息";
           return `
             <article class="logistics-card">
               <header>
@@ -423,7 +424,7 @@
                   <strong>${escapeHtml(item.goods || item.supplier || item.tracking_number || "门店快递")}</strong>
                   <small>${escapeHtml(item.store_name || "")}${item.supplier ? ` · ${escapeHtml(item.supplier)}` : ""}</small>
                 </div>
-                <span class="logistics-status${statusClass}">${escapeHtml(pickedText)}</span>
+                <span class="logistics-status${statusClass}">${escapeHtml(statusText)}</span>
               </header>
               ${pickup ? `<div class="pickup-code"><span>取件码</span><b>${escapeHtml(pickup)}</b></div>` : ""}
               <div class="logistics-meta">
@@ -435,10 +436,12 @@
                 ${item.picked_up_at ? `<div>取件：${escapeHtml(item.picked_up_at)}</div>` : ""}
               </div>
               <div class="logistics-actions">
-                <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}">复制取件信息</button>
-                ${item.picked_up
+                <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}" data-label="${escapeHtml(copyButtonText)}">${escapeHtml(copyButtonText)}</button>
+                ${category === "picked"
                   ? `<button class="restore-button" type="button" data-id="${escapeHtml(item.id)}">恢复未取</button>`
-                  : `<button class="picked-button" type="button" data-id="${escapeHtml(item.id)}">已取件</button>`}
+                  : category === "pickup"
+                    ? `<button class="picked-button" type="button" data-id="${escapeHtml(item.id)}">已取件</button>`
+                    : ""}
               </div>
             </article>
           `;
@@ -447,7 +450,7 @@
           button.addEventListener("click", async () => {
             await navigator.clipboard.writeText(button.dataset.copy || "");
             button.textContent = "已复制";
-            setTimeout(() => { button.textContent = "复制取件信息"; }, 1200);
+            setTimeout(() => { button.textContent = button.dataset.label || "复制物流信息"; }, 1200);
           });
         });
         logisticsList.querySelectorAll(".picked-button, .restore-button").forEach((button) => {
@@ -469,6 +472,18 @@
         const index = logisticsItems.findIndex((item) => item.id === id);
         if (index >= 0) logisticsItems[index] = payload.item;
         renderLogistics(logisticsItems);
+      }
+
+      function logisticsCategory(item) {
+        if (item.picked_up) return "picked";
+        if (item.pickup_code) return "pickup";
+        return "transit";
+      }
+
+      function emptyLogisticsCopy(filter) {
+        if (filter === "picked") return ["暂无已取件记录", "点过已取件的快递会留在这里，方便误触后查询。"];
+        if (filter === "transit") return ["暂无运输中记录", "有物流信息但还没有取件码的快递会在这里显示。"];
+        return ["暂无待取件记录", "出现取件码后会自动进入这里，门店取完再点已取件。"];
       }
 
       function emptyLogistics(title, text) {
