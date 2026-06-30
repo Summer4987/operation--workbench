@@ -486,6 +486,72 @@ def test_chengdu_owner_account_can_submit_for_selected_store(tmp_path, monkeypat
     assert saved["store_name"] == "银泰城店"
 
 
+def test_logistics_admin_upsert_and_owner_can_read_all(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"owner": {"password": "secret", "role": "owner"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "LOGISTICS_PATH", tmp_path / "logistics.json")
+    monkeypatch.setattr(
+        module,
+        "_load_catalog",
+        lambda path=module.CATALOG_PATH: {
+            "stores": [{"name": "银泰城店"}, {"name": "金融城店"}],
+            "items": [],
+        },
+    )
+
+    client = TestClient(module.app)
+    upsert = client.post(
+        "/daily-order/api/admin/logistics?token=daily-order-admin",
+        json={
+            "store_name": "银泰城店",
+            "goods": "一次性餐盒",
+            "carrier": "中通",
+            "tracking_number": "ZT123",
+            "pickup_code": "8-1234",
+            "latest_trace": "已到驿站",
+        },
+    )
+    assert upsert.status_code == 200
+
+    login = client.post("/daily-order/api/auth/login", json={"username": "owner", "password": "secret"})
+    assert login.status_code == 200
+    response = client.get("/daily-order/api/logistics")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["store_name"] == "银泰城店"
+    assert items[0]["pickup_code"] == "8-1234"
+
+
+def test_logistics_store_account_only_reads_own_store(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"store-user": {"password": "secret", "store_name": "银泰城店"}}}, ensure_ascii=False),
+    )
+    monkeypatch.setattr(module, "LOGISTICS_PATH", tmp_path / "logistics.json")
+    module._write_logistics_records(
+        [
+            {"store_name": "银泰城店", "goods": "餐盒", "tracking_number": "A1", "pickup_code": "1-1111"},
+            {"store_name": "金融城店", "goods": "酱料", "tracking_number": "B2", "pickup_code": "2-2222"},
+        ]
+    )
+
+    client = TestClient(module.app)
+    login = client.post("/daily-order/api/auth/login", json={"username": "store-user", "password": "secret"})
+    assert login.status_code == 200
+    response = client.get("/daily-order/api/logistics")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["store_name"] == "银泰城店"
+
+
 def test_chengdu_daily_order_logout_clears_store_session(monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv(

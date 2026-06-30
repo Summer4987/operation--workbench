@@ -26,6 +26,7 @@ STATIC_DIR = BASE_DIR / "static"
 DATA_DIR = BASE_DIR / "data"
 SUBMISSION_DIR = DATA_DIR / "submissions"
 ORDER_LINES_PATH = DATA_DIR / "order-lines.csv"
+LOGISTICS_PATH = DATA_DIR / "logistics.json"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
 BEIJING_CATALOG_PATH = BASE_DIR / "app" / "catalog-beijing.json"
 BEIJING_SUBMISSION_DIR = DATA_DIR / "beijing-submissions"
@@ -292,6 +293,15 @@ def recent_store_orders(request: Request, store_name: str, order_ids: str = ""):
     return {"items": _public_store_orders(store_name, order_ids, SUBMISSION_DIR, CATALOG_PATH)}
 
 
+@app.get("/daily-order/api/logistics")
+def public_logistics(request: Request):
+    account = _require_store_order_auth(request)
+    records = _read_logistics_records()
+    if account and not _is_store_order_owner(account):
+        records = [record for record in records if record.get("store_name") == account["store_name"]]
+    return {"items": [_public_logistics_record(record) for record in records]}
+
+
 @app.get("/beijing-order/api/orders")
 def recent_beijing_store_orders(store_name: str, order_ids: str = ""):
     return {"items": _public_store_orders(store_name, order_ids, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)}
@@ -340,6 +350,38 @@ def admin_wechat_digest(request: Request, date: str = ""):
     day = _target_day(date)
     messages = _wechat_digest_messages(day)
     return {"date": day, "message": "\n\n".join(messages), "messages": messages, "has_orders": bool(messages)}
+
+
+@app.get("/daily-order/api/admin/logistics")
+def admin_logistics(request: Request):
+    _require_admin(request)
+    return {"items": _read_logistics_records()}
+
+
+@app.post("/daily-order/api/admin/logistics")
+async def upsert_admin_logistics(request: Request, payload: dict):
+    _require_admin(request)
+    record = _normalize_logistics_payload(payload)
+    records = _read_logistics_records()
+    now = now_iso()
+    record_id = record.get("id") or _logistics_record_id(record)
+    existing_index = next((index for index, item in enumerate(records) if item.get("id") == record_id), None)
+    if existing_index is None and record.get("tracking_number"):
+        existing_index = next((index for index, item in enumerate(records) if item.get("tracking_number") == record["tracking_number"]), None)
+    if existing_index is None:
+        record["id"] = record_id
+        record["created_at"] = now
+        record["updated_at"] = now
+        records.append(record)
+    else:
+        current = dict(records[existing_index])
+        current.update({key: value for key, value in record.items() if value != ""})
+        current["id"] = current.get("id") or record_id
+        current["updated_at"] = now
+        records[existing_index] = current
+        record = current
+    _write_logistics_records(records)
+    return {"status": "success", "item": record}
 
 
 @app.post("/daily-order/api/admin/wechat-digest/send")
@@ -552,6 +594,95 @@ def _store_records(catalog_data: dict) -> dict[str, dict]:
         "保利中心店": "四川省成都市武侯区玉林街道保利中心东区C座一层熊小小牛排饭",
     }
     return {str(name): {"name": str(name), "address": addresses.get(str(name), "")} for name in raw}
+
+
+def _read_logistics_records(path: Path | None = None) -> list[dict]:
+    path = path or LOGISTICS_PATH
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    records = payload.get("items", payload) if isinstance(payload, dict) else payload
+    if not isinstance(records, list):
+        return []
+    return sorted(
+        [_normalize_logistics_record(record) for record in records if isinstance(record, dict)],
+        key=lambda item: (item.get("updated_at", ""), item.get("created_at", ""), item.get("id", "")),
+        reverse=True,
+    )
+
+
+def _write_logistics_records(records: list[dict], path: Path | None = None) -> None:
+    path = path or LOGISTICS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"items": [_normalize_logistics_record(record) for record in records]}
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _normalize_logistics_record(record: dict) -> dict:
+    keys = [
+        "id",
+        "store_name",
+        "goods",
+        "supplier",
+        "carrier",
+        "tracking_number",
+        "status",
+        "pickup_code",
+        "latest_trace",
+        "eta",
+        "signed_at",
+        "created_at",
+        "updated_at",
+        "remark",
+    ]
+    result = {key: str(record.get(key) or "").strip() for key in keys}
+    result["status"] = result["status"] or ("待取件" if result["pickup_code"] else "运输中")
+    return result
+
+
+def _normalize_logistics_payload(payload: dict) -> dict:
+    record = _normalize_logistics_record(payload)
+    if not record["store_name"]:
+        raise HTTPException(status_code=400, detail="请选择门店")
+    store_names = set(_store_records(_load_catalog()).keys())
+    if store_names and record["store_name"] not in store_names:
+        raise HTTPException(status_code=400, detail="请选择有效门店")
+    if not record["tracking_number"] and not record["pickup_code"]:
+        raise HTTPException(status_code=400, detail="请填写物流单号或取件码")
+    return record
+
+
+def _logistics_record_id(record: dict) -> str:
+    source = "|".join([
+        str(record.get("store_name") or ""),
+        str(record.get("tracking_number") or ""),
+        str(record.get("pickup_code") or ""),
+        str(record.get("goods") or ""),
+    ])
+    return hashlib.sha1(source.encode("utf-8")).hexdigest()[:16]
+
+
+def _public_logistics_record(record: dict) -> dict:
+    clean = _normalize_logistics_record(record)
+    return {
+        "id": clean["id"],
+        "store_name": clean["store_name"],
+        "goods": clean["goods"],
+        "supplier": clean["supplier"],
+        "carrier": clean["carrier"],
+        "tracking_number": clean["tracking_number"],
+        "status": clean["status"],
+        "pickup_code": clean["pickup_code"],
+        "latest_trace": clean["latest_trace"],
+        "eta": clean["eta"],
+        "updated_at": clean["updated_at"],
+        "remark": clean["remark"],
+    }
 
 
 def _default_purchase_channel(product: dict) -> str:

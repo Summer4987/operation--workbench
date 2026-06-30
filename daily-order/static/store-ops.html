@@ -74,22 +74,111 @@
         letter-spacing: 0;
       }
 
+      .logistics-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .logistics-toolbar button,
+      .copy-button {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+        min-height: 34px;
+        padding: 0 12px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .logistics-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .logistics-card,
       .logistics-empty {
         border: 1px solid var(--line);
         border-radius: 10px;
         background: #fff;
-        padding: 18px;
+        padding: 14px;
       }
 
+      .logistics-card {
+        display: grid;
+        gap: 10px;
+      }
+
+      .logistics-card header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .logistics-card strong,
       .logistics-empty strong {
         display: block;
-        margin-bottom: 6px;
         font-size: 18px;
       }
 
+      .logistics-card small,
       .logistics-empty span {
         color: var(--muted);
         line-height: 1.5;
+      }
+
+      .logistics-status {
+        border-radius: 999px;
+        background: #edf5ff;
+        color: #235c9f;
+        padding: 4px 9px;
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .logistics-status.pickup {
+        background: #fff3d7;
+        color: #8a5a00;
+      }
+
+      .pickup-code {
+        border-radius: 8px;
+        background: #fff8e6;
+        border: 1px solid #f0d48a;
+        padding: 10px;
+      }
+
+      .pickup-code span {
+        display: block;
+        color: #8a5a00;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .pickup-code b {
+        display: block;
+        margin-top: 2px;
+        font-size: 24px;
+        letter-spacing: 0;
+      }
+
+      .logistics-meta {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .logistics-actions {
+        display: flex;
+        justify-content: flex-end;
       }
 
       .bottom-nav {
@@ -176,10 +265,15 @@
 
       <section id="logisticsPanel" class="ops-panel logistics-panel" aria-label="物流信息">
         <div class="logistics-inner">
-          <h1 class="logistics-title">物流信息</h1>
-          <div class="logistics-empty">
-            <strong>暂无物流记录</strong>
-            <span>快递单号、物流状态和取件码会在这里展示。</span>
+          <div class="logistics-toolbar">
+            <h1 class="logistics-title">物流信息</h1>
+            <button id="refreshLogisticsButton" type="button">刷新</button>
+          </div>
+          <div id="logisticsList" class="logistics-list">
+            <div class="logistics-empty">
+              <strong>正在读取物流记录</strong>
+              <span>快递单号、物流状态和取件码会在这里展示。</span>
+            </div>
           </div>
         </div>
       </section>
@@ -218,6 +312,9 @@
       const buttons = Array.from(document.querySelectorAll(".bottom-nav button"));
       const panels = Array.from(document.querySelectorAll(".ops-panel"));
       const supplyFrame = document.querySelector("#supplyFrame");
+      const logisticsList = document.querySelector("#logisticsList");
+      const refreshLogisticsButton = document.querySelector("#refreshLogisticsButton");
+      let logisticsLoaded = false;
 
       const isLocalHost = ["127.0.0.1", "localhost", "::1"].includes(window.location.hostname);
       if (supplyFrame && isLocalHost && window.location.port && window.location.port !== "8000") {
@@ -235,11 +332,94 @@
             button.removeAttribute("aria-current");
           }
         });
+        if (targetId === "logisticsPanel" && !logisticsLoaded) loadLogistics();
       }
 
       buttons.forEach((button) => {
         button.addEventListener("click", () => activatePanel(button.dataset.target));
       });
+
+      refreshLogisticsButton.addEventListener("click", () => loadLogistics(true));
+
+      async function loadLogistics(force = false) {
+        if (!force && logisticsLoaded) return;
+        logisticsList.innerHTML = emptyLogistics("正在读取物流记录", "快递单号、物流状态和取件码会在这里展示。");
+        try {
+          const response = await fetch("/daily-order/api/logistics");
+          if (response.status === 401) {
+            location.href = "/store-ops/";
+            return;
+          }
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.detail || "物流记录读取失败");
+          logisticsLoaded = true;
+          renderLogistics(payload.items || []);
+        } catch (error) {
+          logisticsList.innerHTML = emptyLogistics("物流记录读取失败", error.message || "请稍后重试。");
+        }
+      }
+
+      function renderLogistics(items) {
+        if (!items.length) {
+          logisticsList.innerHTML = emptyLogistics("暂无物流记录", "有快递单号、取件码或到件状态后会在这里显示。");
+          return;
+        }
+        logisticsList.innerHTML = items.map((item) => {
+          const pickup = item.pickup_code || "";
+          const statusClass = pickup || String(item.status || "").includes("取件") ? " pickup" : "";
+          const copyText = [
+            item.store_name ? `门店：${item.store_name}` : "",
+            item.goods ? `货品：${item.goods}` : "",
+            item.carrier ? `快递：${item.carrier}` : "",
+            item.tracking_number ? `单号：${item.tracking_number}` : "",
+            pickup ? `取件码：${pickup}` : "",
+            item.latest_trace ? `状态：${item.latest_trace}` : item.status ? `状态：${item.status}` : "",
+          ].filter(Boolean).join("\\n");
+          return `
+            <article class="logistics-card">
+              <header>
+                <div>
+                  <strong>${escapeHtml(item.goods || item.supplier || item.tracking_number || "门店快递")}</strong>
+                  <small>${escapeHtml(item.store_name || "")}${item.supplier ? ` · ${escapeHtml(item.supplier)}` : ""}</small>
+                </div>
+                <span class="logistics-status${statusClass}">${escapeHtml(item.status || "运输中")}</span>
+              </header>
+              ${pickup ? `<div class="pickup-code"><span>取件码</span><b>${escapeHtml(pickup)}</b></div>` : ""}
+              <div class="logistics-meta">
+                ${item.carrier || item.tracking_number ? `<div>快递：${escapeHtml([item.carrier, item.tracking_number].filter(Boolean).join(" · "))}</div>` : ""}
+                ${item.latest_trace ? `<div>轨迹：${escapeHtml(item.latest_trace)}</div>` : ""}
+                ${item.eta ? `<div>预计到达：${escapeHtml(item.eta)}</div>` : ""}
+                ${item.updated_at ? `<div>更新：${escapeHtml(item.updated_at)}</div>` : ""}
+                ${item.remark ? `<div>备注：${escapeHtml(item.remark)}</div>` : ""}
+              </div>
+              <div class="logistics-actions">
+                <button class="copy-button" type="button" data-copy="${escapeHtml(copyText)}">复制取件信息</button>
+              </div>
+            </article>
+          `;
+        }).join("");
+        logisticsList.querySelectorAll(".copy-button").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await navigator.clipboard.writeText(button.dataset.copy || "");
+            button.textContent = "已复制";
+            setTimeout(() => { button.textContent = "复制取件信息"; }, 1200);
+          });
+        });
+      }
+
+      function emptyLogistics(title, text) {
+        return `<div class="logistics-empty"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span></div>`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[char]));
+      }
     </script>
   </body>
 </html>
