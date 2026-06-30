@@ -1,8 +1,8 @@
 # 熊小小财务系统使用说明书
 
-这套系统的目标是把微信里的财务文本变成可追溯的财务工作流：先生成待确认草稿，人工确认后进入本地账本，再形成经营驾驶舱、费用科目、门店经营、资金渠道和财务待办，最后安全同步到飞书多维表。系统已经完成真实飞书 API 写入验证。
+这套系统的目标是把微信里的财务文本变成可追溯的财务工作流：先生成待确认草稿，人工确认后进入门店端或供应链端账本，再形成经营驾驶舱、应收应付、库存占用、费用科目、门店经营、资金渠道和财务待办，最后安全同步到飞书多维表。系统已经完成真实飞书 API 写入验证。
 
-当前定位是“轻量财务系统”，不是单纯流水账。它已经覆盖日常录入、审核、账本、月度经营汇总、门店/科目/资金渠道分析和飞书同步；暂不覆盖发票、银行回单自动对账、应收应付账龄、税务申报和专业总账凭证。
+当前定位是“轻量财务系统”，不是单纯流水账。它已经覆盖日常录入、审核、两套账本、应收、应付、库存、月度经营汇总、门店/科目/资金渠道分析和飞书同步；暂不覆盖发票、银行回单自动对账、税务申报和专业总账凭证。
 
 ## 正式入口
 
@@ -18,7 +18,7 @@
 http://127.0.0.1:8765/
 ```
 
-今天的支出、收入、采购、房租、水电等，都从这个网页工作台处理。网页首页先看经营驾驶舱，再处理录入草稿、人工确认入账、标记待同步、飞书预检/同步。
+今天的支出、收入、采购、房租、水电、赊销、赊购、入库等，都从这个网页工作台处理。网页首页先看经营驾驶舱和应收/应付/库存，再处理录入草稿、人工确认入账、标记待同步、飞书预检/同步。
 
 安全边界不变：录入不会自动入账；入账必须点击“确认入账”；写飞书必须先把账本标记为 `ready_for_feishu`，再手动勾选确认并点击“真实写入飞书”。
 
@@ -59,9 +59,11 @@ http://127.0.0.1:8765/
 页面顶部先看本月经营结果：
 
 - 收入、支出、经营净额、费用率。
+- 应收余额、应付余额、库存占用。
+- 门店端和供应链端两套账本。
 - 本期确认记录和内部转账流水。
 - 较上月净额变化。
-- 费用科目、门店经营、资金渠道。
+- 业务科目、费用科目、门店经营、资金渠道。
 - 待确认、待同步、同步失败、缺门店、缺交易对方。
 
 ### 2. 录入微信财务记录
@@ -82,10 +84,15 @@ http://127.0.0.1:8765/
 
 ### 3. 人工确认入账
 
-网页右侧“待确认草稿”会显示解析出来的日期、金额、收支方向、分类、收付款方式、门店和交易对方。
+网页右侧“待确认草稿”会显示解析出来的日期、金额、收支方向、分类、收付款方式、门店和交易对方，并要求确认“账本端”和“业务科目”。
 
 确认前必须核对：
 
+- 这笔属于 `store` 门店端，还是 `supply_chain` 供应链端。
+- 业务科目是现金收入/现金支出，还是 `accounts_receivable` 应收、`accounts_payable` 应付、`inventory` 库存。
+- 结算状态是已结清、未收、未付还是部分结算。
+- 如果是应收/应付，是否填写到期日。
+- 如果是库存，是否填写品项、数量、单位和单价。
 - 金额是否正确。
 - 业务日期是否正确。
 - 收支方向是否正确。
@@ -102,7 +109,46 @@ python3 scripts/finance_system.py confirm \
   --operator "summer" \
   --category procurement \
   --direction expense \
-  --payment-method wechat_pay
+  --payment-method wechat_pay \
+  --ledger-side supply_chain \
+  --business-account inventory \
+  --settlement-status settled \
+  --inventory-item "原料" \
+  --quantity 10 \
+  --unit "斤" \
+  --unit-cost 12.85
+```
+
+应收示例：
+
+```bash
+python3 scripts/finance_system.py confirm \
+  --draft-id "<草稿ID>" \
+  --operator "summer" \
+  --direction income \
+  --amount 500 \
+  --category platform_income \
+  --payment-method unknown \
+  --ledger-side store \
+  --business-account accounts_receivable \
+  --settlement-status uncollected \
+  --due-date "2026-07-05"
+```
+
+应付示例：
+
+```bash
+python3 scripts/finance_system.py confirm \
+  --draft-id "<草稿ID>" \
+  --operator "summer" \
+  --direction expense \
+  --amount 800 \
+  --category procurement \
+  --payment-method unknown \
+  --ledger-side supply_chain \
+  --business-account accounts_payable \
+  --settlement-status unpaid \
+  --due-date "2026-07-10"
 ```
 
 ### 4. 标记可同步飞书
@@ -186,6 +232,10 @@ FEISHU_FINANCE_TABLE_ID="tbl4k7A9bHAqPAuI"
 - 确认时间：文本或日期
 - 确认人：文本
 - 业务日期：日期
+- 账本端：文本或单选，本地字段 `ledger_side`，可选 `store`、`supply_chain`
+- 业务科目：文本或单选，本地字段 `business_account`，可选 `cash_revenue`、`cash_expense`、`accounts_receivable`、`accounts_payable`、`inventory`、`transfer`、`other`
+- 结算状态：文本或单选，本地字段 `settlement_status`，可选 `settled`、`uncollected`、`unpaid`、`partial`、`none`
+- 到期日：日期，本地字段 `due_date`
 - 收支方向：文本或单选
 - 金额：数字或货币；如果是数字字段，格式必须是 `0.00`
 - 币种：文本或单选
@@ -193,10 +243,16 @@ FEISHU_FINANCE_TABLE_ID="tbl4k7A9bHAqPAuI"
 - 交易对方：文本
 - 财务分类：文本或单选
 - 收付款方式：文本或单选
+- 库存品项：文本，本地字段 `inventory_item`
+- 数量：数字，本地字段 `quantity`
+- 单位：文本，本地字段 `unit`
+- 单价：数字或货币，本地字段 `unit_cost`
 - 来源渠道：文本或单选
 - 原始文本：文本
 - 备注：文本
 - 飞书同步状态：文本或单选
+
+当前飞书 API 写入仍只使用已验证字段；新增的两套账本、应收应付和库存字段已经进入本地账本和 CSV。等飞书多维表新增这些字段后，再把它们纳入 API 写入映射。
 
 ## 安全边界
 

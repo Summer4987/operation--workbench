@@ -24,6 +24,24 @@ from scripts import finance_inbox  # noqa: E402
 from scripts import finance_feishu_sync  # noqa: E402
 
 
+VALUE_LABELS = {
+    "store": "门店端",
+    "supply_chain": "供应链端",
+    "cash_revenue": "现金收入",
+    "cash_expense": "现金支出",
+    "accounts_receivable": "应收",
+    "accounts_payable": "应付",
+    "inventory": "库存",
+    "transfer": "内部转账",
+    "other": "其他",
+    "settled": "已结清",
+    "uncollected": "未收",
+    "unpaid": "未付",
+    "partial": "部分结算",
+    "none": "无结算状态",
+}
+
+
 CSS = """
 :root {
   color-scheme: light;
@@ -220,7 +238,7 @@ def select(name: str, options: list[str], selected: Any) -> str:
     items = []
     for option in options:
         marker = " selected" if option == selected_text else ""
-        items.append(f'<option value="{esc(option)}"{marker}>{esc(option)}</option>')
+        items.append(f'<option value="{esc(option)}"{marker}>{esc(VALUE_LABELS.get(option, option))}</option>')
     return f'<select name="{esc(name)}">{"".join(items)}</select>'
 
 
@@ -257,6 +275,51 @@ def grouped_amounts(records: list[dict[str, Any]], key: str) -> list[tuple[str, 
         net = round(values["income"] - values["expense"], 2)
         rows.append((name, round(values["income"], 2), round(values["expense"], 2), net))
     return sorted(rows, key=lambda item: abs(item[3]) + item[1] + item[2], reverse=True)
+
+
+def grouped_business_accounts(records: list[dict[str, Any]]) -> list[tuple[str, float, float, float]]:
+    return grouped_amounts(records, "business_account")
+
+
+def outstanding_amount(records: list[dict[str, Any]], account: str) -> float:
+    total = 0.0
+    for record in records:
+        if record.get("business_account") != account:
+            continue
+        if record.get("settlement_status") == "settled":
+            continue
+        try:
+            total += float(record.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+    return round(total, 2)
+
+
+def inventory_value(records: list[dict[str, Any]]) -> float:
+    total = 0.0
+    for record in records:
+        if record.get("business_account") != "inventory":
+            continue
+        quantity = record.get("quantity")
+        unit_cost = record.get("unit_cost")
+        try:
+            if quantity not in {None, ""} and unit_cost not in {None, ""}:
+                total += float(quantity) * float(unit_cost)
+            else:
+                total += float(record.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+    return round(total, 2)
+
+
+def render_operating_side_rows(records: list[dict[str, Any]]) -> str:
+    rows = grouped_amounts(records, "ledger_side")
+    return render_amount_rows([(VALUE_LABELS.get(name, name), income, expense, net) for name, income, expense, net in rows], "本期暂无分账数据")
+
+
+def render_business_account_rows(records: list[dict[str, Any]]) -> str:
+    rows = grouped_business_accounts(records)
+    return render_amount_rows([(VALUE_LABELS.get(name, name), income, expense, net) for name, income, expense, net in rows], "本期暂无业务科目数据")
 
 
 def render_amount_rows(rows: list[tuple[str, float, float, float]], empty_text: str = "暂无数据") -> str:
@@ -330,6 +393,11 @@ def render_finance_dashboard(period: str) -> str:
     failed_count = len(ledger_records("sync_failed"))
     missing_store = sum(1 for record in records if not str(record.get("store") or "").strip())
     missing_counterparty = sum(1 for record in records if not str(record.get("counterparty") or "").strip())
+    ar_balance = outstanding_amount(all_records, "accounts_receivable")
+    ap_balance = outstanding_amount(all_records, "accounts_payable")
+    inventory_balance = inventory_value(all_records)
+    supply_chain_records = [record for record in records if record.get("ledger_side") == "supply_chain"]
+    supply_chain_net = round(amount_sum(supply_chain_records, "income") - amount_sum(supply_chain_records, "expense"), 2)
     period_label = esc(period)
     net_class = "up" if net >= 0 else "down"
     delta_class = "up" if net_delta >= 0 else "down"
@@ -351,6 +419,12 @@ def render_finance_dashboard(period: str) -> str:
       <div class="metric"><strong>{expense_rate:.1%}</strong><span class="muted">费用率</span></div>
     </div>
     <div class="metrics">
+      <div class="metric"><strong>{esc(money(ar_balance))}</strong><span class="muted">应收余额</span></div>
+      <div class="metric"><strong>{esc(money(ap_balance))}</strong><span class="muted">应付余额</span></div>
+      <div class="metric"><strong>{esc(money(inventory_balance))}</strong><span class="muted">库存占用</span></div>
+      <div class="metric"><strong>{esc(signed_money(supply_chain_net))}</strong><span class="muted">供应链端本期净额</span></div>
+    </div>
+    <div class="metrics">
       <div class="metric"><strong>{len(records)}</strong><span class="muted">本期确认记录</span></div>
       <div class="metric"><strong>{esc(money(transfer))}</strong><span class="muted">内部转账流水</span></div>
       <div class="metric"><strong class="{delta_class}">{esc(signed_money(net_delta))}</strong><span class="muted">较上月净额变化</span></div>
@@ -365,6 +439,16 @@ def render_finance_dashboard(period: str) -> str:
     <section>
       <h2>门店经营</h2>
       {render_amount_rows(grouped_amounts(records, "store"), "本期暂无门店数据")}
+    </section>
+  </div>
+  <div class="report-grid">
+    <section>
+      <h2>两套账本</h2>
+      {render_operating_side_rows(records)}
+    </section>
+    <section>
+      <h2>业务科目</h2>
+      {render_business_account_rows(records)}
     </section>
   </div>
   <div class="report-grid">
@@ -437,9 +521,23 @@ def render_drafts() -> str:
       <div><label>财务分类</label>{select("category", sorted(finance_inbox.CONFIRMABLE_CATEGORIES), draft.get("parsed_category"))}</div>
       <div><label>收付款方式</label>{select("payment_method", sorted(finance_inbox.VALID_PAYMENT_METHODS), draft.get("parsed_payment_method"))}</div>
     </div>
+    <div class="row-3">
+      <div><label>账本端</label>{select("ledger_side", sorted(finance_inbox.VALID_LEDGER_SIDES), draft.get("parsed_ledger_side"))}</div>
+      <div><label>业务科目</label>{select("business_account", sorted(finance_inbox.VALID_BUSINESS_ACCOUNTS), draft.get("parsed_business_account"))}</div>
+      <div><label>结算状态</label>{select("settlement_status", sorted(finance_inbox.VALID_SETTLEMENT_STATUS), draft.get("parsed_settlement_status"))}</div>
+    </div>
     <div class="row">
       <div><label>门店</label><input name="store" value="{esc(draft.get("parsed_store"))}"></div>
       <div><label>交易对方</label><input name="counterparty" value="{esc(draft.get("parsed_counterparty"))}"></div>
+    </div>
+    <div class="row-3">
+      <div><label>到期日</label><input name="due_date" placeholder="YYYY-MM-DD" value="{esc(draft.get("parsed_due_date"))}"></div>
+      <div><label>库存品项</label><input name="inventory_item" value="{esc(draft.get("parsed_inventory_item"))}"></div>
+      <div><label>库存单位</label><input name="unit" placeholder="斤 / 箱 / 袋"></div>
+    </div>
+    <div class="row">
+      <div><label>库存数量</label><input name="quantity" type="number" min="0" step="0.0001"></div>
+      <div><label>库存单价</label><input name="unit_cost" type="number" min="0" step="0.0001"></div>
     </div>
     <label>备注</label><input name="note" value="">
     <button type="submit">确认入账</button>
@@ -487,7 +585,8 @@ def render_ledger() -> str:
             f"<td>{esc(record.get('transaction_date'))}</td>"
             f"<td>{esc(record.get('direction'))}</td>"
             f"<td>{esc(money(record.get('amount')))}</td>"
-            f"<td>{esc(record.get('category'))}<div class=\"muted\">{esc(record.get('payment_method'))}</div></td>"
+            f"<td>{esc(VALUE_LABELS.get(str(record.get('ledger_side') or 'store'), str(record.get('ledger_side') or 'store')))}<div class=\"muted\">{esc(VALUE_LABELS.get(str(record.get('business_account') or 'other'), str(record.get('business_account') or 'other')))}</div></td>"
+            f"<td>{esc(record.get('category'))}<div class=\"muted\">{esc(VALUE_LABELS.get(str(record.get('settlement_status') or ''), str(record.get('settlement_status') or '')))} · {esc(record.get('payment_method'))}</div></td>"
             f"<td>{esc(record.get('store'))}<div class=\"muted\">{esc(record.get('counterparty'))}</div></td>"
             f"<td>{sync_pill(record.get('sync_status'))}<div class=\"muted\">{esc(record.get('sync_error'))}</div></td>"
             f"<td>{action}</td>"
@@ -495,7 +594,7 @@ def render_ledger() -> str:
         )
     return (
         "<table><thead><tr>"
-        "<th>账本ID</th><th>业务日期</th><th>方向</th><th>金额</th><th>分类</th><th>门店/对方</th><th>飞书状态</th><th>动作</th>"
+        "<th>账本ID</th><th>业务日期</th><th>方向</th><th>金额</th><th>账本/科目</th><th>分类/结算</th><th>门店/对方</th><th>飞书状态</th><th>动作</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
@@ -641,8 +740,12 @@ class FinanceHandler(BaseHTTPRequestHandler):
             return (form.get(name) or [default])[0].strip()
 
         amount_text = value("amount")
+        quantity_text = value("quantity")
+        unit_cost_text = value("unit_cost")
         try:
             amount = float(amount_text) if amount_text else None
+            quantity = float(quantity_text) if quantity_text else None
+            unit_cost = float(unit_cost_text) if unit_cost_text else None
             args = argparse.Namespace(
                 draft_id=value("draft_id"),
                 operator=value("operator"),
@@ -651,12 +754,20 @@ class FinanceHandler(BaseHTTPRequestHandler):
                 amount=amount,
                 category=value("category") or None,
                 payment_method=value("payment_method") or None,
+                ledger_side=value("ledger_side") or None,
+                business_account=value("business_account") or None,
+                settlement_status=value("settlement_status") or None,
+                due_date=value("due_date"),
                 store=value("store"),
                 counterparty=value("counterparty"),
+                inventory_item=value("inventory_item"),
+                quantity=quantity,
+                unit=value("unit"),
+                unit_cost=unit_cost,
                 note=value("note"),
             )
         except ValueError:
-            self.respond(render_home(error="金额必须是数字。"))
+            self.respond(render_home(error="金额、库存数量和库存单价必须是数字。"))
             return
         code, output = run_finance_action("confirm", args)
         if code == 0:

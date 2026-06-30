@@ -39,6 +39,14 @@
     {
       "name": "财务待办",
       "description": "跟踪待确认草稿、待同步飞书、同步失败、缺门店和缺交易对方记录。"
+    },
+    {
+      "name": "两套账本",
+      "description": "按门店端和供应链端拆分收入、支出和净额。"
+    },
+    {
+      "name": "应收应付库存",
+      "description": "汇总未收应收、未付应付和库存占用金额。"
     }
   ],
   "draft_fields": [
@@ -115,6 +123,50 @@
       "description": "MVP 默认人民币。"
     },
     {
+      "name": "parsed_ledger_side",
+      "type": "single_select",
+      "required": false,
+      "allowed_values": [
+        "store",
+        "supply_chain"
+      ],
+      "description": "推断进入门店端账本或供应链端账本。"
+    },
+    {
+      "name": "parsed_business_account",
+      "type": "single_select",
+      "required": false,
+      "allowed_values": [
+        "cash_revenue",
+        "cash_expense",
+        "accounts_receivable",
+        "accounts_payable",
+        "inventory",
+        "transfer",
+        "other"
+      ],
+      "description": "推断业务科目。"
+    },
+    {
+      "name": "parsed_settlement_status",
+      "type": "single_select",
+      "required": false,
+      "allowed_values": [
+        "settled",
+        "uncollected",
+        "unpaid",
+        "partial",
+        "none"
+      ],
+      "description": "推断结算状态。"
+    },
+    {
+      "name": "parsed_due_date",
+      "type": "date",
+      "required": false,
+      "description": "应收或应付到期日。"
+    },
+    {
       "name": "parsed_store",
       "type": "text",
       "required": false,
@@ -143,6 +195,12 @@
         "unknown"
       ],
       "description": "初步分类，确认时可覆盖。"
+    },
+    {
+      "name": "parsed_inventory_item",
+      "type": "text",
+      "required": false,
+      "description": "推断库存品项。"
     },
     {
       "name": "parse_warnings",
@@ -181,6 +239,50 @@
       "type": "date",
       "required": true,
       "feishu_field": "业务日期"
+    },
+    {
+      "name": "ledger_side",
+      "type": "single_select",
+      "required": true,
+      "allowed_values": [
+        "store",
+        "supply_chain"
+      ],
+      "description": "门店端账本或供应链端账本。本地已启用；飞书表新增字段后再纳入 API 同步。"
+    },
+    {
+      "name": "business_account",
+      "type": "single_select",
+      "required": true,
+      "allowed_values": [
+        "cash_revenue",
+        "cash_expense",
+        "accounts_receivable",
+        "accounts_payable",
+        "inventory",
+        "transfer",
+        "other"
+      ],
+      "description": "业务科目，用于区分现金收入、现金支出、应收、应付、库存等。"
+    },
+    {
+      "name": "settlement_status",
+      "type": "single_select",
+      "required": true,
+      "allowed_values": [
+        "settled",
+        "uncollected",
+        "unpaid",
+        "partial",
+        "none"
+      ],
+      "description": "结算状态，用于应收应付余额。"
+    },
+    {
+      "name": "due_date",
+      "type": "date",
+      "required": false,
+      "description": "应收或应付到期日。"
     },
     {
       "name": "direction",
@@ -251,6 +353,30 @@
         "unknown"
       ],
       "feishu_field": "收付款方式"
+    },
+    {
+      "name": "inventory_item",
+      "type": "text",
+      "required": false,
+      "description": "库存品项。"
+    },
+    {
+      "name": "quantity",
+      "type": "number",
+      "required": false,
+      "description": "库存数量。"
+    },
+    {
+      "name": "unit",
+      "type": "text",
+      "required": false,
+      "description": "库存单位。"
+    },
+    {
+      "name": "unit_cost",
+      "type": "currency",
+      "required": false,
+      "description": "库存单价。"
     },
     {
       "name": "source_channel",
