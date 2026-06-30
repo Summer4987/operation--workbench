@@ -76,11 +76,11 @@ def launchd_status(label: str) -> dict[str, Any]:
     last_exit = ""
     for line in output.splitlines():
         stripped = line.strip()
-        if stripped.startswith("state ="):
+        if stripped.startswith("state =") and state == "unknown":
             state = stripped.split("=", 1)[1].strip()
-        elif stripped.startswith("pid ="):
+        elif stripped.startswith("pid =") and not pid:
             pid = stripped.split("=", 1)[1].strip()
-        elif stripped.startswith("last exit code ="):
+        elif stripped.startswith("last exit code =") and not last_exit:
             last_exit = stripped.split("=", 1)[1].strip()
     return {"label": label, "state": state, "pid": pid, "last_exit_code": last_exit, "detail": output[:1200]}
 
