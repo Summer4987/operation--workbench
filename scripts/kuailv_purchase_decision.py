@@ -537,16 +537,19 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
             "candidate_count": 0,
             "safe_candidate_count": 0,
             "top_candidates": [],
+            "cart_validation": line.get("cart_validation") or {},
         }
     if not raw_candidates:
         return {
             "name": line.get("name"),
+            "sku": line.get("sku"),
             "status": "needs_candidates",
             "message": "缺少实时候选，需要先搜索/抓接口采集。",
             "search_terms": line.get("search_terms") or [],
             "required_keywords": line.get("required_keywords") or [],
             "excluded_keywords": line.get("excluded_keywords") or [],
             "pack_strategy": line.get("pack_strategy") or [],
+            "cart_validation": line.get("cart_validation") or {},
             "candidate_collection_policy": f"每天实时搜索，先切换排序 {', '.join(sort_modes)}，各采集前 {max_search_page} 页，不复用前一天供应商。",
             "candidates": [],
         }
@@ -575,6 +578,12 @@ def decision_for_line(line: dict[str, Any], raw_candidates: list[dict[str, Any]]
         "candidate_count": len(raw_candidates),
         "eligible_first_pages_candidate_count": len(filtered_candidates),
         "allowed_sort_modes": sort_modes,
+        "search_terms": line.get("search_terms") or [],
+        "required_keywords": line.get("required_keywords") or [],
+        "excluded_keywords": line.get("excluded_keywords") or [],
+        "pack_strategy": line.get("pack_strategy") or [],
+        "cart_validation": line.get("cart_validation") or {},
+        "dry_run_next_step": "按 selection 进入购物车核对；购物车可见项必须命中 expected_name_keywords、数量符合 planned_quantity，且不能出现 reject_if_seen。",
         "safe_candidate_count": sum(1 for score in scores if score.allowed),
         "top_candidates": [
             {
@@ -618,6 +627,20 @@ def build_payload(
     decisions = [decision_for_line(line, candidates_for_line(candidate_payload, line), max_search_page, sort_modes) for line in lines]
     blocking = [row for row in decisions if row["status"] in {"blocked", "needs_candidates"}]
     review = [row for row in decisions if row["status"] == "needs_review"]
+    cart_review_plan = [
+        {
+            "name": row.get("name"),
+            "sku": row.get("sku"),
+            "status": row.get("status"),
+            "expected_name_keywords": (row.get("cart_validation") or {}).get("expected_name_keywords") or [],
+            "expected_quantity": row.get("planned_quantity") or (row.get("cart_validation") or {}).get("expected_quantity"),
+            "expected_unit": (row.get("cart_validation") or {}).get("expected_unit") or row.get("unit"),
+            "reject_if_seen": (row.get("cart_validation") or {}).get("reject_if_seen") or [],
+            "selection": row.get("selection") or [],
+        }
+        for row in decisions
+        if row.get("status") in {"ready", "needs_review"}
+    ]
     status = "ready" if not blocking and not review else "needs_review" if not blocking else "needs_candidates"
     return {
         "generated_at": now_text(),
@@ -637,11 +660,13 @@ def build_payload(
             "estimated_cost": round(sum(safe_float(row.get("estimated_cost")) for row in decisions), 2),
         },
         "decisions": decisions,
+        "cart_review_plan": cart_review_plan,
         "safety": {
             "dry_run": True,
             "forbidden_actions": ["提交订单", "付款", "切换地址"],
             "supplier_policy": f"每天供应商不固定；必须当天实时搜索，按 {', '.join(sort_modes)} 排序后分别采集前 {max_search_page} 页，再按价格和销量择优。",
             "sku_cache_policy": "SKU 只能作为当天候选标识；不得复用前一天供应商/SKU 直接加购。",
+            "cart_review_policy": "加购后必须进入购物车逐项核对；发现 reject_if_seen、数量不符、未知商品或提交/付款页文案时，停止并转人工处理。",
         },
         "message": "快驴采购决策已生成；只做择优计划，不执行加购。",
     }

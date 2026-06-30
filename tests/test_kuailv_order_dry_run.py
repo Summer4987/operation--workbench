@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from kuailv_order_dry_run import safe_tap_visual_proof  # noqa: E402
+from kuailv_order_dry_run import analyze_cart_review_xml, build_plan, safe_tap_visual_proof  # noqa: E402
 
 
 class KuailvOrderDryRunTest(unittest.TestCase):
@@ -45,6 +45,80 @@ class KuailvOrderDryRunTest(unittest.TestCase):
 
         self.assertFalse(proof["allowed"])
         self.assertIn("submit_or_payment_text_visible", proof["reasons"])
+
+    def test_cart_review_expectation_matches_visible_planned_item(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "ONION-001",
+                    "name": "洋葱",
+                    "quantity": 40,
+                    "unit": "斤",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        plan = build_plan(order)
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="购物车" bounds="[40,120][180,180]" />
+  <node text="全选" bounds="[40,2140][140,2200]" />
+  <node text="合计:" bounds="[480,2140][580,2200]" />
+  <node text="去结算" bounds="[820,2140][1040,2240]" />
+  <node text="黄皮洋葱" bounds="[410,820][620,880]" />
+  <node text="20斤" bounds="[410,900][500,960]" />
+  <node text="¥24.00" bounds="[410,980][550,1040]" />
+  <node text="2" bounds="[820,1010][850,1060]" />
+</hierarchy>"""
+
+        details = analyze_cart_review_xml(xml_text, plan)
+
+        expectation = details["expectation"]
+        self.assertTrue(details["reached_cart"])
+        self.assertEqual(expectation["status"], "ready")
+        self.assertEqual(expectation["matched_line_count"], 1)
+        self.assertEqual(expectation["missing_line_count"], 0)
+        self.assertEqual(expectation["risk_flags"], [])
+
+    def test_cart_review_expectation_flags_unexpected_item(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "银泰城店",
+            "submitted_at": "2026-06-17T10:00:00+08:00",
+            "items": [
+                {
+                    "sku": "TOFU-001",
+                    "name": "豆腐",
+                    "quantity": 2,
+                    "unit": "盒",
+                    "purchase_channel": "快驴",
+                }
+            ],
+        }
+        plan = build_plan(order)
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="购物车" bounds="[40,120][180,180]" />
+  <node text="全选" bounds="[40,2140][140,2200]" />
+  <node text="合计:" bounds="[480,2140][580,2200]" />
+  <node text="去结算" bounds="[820,2140][1040,2240]" />
+  <node text="嫩豆腐" bounds="[410,820][620,880]" />
+  <node text="5斤" bounds="[410,900][500,960]" />
+  <node text="¥12.00" bounds="[410,980][550,1040]" />
+  <node text="2" bounds="[820,1010][850,1060]" />
+</hierarchy>"""
+
+        details = analyze_cart_review_xml(xml_text, plan)
+
+        expectation = details["expectation"]
+        self.assertEqual(expectation["status"], "needs_review")
+        self.assertEqual(expectation["missing_line_count"], 1)
+        self.assertIn("expected_item_missing", expectation["risk_flags"])
+        self.assertIn("global_reject_keyword_seen", expectation["risk_flags"])
+        self.assertIn("嫩豆腐", expectation["global_reject_hits"])
 
 
 if __name__ == "__main__":

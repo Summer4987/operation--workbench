@@ -82,6 +82,11 @@ class KuailvPurchaseDecisionTest(unittest.TestCase):
         decision = payload["decisions"][0]
         self.assertEqual(decision["status"], "ready")
         self.assertEqual(decision["selection"][0]["count"], 2)
+        self.assertEqual(payload["cart_review_plan"][0]["name"], "洋葱")
+        self.assertEqual(payload["cart_review_plan"][0]["expected_quantity"], 40)
+        self.assertIn("黄皮洋葱", payload["cart_review_plan"][0]["expected_name_keywords"])
+        self.assertIn("食堂菜", payload["cart_review_plan"][0]["reject_if_seen"])
+        self.assertEqual(decision["cart_validation"]["expected_unit"], "斤")
 
     def test_missing_price_candidates_are_not_safe(self) -> None:
         order = {

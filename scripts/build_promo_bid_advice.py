@@ -24,6 +24,13 @@ def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def parse_time(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -53,7 +60,7 @@ def load_previews() -> list[dict[str, Any]]:
         generated_at = parse_time(summary.get("generatedAt"))
         previews.append(
             {
-                "path": str(path.relative_to(ROOT)),
+                "path": display_path(path),
                 "generated_at": generated_at,
                 "summary": summary,
                 "rows": payload.get("rows") or [],
@@ -84,9 +91,17 @@ def normalize_item(row: dict[str, Any], preview: dict[str, Any], now: datetime) 
         "risk": risk,
         "can_execute": bool(row.get("canExecute")) and not risk,
         "approval_required": bool(bid_delta),
+        "execution_mode": "advice_only",
+        "approval_gate": "manual_required" if bid_delta else "not_required",
         "source": preview["path"],
         "source_generated_at": generated_at.strftime("%Y-%m-%d %H:%M:%S") if generated_at else "",
         "source_age_days": age_days,
+        "operator_checklist": [
+            "核对门店、时段和当前出价。",
+            "核对当前消耗、预期消耗、预算占用和平台营业状态。",
+            "旧预览或风险项先重新读取平台状态。",
+            "确认前不自动提交到平台。",
+        ],
     }
 
 
@@ -129,6 +144,14 @@ def build_payload(now: datetime | None = None) -> dict[str, Any]:
         "source": {
             "preview_dir": "outputs/dianjin_automation",
             "prototype": "dianjin-prototype/",
+            "entrypoint": "python3 scripts/build_promo_bid_advice.py",
+        },
+        "safety_gate": {
+            "mode": "advice_only",
+            "requires_approval_queue": True,
+            "message": "本脚本只读取出价预览并输出建议，不打开平台、不保存出价、不提交预算。",
+            "forbidden_actions": ["自动提交出价", "自动保存预算", "绕过审批", "处理风险项"],
+            "next_step": "python3 scripts/build_promo_bid_approval_queue.py",
         },
         "summary": {
             "preview_count": len(previews),

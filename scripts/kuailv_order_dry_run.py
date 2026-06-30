@@ -132,6 +132,15 @@ def now_text() -> str:
     return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S%z")
 
 
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return default
+
+
 def today_text() -> str:
     return datetime.now().astimezone().strftime("%Y-%m-%d")
 
@@ -1431,6 +1440,100 @@ def plan_expected_cart_terms(plan: dict[str, Any] | None) -> list[str]:
     return list(dict.fromkeys(term for term in terms if term))
 
 
+def plan_expected_cart_lines(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    lines = []
+    for line in (plan or {}).get("lines") or []:
+        if line.get("action") != "search_and_add":
+            continue
+        validation = line.get("cart_validation") or {}
+        lines.append(
+            {
+                "name": line.get("name", ""),
+                "sku": line.get("sku", ""),
+                "expected_name_keywords": validation.get("expected_name_keywords") or line.get("required_keywords") or [line.get("name", "")],
+                "expected_quantity": validation.get("expected_quantity", line.get("planned_quantity")),
+                "expected_cart_count": sum(int(pack.get("count") or 0) for pack in line.get("pack_strategy") or []),
+                "expected_unit": validation.get("expected_unit", line.get("unit", "")),
+                "reject_if_seen": validation.get("reject_if_seen") or line.get("excluded_keywords") or [],
+                "pack_labels": line_pack_labels(line),
+            }
+        )
+    return lines
+
+
+def cart_item_quantity(value: Any) -> float:
+    match = re.search(r"\d+(?:\.\d+)?", str(value or ""))
+    return float(match.group(0)) if match else 0.0
+
+
+def cart_item_matches_expected(item: dict[str, Any], expected: dict[str, Any]) -> bool:
+    title = str(item.get("title") or "")
+    row_text = " ".join(str(text) for text in item.get("row_texts") or [])
+    text = f"{title} {row_text}"
+    keywords = [str(word) for word in expected.get("expected_name_keywords") or [] if word]
+    if not keywords:
+        return False
+    return any(word in text for word in keywords)
+
+
+def build_cart_review_expectation(plan: dict[str, Any] | None, visible_items: list[dict[str, Any]], text_blob: str) -> dict[str, Any]:
+    expected_lines = plan_expected_cart_lines(plan)
+    matched = []
+    missing = []
+    risk_flags: list[str] = []
+    for expected in expected_lines:
+        matches = [item for item in visible_items if cart_item_matches_expected(item, expected)]
+        if not matches:
+            missing.append(expected)
+            risk_flags.append("expected_item_missing")
+            continue
+        expected_quantity = safe_float(expected.get("expected_cart_count") or expected.get("expected_quantity"), 0)
+        quantity_ok = True
+        if expected_quantity > 0:
+            quantity_ok = any(abs(cart_item_quantity(item.get("quantity")) - expected_quantity) < 0.000001 for item in matches)
+            if not quantity_ok:
+                risk_flags.append("expected_quantity_mismatch")
+        reject_hits = [
+            word
+            for word in expected.get("reject_if_seen") or []
+            if word and any(word in " ".join(str(text) for text in item.get("row_texts") or []) for item in matches)
+        ]
+        if reject_hits:
+            risk_flags.append("expected_line_reject_keyword_seen")
+        matched.append(
+            {
+                "expected": expected,
+                "items": matches[:3],
+                "quantity_ok": quantity_ok,
+                "reject_hits": list(dict.fromkeys(reject_hits)),
+            }
+        )
+
+    unexpected = [item for item in visible_items if item.get("unexpected")]
+    if unexpected:
+        risk_flags.append("unexpected_cart_item_seen")
+    global_reject_hits = [word for word in GLOBAL_REJECT_KEYWORDS + EXCLUDED_KEYWORDS if word and word in text_blob]
+    if global_reject_hits:
+        risk_flags.append("global_reject_keyword_seen")
+    if any(word in text_blob for word in ["提交订单", "付款"]):
+        risk_flags.append("submit_or_payment_text_visible")
+    return {
+        "status": "ready" if expected_lines and not missing and not unexpected and not global_reject_hits else "needs_review",
+        "expected_line_count": len(expected_lines),
+        "matched_line_count": len(matched),
+        "missing_line_count": len(missing),
+        "unexpected_item_count": len(unexpected),
+        "matched_lines": matched,
+        "missing_lines": missing,
+        "unexpected_items": unexpected,
+        "global_reject_hits": list(dict.fromkeys(global_reject_hits)),
+        "risk_flags": list(dict.fromkeys(risk_flags)),
+        "message": "购物车可见项与计划一致，仍需人工确认后才能提交。"
+        if expected_lines and not risk_flags
+        else "购物车核对存在缺失、异常或风险词，停止提交并人工复核。",
+    }
+
+
 def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     expected_terms = plan_expected_cart_terms(plan)
     excluded_prefixes = ("月售", "买过", "比上次", "同品", "推荐", "自营", "特价", "快驴自营", "全部", "查看更多")
@@ -1442,6 +1545,8 @@ def extract_visible_cart_items(nodes: list[dict[str, Any]], plan: dict[str, Any]
         if not re.search(r"[\u4e00-\u9fff]", text):
             return False
         if text.startswith(excluded_prefixes) or any(word in text for word in ["同行都在买", "送达", "¥", "￥", "/斤", "/袋", "/盒", "去结算", "合计", "全选"]):
+            return False
+        if re.fullmatch(r"\d+(?:\.\d+)?\s*(斤|盒|袋|箱|桶|瓶|份|个|g|kg)(?:/.*)?", text, re.I):
             return False
         if valid_pack_label_hit(text, "10斤") or valid_pack_label_hit(text, "400g") or "kg×" in text:
             return False
@@ -1572,6 +1677,7 @@ def analyze_cart_review_xml(xml_text: str, plan: dict[str, Any] | None = None) -
     nodes = parse_ui_nodes(xml_text)
     cart_nodes = extract_cart_review_nodes(nodes)
     visible_cart_items = extract_visible_cart_items(nodes, plan)
+    expectation = build_cart_review_expectation(plan, visible_cart_items, text_blob)
     return {
         "reached_cart": bool(marker_hits or len(keyword_hits) >= 2),
         "keyword_hits": keyword_hits,
@@ -1580,6 +1686,7 @@ def analyze_cart_review_xml(xml_text: str, plan: dict[str, Any] | None = None) -
         "visible_relevant_text": relevant_texts[:80],
         "visible_cart_items": visible_cart_items,
         "unexpected_visible_cart_items": [item for item in visible_cart_items if item.get("unexpected")],
+        "expectation": expectation,
         "cart_item_candidates": cart_nodes["cart_item_candidates"],
         "checkout_nodes": cart_nodes["checkout_nodes"],
         "background_risk_nodes": cart_nodes["background_risk_nodes"],
