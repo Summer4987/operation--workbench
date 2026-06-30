@@ -1348,6 +1348,50 @@ def extract_delivery_text(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows[:20]
 
 
+def normalize_delivery_text(text: str) -> str:
+    return "".join(ch for ch in str(text or "") if not ch.isspace())
+
+
+def delivery_match_terms(plan: dict[str, Any]) -> list[str]:
+    terms: list[str] = []
+    store_name = normalize_delivery_text(str(plan.get("store_name") or ""))
+    if store_name:
+        terms.append(store_name)
+        terms.append(store_name.removesuffix("店"))
+
+    address = normalize_delivery_text(str(plan.get("store_address") or ""))
+    if address:
+        for token in re.split(r"[省市区县街道路号附（）()/、,，\s-]+", address):
+            token = normalize_delivery_text(token)
+            if len(token) >= 3:
+                terms.append(token)
+        for pattern in (r"[^省市区县街道路号附（）()，,、\s-]*中心[^省市区县街道路号附（）()，,、\s-]*", r"[A-ZＣC]座", r"\d+层"):
+            terms.extend(normalize_delivery_text(match) for match in re.findall(pattern, address))
+
+    seen: set[str] = set()
+    unique_terms = []
+    for term in terms:
+        if len(term) >= 2 and term not in seen:
+            seen.add(term)
+            unique_terms.append(term)
+    return unique_terms
+
+
+def delivery_store_match(plan: dict[str, Any], delivery_text: str) -> dict[str, Any]:
+    normalized_delivery = normalize_delivery_text(delivery_text)
+    expected_store = normalize_delivery_text(str(plan.get("store_name") or ""))
+    terms = delivery_match_terms(plan)
+    matched_terms = [term for term in terms if term and term in normalized_delivery]
+    strict_store_match = bool(expected_store and expected_store in normalized_delivery)
+    return {
+        "matched": bool(strict_store_match or matched_terms),
+        "strict_store_match": strict_store_match,
+        "matched_terms": matched_terms,
+        "expected_store": expected_store,
+        "match_terms": terms,
+    }
+
+
 def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -> dict[str, Any]:
     nodes = parse_ui_nodes(xml_text)
     clickable = [
@@ -1374,6 +1418,7 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
     search_submit_candidates = find_search_submit_candidates(nodes)
     delivery_rows = extract_delivery_text(nodes)
     delivery_text = " ".join(row["text"] for row in delivery_rows)
+    delivery_match = delivery_store_match(plan, delivery_text)
     expected_store = str(plan.get("store_name") or "")
     cart_review_page = is_cart_review_page(xml_text)
     analysis = {
@@ -1381,7 +1426,10 @@ def analyze_snapshot_ui(xml_text: str, image_path: Path, plan: dict[str, Any]) -
         "clickable_nodes": clickable,
         "bottom_nodes": bottom_nodes,
         "delivery_candidates": delivery_rows,
-        "delivery_store_match": bool(expected_store and expected_store in delivery_text),
+        "delivery_store_match": bool(delivery_match["matched"]),
+        "delivery_strict_store_match": bool(delivery_match["strict_store_match"]),
+        "delivery_matched_terms": delivery_match["matched_terms"],
+        "delivery_match_terms": delivery_match["match_terms"],
         "expected_store": expected_store,
         "orange_add_candidates": orange_candidates,
         "cart_entry_candidates": cart_entry_candidates,

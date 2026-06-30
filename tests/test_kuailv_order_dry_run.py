@@ -14,6 +14,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     android_auto_add_gate,
     auto_add_pack_steps,
     build_plan,
+    delivery_store_match,
     load_order_json,
     safe_tap_visual_proof,
 )
@@ -179,6 +180,19 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertTrue(allowed["allowed"])
         self.assertFalse(no_flag["allowed"])
         self.assertIn("auto_add_to_cart_not_allowed_by_config", no_flag["reasons"])
+
+    def test_delivery_store_match_accepts_address_fragment_when_store_name_hidden(self) -> None:
+        order = {
+            "store_name": "保利中心店",
+            "store_address": "四川省成都市武侯区玉林街道保利中心东区C座一层熊小小牛排饭",
+        }
+        delivery_text = "配送至玉林街道保利中心-东区-C座(锦绣路1号附24号1层)"
+
+        match = delivery_store_match(build_plan({**order, "items": []}), delivery_text)
+
+        self.assertTrue(match["matched"])
+        self.assertFalse(match["strict_store_match"])
+        self.assertIn("保利中心", match["matched_terms"])
 
     def test_load_order_json_accepts_direct_order_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
