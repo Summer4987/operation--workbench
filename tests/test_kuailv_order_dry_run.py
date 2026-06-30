@@ -165,12 +165,12 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(steps[0]["pack_label"], "")
         self.assertEqual(steps[0]["display_pack_label"], "40斤目标")
         self.assertEqual(steps[0]["selection_mode"], "identity_only")
-        self.assertEqual(steps[0]["count"], 40)
+        self.assertEqual(steps[0]["count"], 1)
         potato_steps = [step for step in steps if step["line_name"] == "土豆"]
         self.assertEqual([step["pack_label"] for step in potato_steps], [""])
         self.assertEqual([step["display_pack_label"] for step in potato_steps], ["15斤目标"])
         self.assertEqual([step["search_query"] for step in potato_steps], ["土豆"])
-        self.assertEqual([step["count"] for step in potato_steps], [15])
+        self.assertEqual([step["count"] for step in potato_steps], [1])
 
     def test_identity_only_line_does_not_require_pack_quantity_on_card(self) -> None:
         order = {
@@ -304,6 +304,17 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(candidates[0]["text"], "可乐")
         self.assertIn("top_search_bar_text_with_submit", candidates[0]["reasons"])
         self.assertNotEqual(candidates[0]["resource_id"], "index-page-header")
+
+    def test_search_entry_candidate_rejects_navigation_label_with_submit_button(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="冻品" class="android.widget.TextView" bounds="[458,112][554,180]" />
+  <node text="搜索" class="android.widget.TextView" bounds="[891,225][1046,303]" />
+</hierarchy>"""
+
+        candidates = find_search_entry_candidates(parse_ui_nodes(xml_text), Path(""))
+
+        self.assertEqual(candidates, [])
 
     def test_visible_xml_add_candidates_keep_text_spec_control_without_orange_image(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>

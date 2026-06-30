@@ -2167,7 +2167,8 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         if width >= image_width * 0.35 and (has_search_text or has_search_resource or has_edit_text):
             score += 45
             reasons.append("wide_input_like")
-        if has_top_search_submit and visible_label.strip() and 190 <= cx <= 875 and 80 <= cy <= 340 and not has_search_resource:
+        navigation_labels = {"首页", "冻品", "门店", "精选", "收藏"}
+        if has_top_search_submit and visible_label.strip() and visible_label.strip() not in navigation_labels and 190 <= cx <= 875 and 80 <= cy <= 340 and not has_search_resource:
             score += 65
             reasons.append("top_search_bar_text_with_submit")
         if visible_label.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
@@ -2423,7 +2424,7 @@ def auto_add_pack_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
             pack_label = "" if identity_only else raw_pack_label
             count = int(pack.get("count") or 0)
             if identity_only:
-                count = int(round(safe_float(line.get("target_quantity") or line.get("requested_quantity"), 0)))
+                count = 1
             query = next((term for term in search_terms if pack_label and pack_label in term), "")
             if not query:
                 query = str(line.get("preferred_keyword") or (search_terms[0] if search_terms else line.get("name") or ""))
