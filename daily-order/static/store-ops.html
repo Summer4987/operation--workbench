@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>熊小小门店订货系统</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bar: #ffffff;
+        --line: #dce4ed;
+        --ink: #17202a;
+        --muted: #657386;
+        --brand: #176b5f;
+        --bg: #f4f6f8;
+        --nav-height: 66px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+        overflow: hidden;
+      }
+
+      .ops-shell {
+        height: 100%;
+        padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+      }
+
+      .ops-panel {
+        display: none;
+        width: 100%;
+        height: 100%;
+      }
+
+      .ops-panel.is-active {
+        display: block;
+      }
+
+      .ops-frame {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: var(--bg);
+      }
+
+      .logistics-panel {
+        min-height: 100%;
+        padding: 20px 14px 88px;
+        overflow: auto;
+      }
+
+      .logistics-inner {
+        width: min(980px, 100%);
+        margin: 0 auto;
+      }
+
+      .logistics-title {
+        margin: 0 0 12px;
+        font-size: 26px;
+        letter-spacing: 0;
+      }
+
+      .logistics-empty {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 18px;
+      }
+
+      .logistics-empty strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 18px;
+      }
+
+      .logistics-empty span {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .bottom-nav {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        min-height: calc(var(--nav-height) + env(safe-area-inset-bottom));
+        padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 -10px 24px rgba(23, 32, 42, 0.08);
+        gap: 6px;
+      }
+
+      .bottom-nav button {
+        appearance: none;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 900;
+        min-width: 0;
+        min-height: 52px;
+        padding: 5px 4px;
+        cursor: pointer;
+      }
+
+      .bottom-nav button svg {
+        display: block;
+        width: 22px;
+        height: 22px;
+        margin: 0 auto 3px;
+        stroke: currentColor;
+        stroke-width: 2.3;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .bottom-nav button.is-active {
+        background: #e9f4f1;
+        color: var(--brand);
+      }
+
+      .bottom-nav button:focus-visible {
+        outline: 2px solid var(--brand);
+        outline-offset: -2px;
+      }
+
+      @media (min-width: 860px) {
+        :root {
+          --nav-height: 70px;
+        }
+
+        .bottom-nav {
+          right: 50%;
+          left: 50%;
+          width: min(520px, calc(100% - 28px));
+          transform: translateX(-50%);
+          bottom: 10px;
+          border: 1px solid var(--line);
+          border-radius: 14px;
+          padding: 7px;
+          min-height: var(--nav-height);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="ops-shell">
+      <section id="dailyPanel" class="ops-panel is-active" aria-label="日常订货">
+        <iframe class="ops-frame" src="/daily-order/" title="熊小小成都门店订货"></iframe>
+      </section>
+
+      <section id="supplyPanel" class="ops-panel" aria-label="日配">
+        <iframe id="supplyFrame" class="ops-frame" src="/order-submit?token=xiongxiaoxiao-order" title="熊小小日配订货"></iframe>
+      </section>
+
+      <section id="logisticsPanel" class="ops-panel logistics-panel" aria-label="物流信息">
+        <div class="logistics-inner">
+          <h1 class="logistics-title">物流信息</h1>
+          <div class="logistics-empty">
+            <strong>暂无物流记录</strong>
+            <span>快递单号、物流状态和取件码会在这里展示。</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="门店订货菜单">
+      <button class="is-active" type="button" data-target="dailyPanel" aria-current="page">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 6h16" />
+          <path d="M4 12h16" />
+          <path d="M4 18h10" />
+        </svg>
+        日常订货
+      </button>
+      <button type="button" data-target="supplyPanel">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 7h13v10H3z" />
+          <path d="M16 10h3l2 3v4h-5z" />
+          <circle cx="7" cy="19" r="2" />
+          <circle cx="18" cy="19" r="2" />
+        </svg>
+        日配
+      </button>
+      <button type="button" data-target="logisticsPanel">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 3h9l3 3v15H6z" />
+          <path d="M15 3v4h4" />
+          <path d="M9 12h6" />
+          <path d="M9 16h4" />
+        </svg>
+        物流信息
+      </button>
+    </nav>
+
+    <script>
+      const buttons = Array.from(document.querySelectorAll(".bottom-nav button"));
+      const panels = Array.from(document.querySelectorAll(".ops-panel"));
+      const supplyFrame = document.querySelector("#supplyFrame");
+
+      const isLocalHost = ["127.0.0.1", "localhost", "::1"].includes(window.location.hostname);
+      if (supplyFrame && isLocalHost && window.location.port && window.location.port !== "8000") {
+        supplyFrame.src = `${window.location.protocol}//${window.location.hostname}:8000/order-submit?token=xiongxiaoxiao-order`;
+      }
+
+      function activatePanel(targetId) {
+        panels.forEach((panel) => panel.classList.toggle("is-active", panel.id === targetId));
+        buttons.forEach((button) => {
+          const isActive = button.dataset.target === targetId;
+          button.classList.toggle("is-active", isActive);
+          if (isActive) {
+            button.setAttribute("aria-current", "page");
+          } else {
+            button.removeAttribute("aria-current");
+          }
+        });
+      }
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => activatePanel(button.dataset.target));
+      });
+    </script>
+  </body>
+</html>

@@ -8,6 +8,7 @@ DIGEST_TIMER_FILE="/etc/systemd/system/daily-order-wechat-digest.timer"
 NGINX_SITE="/etc/nginx/conf.d/inventory-board.conf"
 LOCATION_MARKER="location /daily-order/"
 DAILY_ORDER_ROOT_REDIRECT_MARKER="location = /daily-order"
+STORE_OPS_LOCATION_MARKER="location /store-ops/"
 BEIJING_LOCATION_MARKER="location /beijing-order/"
 BEIJING_ADMIN_MARKER="location = /beijing-order/admin"
 
@@ -55,6 +56,19 @@ location = """    location = /daily-order/admin {
     }
 
     location /daily-order/ {
+        proxy_pass http://127.0.0.1:8010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /store-ops {
+        return 307 /store-ops/;
+    }
+
+    location /store-ops/ {
         proxy_pass http://127.0.0.1:8010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -117,6 +131,39 @@ location = """    location = /daily-order {
 needle = "    location /daily-order/ {\n"
 if needle not in text:
     raise SystemExit("没有找到日常订货 location，已停止添加 /daily-order 跳转")
+path.write_text(text.replace(needle, location + needle, 1), encoding="utf-8")
+PY
+fi
+
+if ! sudo grep -q "$STORE_OPS_LOCATION_MARKER" "$NGINX_SITE"; then
+  sudo cp "$NGINX_SITE" "$NGINX_SITE.bak.$(date +%Y%m%d%H%M%S)"
+  sudo python3 - "$NGINX_SITE" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+location = """    location = /store-ops {
+        return 307 /store-ops/;
+    }
+
+    location /store-ops/ {
+        proxy_pass http://127.0.0.1:8010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+"""
+needle = "    location = /beijing-order/admin {\n"
+if needle not in text:
+    needle = "    location /beijing-order/ {\n"
+if needle not in text:
+    needle = "    location / {\n"
+if needle not in text:
+    raise SystemExit("没有找到可插入统一门店入口 location 的位置，已停止修改 Nginx")
 path.write_text(text.replace(needle, location + needle, 1), encoding="utf-8")
 PY
 fi
@@ -196,3 +243,4 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 echo "日常订货链接已安装：http://139.155.148.169/daily-order/"
+echo "统一门店订货入口已安装：http://139.155.148.169/store-ops/"

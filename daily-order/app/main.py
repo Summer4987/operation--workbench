@@ -41,6 +41,19 @@ app.add_middleware(
 app.mount("/daily-order/static", StaticFiles(directory=STATIC_DIR), name="daily-order-static")
 
 
+@app.get("/store-ops")
+def store_ops_without_trailing_slash():
+    return RedirectResponse(url="/store-ops/", status_code=307)
+
+
+@app.get("/store-ops/")
+def store_ops():
+    return FileResponse(
+        STATIC_DIR / "store-ops.html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
+
+
 @app.get("/daily-order")
 def index_without_trailing_slash():
     return RedirectResponse(url="/daily-order/", status_code=307)
