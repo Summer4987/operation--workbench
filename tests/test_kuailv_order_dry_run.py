@@ -456,6 +456,7 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(step["line_name"], "玉米粒")
         self.assertEqual(step["pack_label"], "")
         self.assertEqual(step["count"], 1)
+        self.assertEqual(step["search_query"], "甜玉米粒1kg")
         self.assertEqual(step["variant_policy"]["kind"], "compare_equivalent_specs")
         self.assertIn("快驴·鹿手", plan["lines"][0]["preferred_spec_keywords"])
 
@@ -530,7 +531,7 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(selected["selected"]["name"], "1箱x1")
         self.assertEqual(selected["selected"]["total_price"], 88)
 
-    def test_yumili_requires_lushou_identity_not_other_supplier(self) -> None:
+    def test_yumili_requires_lushou_1kg_identity_not_other_supplier(self) -> None:
         order = {
             "order_id": "DO-TEST",
             "store_name": "保利中心店",
@@ -544,10 +545,10 @@ class KuailvOrderDryRunTest(unittest.TestCase):
             "source": "xml_target_card_control",
             "control_text": "orange_add_icon",
             "target_line_name": "玉米粒",
-            "target_title_text": "[可可嘉华]速冻甜玉米粒",
-            "target_spec_text": "2.5kg×4袋",
-            "nearby_texts": [{"text": "[可可嘉华]速冻甜玉米粒", "bounds": [343, 762, 1054, 829]}],
-            "context_texts": [{"text": "[可可嘉华]速冻甜玉米粒", "bounds": [343, 762, 1054, 829]}],
+            "target_title_text": "[快驴·鹿手]速冻甜玉米粒2.5kg",
+            "target_spec_text": "",
+            "nearby_texts": [{"text": "[快驴·鹿手]速冻甜玉米粒2.5kg", "bounds": [343, 762, 1054, 829]}],
+            "context_texts": [{"text": "[快驴·鹿手]速冻甜玉米粒2.5kg", "bounds": [343, 762, 1054, 829]}],
         }
         right_candidate = {
             "source": "xml_target_card_control",
@@ -563,7 +564,7 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         right_score = score_candidate_for_line(right_candidate, line, "")
 
         self.assertFalse(wrong_score["allowed"])
-        self.assertIn("missing_must_include_keyword", wrong_score["reasons"])
+        self.assertIn("excluded_keyword_seen", wrong_score["reasons"])
         self.assertTrue(right_score["allowed"])
 
     def test_search_result_hits_ignores_hidden_detected_text_for_target(self) -> None:

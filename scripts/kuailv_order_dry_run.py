@@ -104,11 +104,11 @@ PACK_RULES: dict[str, dict[str, Any]] = {
     "玉米粒": {
         "pack_sizes": [1],
         "allowed_overage": 0,
-        "keywords": ["玉米粒"],
+        "keywords": ["甜玉米粒1kg", "玉米粒"],
         "accept": ["甜玉米粒", "玉米粒"],
-        "must_include": ["快驴·鹿手", "甜玉米粒"],
+        "must_include": ["快驴·鹿手", "甜玉米粒", "1kg"],
         "prefer": ["快驴·鹿手", "甜玉米粒", "1kg", "两包装", "2包装", "1箱"],
-        "reject": ["带壳", "玉米带壳", "罐装", "玉米粒罐装", "甜玉米带壳", "可可嘉华", "速冻玉米粒 1kg"],
+        "reject": ["带壳", "玉米带壳", "罐装", "玉米粒罐装", "甜玉米带壳", "可可嘉华", "速冻玉米粒 1kg", "2.5kg"],
         "variant_policy": {
             "kind": "compare_equivalent_specs",
             "equivalent_label": "1箱",
