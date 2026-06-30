@@ -545,6 +545,7 @@ def main() -> int:
     agent_status_parser.add_argument("--no-refresh", action="store_true", help="复用已有 health.json")
     agent_status_parser.add_argument("--limit", type=int, default=6, help="最多展示的异常任务数")
     sub.add_parser("agent-commands", help="输出 Hermes 可用命令说明")
+    sub.add_parser("agent-aliases", help="输出 Hermes 业务简称表")
     agent_task_parser = sub.add_parser("agent-task", help="输出 Hermes/微信可读任务详情")
     agent_task_parser.add_argument("task_id_or_name")
     agent_task_parser.add_argument("--no-refresh", action="store_true", help="复用已有 health.json")
@@ -562,14 +563,21 @@ def main() -> int:
         if args.command == "agent-commands":
             print(agent_bridge.format_commands())
             return 0
+        if args.command == "agent-aliases":
+            print(agent_bridge.format_aliases())
+            return 0
         if args.command == "agent-task":
             snapshot = agent_bridge.build_snapshot(refresh=not args.no_refresh)
             task = agent_bridge.find_task(snapshot, args.task_id_or_name)
-            if task is None:
-                print(f"没有找到任务：{args.task_id_or_name}")
-                return 2
-            print(agent_bridge.format_task_detail(task))
-            return 0
+            if task is not None:
+                print(agent_bridge.format_task_detail(task))
+                return 0
+            term = agent_bridge.find_business_term(args.task_id_or_name)
+            if term is not None:
+                print(agent_bridge.format_business_term(term))
+                return 0
+            print(f"没有找到任务或业务简称：{args.task_id_or_name}")
+            return 2
 
     if args.command == "run":
         return run_task(args.task_id, timeout_seconds=args.timeout)

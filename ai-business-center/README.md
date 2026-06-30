@@ -83,9 +83,10 @@ python3 ai-business-center/agent_bridge.py commands
 ./scripts/hermes_business_center.zsh 任务列表
 ./scripts/hermes_business_center.zsh 任务 ops.daily_report_publish
 ./scripts/hermes_business_center.zsh 命令
+./scripts/hermes_business_center.zsh 简称
 ```
 
-这个入口默认会刷新健康检查，但只读取文件和产物状态；不会自动执行预算、出价、订货、财务发布或云端发布。需要复用最近一次健康结果时，加 `--no-refresh`。
+业务简称维护在 `ai-business-center/config/business_aliases.json`；Hermes 的业务上下文维护在 `ai-business-center/config/hermes_business_memory.md`。这个入口默认会刷新健康检查，但只读取文件和产物状态；不会自动执行预算、出价、订货、财务发布或云端发布。需要复用最近一次健康结果时，加 `--no-refresh`。
 
 ## 设计原则
 

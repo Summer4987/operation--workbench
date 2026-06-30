@@ -23,6 +23,9 @@ case "${1:-status}" in
   commands|help|命令|帮助)
     python3 ai-business-center/center.py agent-commands
     ;;
+  aliases|alias|简称|简称表)
+    python3 ai-business-center/agent_bridge.py aliases
+    ;;
   *)
     echo "未知命令：$1"
     python3 ai-business-center/center.py agent-commands
