@@ -1378,11 +1378,6 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
                         "text": best_text,
                     }
                 )
-    page_rows = []
-    for text in snapshot.get("detected_text") or []:
-        hits = [word for word in target_words if word and word in str(text)]
-        if hits:
-            page_rows.append({"text": text, "hits": hits})
     page_node_rows = []
     for node in analysis.get("visible_text_nodes") or []:
         text = str(node.get("text") or "")
@@ -1406,8 +1401,8 @@ def search_result_hits(snapshot: dict[str, Any], target_words: list[str]) -> dic
         "candidate_hits": candidate_rows[:8],
         "safe_candidate_hit_count": len(safe_candidate_rows),
         "safe_candidate_hits": safe_candidate_rows[:8],
-        "page_text_hit_count": len(page_rows),
-        "page_text_hits": page_rows[:12],
+        "page_text_hit_count": len(page_node_rows),
+        "page_text_hits": page_node_rows[:12],
         "page_node_hit_count": len(page_node_rows),
         "page_node_hits": page_node_rows[:20],
     }

@@ -24,6 +24,7 @@ from kuailv_order_dry_run import (  # noqa: E402
     parse_ui_nodes,
     safe_tap_visual_proof,
     score_candidate_for_line,
+    search_result_hits,
     search_suggestion_candidate,
     select_variant_option,
 )
@@ -564,6 +565,23 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertFalse(wrong_score["allowed"])
         self.assertIn("missing_must_include_keyword", wrong_score["reasons"])
         self.assertTrue(right_score["allowed"])
+
+    def test_search_result_hits_ignores_hidden_detected_text_for_target(self) -> None:
+        snapshot = {
+            "detected_text": ["[快驴·鹿手]甜玉米粒1kg（精选云南玉米）"],
+            "ui_analysis": {
+                "visible_text_nodes": [
+                    {"text": "四季康甜玉米粒", "bounds": [45, 264, 804, 326]},
+                    {"text": "超甜玉米粒", "bounds": [45, 767, 801, 829]},
+                ],
+                "orange_add_candidates": [],
+            },
+        }
+
+        result = search_result_hits(snapshot, ["快驴·鹿手"])
+
+        self.assertEqual(result["page_text_hit_count"], 0)
+        self.assertEqual(result["page_node_hit_count"], 0)
 
 
 if __name__ == "__main__":
