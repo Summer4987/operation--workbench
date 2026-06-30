@@ -124,6 +124,14 @@ MEMORY_WORDS = {
     "长期记忆",
     "你的记忆",
 }
+CONSOLE_WORDS = {
+    "hermes控制台",
+    "hermes工作台",
+    "hermes后台",
+    "agent控制台",
+    "agent工作台",
+    "agent后台",
+}
 
 
 def normalize_alias(value: str) -> str:
@@ -400,6 +408,16 @@ def format_memory_summary() -> str:
     return "\n".join(summary + important)
 
 
+def build_console() -> str:
+    output = run_checked([sys.executable, "scripts/build_hermes_console.py"])
+    return "\n".join(
+        [
+            output,
+            "说明：第一版工作台只读展示状态、日志、文件产物和修复边界；高风险动作不会在页面里直接执行。",
+        ]
+    ).strip()
+
+
 def format_file_task_guidance(text: str) -> str:
     return "\n".join(
         [
@@ -426,6 +444,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
 
     if normalized_contains(stripped, MEMORY_WORDS):
         return format_memory_summary()
+
+    if normalized_contains(stripped, CONSOLE_WORDS):
+        return build_console()
 
     if looks_like_finance_entry(stripped):
         return run_checked(

@@ -3,3 +3,5 @@ state/
 state/runs/
 state/*.json
 dashboard/index.html
+dashboard/hermes.html
+dashboard/hermes-status.json

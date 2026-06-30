@@ -29,6 +29,10 @@ case "${1:-status}" in
   memory|记忆|业务记忆|业务手册|长期记忆)
     python3 ai-business-center/agent_bridge.py memory
     ;;
+  console|控制台|工作台|Hermes工作台|Hermes控制台|agent控制台)
+    python3 scripts/build_hermes_console.py
+    echo "打开：$ROOT/ai-business-center/dashboard/hermes.html"
+    ;;
   monitor|report|自动化报告|任务报告|失败报告)
     python3 scripts/agent_task_monitor.py >/dev/null
     cat outputs/agent_task_monitor/latest.txt
