@@ -102,6 +102,7 @@ PACK_RULES: dict[str, dict[str, Any]] = {
     "大豆油": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["大豆油"], "accept": ["大豆油"], "prefer": ["桶"]},
     "薄盐生抽": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["薄盐生抽", "生抽"], "accept": ["薄盐生抽", "生抽"], "prefer": ["薄盐"]},
     "洗洁精": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["洗洁精"], "accept": ["洗洁精"], "prefer": ["桶"]},
+    "火碱": {"pack_sizes": [1], "allowed_overage": 0, "keywords": ["火碱"], "accept": ["火碱"], "prefer": ["火碱"]},
 }
 
 EXCLUDED_KEYWORDS = ["嫩豆腐", "内酯豆腐", "豆腐干", "千页豆腐", "腐竹", "腐乳"]
@@ -270,6 +271,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
     accept_keywords = list(rule.get("accept") or [name.replace("（自主填写）", "")])
     reject_keywords = list(dict.fromkeys(list(rule.get("reject") or []) + GLOBAL_REJECT_KEYWORDS + (EXCLUDED_KEYWORDS if "豆腐" in name else [])))
     prefer_keywords = list(rule.get("prefer") or [])
+    manual_note_only = item.get("sku") == "MEAL-001" or "工作餐" in name or "自主填写" in name
     return {
         "sku": item.get("sku", ""),
         "name": name,
@@ -290,7 +292,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         ],
         "planned_quantity": planned_quantity,
         "overage": round(planned_quantity - quantity, 3),
-        "action": "manual_note_only" if item.get("sku") == "MEAL-001" else "search_and_add",
+        "action": "manual_note_only" if manual_note_only else "search_and_add",
         "note": item.get("note", ""),
         "learned_lesson": rule.get("lesson", ""),
         "selection_policy": [

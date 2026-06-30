@@ -101,6 +101,19 @@ class KuailvOrderCandidateCollectionTest(unittest.TestCase):
         self.assertEqual(line["search_terms"][:2], ["胡萝卜5斤", "胡萝卜10斤"])
         self.assertIn("食堂菜", line["excluded_keywords"])
 
+    def test_manual_meal_line_is_never_auto_added(self) -> None:
+        line = build_line_plan({"sku": "CUSTOM-MEAL", "name": "工作餐（自主填写）", "quantity": 1, "unit": "份", "purchase_channel": "快驴"})
+
+        self.assertEqual(line["action"], "manual_note_only")
+
+    def test_fire_alkali_has_explicit_basic_rule(self) -> None:
+        line = build_line_plan({"sku": "SUPPLY-001", "name": "火碱", "quantity": 2, "unit": "个", "purchase_channel": "快驴"})
+
+        self.assertEqual(line["action"], "search_and_add")
+        self.assertEqual(line["search_terms"], ["火碱"])
+        self.assertIn("火碱", line["required_keywords"])
+        self.assertEqual(line["pack_strategy"], [{"pack_size": 1.0, "count": 2, "label": "1个 x 2"}])
+
     def test_batch_cli_expands_multiple_spec_controls_by_default(self) -> None:
         script_text = (ROOT / "scripts" / "kuailv_adb_order_candidate_collection.py").read_text(encoding="utf-8")
 
