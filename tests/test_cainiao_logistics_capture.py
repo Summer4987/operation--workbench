@@ -73,6 +73,18 @@ def popup_ui_dump() -> str:
 """
 
 
+def pending_detail_ui_dump() -> str:
+    return """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="已下单" content-desc="" bounds="[121,264][274,333]" />
+  <node text="您的订单待配货" content-desc="" bounds="[124,413][397,465]" />
+  <node text="送至 成都市 武侯区 桂溪街道 益州大道1999号成都银泰城悦坊6栋二层222熊小小牛排饭" content-desc="" bounds="[124,521][1045,625]" />
+  <node text="返回，按钮" content-desc="" bounds="[0,157][101,205]" />
+  <node text="查看商品" content-desc="" bounds="[319,190][455,233]" />
+</hierarchy>
+"""
+
+
 def test_parse_logistics_records_reads_pickup_code_and_tracking_number():
     module = load_module()
 
@@ -136,6 +148,12 @@ def test_popup_cancel_target_detects_cainiao_review_popup():
     module = load_module()
 
     assert module.popup_cancel_target(popup_ui_dump()) == {"x": 350, "y": 1475, "text": "取消"}
+
+
+def test_looks_like_package_detail_without_tracking_number():
+    module = load_module()
+
+    assert module.looks_like_package_detail(pending_detail_ui_dump()) is True
 
 
 def test_main_fixture_dry_run_writes_evidence(tmp_path, monkeypatch, capsys):

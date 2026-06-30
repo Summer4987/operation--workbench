@@ -203,6 +203,11 @@ def popup_cancel_target(xml_text: str) -> dict[str, int] | None:
     return None
 
 
+def looks_like_package_detail(xml_text: str) -> bool:
+    texts = extract_ui_texts(xml_text)
+    return "返回，按钮" in texts and any(text.startswith("送至 ") or text == "查看商品" for text in texts)
+
+
 def clean_code(value: str) -> str:
     return re.sub(r"^[：:\s]+|[，。,.;；\s]+$", "", value.strip())
 
@@ -478,7 +483,7 @@ def scan_detail_pages(
             parsed = parse_logistics_records(list_xml, store_name, captured_at)
             all_records.extend(parsed["records"])
             detail_summaries.append({"kind": "current-page", "record_count": len(parsed["records"]), "store_name": parsed["store_name"]})
-            if parsed["records"]:
+            if parsed["records"] or looks_like_package_detail(list_xml):
                 back = run_command(base + ["shell", "input", "keyevent", "4"], timeout)
                 commands.append(back)
                 time.sleep(1)
@@ -486,6 +491,14 @@ def scan_detail_pages(
                 commands.extend(list_commands)
                 targets = list_detail_targets(list_xml, max_details - scanned)
                 write_json(page_dir / "targets_after_back.json", targets)
+                if not targets and looks_like_package_detail(list_xml):
+                    back = run_command(base + ["shell", "input", "keyevent", "4"], timeout)
+                    commands.append(back)
+                    time.sleep(1)
+                    list_xml, _list_path, list_commands = capture_snapshot(serial, page_dir, timeout, "list_after_second_back")
+                    commands.extend(list_commands)
+                    targets = list_detail_targets(list_xml, max_details - scanned)
+                    write_json(page_dir / "targets_after_second_back.json", targets)
             if not targets:
                 break
         for target_index, target in enumerate(targets, start=1):
