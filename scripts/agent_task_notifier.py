@@ -26,6 +26,13 @@ STATUS_LABELS = {
     "warning": "注意",
     "missing": "未记录",
 }
+STATUS_INTROS = {
+    "success": "已经完成",
+    "failed": "出问题了",
+    "skipped": "这次跳过了",
+    "warning": "需要看一下",
+    "missing": "还没看到运行记录",
+}
 
 
 def read_json(path: Path, fallback: Any) -> Any:
@@ -95,7 +102,7 @@ def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
 def build_batch_message(messages: list[str]) -> str:
     if len(messages) == 1:
         return messages[0]
-    header = f"Mac mini 自动化任务通知：{len(messages)} 条"
+    header = f"我整理了 {len(messages)} 条 Mac mini 自动化更新："
     body = "\n\n---\n\n".join(messages)
     text = f"{header}\n\n{body}"
     if len(text) <= MAX_BATCH_MESSAGE_CHARS:
@@ -113,7 +120,7 @@ def build_batch_message(messages: list[str]) -> str:
 
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> str:
     status = str(task.get("status") or "")
-    status_label = STATUS_LABELS.get(status, status or "未知")
+    status_intro = STATUS_INTROS.get(status, "有新状态")
     name = row.get("name") or task_id
     updated_at = task.get("finished_at") or task.get("updated_at") or ""
     step = task.get("step") or ""
@@ -122,44 +129,51 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
     failure_type = task.get("failure_type") or ""
     rerun = row.get("rerun") or {}
 
-    lines = [
-        f"[{status_label}] Mac mini 自动化任务：{name}",
-        f"任务 ID：{task_id}",
-    ]
-    if updated_at:
-        lines.append(f"时间：{updated_at}")
-    if step:
-        lines.append(f"步骤：{step}")
+    lines = [f"{name}{status_intro}。"]
     if message:
-        label = "失败原因" if status == "failed" else "需关注" if status in {"warning", "missing"} else "说明"
-        lines.append(f"{label}：{message}")
+        if status == "success":
+            lines.append(f"结果：{message}")
+        elif status == "failed":
+            lines.append(f"问题在这里：{message}")
+        elif status in {"warning", "missing"}:
+            lines.append(f"需要关注的是：{message}")
+        else:
+            lines.append(f"说明：{message}")
     if failure_type and status == "failed":
-        lines.append(f"失败分类：{failure_type}")
-    if log_path:
-        lines.append(f"日志/证据：{log_path}")
+        lines.append(f"失败分类是 {failure_type}。")
 
     if status == "failed":
         if rerun.get("suggested") and rerun.get("auto_allowed"):
             command = " ".join(str(part) for part in rerun.get("command") or [])
-            lines.append(f"处理建议：该任务属于低风险/幂等任务，可进入 dry-run 补跑计划：{command}")
+            lines.append(f"我可以先准备 dry-run 补跑计划：{command}")
         elif rerun.get("suggested"):
             reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
-            lines.append(f"处理建议：{reason}")
+            lines.append(f"我不会自动补跑，原因：{reason}")
         else:
-            lines.append("处理建议：先查看日志，再决定是否人工补跑。")
+            lines.append("我建议先看日志，再决定要不要人工补跑。")
     elif status in {"warning", "missing"}:
         if rerun.get("suggested") and rerun.get("auto_allowed"):
             command = " ".join(str(part) for part in rerun.get("command") or [])
-            lines.append(f"处理建议：该任务需关注，可进入 dry-run 补跑计划：{command}")
+            lines.append(f"如果要处理，我可以先做 dry-run 补跑计划：{command}")
         elif rerun.get("suggested"):
             reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
-            lines.append(f"处理建议：{reason}")
+            lines.append(f"我不会自动处理，原因：{reason}")
         else:
-            lines.append("处理建议：先查看日志，再决定是否人工处理。")
+            lines.append("我建议先看日志，再决定是否处理。")
     elif status == "success":
-        lines.append("处理结果：任务已完成。")
+        lines.append("我这边先记为完成。")
     elif status == "skipped":
-        lines.append("处理结果：任务已跳过，请按说明确认是否需要人工处理。")
+        lines.append("如果这不是你预期的跳过，我再帮你查原因。")
+
+    details = []
+    if updated_at:
+        details.append(f"时间 {updated_at}")
+    if step:
+        details.append(f"步骤 {step}")
+    if log_path:
+        details.append(f"证据 {log_path}")
+    if details:
+        lines.append("细节：" + "；".join(details))
     return "\n".join(lines)
 
 
