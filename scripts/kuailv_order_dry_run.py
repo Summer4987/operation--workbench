@@ -106,8 +106,9 @@ PACK_RULES: dict[str, dict[str, Any]] = {
         "allowed_overage": 0,
         "keywords": ["玉米粒"],
         "accept": ["甜玉米粒", "玉米粒"],
+        "must_include": ["快驴·鹿手", "甜玉米粒"],
         "prefer": ["快驴·鹿手", "甜玉米粒", "1kg", "两包装", "2包装", "1箱"],
-        "reject": ["带壳", "玉米带壳", "罐装", "玉米粒罐装", "甜玉米带壳"],
+        "reject": ["带壳", "玉米带壳", "罐装", "玉米粒罐装", "甜玉米带壳", "可可嘉华", "速冻玉米粒 1kg"],
         "variant_policy": {
             "kind": "compare_equivalent_specs",
             "equivalent_label": "1箱",
@@ -295,6 +296,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
     accept_keywords = list(rule.get("accept") or [name.replace("（自主填写）", "")])
     reject_keywords = list(dict.fromkeys(list(rule.get("reject") or []) + GLOBAL_REJECT_KEYWORDS + (EXCLUDED_KEYWORDS if "豆腐" in name else [])))
     prefer_keywords = list(rule.get("prefer") or [])
+    must_include_keywords = list(rule.get("must_include") or [])
     manual_note_only = item.get("sku") == "MEAL-001" or "工作餐" in name or "自主填写" in name
     return {
         "sku": item.get("sku", ""),
@@ -304,6 +306,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         "search_terms": search_terms,
         "preferred_keyword": search_terms[0] if search_terms else name,
         "required_keywords": accept_keywords,
+        "must_include_keywords": must_include_keywords,
         "preferred_spec_keywords": prefer_keywords,
         "excluded_keywords": reject_keywords,
         "selection_mode": "identity_only" if variable_quantity else "pack_match",
@@ -327,6 +330,7 @@ def build_line_plan(item: dict[str, Any]) -> dict[str, Any]:
         "learned_lesson": rule.get("lesson", ""),
         "selection_policy": [
             "商品标题或规格必须命中 required_keywords。",
+            "有 must_include_keywords 时，候选上下文必须全部命中这些身份词。",
             "商品标题或规格命中 excluded_keywords 时禁止加购。",
             "散称商品只按商品身份选择，订单数量在购物车内调整和核对，不把订单斤数当作商品卡片规格。",
             "固定包装商品多个候选同时可用时，优先命中 preferred_spec_keywords 且能用最少点击满足数量的规格。",
@@ -1179,10 +1183,12 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
     context_text = target_text if strict_target_source else candidate_text(candidate, "context_texts")
     all_text = f"{context_text} {row_text}"
     required = [word for word in line.get("required_keywords") or [] if word]
+    must_include = [word for word in line.get("must_include_keywords") or [] if word]
     excluded = [word for word in line.get("excluded_keywords") or [] if word]
     preferred = [word for word in line.get("preferred_spec_keywords") or [] if word]
     row_required_hits = [word for word in required if word in row_text]
     context_required_hits = [word for word in required if word in all_text]
+    must_include_hits = [word for word in must_include if word in all_text]
     row_preferred_hits = [word for word in preferred if word in row_text]
     context_preferred_hits = [word for word in preferred if word in all_text]
     excluded_hits = [word for word in excluded if word in all_text]
@@ -1200,6 +1206,9 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         reasons.append("target_line_name_mismatch")
     if not context_required_hits:
         reasons.append("missing_required_keyword")
+    missing_must_include = [word for word in must_include if word not in must_include_hits]
+    if missing_must_include:
+        reasons.append("missing_must_include_keyword")
     if identity_keywords and not identity_hits:
         reasons.append("missing_identity_keyword")
     if excluded_hits:
@@ -1226,6 +1235,8 @@ def score_candidate_for_line(candidate: dict[str, Any], line: dict[str, Any], pa
         "context_text": context_text,
         "row_required_hits": row_required_hits,
         "context_required_hits": context_required_hits,
+        "must_include_hits": must_include_hits,
+        "missing_must_include": missing_must_include,
         "row_preferred_hits": row_preferred_hits,
         "context_preferred_hits": context_preferred_hits,
         "identity_keywords": identity_keywords,

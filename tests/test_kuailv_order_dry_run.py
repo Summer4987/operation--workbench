@@ -529,6 +529,42 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(selected["selected"]["name"], "1箱x1")
         self.assertEqual(selected["selected"]["total_price"], 88)
 
+    def test_yumili_requires_lushou_identity_not_other_supplier(self) -> None:
+        order = {
+            "order_id": "DO-TEST",
+            "store_name": "保利中心店",
+            "submitted_at": "2026-06-30T10:00:00+08:00",
+            "items": [
+                {"sku": "CORN-001", "name": "玉米粒", "quantity": 1, "unit": "箱", "purchase_channel": "快驴"}
+            ],
+        }
+        line = build_plan(order)["lines"][0]
+        wrong_candidate = {
+            "source": "xml_target_card_control",
+            "control_text": "orange_add_icon",
+            "target_line_name": "玉米粒",
+            "target_title_text": "[可可嘉华]速冻甜玉米粒",
+            "target_spec_text": "2.5kg×4袋",
+            "nearby_texts": [{"text": "[可可嘉华]速冻甜玉米粒", "bounds": [343, 762, 1054, 829]}],
+            "context_texts": [{"text": "[可可嘉华]速冻甜玉米粒", "bounds": [343, 762, 1054, 829]}],
+        }
+        right_candidate = {
+            "source": "xml_target_card_control",
+            "control_text": "orange_add_icon",
+            "target_line_name": "玉米粒",
+            "target_title_text": "[快驴·鹿手]甜玉米粒1kg（精选云南玉米）",
+            "target_spec_text": "",
+            "nearby_texts": [{"text": "[快驴·鹿手]甜玉米粒1kg（精选云南玉米）", "bounds": [343, 762, 1054, 829]}],
+            "context_texts": [{"text": "[快驴·鹿手]甜玉米粒1kg（精选云南玉米）", "bounds": [343, 762, 1054, 829]}],
+        }
+
+        wrong_score = score_candidate_for_line(wrong_candidate, line, "")
+        right_score = score_candidate_for_line(right_candidate, line, "")
+
+        self.assertFalse(wrong_score["allowed"])
+        self.assertIn("missing_must_include_keyword", wrong_score["reasons"])
+        self.assertTrue(right_score["allowed"])
+
 
 if __name__ == "__main__":
     unittest.main()
