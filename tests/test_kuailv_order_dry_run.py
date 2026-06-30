@@ -255,6 +255,20 @@ class KuailvOrderDryRunTest(unittest.TestCase):
         self.assertEqual(candidates[0]["text"], "搜冻品，来冻品大单")
         self.assertEqual(candidates[0]["center"], [546.5, 264.0])
 
+    def test_search_entry_candidate_accepts_recommended_word_with_submit_button(self) -> None:
+        xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node text="可乐" class="android.widget.TextView" bounds="[230,233][312,292]" />
+  <node text="洋葱圈 95%同行买过" class="android.widget.TextView" bounds="[230,309][601,368]" />
+  <node text="搜索" class="android.widget.TextView" bounds="[891,225][1046,303]" />
+</hierarchy>"""
+
+        candidates = find_search_entry_candidates(parse_ui_nodes(xml_text), Path(""))
+
+        self.assertGreaterEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["text"], "可乐")
+        self.assertIn("top_search_bar_text_with_submit", candidates[0]["reasons"])
+
     def test_visible_xml_add_candidates_keep_text_spec_control_without_orange_image(self) -> None:
         xml_text = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <hierarchy rotation="0">

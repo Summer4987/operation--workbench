@@ -2119,6 +2119,11 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
 
     rows = []
     forbidden_words = ["去结算", "提交订单", "付款", "合计", "全选"]
+    has_top_search_submit = any(
+        node_text(node).strip() == "搜索" and 760 <= bounds_center(tuple(node["bounds"]))[0] <= image_width and 180 <= bounds_center(tuple(node["bounds"]))[1] <= 360
+        for node in nodes
+        if len(node.get("bounds") or []) == 4
+    )
     for node in nodes:
         text = node_text(node)
         blob = f"{text} {node.get('class') or ''} {node.get('resource_id') or ''}".lower()
@@ -2151,6 +2156,9 @@ def find_search_entry_candidates(nodes: list[dict[str, Any]], image_path: Path) 
         if width >= image_width * 0.35 and (has_search_text or has_search_resource or has_edit_text):
             score += 45
             reasons.append("wide_input_like")
+        if has_top_search_submit and text.strip() and 190 <= cx <= 875 and 190 <= cy <= 340 and not has_search_resource:
+            score += 65
+            reasons.append("top_search_bar_text_with_submit")
         if text.strip() == "搜索" and width < image_width * 0.22 and "edittext" not in blob:
             score -= 95
             reasons.append("small_search_submit_button")
@@ -3049,6 +3057,7 @@ def run_adb_search(
             "session_dir": str(session_dir),
             "before": before,
             "after_back": after_back,
+            "empty_cart_exit": empty_cart_exit,
         }
 
     candidates = analysis.get("search_entry_candidates") or []
@@ -3068,6 +3077,7 @@ def run_adb_search(
             "session_dir": str(session_dir),
             "before": before,
             "after_back": after_back,
+            "empty_cart_exit": empty_cart_exit,
         }
     elif candidate_index < 0 or candidate_index >= len(candidates):
         return {
