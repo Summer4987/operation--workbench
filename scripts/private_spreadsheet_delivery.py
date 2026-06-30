@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -17,6 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LOG_DIR = Path.home() / "HermesPrivate" / "logs" / "spreadsheet_delivery"
 DEFAULT_TARGET = "weixin"
 DEFAULT_HERMES_BIN = Path.home() / ".local" / "bin" / "hermes"
+COOLDOWN_RE = re.compile(r"cooldown active for\s+([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
+
+
+def next_retry_delay(output: str, default_delay_seconds: int) -> int:
+    match = COOLDOWN_RE.search(output)
+    if not match:
+        return default_delay_seconds
+    return max(default_delay_seconds, int(float(match.group(1))) + 10)
 
 
 def send_with_retry(
@@ -48,7 +57,7 @@ def send_with_retry(
             }
         errors.append(f"attempt {attempt}: {output or 'no output'}")
         if attempt < attempts:
-            time.sleep(delay_seconds)
+            time.sleep(next_retry_delay(output, delay_seconds))
     return {
         "delivered": False,
         "attempt": attempts,

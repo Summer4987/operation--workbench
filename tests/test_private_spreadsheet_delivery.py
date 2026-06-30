@@ -43,6 +43,12 @@ class PrivateSpreadsheetDeliveryTests(unittest.TestCase):
         self.assertIn("MEDIA:/tmp/易代仓预约_已处理.xlsx", message)
         self.assertIn("文件路径：/tmp/易代仓预约_已处理.xlsx", message)
 
+    def test_retry_delay_uses_weixin_cooldown(self) -> None:
+        output = "hermes send: Weixin send failed: iLink sendmessage rate limited; cooldown active for 30.0s"
+
+        self.assertEqual(self.delivery.next_retry_delay(output, 35), 40)
+        self.assertEqual(self.delivery.next_retry_delay(output, 60), 60)
+
 
 if __name__ == "__main__":
     unittest.main()
