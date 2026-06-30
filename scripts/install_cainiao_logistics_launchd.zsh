@@ -22,7 +22,8 @@ cat > "$PLIST" <<PLIST
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
-    <string>$RUNNER</string>
+    <string>-lc</string>
+    <string>cd "$ROOT" &amp;&amp; "$RUNNER"</string>
   </array>
   <key>StartCalendarInterval</key>
   <array>
