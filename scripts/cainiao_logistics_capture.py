@@ -36,7 +36,7 @@ TRACKING_RE = re.compile(r"\b(?!20\d{6,})([A-Z]{1,6}[A-Z0-9]{7,24}|\d{10,24})\b"
 CARRIER_WORDS = ["顺丰", "中通", "圆通", "申通", "韵达", "极兔", "京东", "邮政", "EMS", "德邦", "菜鸟", "丹鸟"]
 STATUS_WORDS = ["待取件", "已入库", "已签收", "派送中", "运输中", "已揽收", "已发出", "到达", "已到"]
 NOISE_WORDS = ["手机号", "手机尾号", "隐私小号", "订单号", "运单号复制", "复制", "查看", "删除"]
-DETAIL_STATUS_WORDS = ["待取件", "已入库", "派送中", "运输中", "已签收", "已到"]
+DETAIL_STATUS_WORDS = ["待取件", "已入库", "派送中", "运输中", "已签收", "已到", "已发货", "已下单", "仓库处理中"]
 TRACE_SKIP_WORDS = ["延迟得", "复制", "分享", "消息订阅", "全程预测", "隐私小号", "展开", "返回，按钮", "查看商品"]
 STORE_ADDRESS_HINTS = {
     "金融城店": ["新街里", "3035", "石羊街道"],
@@ -179,7 +179,7 @@ def list_detail_targets(xml_text: str, max_details: int) -> list[dict[str, int]]
         text = node["text"]
         bounds = node["bounds"]
         x1, y1, x2, y2 = bounds
-        if x1 < 250 or y1 < 850 or y2 > 2240:
+        if x1 < 250 or y1 < 260 or y2 > 2240:
             continue
         if not any(word in text for word in DETAIL_STATUS_WORDS):
             continue
