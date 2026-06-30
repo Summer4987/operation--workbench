@@ -253,31 +253,36 @@ def click_bid_setting_row(page) -> bool:
                 const all = [...document.querySelectorAll('div,span,button,[role="button"],a')].filter(visible);
                 const label = all.find((el) => textOf(el) === '推广出价');
                 if (!label) return false;
-                let row = label;
-                for (let depth = 0; row && depth < 8; depth += 1, row = row.parentElement) {
-                    const text = textOf(row);
-                    if (/推广出价\\s*[0-9.]+\\s*元/.test(text) && !/计费规则/.test(text)) {
-                        row.scrollIntoView({ block: 'center', inline: 'center' });
-                        const rect = row.getBoundingClientRect();
-                        const targetX = Math.max(rect.left + rect.width - 16, rect.left + rect.width * 0.65);
-                        const targetY = rect.top + rect.height / 2;
-                        const target = document.elementFromPoint(targetX, targetY) || row;
-                        const eventInit = {
-                            bubbles: true,
-                            cancelable: true,
-                            view: window,
-                            clientX: targetX,
-                            clientY: targetY,
-                            button: 0,
-                            buttons: 1,
-                        };
-                        for (const name of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
-                            const EventType = name.startsWith('pointer') ? PointerEvent : MouseEvent;
-                            target.dispatchEvent(new EventType(name, eventInit));
-                        }
-                        if (typeof target.click === 'function') target.click();
-                        return true;
+                label.scrollIntoView({ block: 'center', inline: 'center' });
+                const labelRect = label.getBoundingClientRect();
+                const targetY = labelRect.top + labelRect.height / 2;
+                const xCandidates = [
+                    window.innerWidth - 72,
+                    window.innerWidth - 120,
+                    labelRect.right + 320,
+                    labelRect.right + 220,
+                    labelRect.right + 120
+                ].filter((x) => x > 0 && x < window.innerWidth - 4);
+                for (const targetX of xCandidates) {
+                    const target = document.elementFromPoint(targetX, targetY);
+                    if (!target) continue;
+                    const rowText = textOf(target.closest('div') || target);
+                    if (/计费规则/.test(rowText)) continue;
+                    const eventInit = {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: targetX,
+                        clientY: targetY,
+                        button: 0,
+                        buttons: 1,
+                    };
+                    for (const name of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                        const EventType = name.startsWith('pointer') ? PointerEvent : MouseEvent;
+                        target.dispatchEvent(new EventType(name, eventInit));
                     }
+                    if (typeof target.click === 'function') target.click();
+                    return true;
                 }
                 return false;
             }"""
