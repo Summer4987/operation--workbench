@@ -16,6 +16,7 @@ HEALTH_PATH = center.STATE_DIR / "health.json"
 ALIASES_PATH = center.CENTER_ROOT / "config" / "business_aliases.json"
 ROOT = center.ROOT
 MONITOR_OUTPUT_PATH = ROOT / "outputs" / "agent_task_monitor" / "latest.txt"
+MEMORY_PATH = center.CENTER_ROOT / "config" / "hermes_business_memory.md"
 BUNDLED_PYTHON = Path.home() / ".cache" / "codex-runtimes" / "codex-primary-runtime" / "dependencies" / "python" / "bin" / "python3"
 BAD_STATUSES = {
     "broken",
@@ -107,6 +108,15 @@ HELP_WORDS = {
     "命令",
     "不会用",
     "记不住",
+}
+MEMORY_WORDS = {
+    "业务记忆",
+    "读取记忆",
+    "你记住了什么",
+    "记忆文件",
+    "业务手册",
+    "长期记忆",
+    "你的记忆",
 }
 
 
@@ -344,6 +354,7 @@ def format_commands() -> str:
             "任务列表：查看全部登记任务",
             "任务 <任务ID/名称>：查看单个任务详情",
             "简称：查看业务简称表",
+            "业务记忆：查看 Hermes 长期业务记忆文件摘要",
             "只读健康检查：刷新健康状态，不执行平台写操作",
             "高风险动作默认不执行；预算、出价、订货、发布需要你明确确认。",
         ]
@@ -363,6 +374,24 @@ def format_natural_help() -> str:
             "安全边界：订货、出价、财务正式入账、云端发布默认只做预览或草稿，等你确认才执行。",
         ]
     )
+
+
+def format_memory_summary() -> str:
+    if not MEMORY_PATH.exists():
+        return f"业务记忆文件不存在：{MEMORY_PATH}"
+    text = MEMORY_PATH.read_text(encoding="utf-8").strip()
+    lines = [line for line in text.splitlines() if line.strip()]
+    headings = [line.strip("# ").strip() for line in lines if line.startswith("## ")]
+    summary = [
+        "Hermes 已读取业务记忆文件。",
+        f"路径：{MEMORY_PATH}",
+    ]
+    if headings:
+        summary.append("包含章节：" + "、".join(headings[:12]))
+    important = [
+        "核心记忆：Mac mini 是唯一生产主机；微信是日常入口；高风险动作默认只预览；私人文件必须复制后处理；微信 iLink 限流时要合并/排队/少发消息。",
+    ]
+    return "\n".join(summary + important)
 
 
 def format_file_task_guidance(text: str) -> str:
@@ -388,6 +417,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
 
     if normalized_contains(stripped, HELP_WORDS):
         return format_natural_help()
+
+    if normalized_contains(stripped, MEMORY_WORDS):
+        return format_memory_summary()
 
     if looks_like_finance_entry(stripped):
         return run_checked(
@@ -457,6 +489,7 @@ def main() -> int:
     task_parser.add_argument("task_id_or_name")
     sub.add_parser("commands", help="输出 Hermes 可用命令说明")
     sub.add_parser("aliases", help="输出业务简称表")
+    sub.add_parser("memory", help="输出 Hermes 业务记忆摘要")
     route_parser = sub.add_parser("route", help="按自然语言自动判断 Hermes 应该调用什么能力")
     route_parser.add_argument("text", nargs="+")
 
@@ -466,6 +499,9 @@ def main() -> int:
         return 0
     if args.command == "aliases":
         print(format_aliases())
+        return 0
+    if args.command == "memory":
+        print(format_memory_summary())
         return 0
     if args.command == "route":
         print(route_natural_text(" ".join(args.text), limit=args.limit))

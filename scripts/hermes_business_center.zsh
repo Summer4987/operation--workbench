@@ -26,6 +26,9 @@ case "${1:-status}" in
   aliases|alias|简称|简称表)
     python3 ai-business-center/agent_bridge.py aliases
     ;;
+  memory|记忆|业务记忆|业务手册|长期记忆)
+    python3 ai-business-center/agent_bridge.py memory
+    ;;
   monitor|report|自动化报告|任务报告|失败报告)
     python3 scripts/agent_task_monitor.py >/dev/null
     cat outputs/agent_task_monitor/latest.txt
