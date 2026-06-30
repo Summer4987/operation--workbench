@@ -66,6 +66,21 @@ def test_chengdu_daily_order_shows_login_when_auth_file_is_configured(tmp_path, 
     assert "@media (max-width: 420px)" in response.text
 
 
+def test_store_ops_shows_single_login_when_auth_file_is_configured(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.delenv("STORE_ORDER_ACCOUNTS_JSON", raising=False)
+    monkeypatch.setenv("STORE_ORDER_ACCOUNTS_FILE", str(tmp_path / "missing-accounts.json"))
+
+    client = TestClient(module.app)
+    response = client.get("/store-ops/")
+
+    assert response.status_code == 200
+    assert "熊小小门店订货系统" in response.text
+    assert "请输入门店账号密码" in response.text
+    assert "/daily-order/api/auth/login" in response.text
+    assert 'const nextPath = "/store-ops/"' in response.text
+
+
 def test_daily_order_submit_shows_login_when_auth_file_is_configured(tmp_path, monkeypatch):
     module = load_inventory_module()
     monkeypatch.delenv("STORE_ORDER_ACCOUNTS_JSON", raising=False)
@@ -127,6 +142,52 @@ def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
     assert "测试门店" in page.text
     assert "请核对当前账号对应门店后再下单" in page.text
     assert "?." not in page.text
+
+
+def test_daily_order_submit_accepts_chengdu_session_cookie_for_owner(monkeypatch):
+    daily_module = load_daily_order_module()
+    inventory_module = load_inventory_module()
+    accounts = {"accounts": {"owner": {"password": "secret", "role": "owner"}}}
+    monkeypatch.setenv("STORE_ORDER_ACCOUNTS_JSON", json.dumps(accounts, ensure_ascii=False))
+    monkeypatch.setattr(
+        inventory_module,
+        "public_order_catalog",
+        lambda: {"stores": [{"name": "银泰城店"}, {"name": "金融城店"}], "products": []},
+    )
+    monkeypatch.setattr(inventory_module, "inventory_summary", lambda: [])
+
+    cookie = daily_module._sign_store_order_session("owner", "", "owner")
+    client = TestClient(inventory_module.app)
+    response = client.get(
+        "/api/public-order/catalog?token=xiongxiaoxiao-order",
+        headers={"Cookie": f"store_order_session={cookie}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "authenticated_store" not in payload
+    assert [store["name"] for store in payload["stores"]] == ["银泰城店", "金融城店"]
+
+
+def test_daily_order_submit_owner_page_keeps_store_selector(monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv(
+        "STORE_ORDER_ACCOUNTS_JSON",
+        json.dumps({"accounts": {"owner": {"password": "secret", "role": "owner"}}}, ensure_ascii=False),
+    )
+
+    client = TestClient(module.app)
+    login = client.post(
+        "/api/public-order/auth/login?token=xiongxiaoxiao-order",
+        json={"username": "owner", "password": "secret"},
+    )
+    assert login.status_code == 200
+
+    page = client.get("/order-submit?token=xiongxiaoxiao-order")
+
+    assert page.status_code == 200
+    assert "请核对当前账号对应门店后再下单" not in page.text
+    assert '<select id="storeSelect"' in page.text
 
 
 def test_daily_order_submit_logout_clears_store_session(monkeypatch):

@@ -47,7 +47,13 @@ def store_ops_without_trailing_slash():
 
 
 @app.get("/store-ops/")
-def store_ops():
+def store_ops(request: Request):
+    if _store_order_auth_enabled() and not _store_order_session(request):
+        return Response(
+            content=_store_order_login_page_html("熊小小门店订货系统", "/store-ops/"),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+        )
     return FileResponse(
         STATIC_DIR / "store-ops.html",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
@@ -60,7 +66,13 @@ def daily_order_store_ops_without_trailing_slash():
 
 
 @app.get("/daily-order/store-ops/")
-def daily_order_store_ops():
+def daily_order_store_ops(request: Request):
+    if _store_order_auth_enabled() and not _store_order_session(request):
+        return Response(
+            content=_store_order_login_page_html("熊小小门店订货系统", "/daily-order/store-ops/"),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+        )
     return FileResponse(
         STATIC_DIR / "store-ops.html",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},

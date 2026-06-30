@@ -775,7 +775,9 @@
       async function loadOrderHistory() {
         els.historyPanel.innerHTML = `<div class="history-card">正在读取已下单订单...</div>`;
         try {
-          const payload = await fetchJson(`/api/public-order/orders?token=${encodeURIComponent(token)}`);
+          const query = new URLSearchParams({ token });
+          if (!authenticatedStore.name && els.store.value) query.set("store_name", els.store.value);
+          const payload = await fetchJson(`/api/public-order/orders?${query.toString()}`);
           const orders = payload.items || [];
           historyLoaded = true;
           if (!orders.length) {
