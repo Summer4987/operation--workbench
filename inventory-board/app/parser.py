@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -64,7 +65,8 @@ def parse_inventory_file(path: Path, movement_type: str) -> list[ParsedLine]:
     workbook = load_workbook(path, data_only=False)
     if movement_type == "inbound":
         sheet = workbook["Sheet1"] if "Sheet1" in workbook.sheetnames else workbook.worksheets[0]
-        return _parse_sheet(sheet, INBOUND_HEADERS, "inbound")
+        lines = _parse_sheet(sheet, INBOUND_HEADERS, "inbound")
+        return _canonicalize_inbound_lines(lines, _load_inbound_catalog(workbook))
 
     sheet_name = "客户订单填写"
     if sheet_name not in workbook.sheetnames:
@@ -98,6 +100,86 @@ def parse_product_catalog(path: Path) -> list[dict]:
             }
         )
     return products
+
+
+def _load_inbound_catalog(workbook) -> list[dict]:
+    if "Sheet2" not in workbook.sheetnames:
+        return []
+    sheet = workbook["Sheet2"]
+    header_row = None
+    headers: dict[str, int] = {}
+    for index, row in enumerate(sheet.iter_rows(min_row=1, max_row=min(sheet.max_row, 20), values_only=True), start=1):
+        candidate_headers = _header_map(row)
+        if "项目" in candidate_headers and "编码" in candidate_headers:
+            header_row = index
+            headers = candidate_headers
+            break
+    if header_row is None:
+        return []
+
+    products = []
+    for row in sheet.iter_rows(min_row=header_row + 1, values_only=True):
+        sku = _clean(_value_at(row, headers.get("编码")))
+        name = _clean(_value_at(row, headers.get("项目")))
+        if not sku or not name:
+            continue
+        products.append(
+            {
+                "sku": sku,
+                "name": name,
+                "spec": _clean(_value_at(row, headers.get("箱规"))) or _clean(_value_at(row, headers.get("物料规格"))),
+                "unit": _clean(_value_at(row, headers.get("单位"))),
+                "warehouse": _clean(_value_at(row, headers.get("存储方式"))) or _clean(_value_at(row, headers.get("库存地点"))),
+            }
+        )
+    return products
+
+
+def _canonicalize_inbound_lines(lines: list[ParsedLine], catalog: list[dict]) -> list[ParsedLine]:
+    if not catalog:
+        return lines
+
+    by_sku = {_normalize_text(item["sku"]): item for item in catalog if item.get("sku")}
+    aliases: list[tuple[str, dict]] = []
+    for item in catalog:
+        for alias in _product_aliases(str(item.get("name") or "")):
+            aliases.append((alias, item))
+    aliases.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+    canonicalized = []
+    for line in lines:
+        normalized_sku = _normalize_text(line.sku)
+        matched = by_sku.get(normalized_sku)
+        if not matched:
+            haystack = _normalize_text(f"{line.sku} {line.name}")
+            matched = next((item for alias, item in aliases if alias and alias in haystack), None)
+        if not matched:
+            canonicalized.append(line)
+            continue
+        canonicalized.append(
+            replace(
+                line,
+                sku=str(matched.get("sku") or line.sku),
+                name=str(matched.get("name") or line.name),
+                spec=line.spec or str(matched.get("spec") or ""),
+                unit=line.unit or str(matched.get("unit") or ""),
+                warehouse=line.warehouse or str(matched.get("warehouse") or ""),
+            )
+        )
+    return canonicalized
+
+
+def _product_aliases(name: str) -> set[str]:
+    normalized = _normalize_text(name)
+    without_brand = re.sub(r"^熊小小牛排饭", "", normalized)
+    without_brand = without_brand.lstrip("-－")
+    without_frozen_mark = re.sub(r"[（(]冻[）)]", "", without_brand)
+    aliases = {normalized, without_brand, without_frozen_mark}
+    aliases.add(without_frozen_mark.removesuffix("冻"))
+    aliases.add(without_frozen_mark.replace("冷冻", "").removesuffix("冻"))
+    aliases.add(without_frozen_mark.replace("调理", "").removesuffix("冻"))
+    aliases.add(without_frozen_mark.replace("腌制", "").removesuffix("冻"))
+    return {alias for alias in aliases if len(alias) >= 2}
 
 
 def _parse_sheet(sheet, expected_headers: dict[str, str], movement_type: str) -> list[ParsedLine]:
@@ -184,6 +266,10 @@ def _clean(value) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def _normalize_text(value: str) -> str:
+    return re.sub(r"[\s　()（）\-－_]+", "", _clean(value))
 
 
 def detect_store_name(address: str) -> str:
