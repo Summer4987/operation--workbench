@@ -187,9 +187,90 @@ def modal_opened(page) -> bool:
     )
 
 
+def dismiss_non_bid_modal(page) -> None:
+    try:
+        page.evaluate(
+            """() => {
+                const visible = (el) => {
+                    if (!el) return false;
+                    const rect = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0
+                        && style.display !== 'none'
+                        && style.visibility !== 'hidden';
+                };
+                const textOf = (el) => (el?.innerText || el?.textContent || '').replace(/\\s+/g, ' ').trim();
+                const body = document.body.innerText || '';
+                if (!/计费规则|知道了/.test(body)) return false;
+                const button = [...document.querySelectorAll('button,[role="button"],a')]
+                    .filter(visible)
+                    .find((el) => textOf(el) === '知道了' || textOf(el) === '关闭' || textOf(el) === '取消');
+                if (!button) return false;
+                button.click();
+                return true;
+            }"""
+        )
+        time.sleep(0.5)
+    except Exception:
+        pass
+
+
+def click_bid_setting_row(page) -> bool:
+    return bool(
+        page.evaluate(
+            """() => {
+                const visible = (el) => {
+                    if (!el) return false;
+                    const rect = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0
+                        && style.display !== 'none'
+                        && style.visibility !== 'hidden';
+                };
+                const textOf = (el) => (el?.innerText || el?.textContent || '').replace(/\\s+/g, ' ').trim();
+                const all = [...document.querySelectorAll('div,span,button,[role="button"],a')].filter(visible);
+                const label = all.find((el) => textOf(el) === '推广出价');
+                if (!label) return false;
+                let row = label;
+                for (let depth = 0; row && depth < 8; depth += 1, row = row.parentElement) {
+                    const text = textOf(row);
+                    if (/推广出价\\s*[0-9.]+\\s*元/.test(text) && !/计费规则/.test(text)) {
+                        row.scrollIntoView({ block: 'center', inline: 'center' });
+                        const rect = row.getBoundingClientRect();
+                        const targetX = Math.max(rect.left + rect.width - 16, rect.left + rect.width * 0.65);
+                        const targetY = rect.top + rect.height / 2;
+                        const target = document.elementFromPoint(targetX, targetY) || row;
+                        const eventInit = {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window,
+                            clientX: targetX,
+                            clientY: targetY,
+                            button: 0,
+                            buttons: 1,
+                        };
+                        for (const name of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                            const EventType = name.startsWith('pointer') ? PointerEvent : MouseEvent;
+                            target.dispatchEvent(new EventType(name, eventInit));
+                        }
+                        if (typeof target.click === 'function') target.click();
+                        return true;
+                    }
+                }
+                return false;
+            }"""
+        )
+    )
+
+
 def open_bid_modal(page) -> None:
     if modal_opened(page):
         return
+    if click_bid_setting_row(page):
+        time.sleep(1.2)
+        if modal_opened(page):
+            return
+        dismiss_non_bid_modal(page)
     click_script = (
         """() => {
             const visible = (el) => {
@@ -290,6 +371,7 @@ def open_bid_modal(page) -> None:
         time.sleep(1.2)
         if modal_opened(page):
             return
+        dismiss_non_bid_modal(page)
     for label in ["门店出价", "当前出价", "最终出价", "推广出价", "出价"]:
         locator = page.get_by_text(label)
         for index in range(locator.count()):
