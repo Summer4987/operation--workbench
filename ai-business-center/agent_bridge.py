@@ -412,14 +412,6 @@ def route_natural_text(text: str, *, limit: int) -> str:
             return latest or output
         return output
 
-    snapshot = build_snapshot(refresh=True)
-    matched = find_task_or_term_from_text(snapshot, stripped)
-    if matched is not None:
-        kind, item = matched
-        if kind == "task":
-            return format_task_detail(item)
-        return format_business_term(item)
-
     if looks_like_private_spreadsheet_action(stripped):
         return run_checked(
             [
@@ -432,6 +424,14 @@ def route_natural_text(text: str, *, limit: int) -> str:
 
     if normalized_contains(stripped, FILE_WORDS):
         return format_file_task_guidance(stripped)
+
+    snapshot = build_snapshot(refresh=True)
+    matched = find_task_or_term_from_text(snapshot, stripped)
+    if matched is not None:
+        kind, item = matched
+        if kind == "task":
+            return format_task_detail(item)
+        return format_business_term(item)
 
     if normalized_contains(stripped, STATUS_WORDS):
         return format_status(snapshot, limit=limit)
