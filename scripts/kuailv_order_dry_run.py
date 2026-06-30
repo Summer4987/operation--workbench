@@ -3201,7 +3201,7 @@ def run_adb_search(
             after_text_blob = " ".join(str(text) for text in after.get("detected_text") or [])
             query_visible_after = query_visible_in_snapshot(after, query)
 
-    if press_enter and after.get("captured") and input_result.get("entered") and is_search_overlay_snapshot(after):
+    if press_enter and after.get("captured") and input_result.get("entered") and query_visible_after and not result_check.get("safe_candidate_hit_count"):
         submit_candidates = (after.get("ui_analysis") or {}).get("search_submit_candidates") or []
         if submit_candidates:
             submit = submit_candidates[0]
