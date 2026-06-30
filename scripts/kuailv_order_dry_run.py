@@ -41,7 +41,7 @@ PACK_RULES: dict[str, dict[str, Any]] = {
         "keywords": ["黄皮洋葱", "洋葱"],
         "accept": ["黄皮洋葱"],
         "prefer": ["黄皮洋葱"],
-        "reject": ["白皮洋葱", "白皮 洋葱", "红皮洋葱", "红皮 洋葱", "紫皮洋葱"],
+        "reject": ["白皮洋葱", "白皮 洋葱", "白洋葱", "红皮洋葱", "红皮 洋葱", "红洋葱", "紫皮洋葱", "去皮洋葱", "黄皮洋葱食堂"],
         "lesson": "默认洋葱按黄皮洋葱处理；白皮、红皮、紫皮只能在订单明确指定时再放开。洋葱是散称商品，先加购明确的黄皮洋葱，再在购物车按订单斤数调整和核对。",
     },
     "白玉菇": {
@@ -2223,6 +2223,10 @@ def search_suggestion_candidate(snapshot: dict[str, Any], query: str, target_wor
     return candidates[0] if candidates else None
 
 
+def snapshot_has_loading(snapshot: dict[str, Any]) -> bool:
+    return any("加载中" in str(text) for text in snapshot.get("detected_text") or [])
+
+
 def analyze_page_against_plan(xml_text: str, plan: dict[str, Any]) -> dict[str, Any]:
     text = " ".join(detect_page_text(xml_text))
     hits = []
@@ -3092,8 +3096,11 @@ def run_adb_search(
                 "candidate": suggestion,
                 "tap": {"x": sx, "y": sy, "returncode": tap_suggestion.returncode, "stderr": tap_suggestion.stderr.strip(), "stdout": tap_suggestion.stdout.strip()},
             }
-            time.sleep(2.0)
+            time.sleep(4.0)
             after_suggestion_tap = save_adb_snapshot(serial, session_dir / "after-suggestion-tap", timeout, plan)
+            if snapshot_has_loading(after_suggestion_tap):
+                time.sleep(2.5)
+                after_suggestion_tap = save_adb_snapshot(serial, session_dir / "after-suggestion-tap-loaded", timeout, plan)
             suggestion_check = search_result_hits(after_suggestion_tap, target_words)
             if suggestion_check.get("safe_candidate_hit_count") or suggestion_check.get("page_text_hit_count"):
                 after = after_suggestion_tap
