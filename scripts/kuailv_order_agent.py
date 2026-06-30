@@ -86,15 +86,52 @@ def run_child(args: list[str], timeout: int) -> dict[str, Any]:
     result = {
         "args": args,
         "returncode": completed.returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
+        "stdout_tail": completed.stdout[-4000:],
+        "stderr_tail": completed.stderr[-4000:],
     }
     if DRY_RUN_LATEST_PATH.exists():
         try:
-            result["latest"] = json.loads(DRY_RUN_LATEST_PATH.read_text(encoding="utf-8"))
+            result["latest_summary"] = summarize_dry_run_latest(json.loads(DRY_RUN_LATEST_PATH.read_text(encoding="utf-8")))
         except json.JSONDecodeError:
             result["latest_error"] = f"无法解析 {DRY_RUN_LATEST_PATH}"
     return result
+
+
+def summarize_dry_run_latest(latest: dict[str, Any]) -> dict[str, Any]:
+    adb = latest.get("adb") or {}
+    detected: list[str] = []
+    for key in ("snapshot", "before", "after"):
+        snap = adb.get(key) or {}
+        detected.extend(str(text) for text in snap.get("detected_text") or [])
+    if not detected:
+        for value in adb.values():
+            if isinstance(value, dict):
+                for key in ("before", "after"):
+                    snap = value.get(key) or {}
+                    detected.extend(str(text) for text in snap.get("detected_text") or [])
+    return {
+        "status": latest.get("status"),
+        "mode": latest.get("mode"),
+        "message": latest.get("message"),
+        "adb_status": adb.get("status"),
+        "adb_message": adb.get("message"),
+        "session_dir": adb.get("session_dir"),
+        "detected_text_sample": detected[:80],
+        "cart_expectation": adb.get("cart_expectation"),
+    }
+
+
+def latest_summary_status(child: dict[str, Any]) -> str:
+    return str((child.get("latest_summary") or {}).get("adb_status") or "")
+
+
+def latest_summary_message(child: dict[str, Any]) -> str:
+    return str((child.get("latest_summary") or {}).get("adb_message") or "")
+
+
+def latest_saw_empty_cart(child: dict[str, Any]) -> bool:
+    text = " ".join(str(item) for item in (child.get("latest_summary") or {}).get("detected_text_sample") or [])
+    return "购物车为空" in text
 
 
 def run_dry_tool(order_path: Path, mode: str, args: argparse.Namespace, extra: list[str] | None = None) -> dict[str, Any]:
@@ -161,8 +198,9 @@ def run_agent(args: argparse.Namespace) -> dict[str, Any]:
             ["--cart-pre-back-count", str(args.cart_pre_back_count)],
         )
         report["cart_clear"] = run_dry_tool(order_path, "adb-cart-clear", args)
-        clear_status = ((report["cart_clear"].get("latest") or {}).get("adb") or {}).get("status")
-        if clear_status not in {"cart_already_empty", "cart_cleared_for_manual_review"}:
+        clear_status = latest_summary_status(report["cart_clear"])
+        clear_ok = clear_status in {"cart_already_empty", "cart_cleared_for_manual_review"} or latest_saw_empty_cart(report["cart_open"]) or latest_saw_empty_cart(report["cart_clear"])
+        if not clear_ok:
             report["status"] = "blocked"
             report["message"] = "购物车清空步骤未通过，已停止整单加购。"
             write_json(run_dir / "report.json", report)
@@ -181,9 +219,9 @@ def run_agent(args: argparse.Namespace) -> dict[str, Any]:
             str(args.cart_pre_back_count),
         ],
     )
-    latest = (report["auto_add"].get("latest") or {}).get("adb") or {}
-    report["status"] = "ready" if latest.get("status") == "auto_add_cart_ready" else "blocked"
-    report["message"] = latest.get("message") or "快驴 agent 已完成执行。"
+    latest = report["auto_add"].get("latest_summary") or {}
+    report["status"] = "ready" if latest.get("adb_status") == "auto_add_cart_ready" else "blocked"
+    report["message"] = latest.get("adb_message") or "快驴 agent 已完成执行。"
     write_json(run_dir / "report.json", report)
     write_json(LATEST_PATH, report)
     return report

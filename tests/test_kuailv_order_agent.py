@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from kuailv_order_agent import select_order  # noqa: E402
+from kuailv_order_agent import latest_saw_empty_cart, select_order, summarize_dry_run_latest  # noqa: E402
 
 
 class KuailvOrderAgentTest(unittest.TestCase):
@@ -51,6 +51,13 @@ class KuailvOrderAgentTest(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             select_order(payload, "2026-06-30", "保利中心店")
+
+    def test_latest_summary_detects_empty_cart_text(self) -> None:
+        latest = {"adb": {"after": {"detected_text": ["购物车为空，快来选购吧", "去选购"]}}}
+
+        child = {"latest_summary": summarize_dry_run_latest(latest)}
+
+        self.assertTrue(latest_saw_empty_cart(child))
 
 
 if __name__ == "__main__":
