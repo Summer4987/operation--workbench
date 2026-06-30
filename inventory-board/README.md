@@ -95,24 +95,42 @@ http://139.155.148.169/order-submit?token=xiongxiaoxiao-order
 
 ## 门店提交通知
 
-服务器支持 Hermes 普通微信、企业微信或飞书机器人通知。生产环境要把“熊小小日配订货”生成的 Excel 直接发到普通微信群时，在 Mac mini 上配置 Hermes：
+服务器支持 Hermes 普通微信、企业微信或飞书机器人通知。生产环境要把“熊小小日配订货”生成的 Excel 直接发到普通微信群时，推荐让 Mac mini 从云端拉取新 Excel，再通过本机 Hermes 发送到微信群。这样普通微信登录态和附件文件都在 Mac mini 本地。
 
 ```bash
 sudo nano /etc/inventory-board.env
 ```
 
-Hermes 普通微信群新增：
+云端不再推企业微信时，移除 `ORDER_NOTIFY_WEBHOOK` 或把通知类型改成不使用 webhook。Mac mini 上先把历史文件标记为基线，避免首次安装时群发旧单：
+
+```bash
+python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --init-baseline
+```
+
+之后定时运行：
+
+```bash
+python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py
+```
+
+默认发送到：
 
 ```text
-ORDER_NOTIFY_TYPE=hermes
-ORDER_HERMES_BIN=/Users/summer/.local/bin/hermes
-ORDER_HERMES_TARGET=熊小小牛排饭-易代仓仓储配送群
+熊小小牛排饭-易代仓仓储配送群
+```
+
+可选环境/参数：
+
+```text
+--hermes-bin /Users/summer/.local/bin/hermes
+--target 熊小小牛排饭-易代仓仓储配送群
+--state-path ~/HermesPrivate/state/daily_order_hermes_delivery.json
 ```
 
 如果只想做健康检查、不真实发群，临时加：
 
-```text
-ORDER_NOTIFY_DRY_RUN=1
+```bash
+python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --dry-run
 ```
 
 企业微信机器人新增：
@@ -135,7 +153,7 @@ ORDER_NOTIFY_WEBHOOK=飞书机器人 webhook 地址
 sudo systemctl restart inventory-board
 ```
 
-配置后，门店每次提交都会推送门店名、商品数量、生成的出库单文件名和下载链接。Hermes 模式会额外发送 `MEDIA:` 附件标记，让 Hermes 把服务器生成的 Excel 文件直接发送到目标普通微信群。
+配置后，门店每次提交都会生成 Excel；Mac mini 投递器会同步新文件并发送 `MEDIA:` 附件标记，让 Hermes 把 Excel 文件直接发送到目标普通微信群。
 
 如果要加访问密码：
 
