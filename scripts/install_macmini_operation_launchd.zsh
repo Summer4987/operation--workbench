@@ -37,6 +37,7 @@ if [ ! -x "\$PYTHON" ]; then
 fi
 export PYTHONUNBUFFERED=1
 export PYTHONNOUSERSITE=1
+export AI_BUSINESS_CENTER_ENV="production"
 export PYTHONPATH="\$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
 
 LOG_FILE="\$LOG_DIR/\$(date +%F).log"
@@ -483,6 +484,7 @@ if [ -r "\$SECRETS_FILE" ]; then
   source "\$SECRETS_FILE"
   set +a
 fi
+export AI_BUSINESS_CENTER_ENV="production"
 
 {
   echo

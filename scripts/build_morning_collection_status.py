@@ -264,7 +264,11 @@ def parse_time(value: str | None) -> datetime | None:
 def latest_start_index(events: list[dict[str, Any]]) -> int:
     for index in range(len(events) - 1, -1, -1):
         event = events[index]
-        if event.get("task_id") == TASK_ID and event.get("step") == "start":
+        if event.get("task_id") != TASK_ID:
+            continue
+        step = str(event.get("step") or "")
+        message = str(event.get("message") or "")
+        if event.get("status") == "running" and (step in {"start", "初始化"} or "开始" in message):
             return index
     for index in range(len(events) - 1, -1, -1):
         if events[index].get("task_id") == TASK_ID:

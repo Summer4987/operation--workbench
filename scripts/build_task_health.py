@@ -190,10 +190,12 @@ def runtime_environment() -> dict[str, str]:
     normalized = hostname.lower()
     role = os.environ.get("AI_BUSINESS_CENTER_ENV", "").strip().lower()
     if not role:
-        if "macbook" in normalized:
-            role = "development"
-        elif "mini" in normalized:
+        xpc_service = os.environ.get("XPC_SERVICE_NAME", "").strip()
+        has_operation_launchd = (Path.home() / "Library" / "LaunchAgents" / "com.summer.operation.morning.plist").exists()
+        if xpc_service.startswith("com.summer.operation.") or "mini" in normalized or has_operation_launchd:
             role = "production"
+        elif "macbook" in normalized:
+            role = "development"
         else:
             role = "development"
     return {

@@ -41,11 +41,14 @@ run_optional "推广余额状态更新" "$PYTHON" scripts/build_promo_balance_st
 mkdir -p "$STAGE_DIR/data"
 "$PYTHON" - <<PY
 from pathlib import Path
+import shutil
 import re
 
 root = Path("$ROOT")
 stage = Path("$STAGE_DIR")
 version = "$DEPLOY_VERSION"
+if stage.exists():
+    shutil.rmtree(stage)
 stage.mkdir(parents=True, exist_ok=True)
 (stage / "data").mkdir(parents=True, exist_ok=True)
 
@@ -57,6 +60,27 @@ for name in ("workbench-data.js", "workbench.js"):
 for name in ("workbench.css", "workbench.js", "workbench-data.js"):
     (stage / name).write_bytes((root / name).read_bytes())
 (stage / "data" / "realtime-history.json").write_bytes((root / "data" / "realtime-history.json").read_bytes())
+
+def copy_if_exists(source: Path, target: Path) -> None:
+    if source.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+def copy_tree_if_exists(source: Path, target: Path) -> None:
+    if source.exists():
+        shutil.copytree(source, target, dirs_exist_ok=True)
+
+copy_if_exists(root / "PROJECT_TREE.md", stage / "PROJECT_TREE.md")
+copy_tree_if_exists(root / "business-report-dashboard" / "dashboard", stage / "business-report-dashboard" / "dashboard")
+copy_tree_if_exists(root / "business-report-dashboard" / "direct-dashboard", stage / "business-report-dashboard" / "direct-dashboard")
+for name in ("latest.json", "unified_daily.csv", "unified_reviews.csv", "direct-latest.json", "direct_unified_daily.csv", "direct_unified_reviews.csv"):
+    copy_if_exists(root / "business-report-dashboard" / "data" / name, stage / "business-report-dashboard" / "data" / name)
+for name in ("index.html", "meituan-budget.html", "styles.css", "app.js", "latest.json", "latest-data.js", "budget-editor.html"):
+    copy_if_exists(root / "store-inspection" / name, stage / "store-inspection" / name)
+for name in ("index.html", "styles.css", "app.js", "logic.js", "rules.js", "current_state.js", "execution_preview.js"):
+    copy_if_exists(root / "dianjin-prototype" / name, stage / "dianjin-prototype" / name)
+for name in ("latest.json", "latest-data.js"):
+    copy_if_exists(root / "outputs" / "promo_budget_preview" / name, stage / "outputs" / "promo_budget_preview" / name)
 PY
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
@@ -64,33 +88,32 @@ ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(
 if [[ "$DEPLOY_MODE" == "full" ]]; then
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/index.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" PROJECT_TREE.md \
+    "$STAGE_DIR/index.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" "$STAGE_DIR/PROJECT_TREE.md" \
     "$SERVER:$REMOTE_DIR/"
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/business-report-dashboard/data'"
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/dashboard/ \
+    "$STAGE_DIR/business-report-dashboard/dashboard/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/"
-  rsync -az -e "ssh ${SSH_OPTS[*]}" business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/business-report-dashboard/data/" "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   rsync -az --delete --delete-excluded --exclude='* 2.html' \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/direct-dashboard/ \
+    "$STAGE_DIR/business-report-dashboard/direct-dashboard/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
 
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
-    store-inspection/index.html store-inspection/meituan-budget.html store-inspection/styles.css store-inspection/app.js store-inspection/latest.json store-inspection/latest-data.js \
-    store-inspection/budget-editor.html \
+    "$STAGE_DIR/store-inspection/" \
     "$SERVER:$REMOTE_DIR/store-inspection/"
 
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
-    dianjin-prototype/index.html dianjin-prototype/styles.css dianjin-prototype/app.js dianjin-prototype/logic.js dianjin-prototype/rules.js dianjin-prototype/current_state.js dianjin-prototype/execution_preview.js \
+    "$STAGE_DIR/dianjin-prototype/" \
     "$SERVER:$REMOTE_DIR/dianjin-prototype/"
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/outputs/promo_budget_preview'"
-  rsync -az -e "ssh ${SSH_OPTS[*]}" outputs/promo_budget_preview/latest.json outputs/promo_budget_preview/latest-data.js "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
+  rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/outputs/promo_budget_preview/" "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
 elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
@@ -104,11 +127,11 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     "$SERVER:$REMOTE_DIR/data/"
   rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/direct-dashboard/ \
+    "$STAGE_DIR/business-report-dashboard/direct-dashboard/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv \
+    "$STAGE_DIR/business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct_unified_daily.csv" "$STAGE_DIR/business-report-dashboard/data/direct_unified_reviews.csv" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   echo "已按 data-only 模式发布，更新工作台数据、实时历史、直营日报数据和直营日报独立看板。"
 else
@@ -123,19 +146,19 @@ else
     "$SERVER:$REMOTE_DIR/data/"
   rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/dashboard/ \
+    "$STAGE_DIR/business-report-dashboard/dashboard/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/"
   rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/direct-dashboard/ \
+    "$STAGE_DIR/business-report-dashboard/direct-dashboard/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv \
+    "$STAGE_DIR/business-report-dashboard/data/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    store-inspection/latest.json store-inspection/latest-data.js \
+    "$STAGE_DIR/store-inspection/latest.json" "$STAGE_DIR/store-inspection/latest-data.js" \
     "$SERVER:$REMOTE_DIR/store-inspection/"
   echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、加盟/直营日报和余额巡检数据。"
 fi
