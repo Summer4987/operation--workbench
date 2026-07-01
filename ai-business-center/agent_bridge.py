@@ -164,6 +164,14 @@ PROMO_SPEND_WORDS = {
     "美团推广花费",
     "美团推广费用",
 }
+PROMO_SPEND_CACHE_WORDS = {
+    "最近一次",
+    "上次",
+    "缓存",
+    "刚才",
+    "最近结果",
+    "最新结果",
+}
 
 
 def normalize_alias(value: str) -> str:
@@ -539,6 +547,34 @@ def wants_fresh_promo_spend_query(text: str) -> bool:
     return normalized_contains(text, {"刷新", "重新采集", "实时采集", "重新查", "现在重新", "强制更新"})
 
 
+def wants_cached_promo_spend_query(text: str) -> bool:
+    return normalized_contains(text, PROMO_SPEND_CACHE_WORDS)
+
+
+def start_promo_spend_refresh(text: str) -> str:
+    log_dir = ROOT / "outputs" / "meituan_promo_spend"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "refresh_notify.log"
+    with log_path.open("a", encoding="utf-8") as log:
+        subprocess.Popen(
+            [
+                sys.executable,
+                "scripts/refresh_meituan_promo_spend_notify.py",
+                "--reason",
+                text,
+            ],
+            cwd=str(ROOT),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    return (
+        "我现在重新打开页面查美团推广消耗，这不是读缓存。"
+        "通常需要 1 分钟左右；查完我会直接把结果发到微信。"
+        "如果微信限流，结果会保存在 outputs/meituan_promo_spend/latest.txt。"
+    )
+
+
 def money(value: Any) -> str:
     try:
         amount = float(value)
@@ -622,9 +658,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
         return output
 
     if looks_like_promo_spend_query(stripped):
-        if not wants_fresh_promo_spend_query(stripped):
+        if wants_cached_promo_spend_query(stripped):
             return format_promo_spend_latest()
-        return run_checked([python_for_playwright(), "scripts/meituan_promo_spend_query.py", "--quiet"])
+        return start_promo_spend_refresh(stripped)
 
     if looks_like_direct_promo_bid_action(stripped):
         return run_checked([sys.executable, "scripts/promo_bid_direct_request.py", "--execute", stripped])

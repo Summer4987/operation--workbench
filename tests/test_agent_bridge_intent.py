@@ -68,24 +68,26 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertNotIn("安全边界：", text)
         self.assertNotIn("python3 scripts", text)
 
-    def test_meituan_promo_spend_query_routes_to_reader(self) -> None:
+    def test_meituan_promo_spend_query_starts_realtime_refresh_by_default(self) -> None:
         self.assertTrue(self.bridge.looks_like_promo_spend_query("查询一下所有门店的美团推广消耗"))
         calls = []
-        original = self.bridge.run_checked
-        original_latest = self.bridge.PROMO_SPEND_LATEST_PATH
+        original_popen = self.bridge.subprocess.Popen
+        original_root = self.bridge.ROOT
         try:
-            self.bridge.PROMO_SPEND_LATEST_PATH = pathlib.Path("/tmp/nonexistent-meituan-promo-spend.json")
-            self.bridge.run_checked = lambda command: calls.append(command) or "查到了 1/1 家美团门店的推广消耗。"
-            text = self.bridge.route_natural_text("刷新查询一下所有门店的美团推广消耗", limit=3)
+            with tempfile.TemporaryDirectory() as tmp:
+                self.bridge.ROOT = pathlib.Path(tmp)
+                self.bridge.subprocess.Popen = lambda command, **kwargs: calls.append((command, kwargs))
+                text = self.bridge.route_natural_text("查询一下所有门店的美团推广消耗", limit=3)
         finally:
-            self.bridge.run_checked = original
-            self.bridge.PROMO_SPEND_LATEST_PATH = original_latest
-        self.assertIn("查到了", text)
+            self.bridge.subprocess.Popen = original_popen
+            self.bridge.ROOT = original_root
+        self.assertIn("重新打开页面查美团推广消耗", text)
+        self.assertIn("不是读缓存", text)
         self.assertTrue(calls)
-        self.assertIn("scripts/meituan_promo_spend_query.py", calls[0])
+        self.assertIn("scripts/refresh_meituan_promo_spend_notify.py", calls[0][0])
         self.assertNotIn("我没完全识别", text)
 
-    def test_meituan_promo_spend_query_uses_latest_snapshot_by_default(self) -> None:
+    def test_meituan_promo_spend_query_uses_latest_snapshot_when_requested(self) -> None:
         self.assertTrue(self.bridge.looks_like_promo_spend_query("查询一下所有门店的美团推广消耗"))
         calls = []
         original = self.bridge.run_checked
@@ -114,7 +116,7 @@ class AgentBridgeIntentTests(unittest.TestCase):
                 )
                 self.bridge.PROMO_SPEND_LATEST_PATH = latest_path
                 self.bridge.run_checked = lambda command: calls.append(command) or "不应该调用慢查询"
-                text = self.bridge.route_natural_text("查询一下所有门店的美团推广消耗", limit=3)
+                text = self.bridge.route_natural_text("看最近一次所有门店的美团推广消耗", limit=3)
         finally:
             self.bridge.run_checked = original
             self.bridge.PROMO_SPEND_LATEST_PATH = original_latest
