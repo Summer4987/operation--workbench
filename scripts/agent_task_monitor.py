@@ -292,7 +292,7 @@ def build_wechat_text(payload: dict[str, Any]) -> str:
         return f"今天纳入监控的 {summary['total']} 个自动化任务没有发现失败。完成 {summary['completed']} 个。\n"
 
     lines = [
-        f"这次有 {len(problem_rows)} 个自动化任务需要处理，失败 {summary['failed']} 个，需关注 {summary['attention']} 个。",
+        f"这次有 {len(problem_rows)} 个自动化任务需要处理，失败 {summary['failed']} 个，需关注 {summary['attention']} 个，运行中 {summary['running']} 个。",
     ]
     for row in problem_rows[:6]:
         lines.append(format_problem_row(row))
