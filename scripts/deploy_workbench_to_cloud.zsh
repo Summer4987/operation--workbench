@@ -73,7 +73,7 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
     business-report-dashboard/dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/"
   rsync -az -e "ssh ${SSH_OPTS[*]}" business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
-  rsync -az --delete --exclude='* 2.html' \
+  rsync -az --delete --delete-excluded --exclude='* 2.html' \
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
@@ -102,7 +102,7 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/data/realtime-history.json" \
     "$SERVER:$REMOTE_DIR/data/"
-  rsync -az --delete --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+  rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
@@ -125,7 +125,7 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/"
-  rsync -az --delete --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+  rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
