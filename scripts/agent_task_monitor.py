@@ -312,7 +312,7 @@ def build_wechat_text(payload: dict[str, Any]) -> str:
 
 
 def format_problem_row(row: dict[str, Any]) -> str:
-    reason = row.get("failure_reason") or row.get("human_action") or "还没有拿到更细的失败原因。"
+    reason = clean_sentence(row.get("failure_reason") or row.get("human_action") or "还没有拿到更细的失败原因")
     step = row.get("last_run_step") or ""
     rerun = row.get("rerun") or {}
     if rerun.get("suggested") and rerun.get("auto_allowed"):
@@ -321,13 +321,15 @@ def format_problem_row(row: dict[str, Any]) -> str:
         rerun_text = "不自动补跑，需要人工确认"
     else:
         rerun_text = "暂不需要补跑"
-    detail = f"{row['name']}：{row['status_text']}。原因：{reason}"
+    detail = f"{row['name']}：{row['status_text']}。原因：{reason}。"
     if step:
         detail += f" 出问题的步骤：{step}。"
-    else:
-        detail += "。"
     detail += f" 处理：{rerun_text}。"
     return detail
+
+
+def clean_sentence(value: Any) -> str:
+    return str(value or "").strip().rstrip("。.")
 
 
 def build_payload(args: argparse.Namespace) -> dict[str, Any]:
