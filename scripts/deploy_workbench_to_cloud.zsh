@@ -73,7 +73,7 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
     business-report-dashboard/dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/"
   rsync -az -e "ssh ${SSH_OPTS[*]}" business-report-dashboard/data/latest.json business-report-dashboard/data/unified_daily.csv business-report-dashboard/data/unified_reviews.csv business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
-  rsync -az --delete \
+  rsync -az --delete --exclude='* 2.html' \
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
@@ -92,7 +92,7 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/outputs/promo_budget_preview'"
   rsync -az -e "ssh ${SSH_OPTS[*]}" outputs/promo_budget_preview/latest.json outputs/promo_budget_preview/latest-data.js "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
 elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/index.html" \
@@ -102,7 +102,15 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/data/realtime-history.json" \
     "$SERVER:$REMOTE_DIR/data/"
-  echo "已按 data-only 模式发布，更新 index.html 数据版本、workbench-data.js 和 data/realtime-history.json，未同步页面布局样式。"
+  rsync -az --delete --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    business-report-dashboard/direct-dashboard/ \
+    "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    business-report-dashboard/data/direct-latest.json business-report-dashboard/data/direct_unified_daily.csv business-report-dashboard/data/direct_unified_reviews.csv \
+    "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  echo "已按 data-only 模式发布，更新工作台数据、实时历史、直营日报数据和直营日报独立看板。"
 else
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
@@ -117,7 +125,7 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/"
-  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+  rsync -az --delete --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     business-report-dashboard/direct-dashboard/ \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/direct-dashboard/"
@@ -151,6 +159,7 @@ verify_remote_file() {
 if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "index.html" "$STAGE_DIR/index.html"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
+  verify_remote_file "business-report-dashboard/data/direct-latest.json"
 else
   verify_remote_file "index.html" "$STAGE_DIR/index.html"
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
