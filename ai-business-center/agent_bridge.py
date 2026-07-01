@@ -575,7 +575,7 @@ def route_natural_text(text: str, *, limit: int) -> str:
         return output
 
     if looks_like_promo_spend_query(stripped):
-        return run_checked([python_for_playwright(), "scripts/meituan_promo_spend_query.py"])
+        return run_checked([python_for_playwright(), "scripts/meituan_promo_spend_query.py", "--quiet"])
 
     if looks_like_direct_promo_bid_action(stripped):
         return run_checked([sys.executable, "scripts/promo_bid_direct_request.py", "--execute", stripped])

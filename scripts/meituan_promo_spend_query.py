@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -15,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STORE_INSPECTION = ROOT / "store-inspection"
 if str(STORE_INSPECTION) not in sys.path:
     sys.path.insert(0, str(STORE_INSPECTION))
+os.environ.setdefault("NODE_NO_WARNINGS", "1")
 
 PREVIEW_PATH = ROOT / "outputs" / "promo_budget_preview" / "latest.json"
 MEITUAN_BUDGET_LOG_DIR = ROOT / "outputs" / "meituan_budget_automation"
@@ -304,7 +306,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
     return record
 
 
-def build_payload(period: str, stores: list[str], limit: int | None) -> dict[str, Any]:
+def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: bool = False) -> dict[str, Any]:
     helpers = require_helpers()
     tasks = load_meituan_tasks(period)
     if stores:
@@ -330,7 +332,8 @@ def build_payload(period: str, stores: list[str], limit: int | None) -> dict[str
         launched_contexts: list[Any] = []
         try:
             for task in tasks:
-                print(f"读取美团推广消耗：{task.get('keyword') or task.get('store')}", flush=True)
+                if not quiet:
+                    print(f"读取美团推广消耗：{task.get('keyword') or task.get('store')}", flush=True)
                 results.append(query_task(task, helpers, playwright, contexts, launched_contexts, base_url, direct_accounts))
         finally:
             for context in launched_contexts:
@@ -393,9 +396,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--stores", default="", help="只查指定门店/关键词，逗号分隔。")
     parser.add_argument("--limit", type=int, default=0, help="调试用：最多读取多少家；0 表示不限制。")
     parser.add_argument("--json", action="store_true", help="输出 JSON。")
+    parser.add_argument("--quiet", action="store_true", help="只输出最终结果，不输出逐店进度。")
     args = parser.parse_args(argv)
     stores = [item.strip() for item in args.stores.split(",") if item.strip()]
-    payload = build_payload(args.period, stores, args.limit or None)
+    payload = build_payload(args.period, stores, args.limit or None, quiet=args.quiet)
     write_latest(payload)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
