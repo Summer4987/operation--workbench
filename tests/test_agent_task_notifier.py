@@ -235,7 +235,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertNotIn("\n", sent_messages[0])
             self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
-    def test_notify_skips_unconfigured_tasks_by_default(self) -> None:
+    def test_notify_includes_direct_runtime_task_success_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             runs_path = tmp_path / "runs.json"
@@ -249,6 +249,53 @@ class AgentTaskNotifierTests(unittest.TestCase):
                                 "status": "success",
                                 "message": "实时单量收入采集完成。",
                                 "step": "发布工作台云端数据",
+                                "finished_at": "2026-07-01 11:31:17",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": True,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                },
+            )()
+            original_loader = self.notifier.load_policy_rows
+            try:
+                self.notifier.load_policy_rows = lambda: dict(self.notifier.DIRECT_TASK_ROWS)
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+
+            self.assertEqual(payload["notification_count"], 1)
+            self.assertIn("实时单量和营业额采集已经完成", payload["notifications"][0]["message"])
+
+    def test_notify_skips_unknown_unconfigured_tasks_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "unknown.task": {
+                                "status": "success",
+                                "message": "完成。",
+                                "step": "未知任务",
                                 "finished_at": "2026-07-01 11:31:17",
                             }
                         }

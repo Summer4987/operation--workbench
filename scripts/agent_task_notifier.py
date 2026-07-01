@@ -34,6 +34,38 @@ STATUS_INTROS = {
     "warning": "需要看一下",
     "missing": "还没看到运行记录",
 }
+DIRECT_TASK_ROWS = {
+    "ops.morning_collection": {
+        "id": "ops.morning_collection",
+        "name": "上午运营一键采集",
+        "risk": "high",
+        "rerun": {
+            "suggested": True,
+            "auto_allowed": False,
+            "reason": "上午主流程会碰预算、登录态和发布，只报告不自动补跑。",
+        },
+    },
+    "ops.realtime_order_income": {
+        "id": "ops.realtime_order_income",
+        "name": "实时单量和营业额采集",
+        "risk": "low",
+        "rerun": {
+            "suggested": True,
+            "auto_allowed": True,
+            "command": ["/bin/zsh", "scripts/run_realtime_order_income.zsh"],
+        },
+    },
+    "growth.promo_budget": {
+        "id": "growth.promo_budget",
+        "name": "推广预算任务",
+        "risk": "high",
+        "rerun": {
+            "suggested": True,
+            "auto_allowed": False,
+            "reason": "会真实提交推广预算，只报告不自动补跑。",
+        },
+    },
+}
 
 
 def read_json(path: Path, fallback: Any) -> Any:
@@ -83,7 +115,10 @@ def load_policy_rows() -> dict[str, dict[str, Any]]:
         runs=str(agent_task_monitor.DEFAULT_RUNS_PATH),
     )
     payload = agent_task_monitor.build_payload(args)
-    return {row["id"]: row for row in payload.get("tasks") or []}
+    rows = {row["id"]: row for row in payload.get("tasks") or []}
+    for task_id, row in DIRECT_TASK_ROWS.items():
+        rows.setdefault(task_id, row)
+    return rows
 
 
 def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
