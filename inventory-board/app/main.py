@@ -373,7 +373,7 @@ def order_file(request: Request, filename: str):
 @app.get("/order-file/{filename}")
 def public_order_file_page(request: Request, filename: str):
     _require_public_order_token(request)
-    if not _order_file_download_signature_valid(request, filename):
+    if request.query_params.get("sig") and not _order_file_download_signature_valid(request, filename):
         _require_store_order_auth(request)
     path = OUTPUT_DIR / Path(filename).name
     if not path.exists() or path.suffix.lower() not in {".xlsx", ".xlsm"}:
@@ -1098,7 +1098,7 @@ def _public_download_url(request: Request, filename: str) -> str:
 
 def _public_order_file_page_url(request: Request, filename: str) -> str:
     base_url = str(request.base_url).rstrip("/")
-    return f"{base_url}/order-file/{quote(filename)}?{_signed_order_file_query(filename)}"
+    return f"{base_url}/order-file/{quote(filename)}?token={quote(_public_order_token())}"
 
 
 def _public_file_download_url(request: Request, filename: str) -> str:

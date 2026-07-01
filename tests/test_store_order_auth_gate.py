@@ -240,6 +240,11 @@ def test_signed_daily_order_file_links_download_without_store_cookie(tmp_path, m
     assert page.status_code == 200
     assert "下载 Excel 文件" in page.text
 
+    short_page = client.get(f"/order-file/{order_file.name}?token=xiongxiaoxiao-order")
+    assert short_page.status_code == 200
+    assert "下载 Excel 文件" in short_page.text
+    assert "/api/order/files/DO-TEST.xlsx?token=xiongxiaoxiao-order&amp;expires=" in short_page.text
+
     blocked = client.get(f"/api/order/files/{order_file.name}?token=xiongxiaoxiao-order")
     assert blocked.status_code == 401
 
@@ -390,8 +395,7 @@ def test_daily_order_history_filters_to_authenticated_store(tmp_path, monkeypatc
             "quantity": 6.0,
         }
     ]
-    assert "expires=" in items[0]["download_url"]
-    assert "sig=" in items[0]["download_url"]
+    assert items[0]["download_url"] == "http://testserver/order-file/DO-TEST.xlsx?token=xiongxiaoxiao-order"
 
 
 def test_chengdu_catalog_returns_authenticated_store(monkeypatch):
