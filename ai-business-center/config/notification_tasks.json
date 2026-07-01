@@ -1,7 +1,12 @@
 {
   "version": 2,
   "updated_at": "2026-07-01",
-  "description": "Hermes/Mac mini 早间自动化通知清单。早上必须完成且每天汇报的任务有且只有 14 个；工具、库存、订货、财务、出价审批、实时采集和旧 launchd 噪声不进入早报。",
+  "description": "Hermes/Mac mini 自动化通知清单。agent 主动汇报只覆盖数据自动化和推广自动化两个板块；订货、库存、财务、自动调价/出价审批、工具和旧 launchd 噪声不进入主动早报。",
+  "report_scope": {
+    "name": "数据自动化和推广自动化",
+    "sections": ["数据自动化", "推广自动化"],
+    "excluded": ["订货自动化", "库存自动化", "财务自动化", "自动调价/出价审批", "工具类任务", "旧 launchd 噪声"]
+  },
   "defaults": {
     "include_in_report": true,
     "morning_required": true,
@@ -18,8 +23,10 @@
       "name": "上午运营一键采集总状态",
       "risk": "high",
       "morning_aggregate": true,
+      "expected_total": 14,
+      "expected_substeps": 13,
       "evidence_path": "outputs/morning_collection_status/latest.json",
-      "human_action": "先看 14 个子任务里哪一项失败，再决定是否补跑；不能用总状态掩盖子任务缺失。",
+      "human_action": "先看数据自动化和推广自动化检查点里哪一项失败，再决定是否补跑；不能用总状态掩盖子任务缺失。",
       "rerun_policy": {
         "auto_allowed": false,
         "mode": "report_only",

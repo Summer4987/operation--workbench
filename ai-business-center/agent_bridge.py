@@ -586,9 +586,9 @@ def format_hermes_self_check() -> str:
         tasks = json.loads(notification_config.read_text(encoding="utf-8")).get("tasks") or []
         morning_count = sum(1 for item in tasks if str(item.get("id", "")).startswith("morning."))
         if morning_count == 14:
-            ok_items.append("早报固定 14 项配置正常")
+            ok_items.append("数据/推广早报 14 个检查点配置正常")
         else:
-            problems.append(f"早报任务不是 14 项，现在是 {morning_count} 项")
+            problems.append(f"数据/推广早报检查点不是 14 个，现在是 {morning_count} 个")
     except Exception as exc:
         problems.append(f"早报配置读取失败：{exc}")
     if (ROOT / "scripts" / "agent_task_monitor.py").exists():
@@ -615,7 +615,7 @@ def format_hermes_self_check() -> str:
     return "\n".join(
         [
             "Hermes 基础能力自检通过。",
-            "它现在应该能理解简称、查早上 14 项任务、查企业微信通知、生成补跑计划、处理已接入的表格任务。",
+            "它现在应该能理解简称、查数据自动化和推广自动化检查点、查企业微信通知、生成补跑计划、处理已接入的表格任务。",
             "如果某个真实平台任务失败，它必须先查证据和日志，再告诉你能不能补跑，不能只说“正常”。",
         ]
     )

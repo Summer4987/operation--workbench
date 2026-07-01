@@ -17,12 +17,10 @@ import hermes_schedule_status as schedule_module  # noqa: E402
 class HermesScheduleStatusTests(unittest.TestCase):
     def setUp(self) -> None:
         self.original_runs_path = schedule_module.RUNS_PATH
-        self.original_production_runs_path = schedule_module.PRODUCTION_RUNS_PATH
         self.original_clean_runs_path = schedule_module.CLEAN_RUNS_PATH
 
     def tearDown(self) -> None:
         schedule_module.RUNS_PATH = self.original_runs_path
-        schedule_module.PRODUCTION_RUNS_PATH = self.original_production_runs_path
         schedule_module.CLEAN_RUNS_PATH = self.original_clean_runs_path
 
     def write_runs(self, path: Path, finished_at: str, message: str) -> None:
@@ -48,13 +46,10 @@ class HermesScheduleStatusTests(unittest.TestCase):
     def test_evening_budget_uses_latest_clean_task_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            production_runs = root / "production" / "latest.json"
             clean_runs = root / "clean" / "latest.json"
             current_runs = root / "current" / "latest.json"
-            self.write_runs(production_runs, "2026-06-30 17:09:58", "昨天晚餐预算完成。")
             self.write_runs(clean_runs, "2026-07-01 16:36:26", "晚餐预算全部步骤完成。")
 
-            schedule_module.PRODUCTION_RUNS_PATH = production_runs
             schedule_module.CLEAN_RUNS_PATH = clean_runs
             schedule_module.RUNS_PATH = current_runs
 

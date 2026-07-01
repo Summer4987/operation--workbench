@@ -193,9 +193,11 @@ def build_morning_aggregate_report(
     completed_count = int(summary.get("completed_count") or 0)
     failed_count = int(summary.get("failed_count") or 0)
     step_count = int(summary.get("step_count") or 0)
+    expected_total = int(policy.get("expected_total") or 14)
+    expected_substeps = int(policy.get("expected_substeps") or max(expected_total - 1, 1))
     if raw_status in {"failed"} or failed_count:
         status = "failed"
-    elif raw_status == "success" and step_count >= 13:
+    elif raw_status == "success" and step_count >= expected_substeps:
         status = "completed"
     elif raw_status == "success" and step_count == 0:
         status = "attention"
@@ -210,9 +212,9 @@ def build_morning_aggregate_report(
         "没有找到上午运营总状态。",
     )
     if step_count == 0:
-        reason = f"{reason}；但是没有子步骤记录，不能判定 14 项全部完成。"
+        reason = f"{reason}；但是没有子步骤记录，不能判定这 {expected_total} 个检查点全部完成。"
     elif status != "completed":
-        reason = f"{reason}；子步骤完成 {completed_count}/14，失败 {failed_count}。"
+        reason = f"{reason}；子步骤完成 {completed_count}/{expected_total}，失败 {failed_count}。"
     rerun_decision = build_rerun_decision(status, {"risk": policy.get("risk")}, task_run, policy)
     return {
         "id": task_id,
@@ -475,7 +477,7 @@ def build_wechat_text(payload: dict[str, Any]) -> str:
     blocked = [item for item in payload["rerun_plan"] if not item.get("auto_allowed")]
     if blocked:
         names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in blocked[:4])
-        lines.append(f"不能自动补跑的是：{names}。这些会碰预算、发布、订货或需要人工确认。")
+        lines.append(f"不能自动补跑的是：{names}。这些会碰预算、发布、平台登录态或需要人工确认。")
     return "\n".join(lines) + "\n"
 
 
@@ -486,13 +488,16 @@ def is_morning_report(payload: dict[str, Any]) -> bool:
 
 def build_morning_wechat_text(payload: dict[str, Any]) -> str:
     summary = payload["summary"]
+    scope = payload.get("report_scope") if isinstance(payload.get("report_scope"), dict) else {}
+    scope_name = str(scope.get("name") or "数据自动化和推广自动化")
+    total = int(summary.get("total") or 0)
     problem_rows = [row for row in payload["tasks"] if row["status"] in {"failed", "attention", "missing", "running"}]
     if not problem_rows:
-        return f"今早自动化已完成。我按固定 14 项检查过，14 项都没有失败。\n"
+        return f"今早{scope_name}已完成。我按 {total} 个检查点看过，没有失败。\n"
 
     unresolved = summary["failed"] + summary["attention"] + summary["missing"] + summary["running"]
     lines = [
-        f"今早自动化我按固定 14 项检查了一遍：完成 {summary['completed']} 项，失败 {summary['failed']} 项，需核实 {unresolved} 项。",
+        f"今早{scope_name}我按 {total} 个检查点看了一遍：完成 {summary['completed']} 项，失败 {summary['failed']} 项，需核实 {unresolved} 项。",
     ]
 
     for index, row in enumerate(problem_rows[:5], start=1):
@@ -525,7 +530,7 @@ def humanize_morning_reason(row: dict[str, Any]) -> str:
     text = clean_sentence(row.get("failure_reason") or row.get("human_action") or "")
     name = str(row.get("name") or "")
     if "没有子步骤记录" in text:
-        return "总流程有记录，但缺少 14 项子步骤明细，我不能把它算成全部完成。"
+        return "总流程有记录，但缺少检查点子步骤明细，我不能把它算成全部完成。"
     if "产物已生成" in text and "没有找到早间步骤记录" in text:
         return "文件已经生成过，但今天缺少这一步的运行记录，所以先算需核实。"
     if "缺少产物" in text:
@@ -570,6 +575,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
     payload = {
         "generated_at": now_text(),
         "host": socket.gethostname(),
+        "report_scope": config.get("report_scope") if isinstance(config.get("report_scope"), dict) else {},
         "sources": {
             "config": relpath(config_path),
             "task_health": relpath(health_path),

@@ -23,8 +23,8 @@ python3 ai-business-center/center.py agent-status
 如果要在干净 GitHub 副本中旁路检查生产目录的真实产物，可以指定生产根目录：
 
 ```bash
-OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-center/center.py health
-OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-center/center.py dashboard
+OPERATION_CENTER_ROOT="/Users/summer/Documents/operation-workbench-clean" python3 ai-business-center/center.py health
+OPERATION_CENTER_ROOT="/Users/summer/Documents/operation-workbench-clean" python3 ai-business-center/center.py dashboard
 ```
 
 这种方式只改变产物和脚本路径的检查根目录；状态文件仍然写入当前 `ai-business-center/state/`，不会写入生产目录。
@@ -32,7 +32,7 @@ OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-
 生成每日守护报告：
 
 ```bash
-OPERATION_CENTER_ROOT="/Users/summer/Documents/New project" python3 ai-business-center/guardian.py
+OPERATION_CENTER_ROOT="/Users/summer/Documents/operation-workbench-clean" python3 ai-business-center/guardian.py
 ```
 
 守护器会同时运行系统体检、任务健康检查和状态页生成，并把 Markdown/JSON 报告写入当前 `ai-business-center/state/reports/`。

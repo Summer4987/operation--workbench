@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CLEAN_ROOT="${OPERATION_CLEAN_ROOT:-/Users/summer/Documents/operation-workbench-clean}"
-PRODUCTION_ROOT="${OPERATION_CENTER_ROOT:-/Users/summer/Documents/New project}"
+PRODUCTION_ROOT="${OPERATION_CENTER_ROOT:-$CLEAN_ROOT}"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 LOG_DIR="$HOME/Library/Logs/xiong-operation/ai-center-guardian"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"

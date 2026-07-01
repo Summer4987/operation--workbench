@@ -13,7 +13,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
-PRODUCTION_RUNS_PATH = Path.home() / "Documents" / "New project" / "outputs" / "task_runs" / "latest.json"
 CLEAN_RUNS_PATH = Path.home() / "Documents" / "operation-workbench-clean" / "outputs" / "task_runs" / "latest.json"
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 LABEL_PREFIX = "com.summer.operation"
@@ -60,7 +59,7 @@ def read_json(path: Path, fallback: Any) -> Any:
 def load_task_runs() -> tuple[dict[str, Any], Path]:
     merged_tasks: dict[str, Any] = {}
     source_path = RUNS_PATH
-    candidate_paths = list(dict.fromkeys([PRODUCTION_RUNS_PATH, CLEAN_RUNS_PATH, RUNS_PATH]))
+    candidate_paths = list(dict.fromkeys([CLEAN_RUNS_PATH, RUNS_PATH]))
     for path in candidate_paths:
         payload = read_json(path, {})
         tasks = payload.get("tasks") if isinstance(payload.get("tasks"), dict) else {}

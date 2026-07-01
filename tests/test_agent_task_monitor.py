@@ -98,12 +98,18 @@ class AgentTaskMonitorTests(unittest.TestCase):
 
         self.assertEqual(rows, [])
 
-    def test_morning_report_uses_configured_14_tasks_only(self) -> None:
+    def test_morning_report_uses_configured_scope_tasks_only(self) -> None:
         policies = monitor_module.policy_by_task(
             {
                 "defaults": {"morning_required": True, "include_in_report": True},
                 "tasks": [
-                    {"id": "morning.01_collection", "name": "上午运营一键采集总状态", "morning_aggregate": True},
+                    {
+                        "id": "morning.01_collection",
+                        "name": "上午运营一键采集总状态",
+                        "morning_aggregate": True,
+                        "expected_total": 14,
+                        "expected_substeps": 13,
+                    },
                     *[
                         {
                             "id": f"morning.{index:02d}_task",
@@ -163,7 +169,7 @@ class AgentTaskMonitorTests(unittest.TestCase):
                     "status": "attention",
                     "status_text": "需关注",
                     "risk": "high",
-                    "failure_reason": "上午运营一键采集完成；但是没有子步骤记录，不能判定 14 项全部完成。",
+                    "failure_reason": "上午运营一键采集完成；但是没有子步骤记录，不能判定这 14 个检查点全部完成。",
                     "rerun": {"suggested": True, "auto_allowed": False},
                 },
                 {
@@ -180,15 +186,17 @@ class AgentTaskMonitorTests(unittest.TestCase):
                 {"task_id": "morning.06_promo_balance", "task_name": "推广余额巡检", "auto_allowed": True},
                 {"task_id": "morning.01_collection", "task_name": "上午运营一键采集总状态", "auto_allowed": False},
             ],
+            "report_scope": {"name": "数据自动化和推广自动化"},
         }
 
         text = monitor_module.build_wechat_text(payload)
 
-        self.assertIn("今早自动化我按固定 14 项检查了一遍", text)
-        self.assertIn("总流程有记录，但缺少 14 项子步骤明细", text)
+        self.assertIn("今早数据自动化和推广自动化我按 14 个检查点看了一遍", text)
+        self.assertIn("总流程有记录，但缺少检查点子步骤明细", text)
         self.assertIn("我能直接补跑的只有：推广余额巡检", text)
         self.assertNotIn("出问题的步骤", text)
         self.assertNotIn("outputs/promo_balance_status/latest.json", text)
+        self.assertNotIn("订货", text)
 
     def test_rerun_execute_runs_only_allowed_candidates(self) -> None:
         original_execute = rerun_module.execute_command

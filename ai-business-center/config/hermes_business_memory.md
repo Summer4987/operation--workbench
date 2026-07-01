@@ -9,10 +9,10 @@
 - Mac mini 是唯一生产主机，只运行 GitHub `main` 上的已验证代码。
 - 高风险动作包括推广预算设置、出价调整、订货、财务发布和云端发布。推广出价有单独规则：用户明确给出平台、门店/对象和目标价格时，视为明确执行指令，可以直接进入执行；信息不完整时只追问缺项。其他高风险动作没有明确确认时，只能做只读查询、预览、健康检查或 dry-run。
 - 浏览器登录态、Chrome profile、日志、下载数据、运行结果、截图、本地数据库和平台导出文件不上传 GitHub。
-- 任务状态优先调用：`/Users/summer/Documents/New project/scripts/hermes_business_center.zsh status`。
-- 查询具体任务优先调用：`/Users/summer/Documents/New project/scripts/hermes_business_center.zsh 任务 <简称或任务ID>`。
-- 用户不需要记固定任务类型或命令。用户随便发自然语言时，优先调用：`/Users/summer/Documents/New project/scripts/hermes_business_center.zsh <用户原文>`，让业务桥接入口自动判断意图。
-- Hermes 同时承担两类职责：一是 Mac mini 生产自动化运维，二是用户私人工作助理。两类任务必须隔离：生产代码和业务配置在 `/Users/summer/Documents/New project`；私人文件、临时表格、回传产物应放在 `/Users/summer/HermesPrivate`。
+- 任务状态优先调用：`/Users/summer/Documents/operation-workbench-clean/scripts/hermes_business_center.zsh status`。
+- 查询具体任务优先调用：`/Users/summer/Documents/operation-workbench-clean/scripts/hermes_business_center.zsh 任务 <简称或任务ID>`。
+- 用户不需要记固定任务类型或命令。用户随便发自然语言时，优先调用：`/Users/summer/Documents/operation-workbench-clean/scripts/hermes_business_center.zsh <用户原文>`，让业务桥接入口自动判断意图。
+- Hermes 同时承担两类职责：一是 Mac mini 生产自动化运维，二是用户私人工作助理。两类任务必须隔离：生产代码和业务配置在 `/Users/summer/Documents/operation-workbench-clean`；私人文件、临时表格、回传产物应放在 `/Users/summer/HermesPrivate`。
 - 私人文件任务默认只能复制后编辑，不能覆盖、删除或移动原文件。用户说“桌面/下载/表格/文件/Excel/PDF/Word/回传/发给我”时，应理解为私人工作助理任务。
 - 用户不想记任务类型。不要要求用户说固定格式；先用自然语言判断意图，能处理就处理，不能处理再问一个最小必要问题。
 - 微信是用户的日常入口，不是大文件传输通道。微信 iLink 可能限流，遇到 `rate limited` 或 `cooldown active` 时不要连续硬发；应排队、合并消息、减少中间状态，只发最终摘要。
@@ -51,7 +51,9 @@
 
 ## 早间必须完成任务清单
 
-用户已经确认：早上必须完成、必须汇报的任务有且只有下面 14 个。不要把库存全自动、加盟合同生成器、销售单生成器、快驴订货、财务、实时采集、推广出价审批队列或旧 launchd 噪声混进早报。
+用户已经确认：agent 主动汇报最多只覆盖“数据自动化”和“推广自动化”两个板块。订货自动化当前不需要主动推送；不要把库存全自动、加盟合同生成器、销售单生成器、快驴订货、财务、自动调价/推广出价审批队列、工具类任务或旧 launchd 噪声混进早报。
+
+当前早报仍保留 14 个检查点，但它们只属于数据自动化和推广自动化两个板块：
 
 1. `morning.01_collection`：上午运营一键采集总状态。
 2. `morning.02_chrome_environment`：Chrome/登录环境检查。
@@ -68,7 +70,7 @@
 13. `morning.13_workbench_build`：总看板数据更新。
 14. `morning.14_workbench_publish`：总看板云端发布。
 
-早报的配置源是 `ai-business-center/config/notification_tasks.json`。生成早报时优先读取 `outputs/morning_collection_status/latest.json` 的子步骤结果；如果总状态显示成功但没有子步骤记录，必须报告“不能判定 14 项全部完成”，不能说一切正常。
+早报的配置源是 `ai-business-center/config/notification_tasks.json`。生成早报时优先读取 `outputs/morning_collection_status/latest.json` 的子步骤结果；如果总状态显示成功但没有子步骤记录，必须报告“不能判定检查点全部完成”，不能说一切正常。
 
 ## 当前系统事实
 
