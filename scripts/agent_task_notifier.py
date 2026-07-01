@@ -200,6 +200,8 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     for task_id, task in sorted(task_candidates.items()):
         if not isinstance(task, dict):
             continue
+        if task_id not in policy_rows and not args.include_unconfigured:
+            continue
         status = str(task.get("status") or "")
         if status not in TERMINAL_STATUSES:
             continue
@@ -261,6 +263,7 @@ def main() -> int:
     parser.add_argument("--seed", action="store_true", help="只记录当前状态，不发送历史通知")
     parser.add_argument("--dry-run", action="store_true", help="只打印将发送的通知，不实际发送")
     parser.add_argument("--no-write", action="store_true", help="不写 state/log 文件")
+    parser.add_argument("--include-unconfigured", action="store_true", help="允许未进入通知配置的任务主动推送")
     args = parser.parse_args()
 
     payload = notify(args)
