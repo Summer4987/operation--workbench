@@ -115,6 +115,25 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
 
 
 def parse_budget_spend(lines: list[str]) -> dict[str, Any]:
+    compact = " ".join(lines)
+    match = re.search(
+        r"(?:推广预算|每日预算)(?:(?!推广出价|定向推广|计费规则).)*?已消耗\s*(\d+(?:\.\d+)?)\s*%\s*([0-9,.]+)\s*元",
+        compact,
+    )
+    if match:
+        percent = float(match.group(1))
+        budget = parse_money(match.group(2))
+        if budget is not None:
+            return {"today_spend": round(budget * percent / 100, 2), "source": "budget_percent"}
+    match = re.search(
+        r"(?:推广预算|每日预算)(?:(?!推广出价|定向推广|计费规则).)*?预算已耗尽\s*([0-9,.]+)\s*元",
+        compact,
+    )
+    if match:
+        budget = parse_money(match.group(1))
+        if budget is not None:
+            return {"today_spend": budget, "source": "budget_exhausted"}
+
     for index, line in enumerate(lines):
         if line not in {"推广预算", "每日预算"}:
             continue

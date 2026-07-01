@@ -93,6 +93,12 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(snapshot["today_spend"], 100)
         self.assertEqual(snapshot["source"], "budget_exhausted")
 
+    def test_parse_budget_percent_from_single_line_text(self) -> None:
+        text = "推广实况 加载中... 推广设置 每日预算 已消耗 17% 120 元 推广出价 0 元"
+        snapshot = self.query.parse_spend_snapshot(text)
+        self.assertEqual(snapshot["today_spend"], 20.4)
+        self.assertEqual(snapshot["source"], "budget_percent")
+
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(
             [
