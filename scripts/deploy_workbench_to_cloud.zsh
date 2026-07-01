@@ -156,10 +156,14 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/data/" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
-  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/store-inspection/latest.json" "$STAGE_DIR/store-inspection/latest-data.js" \
-    "$SERVER:$REMOTE_DIR/store-inspection/"
+  if [[ -f "$STAGE_DIR/store-inspection/latest.json" && -f "$STAGE_DIR/store-inspection/latest-data.js" ]]; then
+    rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+      -e "ssh ${SSH_OPTS[*]}" \
+      "$STAGE_DIR/store-inspection/latest.json" "$STAGE_DIR/store-inspection/latest-data.js" \
+      "$SERVER:$REMOTE_DIR/store-inspection/"
+  else
+    echo "提示：本地没有余额巡检 latest.json/latest-data.js，跳过余额巡检静态数据发布。"
+  fi
   echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、加盟/直营日报和余额巡检数据。"
 fi
 
