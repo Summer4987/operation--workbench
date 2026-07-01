@@ -168,3 +168,105 @@ def test_public_store_order_history_requires_remembered_order_ids(tmp_path, monk
     assert [item["order_id"] for item in items] == ["DO-KNOWN"]
     assert "client_host" not in items[0]
     assert items[0]["items"][0]["name"] == "洋葱"
+
+
+def test_order_notification_includes_details_even_with_custom_prefix(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv("DAILY_ORDER_NOTIFY_MESSAGE", "有门店下单啦！")
+    order = {
+        "order_id": "DO-TEST",
+        "store_name": "银泰城店",
+        "submitted_at": "2026-07-01T10:30:00+08:00",
+        "items": [
+            {
+                "purchase_channel": "快驴",
+                "name": "西兰花",
+                "spec": "",
+                "quantity": 100,
+                "unit": "件",
+            }
+        ],
+    }
+
+    message = module._order_message(order)
+
+    assert "有门店下单啦！" in message
+    assert "门店：银泰城店" in message
+    assert "订单号：DO-TEST" in message
+    assert "渠道：快驴" in message
+    assert "- 西兰花 100件" in message
+
+
+def test_order_lines_can_filter_by_exact_date(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+
+    write_order(submission_dir, "DO-JULY-1", "2026-07-01T10:00:00+08:00", 10)
+    write_order(submission_dir, "DO-JULY-2", "2026-07-02T10:00:00+08:00", 99)
+
+    rows = module._order_line_rows(date="2026-07-01")
+
+    assert [row["订单号"] for row in rows] == ["DO-JULY-1"]
+
+
+def test_order_lines_xlsx_endpoint_returns_excel_file(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+    write_order(submission_dir, "DO-JULY-1", "2026-07-01T10:00:00+08:00", 10)
+
+    client = TestClient(module.app)
+    response = client.get("/daily-order/api/admin/order-lines.xlsx?date=2026-07-01&token=daily-order-admin")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert response.content.startswith(b"PK")
+    assert b"xl/worksheets/sheet1.xml" in response.content
+
+
+def test_daily_excel_send_uses_dedicated_wecom_message(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+    monkeypatch.setenv("DAILY_ORDER_NOTIFY_WEBHOOK", "http://example.invalid/webhook")
+    write_order(submission_dir, "DO-JULY-1", "2026-07-01T10:00:00+08:00", 10)
+    calls = []
+    monkeypatch.setattr(module, "_send_notify_text", lambda webhook, notify_type, text, extra_payload=None: calls.append((webhook, notify_type, text, extra_payload)) or True)
+
+    result = module._send_daily_excel_link("2026-07-01")
+
+    assert result["status"] == "sent"
+    assert result["line_count"] == 1
+    assert calls[0][1] == "wecom"
+    assert "日配订货 Excel 已生成" in calls[0][2]
+    assert "order-lines.xlsx" in calls[0][2]
+
+
+def test_wechat_digest_send_does_not_attach_excel_link(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+    monkeypatch.setenv("DAILY_ORDER_NOTIFY_WEBHOOK", "http://example.invalid/webhook")
+    write_order(submission_dir, "DO-WECHAT", "2026-07-01T10:00:00+08:00", 2, store_name="银泰城店")
+    path = next(submission_dir.glob("DO-WECHAT_*.json"))
+    order = json.loads(path.read_text(encoding="utf-8"))
+    order["items"][0]["purchase_channel"] = "大米群"
+    order["items"][0]["name"] = "大米"
+    order["items"][0]["unit"] = "袋"
+    path.write_text(json.dumps(order, ensure_ascii=False), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(module, "_send_notify_text", lambda webhook, notify_type, text, extra_payload=None: calls.append(text) or True)
+
+    client = TestClient(module.app)
+    response = client.post("/daily-order/api/admin/wechat-digest/send?date=2026-07-01&token=daily-order-admin")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "excel" not in payload
+    assert calls
+    assert all("order-lines.xlsx" not in text for text in calls)

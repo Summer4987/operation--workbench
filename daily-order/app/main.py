@@ -10,10 +10,13 @@ import json
 import os
 import re
 import secrets
+import sys
 import time
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request as url_request
+from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -320,11 +323,12 @@ def beijing_admin_summary(request: Request, status: str = "pending", month: str 
 
 
 @app.get("/daily-order/api/admin/order-lines")
-def admin_order_lines(request: Request, month: str = ""):
+def admin_order_lines(request: Request, month: str = "", date: str = ""):
     _require_admin(request)
-    rows = _order_line_rows(month.strip())
+    rows = _order_line_rows(month.strip(), date.strip())
     return {
         "month": month.strip(),
+        "date": date.strip(),
         "line_count": len(rows),
         "rows": rows,
         "totals": _order_line_totals(rows),
@@ -332,16 +336,37 @@ def admin_order_lines(request: Request, month: str = ""):
 
 
 @app.get("/daily-order/api/admin/order-lines.csv")
-def admin_order_lines_csv(request: Request, month: str = ""):
+def admin_order_lines_csv(request: Request, month: str = "", date: str = ""):
     _require_admin(request)
-    rows = _order_line_rows(month.strip())
+    rows = _order_line_rows(month.strip(), date.strip())
     text = _rows_to_csv(ORDER_LINE_HEADERS, rows)
-    filename = f"daily-order-lines-{month.strip() or 'all'}.csv"
+    scope = date.strip() or month.strip() or "all"
+    filename = f"daily-order-lines-{scope}.csv"
     return Response(
         content=text,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.get("/daily-order/api/admin/order-lines.xlsx")
+def admin_order_lines_xlsx(request: Request, month: str = "", date: str = ""):
+    _require_admin(request)
+    rows = _order_line_rows(month.strip(), date.strip())
+    scope = date.strip() or month.strip() or "all"
+    filename = f"daily-order-lines-{scope}.xlsx"
+    return Response(
+        content=_rows_to_xlsx(ORDER_LINE_HEADERS, rows, "日配订货"),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/daily-order/api/admin/daily-excel/send")
+def send_admin_daily_excel(request: Request, date: str = ""):
+    _require_admin(request)
+    day = _target_day(date)
+    return _send_daily_excel_link(day)
 
 
 @app.get("/daily-order/api/admin/wechat-digest")
@@ -1362,7 +1387,34 @@ def _wechat_addon_messages(order: dict) -> list[str]:
     return messages
 
 
-def _send_notify_text(webhook: str, notify_type: str, text: str, extra_payload: dict | None = None) -> None:
+def _send_daily_excel_link(day: str) -> dict:
+    rows = _order_line_rows(date=day)
+    if not rows:
+        return {"status": "empty", "date": day, "line_count": 0}
+    webhook = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "").strip() or os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
+    if not webhook:
+        raise HTTPException(status_code=400, detail="未配置企业微信 webhook")
+    notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
+    link = _daily_excel_url(day)
+    text = "\n".join(
+        [
+            "日配订货 Excel 已生成",
+            f"日期：{day}",
+            f"明细：{len(rows)} 行",
+            f"下载：{link}",
+        ]
+    )
+    ok = _send_notify_text(webhook, notify_type, text, {"message_type": "daily_order_excel", "date": day, "line_count": len(rows)})
+    return {"status": "sent" if ok else "failed", "date": day, "line_count": len(rows), "url": link}
+
+
+def _daily_excel_url(day: str) -> str:
+    token = os.environ.get("DAILY_ORDER_ADMIN_TOKEN", "daily-order-admin")
+    base_url = os.environ.get("DAILY_ORDER_PUBLIC_BASE_URL", "http://139.155.148.169").rstrip("/")
+    return f"{base_url}/daily-order/api/admin/order-lines.xlsx?token={token}&date={day}"
+
+
+def _send_notify_text(webhook: str, notify_type: str, text: str, extra_payload: dict | None = None) -> bool:
     if notify_type == "wecom":
         payload = {"msgtype": "text", "text": {"content": text}}
     elif notify_type == "feishu":
@@ -1375,8 +1427,10 @@ def _send_notify_text(webhook: str, notify_type: str, text: str, extra_payload: 
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = url_request.Request(webhook, data=body, headers={"Content-Type": "application/json"})
         url_request.urlopen(req, timeout=8).read()
-    except Exception:
-        pass
+        return True
+    except Exception as exc:
+        print(f"企业微信通知发送失败：{exc}", file=sys.stderr)
+        return False
 
 
 def _wechat_group_messages(order: dict) -> list[str]:
@@ -1435,18 +1489,103 @@ def _format_number(value) -> str:
 
 def _order_message(order: dict) -> str:
     message = os.environ.get("DAILY_ORDER_NOTIFY_MESSAGE", "").strip()
-    if message:
-        return f"{message}\n门店：{order.get('store_name') or '未命名门店'}"
     channels = sorted({item.get("purchase_channel", "") for item in order.get("items") or [] if item.get("purchase_channel")})
-    lines = [
-        f"新订货订单：{order['store_name']}",
-        f"订单号：{order['order_id']}",
-        f"渠道：{'、'.join(channels) if channels else '未分类'}",
-    ]
+    lines = []
+    if message:
+        lines.append(message)
+    lines.extend(
+        [
+            f"门店：{order.get('store_name') or '未命名门店'}",
+            f"订单号：{order.get('order_id', '')}",
+            f"时间：{order.get('submitted_at', '')}",
+            f"渠道：{'、'.join(channels) if channels else '未分类'}",
+            "商品：",
+        ]
+    )
     for item in (order.get("items") or [])[:8]:
         spec = f" {item.get('spec')}" if item.get("spec") else ""
-        lines.append(f"- {item['name']}{spec} {item['quantity']}{item.get('unit', '')}")
+        lines.append(f"- {item.get('name', '')}{spec} {_format_number(item.get('quantity'))}{item.get('unit', '')}")
+    remaining = max(0, len(order.get("items") or []) - 8)
+    if remaining:
+        lines.append(f"还有 {remaining} 项，后台查看完整订单。")
     return "\n".join(lines)
+
+
+def _rows_to_xlsx(headers: list[str], rows: list[dict], sheet_name: str) -> bytes:
+    sheet_rows = [_xlsx_row(1, headers)]
+    for row_index, row in enumerate(rows, start=2):
+        sheet_rows.append(_xlsx_row(row_index, [row.get(header, "") for header in headers]))
+    worksheet = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        "<sheetData>"
+        f"{''.join(sheet_rows)}"
+        "</sheetData>"
+        "</worksheet>"
+    )
+    workbook = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        "<sheets>"
+        f'<sheet name="{xml_escape(_xlsx_sheet_name(sheet_name))}" sheetId="1" r:id="rId1"/>'
+        "</sheets>"
+        "</workbook>"
+    )
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+    workbook_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        "</Relationships>"
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        "</Types>"
+    )
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types)
+        archive.writestr("_rels/.rels", rels)
+        archive.writestr("xl/workbook.xml", workbook)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet)
+    return output.getvalue()
+
+
+def _xlsx_row(row_index: int, values: list) -> str:
+    cells = []
+    for column_index, value in enumerate(values, start=1):
+        cell_ref = f"{_xlsx_column_name(column_index)}{row_index}"
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            cells.append(f'<c r="{cell_ref}"><v>{value}</v></c>')
+        else:
+            cells.append(f'<c r="{cell_ref}" t="inlineStr"><is><t>{xml_escape(str(value or ""))}</t></is></c>')
+    return f'<row r="{row_index}">{"".join(cells)}</row>'
+
+
+def _xlsx_column_name(index: int) -> str:
+    name = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def _xlsx_sheet_name(value: str) -> str:
+    cleaned = re.sub(r"[\[\]:*?/\\]", " ", value).strip()
+    return (cleaned or "Sheet1")[:31]
 
 
 ORDER_LINE_HEADERS = ["订单号", "提交时间", "月份", "状态", "门店", "地址", "采购渠道", "配送方式", "分类", "SKU", "品名", "规格", "数量", "单位", "备注", "门店备注"]
@@ -1474,12 +1613,13 @@ def _order_line_row(order: dict, item: dict) -> dict:
     }
 
 
-def _order_line_rows(month: str = "") -> list[dict]:
+def _order_line_rows(month: str = "", date: str = "") -> list[dict]:
     rows = [
         _order_line_row(order, item)
         for order in _read_orders()
         for item in order.get("items") or []
-        if not month or str(order.get("submitted_at", "")).startswith(month)
+        if (not date or str(order.get("submitted_at", "")).startswith(date))
+        and (not month or str(order.get("submitted_at", "")).startswith(month))
     ]
     rows.sort(key=lambda row: (row["提交时间"], row["订单号"], row["SKU"]), reverse=True)
     return rows
