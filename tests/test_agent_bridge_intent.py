@@ -66,6 +66,20 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertNotIn("安全边界：", text)
         self.assertNotIn("python3 scripts", text)
 
+    def test_meituan_promo_spend_query_routes_to_reader(self) -> None:
+        self.assertTrue(self.bridge.looks_like_promo_spend_query("查询一下所有门店的美团推广消耗"))
+        calls = []
+        original = self.bridge.run_checked
+        try:
+            self.bridge.run_checked = lambda command: calls.append(command) or "查到了 1/1 家美团门店的推广消耗。"
+            text = self.bridge.route_natural_text("查询一下所有门店的美团推广消耗", limit=3)
+        finally:
+            self.bridge.run_checked = original
+        self.assertIn("查到了", text)
+        self.assertTrue(calls)
+        self.assertIn("scripts/meituan_promo_spend_query.py", calls[0])
+        self.assertNotIn("我没完全识别", text)
+
 
 if __name__ == "__main__":
     unittest.main()

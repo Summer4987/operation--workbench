@@ -18,6 +18,7 @@ ROOT = center.ROOT
 MONITOR_OUTPUT_PATH = ROOT / "outputs" / "agent_task_monitor" / "latest.txt"
 MEMORY_PATH = center.CENTER_ROOT / "config" / "hermes_business_memory.md"
 BUNDLED_PYTHON = Path.home() / ".cache" / "codex-runtimes" / "codex-primary-runtime" / "dependencies" / "python" / "bin" / "python3"
+PLAYWRIGHT_PYTHON = ROOT / "business-report-dashboard" / ".venv" / "bin" / "python"
 BAD_STATUSES = {
     "broken",
     "invalid_evidence",
@@ -149,6 +150,18 @@ PROMO_BID_WORDS = {
     "cpc",
     "bid",
 }
+PROMO_SPEND_WORDS = {
+    "推广消耗",
+    "推广花费",
+    "推广费用",
+    "推广消费",
+    "广告消耗",
+    "广告花费",
+    "广告费用",
+    "美团推广消耗",
+    "美团推广花费",
+    "美团推广费用",
+}
 
 
 def normalize_alias(value: str) -> str:
@@ -186,6 +199,12 @@ def run_checked(command: list[str]) -> str:
 def python_for_private_spreadsheets() -> str:
     if BUNDLED_PYTHON.exists():
         return str(BUNDLED_PYTHON)
+    return sys.executable
+
+
+def python_for_playwright() -> str:
+    if PLAYWRIGHT_PYTHON.exists():
+        return str(PLAYWRIGHT_PYTHON)
     return sys.executable
 
 
@@ -505,6 +524,15 @@ def looks_like_direct_promo_bid_action(text: str) -> bool:
     )
 
 
+def looks_like_promo_spend_query(text: str) -> bool:
+    if normalized_contains(text, PROMO_SPEND_WORDS):
+        return True
+    return (
+        normalized_contains(text, {"美团", "推广"})
+        and normalized_contains(text, {"消耗", "花费", "费用", "消费", "用了多少", "花了多少"})
+    )
+
+
 def route_natural_text(text: str, *, limit: int) -> str:
     stripped = text.strip()
     if not stripped:
@@ -545,6 +573,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
             latest = MONITOR_OUTPUT_PATH.read_text(encoding="utf-8").strip()
             return latest or output
         return output
+
+    if looks_like_promo_spend_query(stripped):
+        return run_checked([python_for_playwright(), "scripts/meituan_promo_spend_query.py"])
 
     if looks_like_direct_promo_bid_action(stripped):
         return run_checked([sys.executable, "scripts/promo_bid_direct_request.py", "--execute", stripped])
