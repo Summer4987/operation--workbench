@@ -17,6 +17,7 @@ if str(STORE_INSPECTION) not in sys.path:
     sys.path.insert(0, str(STORE_INSPECTION))
 
 PREVIEW_PATH = ROOT / "outputs" / "promo_budget_preview" / "latest.json"
+MEITUAN_BUDGET_LOG_DIR = ROOT / "outputs" / "meituan_budget_automation"
 OUTPUT_DIR = ROOT / "outputs" / "meituan_promo_spend"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 
@@ -79,7 +80,9 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
                     return snapshot
 
     compact = "\n".join(lines)
-    match = re.search(r"推广实况.*?推广花费\s*([0-9,.]+)\s*元(?:\s*昨日\s*([0-9,.]+)\s*元)?", compact, re.S)
+    realtime_match = re.search(r"推广实况(?P<section>.*?)(?:历史数据|推广设置|$)", compact, re.S)
+    realtime_section = realtime_match.group("section") if realtime_match else compact
+    match = re.search(r"推广花费\s*([0-9,.]+)\s*元(?:\s*昨日\s*([0-9,.]+)\s*元)?", realtime_section, re.S)
     if match:
         snapshot.update(
             today_spend=parse_money(match.group(1)),
@@ -96,6 +99,11 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
                     snapshot.update(today_spend=amount, source="homepage_total")
                     return snapshot
 
+    budget_spend = parse_budget_spend(lines)
+    if budget_spend.get("today_spend") is not None:
+        snapshot.update(budget_spend)
+        return snapshot
+
     for index, line in enumerate(lines):
         if line == "推广花费":
             today, yesterday = amount_after_label(index, {"推广曝光量", "排名数据", "推广设置"})
@@ -106,11 +114,61 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
     return snapshot
 
 
+def parse_budget_spend(lines: list[str]) -> dict[str, Any]:
+    for index, line in enumerate(lines):
+        if line not in {"推广预算", "每日预算"}:
+            continue
+        window = lines[index + 1 : index + 12]
+        budget = None
+        percent = None
+        exhausted = False
+        for offset, candidate in enumerate(window):
+            if any(word in candidate for word in {"推广出价", "定向推广", "计费规则", "预算设置"}):
+                break
+            percent_match = re.search(r"已消耗\s*(\d+(?:\.\d+)?)\s*%", candidate)
+            if percent_match:
+                percent = float(percent_match.group(1))
+            if "预算已耗尽" in candidate:
+                exhausted = True
+            if "元" in candidate:
+                amount = parse_money(candidate)
+                if amount is not None:
+                    budget = amount
+                    break
+            if offset + 1 < len(window) and window[offset + 1] == "元":
+                amount = parse_money(candidate)
+                if amount is not None:
+                    budget = amount
+                    break
+        if budget is None:
+            continue
+        if exhausted:
+            return {"today_spend": budget, "source": "budget_exhausted"}
+        if percent is not None:
+            return {"today_spend": round(budget * percent / 100, 2), "source": "budget_percent"}
+    return {}
+
+
 def read_json(path: Path) -> dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def load_recent_wm_ids() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for path in sorted(MEITUAN_BUDGET_LOG_DIR.glob("meituan_cdp_*.json"), reverse=True):
+        payload = read_json(path)
+        for item in payload.get("results") or []:
+            wm_id = str(item.get("wmPoiId") or item.get("wm_poi_id") or "").strip()
+            if not wm_id:
+                continue
+            for key in ("keyword", "store"):
+                value = str(item.get(key) or "").strip()
+                if value and value not in mapping:
+                    mapping[value] = wm_id
+    return mapping
 
 
 def load_meituan_tasks(period: str) -> list[dict[str, Any]]:
@@ -131,7 +189,18 @@ def load_meituan_tasks(period: str) -> list[dict[str, Any]]:
             tasks.append(item)
     if not tasks:
         raise RuntimeError("推广预算预览里没有找到美团门店。")
-    return tasks
+    wm_ids = load_recent_wm_ids()
+    hydrated = []
+    for task in tasks:
+        item = dict(task)
+        if not (item.get("wmPoiId") or item.get("wm_poi_id")):
+            for key in ("keyword", "store"):
+                value = str(item.get(key) or "").strip()
+                if value in wm_ids:
+                    item["wmPoiId"] = wm_ids[value]
+                    break
+        hydrated.append(item)
+    return hydrated
 
 
 def require_helpers() -> dict[str, Any]:
