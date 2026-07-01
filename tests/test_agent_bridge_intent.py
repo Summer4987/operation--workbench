@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import pathlib
 import sys
+import tempfile
 import unittest
 
 
@@ -70,15 +72,56 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertTrue(self.bridge.looks_like_promo_spend_query("查询一下所有门店的美团推广消耗"))
         calls = []
         original = self.bridge.run_checked
+        original_latest = self.bridge.PROMO_SPEND_LATEST_PATH
         try:
+            self.bridge.PROMO_SPEND_LATEST_PATH = pathlib.Path("/tmp/nonexistent-meituan-promo-spend.json")
             self.bridge.run_checked = lambda command: calls.append(command) or "查到了 1/1 家美团门店的推广消耗。"
-            text = self.bridge.route_natural_text("查询一下所有门店的美团推广消耗", limit=3)
+            text = self.bridge.route_natural_text("刷新查询一下所有门店的美团推广消耗", limit=3)
         finally:
             self.bridge.run_checked = original
+            self.bridge.PROMO_SPEND_LATEST_PATH = original_latest
         self.assertIn("查到了", text)
         self.assertTrue(calls)
         self.assertIn("scripts/meituan_promo_spend_query.py", calls[0])
         self.assertNotIn("我没完全识别", text)
+
+    def test_meituan_promo_spend_query_uses_latest_snapshot_by_default(self) -> None:
+        self.assertTrue(self.bridge.looks_like_promo_spend_query("查询一下所有门店的美团推广消耗"))
+        calls = []
+        original = self.bridge.run_checked
+        original_latest = self.bridge.PROMO_SPEND_LATEST_PATH
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                latest_path = pathlib.Path(tmp) / "latest.json"
+                latest_path.write_text(
+                    json.dumps(
+                        {
+                            "generated_at": "2026-07-01 11:51:02",
+                            "summary": {"today_spend_total": 1002.02},
+                            "items": [
+                                {
+                                    "ok": True,
+                                    "keyword": "银泰城",
+                                    "today_spend": 84,
+                                    "yesterday_spend": 92.5,
+                                    "updated_at_hint": "07-01 11:50",
+                                }
+                            ],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                self.bridge.PROMO_SPEND_LATEST_PATH = latest_path
+                self.bridge.run_checked = lambda command: calls.append(command) or "不应该调用慢查询"
+                text = self.bridge.route_natural_text("查询一下所有门店的美团推广消耗", limit=3)
+        finally:
+            self.bridge.run_checked = original
+            self.bridge.PROMO_SPEND_LATEST_PATH = original_latest
+
+        self.assertIn("美团推广消耗最近一次采集结果：1/1 家成功，今日合计 1002.02 元", text)
+        self.assertIn("银泰城：今日 84 元，昨日 92.5 元，页面时间 07-01 11:50", text)
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

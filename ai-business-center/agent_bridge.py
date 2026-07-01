@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ ALIASES_PATH = center.CENTER_ROOT / "config" / "business_aliases.json"
 ROOT = center.ROOT
 MONITOR_OUTPUT_PATH = ROOT / "outputs" / "agent_task_monitor" / "latest.txt"
 MEMORY_PATH = center.CENTER_ROOT / "config" / "hermes_business_memory.md"
+PROMO_SPEND_LATEST_PATH = ROOT / "outputs" / "meituan_promo_spend" / "latest.json"
 BUNDLED_PYTHON = Path.home() / ".cache" / "codex-runtimes" / "codex-primary-runtime" / "dependencies" / "python" / "bin" / "python3"
 PLAYWRIGHT_PYTHON = ROOT / "business-report-dashboard" / ".venv" / "bin" / "python"
 BAD_STATUSES = {
@@ -533,6 +535,51 @@ def looks_like_promo_spend_query(text: str) -> bool:
     )
 
 
+def wants_fresh_promo_spend_query(text: str) -> bool:
+    return normalized_contains(text, {"刷新", "重新采集", "实时采集", "重新查", "现在重新", "强制更新"})
+
+
+def money(value: Any) -> str:
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "未知"
+    if amount.is_integer():
+        return str(int(amount))
+    return f"{amount:.2f}".rstrip("0").rstrip(".")
+
+
+def format_promo_spend_latest() -> str:
+    if not PROMO_SPEND_LATEST_PATH.exists():
+        return run_checked([python_for_playwright(), "scripts/meituan_promo_spend_query.py", "--quiet"])
+    payload = json.loads(PROMO_SPEND_LATEST_PATH.read_text(encoding="utf-8"))
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    items = [item for item in payload.get("items") or [] if isinstance(item, dict)]
+    ok_items = [item for item in items if item.get("ok")]
+    generated_at = str(payload.get("generated_at") or "")
+    age_seconds = max(0, int(time.time() - PROMO_SPEND_LATEST_PATH.stat().st_mtime))
+    age_minutes = age_seconds // 60
+    total = summary.get("today_spend_total")
+    lines = [
+        f"美团推广消耗最近一次采集结果：{len(ok_items)}/{len(items)} 家成功，今日合计 {money(total)} 元。",
+        f"数据时间：{generated_at or '未知'}，约 {age_minutes} 分钟前更新。",
+    ]
+    for item in ok_items[:14]:
+        store = item.get("keyword") or item.get("store") or "未知门店"
+        detail = f"{store}：今日 {money(item.get('today_spend'))} 元"
+        if item.get("yesterday_spend") is not None:
+            detail += f"，昨日 {money(item.get('yesterday_spend'))} 元"
+        if item.get("updated_at_hint"):
+            detail += f"，页面时间 {item.get('updated_at_hint')}"
+        lines.append(detail + "。")
+    failed = [item for item in items if not item.get("ok")]
+    if failed:
+        names = "、".join(str(item.get("keyword") or item.get("store") or "未知门店") for item in failed[:5])
+        lines.append(f"没查到的门店：{names}。")
+    lines.append("如果你要重新打开页面采集，直接说“刷新美团推广消耗”。")
+    return "\n".join(lines)
+
+
 def route_natural_text(text: str, *, limit: int) -> str:
     stripped = text.strip()
     if not stripped:
@@ -575,6 +622,8 @@ def route_natural_text(text: str, *, limit: int) -> str:
         return output
 
     if looks_like_promo_spend_query(stripped):
+        if not wants_fresh_promo_spend_query(stripped):
+            return format_promo_spend_latest()
         return run_checked([python_for_playwright(), "scripts/meituan_promo_spend_query.py", "--quiet"])
 
     if looks_like_direct_promo_bid_action(stripped):
