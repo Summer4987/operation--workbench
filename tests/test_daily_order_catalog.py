@@ -59,13 +59,17 @@ def test_beijing_order_history_button_sits_in_topbar():
 def test_order_pages_bust_static_cache_for_drink_category():
     root = Path(__file__).resolve().parents[1]
     expected_scripts = {
-        "index.html": "app.js?v=20260629-store-check",
+        "index.html": "app.js?v=20260701-compact-actions",
         "beijing-index.html": "app.js?v=20260629-store-check",
+    }
+    expected_styles = {
+        "index.html": "styles.css?v=20260701-verified-badge-fix",
+        "beijing-index.html": "styles.css?v=20260625-secondary-tabs",
     }
     for filename, expected_script in expected_scripts.items():
         html = (root / "daily-order" / "static" / filename).read_text(encoding="utf-8")
 
-        assert "styles.css?v=20260625-secondary-tabs" in html
+        assert expected_styles[filename] in html
         assert expected_script in html
 
 
@@ -196,28 +200,43 @@ def test_sauce_items_exist_only_in_beijing_order_catalog():
         assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
 
 
-def test_beijing_drink_category_items_exist_only_in_beijing_catalog():
+def test_drink_category_items_exist_in_chengdu_and_beijing_catalogs():
     root = Path(__file__).resolve().parents[1]
     beijing_catalog = json.loads((root / "daily-order" / "app" / "catalog-beijing.json").read_text(encoding="utf-8"))
     chengdu_catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
-    drink_items = [item for item in beijing_catalog["items"] if item.get("category") == "饮品"]
+    beijing_drink_items = [item for item in beijing_catalog["items"] if item.get("category") == "饮品"]
+    chengdu_drink_items = [item for item in chengdu_catalog["items"] if item.get("category") == "饮品"]
 
-    assert [(item["sku"], item["name"]) for item in drink_items] == [
+    assert [(item["sku"], item["name"]) for item in beijing_drink_items] == [
         ("BJ-DRINK-001", "山姆矿泉水"),
         ("BJ-DRINK-002", "无糖可乐"),
         ("BJ-DRINK-003", "椰子水"),
     ]
-    by_name = {item["name"]: item for item in drink_items}
-    assert by_name["山姆矿泉水"]["source"] == "山姆配送"
-    assert by_name["山姆矿泉水"]["purchase_channel"] == "山姆配送"
-    assert by_name["无糖可乐"]["source"] == "快驴配送"
-    assert by_name["无糖可乐"]["purchase_channel"] == "快驴"
-    assert by_name["椰子水"]["source"] == "山姆配送"
-    assert by_name["椰子水"]["purchase_channel"] == "山姆配送"
-    assert all(item.get("force_purchase_channel") is True for item in drink_items)
-    assert all(item["unit"] == "箱" for item in drink_items)
-    assert all(item.get("category") != "饮品" for item in chengdu_catalog["items"])
-    for item in drink_items:
+    assert [(item["sku"], item["name"]) for item in chengdu_drink_items] == [
+        ("CD-DRINK-001", "矿泉水"),
+        ("CD-DRINK-002", "无糖可乐"),
+        ("CD-DRINK-003", "椰子水"),
+    ]
+
+    beijing_by_name = {item["name"]: item for item in beijing_drink_items}
+    assert beijing_by_name["山姆矿泉水"]["source"] == "山姆配送"
+    assert beijing_by_name["山姆矿泉水"]["purchase_channel"] == "山姆配送"
+    assert beijing_by_name["无糖可乐"]["source"] == "快驴配送"
+    assert beijing_by_name["无糖可乐"]["purchase_channel"] == "快驴"
+    assert beijing_by_name["椰子水"]["source"] == "山姆配送"
+    assert beijing_by_name["椰子水"]["purchase_channel"] == "山姆配送"
+
+    chengdu_by_name = {item["name"]: item for item in chengdu_drink_items}
+    assert chengdu_by_name["矿泉水"]["source"] == "山姆配送（3日内）"
+    assert chengdu_by_name["矿泉水"]["purchase_channel"] == "山姆配送"
+    assert chengdu_by_name["无糖可乐"]["source"] == "快驴配送（次日达）"
+    assert chengdu_by_name["无糖可乐"]["purchase_channel"] == "快驴"
+    assert chengdu_by_name["椰子水"]["source"] == "山姆配送（3日内）"
+    assert chengdu_by_name["椰子水"]["purchase_channel"] == "山姆配送"
+
+    for item in beijing_drink_items + chengdu_drink_items:
+        assert item.get("force_purchase_channel") is True
+        assert item["unit"] == "箱"
         assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
 
 

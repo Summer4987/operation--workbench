@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="无糖可乐">
+  <rect width="240" height="240" rx="36" fill="#fff0ef"/>
+  <path d="M88 48h64l10 38-12 108c-1 13-12 23-25 23h-10c-13 0-24-10-25-23L78 86l10-38z" fill="#ffffff" stroke="#c94d45" stroke-width="8"/>
+  <path d="M100 25h40v25h-40z" fill="#c94d45"/>
+  <rect x="86" y="104" width="68" height="55" rx="13" fill="#c94d45"/>
+  <path d="M103 132h34" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M120 115v34" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="171" cy="63" r="17" fill="#ffd5d1"/>
+</svg>
