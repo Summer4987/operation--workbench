@@ -74,6 +74,19 @@ SCHEDULE_STATUS_WORDS = {
     "今天都跑了吗",
     "今天跑了哪些",
 }
+LATEST_FAILURE_WORDS = {
+    "为什么失败",
+    "为什么出错",
+    "为什么报错",
+    "失败原因",
+    "出错原因",
+    "哪里失败",
+    "哪里出错",
+    "能补跑吗",
+    "可以补跑吗",
+    "能不能补跑",
+    "现在能补跑吗",
+}
 EXECUTE_RERUN_WORDS = {
     "执行补跑",
     "现在补跑",
@@ -764,6 +777,12 @@ def route_natural_text(text: str, *, limit: int) -> str:
     if normalized_contains(stripped, EXECUTE_RERUN_WORDS):
         run_checked([sys.executable, "scripts/agent_task_monitor.py"])
         return run_checked([sys.executable, "scripts/agent_rerun_dry_run.py", "--execute"])
+
+    if normalized_contains(stripped, LATEST_FAILURE_WORDS):
+        command = [sys.executable, "scripts/hermes_schedule_status.py", "--explain-latest"]
+        if normalized_contains(stripped, {"补跑", "能补跑吗", "可以补跑吗", "能不能补跑", "现在能补跑吗"}):
+            command.append("--rerun-advice")
+        return run_checked(command)
 
     if normalized_contains(stripped, SCHEDULE_STATUS_WORDS):
         command = [sys.executable, "scripts/hermes_schedule_status.py"]

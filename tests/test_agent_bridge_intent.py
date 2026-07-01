@@ -97,6 +97,33 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertIn("scripts/hermes_schedule_status.py", calls[0])
         self.assertNotIn("--period", calls[0])
 
+    def test_latest_failure_question_uses_schedule_explainer(self) -> None:
+        calls = []
+        original = self.bridge.run_checked
+        try:
+            self.bridge.run_checked = lambda command: calls.append(command) or "最近需要处理的是：实时单量和营业额采集。"
+            text = self.bridge.route_natural_text("那为什么失败了呢？", limit=3)
+        finally:
+            self.bridge.run_checked = original
+
+        self.assertIn("实时单量和营业额采集", text)
+        self.assertTrue(calls)
+        self.assertIn("scripts/hermes_schedule_status.py", calls[0])
+        self.assertIn("--explain-latest", calls[0])
+
+    def test_rerun_question_uses_schedule_explainer_with_advice(self) -> None:
+        calls = []
+        original = self.bridge.run_checked
+        try:
+            self.bridge.run_checked = lambda command: calls.append(command) or "可以补跑。"
+            text = self.bridge.route_natural_text("那你现在能补跑吗", limit=3)
+        finally:
+            self.bridge.run_checked = original
+
+        self.assertIn("可以补跑", text)
+        self.assertIn("--explain-latest", calls[0])
+        self.assertIn("--rerun-advice", calls[0])
+
     def test_status_reply_is_not_safety_boundary_dump(self) -> None:
         original = self.bridge.build_snapshot
         try:

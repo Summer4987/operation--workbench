@@ -39,6 +39,12 @@ STATUS_WORDS = {
     "upcoming": "还没到时间",
     "running": "正在运行",
 }
+RERUN_HINTS = {
+    "com.summer.operation.realtime-order-income": "可以补跑。它是只读采集加 data-only 发布，优先补这个；命令是 /bin/zsh ~/Library/Scripts/xiong-operation/run_realtime_order_income.zsh。",
+    "com.summer.operation.cainiao-logistics": "可以补采集，但它没有写入统一任务账本，先确认安卓连接和采集脚本日志。",
+    "com.summer.operation.morning": "不建议直接补跑整条上午任务，因为会碰到预算/发布等高风险步骤；应该按失败子步骤拆开处理。",
+    "com.summer.operation.evening": "不建议自动补跑。它涉及推广预算真实提交，必须人工确认目标和窗口。",
+}
 
 
 def read_json(path: Path, fallback: Any) -> Any:
@@ -326,14 +332,53 @@ def format_human(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def latest_issue(payload: dict[str, Any]) -> dict[str, Any] | None:
+    rows = [
+        row
+        for row in payload.get("tasks") or []
+        if row.get("status") in {"failed", "warning", "missing"}
+    ]
+    if not rows:
+        return None
+
+    def sort_key(row: dict[str, Any]) -> tuple[int, datetime]:
+        priority = {"failed": 0, "warning": 1, "missing": 2}.get(str(row.get("status")), 9)
+        return (priority, parse_time(row.get("last_at")) or datetime.min)
+
+    return sorted(rows, key=sort_key)[0]
+
+
+def format_latest_issue(payload: dict[str, Any], *, include_rerun: bool) -> str:
+    row = latest_issue(payload)
+    if row is None:
+        return "我查了今天的定时任务，目前没有看到失败、漏跑或需要关注的任务。"
+    label = str(row.get("label") or "")
+    lines = [
+        f"最近需要处理的是：{row.get('name')}。",
+        f"状态：{row.get('status_text')}。",
+        f"原因：{row.get('reason') or '没有记录到具体原因。'}",
+    ]
+    if row.get("last_at"):
+        lines.append(f"时间：{row['last_at']}。")
+    if row.get("evidence"):
+        lines.append(f"日志：{row['evidence']}。")
+    if include_rerun:
+        lines.append(RERUN_HINTS.get(label, "我先不建议直接补跑；需要先看日志确认是否涉及登录、预算、发布或真实平台操作。"))
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="给 Hermes 查询 Mac mini launchd 定时任务运行情况")
     parser.add_argument("--period", choices=["all", "afternoon"], default="all")
+    parser.add_argument("--explain-latest", action="store_true", help="解释最近一个失败/需关注任务")
+    parser.add_argument("--rerun-advice", action="store_true", help="同时给出是否适合补跑")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     payload = collect_status(period=args.period)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif args.explain_latest:
+        print(format_latest_issue(payload, include_rerun=args.rerun_advice))
     else:
         print(format_human(payload))
     return 0
