@@ -13,6 +13,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
+LEGACY_RUNS_PATH = Path.home() / "Documents" / "New project" / "outputs" / "task_runs" / "latest.json"
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 LABEL_PREFIX = "com.summer.operation"
 GRACE_MINUTES = 20
@@ -46,6 +47,16 @@ def read_json(path: Path, fallback: Any) -> Any:
         return payload if payload is not None else fallback
     except Exception:
         return fallback
+
+
+def load_task_runs() -> tuple[dict[str, Any], Path]:
+    runs = read_json(RUNS_PATH, {})
+    if isinstance(runs.get("tasks"), dict) and runs.get("tasks"):
+        return runs, RUNS_PATH
+    legacy_runs = read_json(LEGACY_RUNS_PATH, {})
+    if isinstance(legacy_runs.get("tasks"), dict) and legacy_runs.get("tasks"):
+        return legacy_runs, LEGACY_RUNS_PATH
+    return {"tasks": {}}, RUNS_PATH
 
 
 def parse_time(value: Any) -> datetime | None:
@@ -239,7 +250,7 @@ def classify_row(row: dict[str, Any], runs: dict[str, Any], launchctl: dict[str,
 
 def collect_status(period: str = "all", now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now()
-    runs = read_json(RUNS_PATH, {"tasks": {}})
+    runs, runs_path = load_task_runs()
     launchctl = load_launchctl()
     rows = [classify_row(row, runs, launchctl, now) for row in load_plists()]
     if period == "afternoon":
@@ -254,7 +265,7 @@ def collect_status(period: str = "all", now: datetime | None = None) -> dict[str
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "period": period,
-        "runs_path": str(RUNS_PATH),
+        "runs_path": str(runs_path),
         "tasks": rows,
         "counts": counts,
     }
