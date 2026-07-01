@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,8 @@ DEFAULT_STATE_PATH = ROOT / "outputs" / "agent_task_notifications" / "state.json
 DEFAULT_LOG_PATH = ROOT / "outputs" / "agent_task_notifications" / "latest.log"
 DEFAULT_TARGET = "weixin"
 MAX_BATCH_MESSAGE_CHARS = 3600
+MIN_COOLDOWN_SECONDS = 180
+COOLDOWN_RE = re.compile(r"cooldown active for\s+([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
 TERMINAL_STATUSES = {"success", "failed", "skipped", "warning", "missing"}
 STATUS_LABELS = {
     "success": "成功",
@@ -167,6 +171,13 @@ def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
     return result.returncode == 0, output
 
 
+def cooldown_delay_seconds(output: str, *, minimum: int = MIN_COOLDOWN_SECONDS) -> int:
+    match = COOLDOWN_RE.search(str(output or ""))
+    if not match:
+        return 0
+    return max(minimum, int(float(match.group(1))) + 10)
+
+
 def build_batch_message(messages: list[str]) -> str:
     clean_messages = [compact_message(message) for message in messages if compact_message(message)]
     if not clean_messages:
@@ -259,6 +270,8 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     tasks = runs.get("tasks") if isinstance(runs.get("tasks"), dict) else {}
     previous_state = read_json(state_path, {"sent": {}})
     sent = previous_state.get("sent") if isinstance(previous_state.get("sent"), dict) else {}
+    cooldown_until = float(previous_state.get("cooldown_until") or 0)
+    now = time.time()
     policy_rows = load_policy_rows()
     task_candidates = dict(tasks)
     task_candidates.update(load_schedule_issue_tasks())
@@ -293,7 +306,14 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         )
         pending_signatures[task_id] = signature
 
-    if notifications and not args.dry_run:
+    skipped_by_cooldown = bool(not args.seed and not args.dry_run and notifications and cooldown_until > now)
+    delivery_output = ""
+    if skipped_by_cooldown:
+        delivery_output = f"cooldown active until {int(cooldown_until)}"
+        for item in notifications:
+            item["delivered"] = False
+            item["delivery_output"] = delivery_output
+    elif notifications and not args.dry_run:
         batch_message = build_batch_message([str(item["message"]) for item in notifications])
         delivered, delivery_output = send_weixin(batch_message, args.target, args.hermes_bin) if batch_message else (False, "empty-message")
         for item in notifications:
@@ -301,6 +321,11 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             item["delivery_output"] = delivery_output
         if delivered:
             now_sent.update(pending_signatures)
+            cooldown_until = 0
+        else:
+            delay = cooldown_delay_seconds(delivery_output)
+            if delay:
+                cooldown_until = time.time() + delay
     elif args.dry_run:
         now_sent.update(pending_signatures)
 
@@ -312,10 +337,20 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         "target": args.target,
         "notification_count": len(notifications),
         "notifications": notifications,
+        "skipped_by_cooldown": skipped_by_cooldown,
+        "cooldown_until": cooldown_until,
+        "last_delivery_output": delivery_output,
         "sent": now_sent,
     }
     if not args.no_write:
-        write_json(state_path, {"sent": now_sent})
+        write_json(
+            state_path,
+            {
+                "sent": now_sent,
+                "cooldown_until": cooldown_until,
+                "last_delivery_output": delivery_output,
+            },
+        )
         log_path = Path(args.log).expanduser()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(log_path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")

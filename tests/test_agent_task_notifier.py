@@ -235,6 +235,65 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertNotIn("\n", sent_messages[0])
             self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
+    def test_notify_backs_off_when_weixin_cooldown_is_active(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.realtime_order_income": {
+                                "status": "success",
+                                "message": "实时单量收入采集完成。",
+                                "step": "发布工作台云端数据",
+                                "finished_at": "2026-07-02 10:31:17",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": False,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                },
+            )()
+            calls: list[str] = []
+            original_loader = self.notifier.load_policy_rows
+            original_sender = self.notifier.send_weixin
+            try:
+                self.notifier.load_policy_rows = lambda: dict(self.notifier.DIRECT_TASK_ROWS)
+                self.notifier.send_weixin = (
+                    lambda message, target, hermes_bin: calls.append(message)
+                    or (False, "hermes send: Weixin send failed: iLink sendmessage rate limited; cooldown active for 30.0s")
+                )
+                first = self.notifier.notify(args)
+                second = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+                self.notifier.send_weixin = original_sender
+
+            self.assertEqual(first["notification_count"], 1)
+            self.assertFalse(first["notifications"][0]["delivered"])
+            self.assertGreaterEqual(first["cooldown_until"], 1)
+            self.assertEqual(first["sent"], {})
+            self.assertTrue(second["skipped_by_cooldown"])
+            self.assertEqual(len(calls), 1)
+
     def test_notify_includes_direct_runtime_task_success_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
