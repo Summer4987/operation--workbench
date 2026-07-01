@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-ROOT="${OPERATION_CENTER_ROOT:-/Users/summer/Documents/New project}"
+ROOT="${OPERATION_CENTER_ROOT:-/Users/summer/Documents/operation-workbench-clean}"
 LABEL="com.summer.operation.agent-task-notifier"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"

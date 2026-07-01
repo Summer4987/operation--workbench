@@ -68,6 +68,35 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertNotIn("安全边界：", text)
         self.assertNotIn("python3 scripts", text)
 
+    def test_afternoon_automation_query_uses_schedule_checker(self) -> None:
+        calls = []
+        original = self.bridge.run_checked
+        try:
+            self.bridge.run_checked = lambda command: calls.append(command) or "我查了 Mac mini 的下午自动化。"
+            text = self.bridge.route_natural_text("下午自动化任务跑了吗", limit=3)
+        finally:
+            self.bridge.run_checked = original
+
+        self.assertIn("下午自动化", text)
+        self.assertTrue(calls)
+        self.assertIn("scripts/hermes_schedule_status.py", calls[0])
+        self.assertIn("--period", calls[0])
+        self.assertIn("afternoon", calls[0])
+
+    def test_today_schedule_query_uses_schedule_checker(self) -> None:
+        calls = []
+        original = self.bridge.run_checked
+        try:
+            self.bridge.run_checked = lambda command: calls.append(command) or "我查了 Mac mini 的今天定时任务。"
+            text = self.bridge.route_natural_text("今天所有定时任务成功了吗", limit=3)
+        finally:
+            self.bridge.run_checked = original
+
+        self.assertIn("今天定时任务", text)
+        self.assertTrue(calls)
+        self.assertIn("scripts/hermes_schedule_status.py", calls[0])
+        self.assertNotIn("--period", calls[0])
+
     def test_status_reply_is_not_safety_boundary_dump(self) -> None:
         original = self.bridge.build_snapshot
         try:

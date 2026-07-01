@@ -61,6 +61,19 @@ AUTOMATION_WORDS = {
     "早上",
     "今天任务",
 }
+SCHEDULE_STATUS_WORDS = {
+    "今天定时任务",
+    "所有定时任务",
+    "定时任务",
+    "下午自动化",
+    "下午任务",
+    "下午的任务",
+    "今天所有任务",
+    "任务有没有汇报",
+    "为什么没有汇报",
+    "今天都跑了吗",
+    "今天跑了哪些",
+}
 EXECUTE_RERUN_WORDS = {
     "执行补跑",
     "现在补跑",
@@ -751,6 +764,12 @@ def route_natural_text(text: str, *, limit: int) -> str:
     if normalized_contains(stripped, EXECUTE_RERUN_WORDS):
         run_checked([sys.executable, "scripts/agent_task_monitor.py"])
         return run_checked([sys.executable, "scripts/agent_rerun_dry_run.py", "--execute"])
+
+    if normalized_contains(stripped, SCHEDULE_STATUS_WORDS):
+        command = [sys.executable, "scripts/hermes_schedule_status.py"]
+        if normalized_contains(stripped, {"下午", "下午自动化", "下午任务", "下午的任务"}):
+            command.extend(["--period", "afternoon"])
+        return run_checked(command)
 
     if normalized_contains(stripped, AUTOMATION_WORDS):
         output = run_checked([sys.executable, "scripts/agent_task_monitor.py"])

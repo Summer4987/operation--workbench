@@ -10,6 +10,7 @@ from typing import Any
 from atomic_io import atomic_write_text
 
 import agent_task_monitor
+import hermes_schedule_status
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +84,38 @@ def load_policy_rows() -> dict[str, dict[str, Any]]:
     )
     payload = agent_task_monitor.build_payload(args)
     return {row["id"]: row for row in payload.get("tasks") or []}
+
+
+def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
+    payload = hermes_schedule_status.collect_status(period="all")
+    generated_at = str(payload.get("generated_at") or "")
+    generated_day = generated_at[:10]
+    issue_tasks: dict[str, dict[str, Any]] = {}
+    for row in payload.get("tasks") or []:
+        if not isinstance(row, dict):
+            continue
+        status = str(row.get("status") or "")
+        if status not in {"failed", "missing", "warning"}:
+            continue
+        label = str(row.get("label") or "")
+        if not label:
+            continue
+        task_id = f"schedule.{label}"
+        issue_tasks[task_id] = {
+            "status": "failed" if status == "failed" else "missing" if status == "missing" else "warning",
+            "message": row.get("reason") or "",
+            "step": row.get("name") or label,
+            "log_path": row.get("evidence") or "",
+            "failure_type": "launchd_schedule",
+            "updated_at": row.get("last_at") or generated_day,
+            "finished_at": row.get("last_at") or generated_day,
+            "extra": {
+                "launchd_label": label,
+                "schedule": row.get("schedule") or "",
+                "status_code": row.get("status_code") or "",
+            },
+        }
+    return issue_tasks
 
 
 def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
@@ -193,6 +226,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     sent = previous_state.get("sent") if isinstance(previous_state.get("sent"), dict) else {}
     policy_rows = load_policy_rows()
     task_candidates = dict(tasks)
+    task_candidates.update(load_schedule_issue_tasks())
     notifications = []
     pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
@@ -200,7 +234,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     for task_id, task in sorted(task_candidates.items()):
         if not isinstance(task, dict):
             continue
-        if task_id not in policy_rows and not args.include_unconfigured:
+        if task_id not in policy_rows and not args.include_unconfigured and not task_id.startswith("schedule."):
             continue
         status = str(task.get("status") or "")
         if status not in TERMINAL_STATUSES:
@@ -211,7 +245,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             continue
         if sent.get(task_id) == signature:
             continue
-        row = policy_rows.get(task_id, {"id": task_id, "name": task_id, "rerun": {}})
+        row = policy_rows.get(task_id, {"id": task_id, "name": task.get("step") or task_id, "rerun": {}})
         message = build_message(task_id, task, row)
         notifications.append(
             {
