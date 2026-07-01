@@ -1,149 +1,166 @@
 {
-  "version": 1,
-  "updated_at": "2026-06-30",
-  "description": "Hermes/Mac mini 真实定时自动化任务通知与补跑策略。这里只放会定时运行或用户明确触发的运营自动化；工具、审批队列、概念健康项不进入自动化失败报告。",
+  "version": 2,
+  "updated_at": "2026-07-01",
+  "description": "Hermes/Mac mini 早间自动化通知清单。早上必须完成且每天汇报的任务有且只有 14 个；工具、库存、订货、财务、出价审批、实时采集和旧 launchd 噪声不进入早报。",
   "defaults": {
     "include_in_report": true,
+    "morning_required": true,
     "rerun_policy": {
       "auto_allowed": false,
       "mode": "report_only",
-      "allowed_when": ["failed", "missing"],
-      "reason": "默认只报告；只有明确标记为只读或幂等的任务才允许进入自动补跑计划。"
+      "allowed_when": ["failed", "missing", "attention"],
+      "reason": "早间主流程默认只报告；高风险预算、发布和平台采集不得自动补跑。"
     }
   },
   "tasks": [
     {
-      "id": "ops.morning_collection",
-      "name": "上午运营一键采集",
+      "id": "morning.01_collection",
+      "name": "上午运营一键采集总状态",
       "risk": "high",
-      "include_in_report": true,
-      "human_action": "查看子步骤失败原因，人工确认后再决定是否补跑。",
+      "morning_aggregate": true,
+      "evidence_path": "outputs/morning_collection_status/latest.json",
+      "human_action": "先看 14 个子任务里哪一项失败，再决定是否补跑；不能用总状态掩盖子任务缺失。",
       "rerun_policy": {
         "auto_allowed": false,
         "mode": "report_only",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "串联推广预算、发布等高风险动作，只报告不自动补跑。",
+        "reason": "总入口会串联预算和发布，只报告不自动补跑。",
         "blocked_by": ["high_risk_task", "may_submit_budget_or_publish"]
       }
     },
     {
-      "id": "ops.realtime_order_income",
-      "name": "实时单量和营业额采集",
-      "risk": "low",
-      "include_in_report": true,
-      "rerun_policy": {
-        "auto_allowed": true,
-        "mode": "dry_run_plan",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "采集与工作台数据生成可重复执行；监控 MVP 只生成 dry-run 补跑计划，不直接调用。",
-        "command": ["/bin/zsh", "scripts/run_realtime_order_income.zsh"]
-      }
-    },
-    {
-      "id": "ops.daily_report",
-      "name": "加盟店日报看板",
+      "id": "morning.02_chrome_environment",
+      "name": "Chrome/登录环境检查",
       "risk": "medium",
-      "include_in_report": true,
-      "rerun_policy": {
-        "auto_allowed": false,
-        "mode": "report_only",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "日报流程涉及平台下载和看板发布，失败时先报告，由人工确认登录态和发布时间。",
-        "blocked_by": ["platform_login", "may_publish_dashboard"]
-      }
+      "morning_step": "启动/检查后台 Chrome",
+      "evidence_path": "morning-ops/logs",
+      "human_action": "在 Mac mini 打开 Chrome，确认平台后台登录态、验证码和 CDP 端口正常。"
     },
     {
-      "id": "growth.promo_budget",
-      "name": "推广预算初始化设置",
-      "risk": "high",
-      "include_in_report": true,
-      "human_action": "先检查预算窗口、平台登录态和安全校验；没有明确指令不得真实执行。",
-      "rerun_policy": {
-        "auto_allowed": false,
-        "mode": "report_only",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "可能保存推广预算，属于高风险动作，只报告不自动补跑。",
-        "blocked_by": ["high_risk_task", "may_submit_budget"]
-      }
+      "id": "morning.03_reviews_download",
+      "name": "双平台评价下载",
+      "risk": "medium",
+      "morning_step": "双平台评价下载",
+      "evidence_path": "business-report-dashboard/data/unified_reviews.csv",
+      "human_action": "恢复饿了么/美团评价页登录或页面入口后，重跑评价下载。"
     },
     {
-      "id": "growth.promo_balance",
+      "id": "morning.04_franchise_daily_report",
+      "name": "加盟店日报采集",
+      "risk": "medium",
+      "morning_step": "门店日报采集并发布",
+      "evidence_path": "business-report-dashboard/data/latest.json",
+      "human_action": "确认普通加盟店日报后台下载和看板生成是否成功。"
+    },
+    {
+      "id": "morning.05_direct_daily_report",
+      "name": "直营店日报采集",
+      "risk": "medium",
+      "morning_step": "直营美团日报下载",
+      "evidence_path": "business-report-dashboard/data/direct-latest.json",
+      "human_action": "确认直营店日报数据源使用 direct_config/direct-latest，不要混入普通加盟店 latest。"
+    },
+    {
+      "id": "morning.06_promo_balance",
       "name": "推广余额巡检",
       "risk": "low",
-      "include_in_report": true,
+      "morning_step": "推广余额总巡检",
+      "evidence_path": "outputs/promo_balance_status/latest.json",
+      "human_action": "登录态或余额页面异常时，先重跑只读余额巡检；低余额只提醒，不自动充值。",
       "rerun_policy": {
         "auto_allowed": true,
         "mode": "dry_run_plan",
         "allowed_when": ["failed", "missing"],
-        "reason": "余额巡检是只读采集，可重复执行；低余额本身只报告，不触发充值。",
+        "reason": "余额巡检是只读采集，可进入补跑计划。",
         "command": ["{python}", "store-inspection/run_all_balances.py"]
       }
     },
     {
-      "id": "growth.promo_bid",
-      "name": "推广出价调整全自动",
-      "risk": "high",
-      "include_in_report": false,
-      "rerun_policy": {
-        "auto_allowed": false,
-        "mode": "report_only",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "出价调整必须审批，监控只报告审批队列和失败原因。",
-        "blocked_by": ["high_risk_task", "requires_approval", "may_submit_bid"]
-      }
-    },
-    {
-      "id": "flow.inventory",
-      "name": "库存全自动",
-      "risk": "medium",
-      "include_in_report": false,
-      "rerun_policy": {
-        "auto_allowed": true,
-        "mode": "dry_run_plan",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "库存健康检查是只读探测，可进入 dry-run 补跑计划。",
-        "command": ["{python}", "scripts/check_inventory_cloud_health.py"]
-      }
-    },
-    {
-      "id": "flow.auto_ordering",
-      "name": "订货全自动",
-      "risk": "high",
-      "include_in_report": false,
-      "human_action": "只检查建议和预览，不自动下单、不付款。",
-      "rerun_policy": {
-        "auto_allowed": false,
-        "mode": "report_only",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "订货可能产生下单或付款风险，只报告不自动补跑。",
-        "blocked_by": ["high_risk_task", "may_create_order_or_payment"]
-      }
-    },
-    {
-      "id": "tools.sales_receipt",
-      "name": "销售单生成器",
+      "id": "morning.07_evidence_manifest",
+      "name": "巡检证据生成",
       "risk": "low",
-      "include_in_report": false,
-      "rerun_policy": {
-        "auto_allowed": true,
-        "mode": "dry_run_plan",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "工具状态和打印校验可本地重复生成，不触碰平台。",
-        "command": ["{node}", "scripts/check_sales_receipt_print_layout.mjs"]
-      }
+      "morning_step": "巡检证据清单生成",
+      "evidence_path": "outputs/store_inspection_evidence_manifest/latest.json",
+      "human_action": "检查巡检截图/OCR 是否存在，重跑证据清单生成。"
     },
     {
-      "id": "tools.franchise_contract",
-      "name": "加盟合同生成器",
+      "id": "morning.08_evidence_upload",
+      "name": "巡检证据上传",
       "risk": "medium",
-      "include_in_report": false,
+      "morning_step": "巡检证据上传云端",
+      "evidence_path": "outputs/store_inspection_evidence_manifest/latest.json",
+      "human_action": "检查 Mac mini 到云端的 SSH/rsync 权限，先 dry-run 后再上传。"
+    },
+    {
+      "id": "morning.09_budget_config_sync",
+      "name": "云端预算配置同步",
+      "risk": "medium",
+      "morning_step": "同步云端预算配置",
+      "evidence_path": "config/promo_budget_overrides.json",
+      "human_action": "确认云端预算配置接口、认证和本地覆盖配置可读取。"
+    },
+    {
+      "id": "morning.10_budget_preview",
+      "name": "推广预算预览",
+      "risk": "low",
+      "morning_step": "推广预算初始化预览",
+      "evidence_path": "outputs/promo_budget_preview/latest.json",
+      "human_action": "先修复预算配置或门店映射，生成预览后再允许真实预算步骤。"
+    },
+    {
+      "id": "morning.11_eleme_lunch_budget",
+      "name": "饿了么午餐预算提交",
+      "risk": "high",
+      "morning_step": "饿了么午餐预算真实提交",
+      "evidence_path": "outputs/dianjin_automation",
+      "human_action": "高风险动作。失败时只报告，人工确认登录态、目标预算和页面状态后再补跑。",
       "rerun_policy": {
         "auto_allowed": false,
         "mode": "report_only",
-        "allowed_when": ["failed", "missing", "attention"],
-        "reason": "合同模板和条款需要人工确认，监控只报告状态。",
-        "blocked_by": ["business_terms_need_review"]
+        "reason": "会真实提交预算，只报告不自动补跑。",
+        "blocked_by": ["high_risk_task", "may_submit_budget"]
       }
+    },
+    {
+      "id": "morning.12_meituan_lunch_budget",
+      "name": "美团午餐预算提交",
+      "risk": "high",
+      "morning_step": "美团午餐预算真实提交",
+      "evidence_path": "outputs/meituan_budget_automation",
+      "human_action": "高风险动作。失败时只报告，人工确认登录态、目标预算和页面状态后再补跑。",
+      "rerun_policy": {
+        "auto_allowed": false,
+        "mode": "report_only",
+        "reason": "会真实提交预算，只报告不自动补跑。",
+        "blocked_by": ["high_risk_task", "may_submit_budget"]
+      }
+    },
+    {
+      "id": "morning.13_workbench_build",
+      "name": "总看板数据更新",
+      "risk": "low",
+      "morning_step": "运营总看板数据更新",
+      "evidence_path": "workbench-data.js",
+      "human_action": "检查各数据源 JSON 是否生成，再重跑工作台数据构建。"
+    },
+    {
+      "id": "morning.14_workbench_publish",
+      "name": "总看板云端发布",
+      "risk": "medium",
+      "morning_step": "运营总看板发布腾讯云",
+      "evidence_path": "workbench-data.js",
+      "human_action": "检查云端 SSH/rsync 权限和发布路径；发布失败不能算早上完成。"
     }
+  ],
+  "excluded_from_morning_report": [
+    "ops.realtime_order_income",
+    "growth.promo_bid",
+    "flow.inventory",
+    "flow.auto_ordering",
+    "tools.sales_receipt",
+    "tools.franchise_contract",
+    "finance.*",
+    "old_launchd.cleanup",
+    "old_launchd.evening",
+    "old_launchd.daily_report"
   ]
 }

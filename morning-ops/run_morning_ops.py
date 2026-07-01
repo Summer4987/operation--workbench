@@ -208,6 +208,7 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
     print(f"\n== {name} ==", flush=True)
+    record_task_run("running", f"{name}开始。", name, log_path)
     output = ""
     returncode = 0
     with log_path.open("a", encoding="utf-8") as log:
@@ -234,8 +235,12 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
             returncode = 124
     if returncode == 0:
         print(f"{name}完成。", flush=True)
+        record_task_run("success", f"{name}完成。", name, log_path, returncode=0)
         return StepResult(name, returncode, output, log_path)
     message = f"{name}失败，详情见 {log_path}"
+    failure_type = "auth_block" if looks_like_auth_block(output) else ""
+    extra = {"failure_type": failure_type} if failure_type else {}
+    record_task_run("failed", message, name, log_path, returncode=returncode, **extra)
     if required:
         raise RuntimeError(message)
     print(message, file=sys.stderr, flush=True)

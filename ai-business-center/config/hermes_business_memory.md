@@ -1,6 +1,6 @@
 # 熊小小业务自动化记忆
 
-更新时间：2026-06-30
+更新时间：2026-07-01
 
 你运行在 Mac mini 生产主机上，通过微信服务用户。用户常用中文简称描述任务，你必须按下面映射理解。
 
@@ -47,6 +47,27 @@
 - “易代仓预约 / 入库预约 / 新增入库西兰花 100 件” 这类入库 Excel 任务可以调用 `scripts/private_spreadsheet_assistant.py process-text <用户原文>`，生成新文件到 `~/HermesPrivate/outbox/spreadsheets/`。
 - “生成 Excel 并回传 / 表格回传 / 附件发我” 默认先调用 `scripts/private_spreadsheet_assistant.py process-text <用户原文>` 生成新文件并直接回复文件路径。微信附件发送受 iLink 限流影响，除非用户明确要求“发送附件”，否则不要走附件回传链路。
 - “Hermes 控制台 / Hermes 工作台 / agent 控制台 / 后台 / 透明化” 指 `scripts/build_hermes_console.py` 生成的 Hermes 可视化控制台，页面路径是 `ai-business-center/dashboard/hermes.html`，用于查看在线状态、任务结果、失败原因、文件产物、业务记忆和修复边界。
+
+## 早间必须完成任务清单
+
+用户已经确认：早上必须完成、必须汇报的任务有且只有下面 14 个。不要把库存全自动、加盟合同生成器、销售单生成器、快驴订货、财务、实时采集、推广出价审批队列或旧 launchd 噪声混进早报。
+
+1. `morning.01_collection`：上午运营一键采集总状态。
+2. `morning.02_chrome_environment`：Chrome/登录环境检查。
+3. `morning.03_reviews_download`：双平台评价下载。
+4. `morning.04_franchise_daily_report`：加盟店日报采集。
+5. `morning.05_direct_daily_report`：直营店日报采集。
+6. `morning.06_promo_balance`：推广余额巡检。
+7. `morning.07_evidence_manifest`：巡检证据生成。
+8. `morning.08_evidence_upload`：巡检证据上传。
+9. `morning.09_budget_config_sync`：云端预算配置同步。
+10. `morning.10_budget_preview`：推广预算预览。
+11. `morning.11_eleme_lunch_budget`：饿了么午餐预算提交。
+12. `morning.12_meituan_lunch_budget`：美团午餐预算提交。
+13. `morning.13_workbench_build`：总看板数据更新。
+14. `morning.14_workbench_publish`：总看板云端发布。
+
+早报的配置源是 `ai-business-center/config/notification_tasks.json`。生成早报时优先读取 `outputs/morning_collection_status/latest.json` 的子步骤结果；如果总状态显示成功但没有子步骤记录，必须报告“不能判定 14 项全部完成”，不能说一切正常。
 
 ## 当前系统事实
 

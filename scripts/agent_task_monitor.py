@@ -15,6 +15,7 @@ DEFAULT_CONFIG_PATH = ROOT / "ai-business-center" / "config" / "notification_tas
 DEFAULT_HEALTH_PATH = ROOT / "outputs" / "task_health" / "latest.json"
 DEFAULT_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 DEFAULT_OUTPUT_DIR = ROOT / "outputs" / "agent_task_monitor"
+DEFAULT_MORNING_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 
 HEALTH_STATUS_FAILED = {"danger", "failed", "error"}
 HEALTH_STATUS_WARN = {"warn", "warning", "stale", "missing"}
@@ -45,6 +46,40 @@ def relpath(path: Path) -> str:
         return str(path)
 
 
+def resolve_path(value: str) -> Path | None:
+    text = str(value or "").strip()
+    if not text or text.startswith("http") or text.startswith("云端"):
+        return None
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        path = ROOT / path
+    return path
+
+
+def path_updated_at(path: Path) -> str:
+    if not path.exists():
+        return ""
+    if path.is_file():
+        return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+    latest = None
+    for child in path.rglob("*"):
+        if child.is_file():
+            mtime = child.stat().st_mtime
+            latest = mtime if latest is None or mtime > latest else latest
+    if latest is None:
+        latest = path.stat().st_mtime
+    return datetime.fromtimestamp(latest).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def evidence_status(policy: dict[str, Any]) -> tuple[str, str]:
+    path = resolve_path(str(policy.get("evidence_path") or ""))
+    if path is None:
+        return "", ""
+    if not path.exists():
+        return "missing", f"缺少产物：{relpath(path)}"
+    return "completed", f"产物已生成：{relpath(path)}"
+
+
 def policy_by_task(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
     policies: dict[str, dict[str, Any]] = {}
     defaults = config.get("defaults") if isinstance(config.get("defaults"), dict) else {}
@@ -62,6 +97,13 @@ def policy_by_task(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def task_rows(health: dict[str, Any], runs: dict[str, Any], policies: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    morning_status = read_json(DEFAULT_MORNING_STATUS_PATH, {})
+    if any(policy.get("morning_required") for policy in policies.values()):
+        return sorted(
+            [build_morning_task_report(task_id, policy, morning_status, runs) for task_id, policy in policies.items()],
+            key=task_sort_key,
+        )
+
     rows: dict[str, dict[str, Any]] = {}
     for item in health.get("tasks") or []:
         if not isinstance(item, dict) or not item.get("id"):
@@ -87,6 +129,129 @@ def task_rows(health: dict[str, Any], runs: dict[str, Any], policies: dict[str, 
         rows[task_id] = build_task_report(task_id, {}, runs, policies[task_id])
 
     return sorted(rows.values(), key=task_sort_key)
+
+
+def build_morning_task_report(
+    task_id: str,
+    policy: dict[str, Any],
+    morning_status: dict[str, Any],
+    runs: dict[str, Any],
+) -> dict[str, Any]:
+    if policy.get("morning_aggregate"):
+        return build_morning_aggregate_report(task_id, policy, morning_status, runs)
+
+    step_name = str(policy.get("morning_step") or "")
+    step = find_morning_step(morning_status, step_name)
+    if step:
+        status = step_status_to_completion(str(step.get("status") or ""))
+        reason = first_text(step.get("message"), policy.get("missing_message"), "")
+        last_run_at = first_text(step.get("updated_at"), "")
+        evidence = first_text(step.get("log_path"), policy.get("evidence_path"), "")
+        last_run_step = step.get("name") or step_name
+    else:
+        status, reason = evidence_status(policy)
+        if not status:
+            status = "missing"
+            reason = f"没有找到早间步骤记录：{step_name}"
+        elif status == "completed":
+            reason = f"{reason}；但没有找到早间步骤记录：{step_name}"
+            status = "attention"
+        evidence_path = resolve_path(str(policy.get("evidence_path") or ""))
+        last_run_at = path_updated_at(evidence_path) if evidence_path else ""
+        evidence = str(policy.get("evidence_path") or "")
+        last_run_step = step_name
+
+    rerun_decision = build_rerun_decision(status, {"risk": policy.get("risk")}, {}, policy)
+    return {
+        "id": task_id,
+        "name": first_text(policy.get("name"), task_id),
+        "risk": first_text(policy.get("risk"), "unknown"),
+        "schedule": first_text(policy.get("schedule"), "每天早上主流程"),
+        "status": status,
+        "status_text": completion_status_text(status),
+        "completed": status in {"completed", "skipped"},
+        "failed": status == "failed",
+        "failure_type": first_text((step or {}).get("failure_type") if step else "", ""),
+        "failure_reason": reason if status in {"failed", "attention", "missing"} else "",
+        "last_run_at": last_run_at,
+        "last_run_step": last_run_step,
+        "evidence": evidence,
+        "human_action": first_text((step or {}).get("human_action") if step else "", policy.get("human_action"), ""),
+        "rerun": rerun_decision,
+    }
+
+
+def build_morning_aggregate_report(
+    task_id: str,
+    policy: dict[str, Any],
+    morning_status: dict[str, Any],
+    runs: dict[str, Any],
+) -> dict[str, Any]:
+    summary = morning_status.get("summary") if isinstance(morning_status.get("summary"), dict) else {}
+    task_run = (runs.get("tasks") or {}).get("ops.morning_collection") or {}
+    raw_status = str(morning_status.get("status") or task_run.get("status") or "")
+    completed_count = int(summary.get("completed_count") or 0)
+    failed_count = int(summary.get("failed_count") or 0)
+    step_count = int(summary.get("step_count") or 0)
+    if raw_status in {"failed"} or failed_count:
+        status = "failed"
+    elif raw_status == "success" and step_count >= 13:
+        status = "completed"
+    elif raw_status == "success" and step_count == 0:
+        status = "attention"
+    elif raw_status:
+        status = "attention"
+    else:
+        status = "missing"
+    reason = first_text(
+        morning_status.get("task_message"),
+        morning_status.get("message"),
+        task_run.get("message"),
+        "没有找到上午运营总状态。",
+    )
+    if step_count == 0:
+        reason = f"{reason}；但是没有子步骤记录，不能判定 14 项全部完成。"
+    elif status != "completed":
+        reason = f"{reason}；子步骤完成 {completed_count}/14，失败 {failed_count}。"
+    rerun_decision = build_rerun_decision(status, {"risk": policy.get("risk")}, task_run, policy)
+    return {
+        "id": task_id,
+        "name": first_text(policy.get("name"), task_id),
+        "risk": first_text(policy.get("risk"), "high"),
+        "schedule": "每天早上主流程",
+        "status": status,
+        "status_text": completion_status_text(status),
+        "completed": status == "completed",
+        "failed": status == "failed",
+        "failure_type": first_text(task_run.get("failure_type"), ""),
+        "failure_reason": reason if status in {"failed", "attention", "missing"} else "",
+        "last_run_at": first_text(morning_status.get("updated_at"), task_run.get("updated_at"), ""),
+        "last_run_step": first_text(task_run.get("step"), "总状态"),
+        "evidence": first_text(policy.get("evidence_path"), ""),
+        "human_action": first_text(policy.get("human_action"), ""),
+        "rerun": rerun_decision,
+    }
+
+
+def find_morning_step(morning_status: dict[str, Any], step_name: str) -> dict[str, Any] | None:
+    if not step_name:
+        return None
+    for step in morning_status.get("steps") or []:
+        if isinstance(step, dict) and step.get("name") == step_name:
+            return step
+    return None
+
+
+def step_status_to_completion(status: str) -> str:
+    if status == "success":
+        return "completed"
+    if status == "failed":
+        return "failed"
+    if status == "skipped":
+        return "skipped"
+    if status == "running":
+        return "running"
+    return "missing"
 
 
 def build_task_report(

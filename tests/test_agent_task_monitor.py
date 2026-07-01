@@ -98,6 +98,50 @@ class AgentTaskMonitorTests(unittest.TestCase):
 
         self.assertEqual(rows, [])
 
+    def test_morning_report_uses_configured_14_tasks_only(self) -> None:
+        policies = monitor_module.policy_by_task(
+            {
+                "defaults": {"morning_required": True, "include_in_report": True},
+                "tasks": [
+                    {"id": "morning.01_collection", "name": "上午运营一键采集总状态", "morning_aggregate": True},
+                    *[
+                        {
+                            "id": f"morning.{index:02d}_task",
+                            "name": f"早间任务{index}",
+                            "morning_step": f"步骤{index}",
+                            "evidence_path": "",
+                        }
+                        for index in range(2, 15)
+                    ],
+                ],
+            }
+        )
+
+        rows = monitor_module.task_rows(
+            {"tasks": [{"id": "tools.franchise_contract", "status": "warn", "name": "加盟合同生成器"}]},
+            {"tasks": {}},
+            policies,
+        )
+
+        self.assertEqual(len(rows), 14)
+        self.assertEqual({row["id"] for row in rows}, set(policies))
+        self.assertNotIn("tools.franchise_contract", {row["id"] for row in rows})
+
+    def test_success_without_morning_steps_needs_attention(self) -> None:
+        row = monitor_module.build_morning_aggregate_report(
+            "morning.01_collection",
+            {"name": "上午运营一键采集总状态", "risk": "high"},
+            {
+                "status": "success",
+                "message": "上午运营一键采集完成。",
+                "summary": {"step_count": 0, "completed_count": 0, "failed_count": 0},
+            },
+            {"tasks": {}},
+        )
+
+        self.assertEqual(row["status"], "attention")
+        self.assertIn("没有子步骤记录", row["failure_reason"])
+
     def test_rerun_execute_runs_only_allowed_candidates(self) -> None:
         original_execute = rerun_module.execute_command
         try:
