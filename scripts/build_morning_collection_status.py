@@ -353,9 +353,12 @@ def build_payload() -> dict[str, Any]:
     elif failed_steps or task.get("status") == "failed":
         status = "failed"
         message = f"上午运营一键采集有 {len(failed_steps)} 个子步骤失败。"
-    elif task.get("status") == "success":
+    elif task.get("status") == "success" and completed_steps:
         status = "success"
         message = f"上午运营一键采集完成，{len(completed_steps)} 个子步骤有完成记录。"
+    elif task.get("status") == "success":
+        status = "partial"
+        message = "上午运营一键采集总状态为成功，但没有子步骤完成记录，不能判定早间任务完整完成。"
     else:
         status = "running" if running_steps else "partial"
         message = f"上午运营一键采集已有 {len(steps)} 个子步骤记录。"

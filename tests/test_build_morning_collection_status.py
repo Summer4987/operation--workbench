@@ -78,6 +78,47 @@ class BuildMorningCollectionStatusTests(unittest.TestCase):
         self.assertIn("双平台评价下载", {step["name"] for step in payload["steps"]})
         self.assertIn("推广余额总巡检", {step["name"] for step in payload["steps"]})
 
+    def test_success_without_completed_steps_is_not_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_runs = root / "outputs" / "task_runs" / "latest.json"
+            task_runs.parent.mkdir(parents=True)
+            task_runs.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "success",
+                                "message": "收尾补跑完成。",
+                                "step": "收尾补跑",
+                                "updated_at": "2026-07-01 10:22:25",
+                            }
+                        },
+                        "events": [
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "running",
+                                "message": "上午运营一键采集开始。",
+                                "step": "初始化",
+                                "created_at": "2026-07-01 08:00:05",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            original = morning_module.TASK_RUNS_PATH
+            try:
+                morning_module.TASK_RUNS_PATH = task_runs
+                payload = morning_module.build_payload()
+            finally:
+                morning_module.TASK_RUNS_PATH = original
+
+        self.assertEqual(payload["status"], "partial")
+        self.assertIn("不能判定", payload["message"])
+
 
 if __name__ == "__main__":
     unittest.main()
