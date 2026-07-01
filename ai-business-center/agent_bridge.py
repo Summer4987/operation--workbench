@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -229,6 +230,29 @@ HERMES_SELF_CHECK_WORDS = {
     "hermes状态",
     "agent状态",
 }
+DAILY_REPORT_WORDS = {
+    "日报",
+    "经营日报",
+    "加盟店日报",
+    "直营日报",
+    "直营店日报",
+    "日报看板",
+    "云端日报看板",
+}
+DAILY_REPORT_DIAGNOSIS_WORDS = {
+    "为什么",
+    "没更新",
+    "没有更新",
+    "未更新",
+    "没生成",
+    "没有生成",
+    "没发布",
+    "没有发布",
+    "查一下",
+    "看一下",
+    "问题",
+    "异常",
+}
 
 
 def normalize_alias(value: str) -> str:
@@ -298,6 +322,32 @@ def load_aliases() -> dict[str, Any]:
     if not ALIASES_PATH.exists():
         return {"task_aliases": {}, "business_terms": []}
     return json.loads(ALIASES_PATH.read_text(encoding="utf-8"))
+
+
+def read_json_file(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def file_mtime_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_datetime_text(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(text[:19], fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def load_or_build_health(refresh: bool) -> dict[str, Any]:
@@ -741,6 +791,141 @@ def format_promo_spend_latest() -> str:
     return "\n".join(lines)
 
 
+def looks_like_daily_report_diagnosis(text: str) -> bool:
+    if not normalized_contains(text, DAILY_REPORT_WORDS):
+        return False
+    return normalized_contains(text, DAILY_REPORT_DIAGNOSIS_WORDS) or normalized_contains(text, STATUS_WORDS)
+
+
+def report_payload_summary(path: Path, *, label: str) -> dict[str, Any]:
+    payload = read_json_file(path)
+    generated_at = parse_datetime_text(payload.get("generated_at"))
+    records = payload.get("records") or []
+    store_summary = payload.get("store_summary") or []
+    source_dates = payload.get("source_dates") or []
+    count = len(records) if isinstance(records, list) else 0
+    if not count and isinstance(store_summary, list):
+        count = len(store_summary)
+    if not path.exists():
+        return {
+            "label": label,
+            "status": "missing",
+            "status_text": "未生成",
+            "detail": f"缺少 {path.relative_to(ROOT)}。",
+            "updated_at": "",
+        }
+    if not payload:
+        return {
+            "label": label,
+            "status": "invalid",
+            "status_text": "异常",
+            "detail": f"{path.relative_to(ROOT)} 存在，但 JSON 不能解析或为空；文件时间 {file_mtime_text(path)}。",
+            "updated_at": file_mtime_text(path),
+        }
+    if not count:
+        return {
+            "label": label,
+            "status": "empty",
+            "status_text": "异常",
+            "detail": f"{path.relative_to(ROOT)} 没有可用门店记录；生成时间 {payload.get('generated_at') or file_mtime_text(path)}。",
+            "updated_at": str(payload.get("generated_at") or file_mtime_text(path)),
+        }
+    today = datetime.now().date()
+    generated_text = str(payload.get("generated_at") or file_mtime_text(path))
+    latest_source = str(source_dates[-1]) if source_dates else "-"
+    if generated_at and generated_at.date() != today:
+        status = "stale"
+        status_text = "不是今天生成"
+    else:
+        status = "ok"
+        status_text = "已生成"
+    return {
+        "label": label,
+        "status": status,
+        "status_text": status_text,
+        "detail": f"生成时间 {generated_text}，最新数据日期 {latest_source}，门店记录 {count} 条。",
+        "updated_at": generated_text,
+        "latest_source_date": latest_source,
+    }
+
+
+def morning_step_summary(step_name: str) -> str:
+    payload = read_json_file(ROOT / "outputs" / "morning_collection_status" / "latest.json")
+    steps = payload.get("steps") if isinstance(payload.get("steps"), list) else []
+    if not steps:
+        status = payload.get("status") or "missing"
+        return f"{step_name}：没有早间子步骤记录；早间总状态 {status}。"
+    for step in steps:
+        if isinstance(step, dict) and step.get("name") == step_name:
+            status = str(step.get("status") or "unknown")
+            message = str(step.get("message") or "").strip()
+            suffix = f"，{message}" if message else ""
+            return f"{step_name}：{status}{suffix}。"
+    return f"{step_name}：今天早间记录里没有这一子步骤。"
+
+
+def task_run_summary(task_id: str) -> str:
+    payload = read_json_file(ROOT / "outputs" / "task_runs" / "latest.json")
+    task = (payload.get("tasks") or {}).get(task_id) if isinstance(payload.get("tasks"), dict) else None
+    if not isinstance(task, dict):
+        return f"{task_id}：没有任务运行账本记录。"
+    status = str(task.get("status") or "unknown")
+    step = str(task.get("step") or "未记录步骤")
+    message = str(task.get("message") or "").strip()
+    updated = str(task.get("updated_at") or task.get("finished_at") or "")
+    return f"{task_id}：{status}，步骤 {step}，时间 {updated or '-'}，{message or '没有详细消息'}。"
+
+
+def publish_artifact_summary() -> str:
+    workbench_path = ROOT / "workbench-data.js"
+    direct_dashboard_path = ROOT / "business-report-dashboard" / "direct-dashboard" / "index.html"
+    parts = []
+    if workbench_path.exists():
+        parts.append(f"总看板数据文件存在，文件时间 {file_mtime_text(workbench_path)}")
+    else:
+        parts.append("总看板数据文件 workbench-data.js 缺失")
+    if direct_dashboard_path.exists():
+        parts.append(f"直营日报独立看板存在，文件时间 {file_mtime_text(direct_dashboard_path)}")
+    else:
+        parts.append("直营日报独立看板缺失")
+    return "；".join(parts) + "。"
+
+
+def format_daily_report_diagnosis() -> str:
+    franchise = report_payload_summary(ROOT / "business-report-dashboard" / "data" / "latest.json", label="加盟店日报")
+    direct = report_payload_summary(ROOT / "business-report-dashboard" / "data" / "direct-latest.json", label="直营店日报")
+    problem_parts = [
+        item["label"]
+        for item in (franchise, direct)
+        if item.get("status") in {"missing", "invalid", "empty", "stale"}
+    ]
+    if problem_parts:
+        conclusion = "日报没有完整更新，问题在：" + "、".join(problem_parts) + "。"
+    else:
+        conclusion = "日报本地产物已经生成；如果页面没看到，下一步重点查云端发布或浏览器缓存。"
+
+    morning_steps = [
+        morning_step_summary("门店日报采集并发布").rstrip("。"),
+        morning_step_summary("直营美团日报下载").rstrip("。"),
+        morning_step_summary("运营总看板发布腾讯云").rstrip("。"),
+    ]
+    lines = [
+        conclusion,
+        f"加盟店日报：{franchise['status_text']}。{franchise['detail']}",
+        f"直营店日报：{direct['status_text']}。{direct['detail']}",
+        "早间任务记录：" + "；".join(morning_steps) + "。",
+        "任务账本：" + task_run_summary("ops.morning_collection"),
+        "发布产物：" + publish_artifact_summary(),
+    ]
+    if franchise.get("status") == "missing":
+        lines.append("下一步：先查加盟店日报下载/处理是否触发；重点看 Chrome 登录态、平台下载和 `business-report-dashboard/data/latest.json` 生成。")
+    elif direct.get("status") in {"missing", "invalid", "empty", "stale"}:
+        lines.append("下一步：先查直营美团日报下载和 `direct-latest.json`，不要把直营日报误判成加盟店日报。")
+    else:
+        lines.append("下一步：本地日报产物存在，优先查云端发布日志和正式页面更新时间。")
+    return "\n".join(lines)
+
+
 def route_natural_text(text: str, *, limit: int) -> str:
     stripped = text.strip()
     if not stripped:
@@ -789,6 +974,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
         if normalized_contains(stripped, {"下午", "下午自动化", "下午任务", "下午的任务"}):
             command.extend(["--period", "afternoon"])
         return run_checked(command)
+
+    if looks_like_daily_report_diagnosis(stripped):
+        return format_daily_report_diagnosis()
 
     if normalized_contains(stripped, AUTOMATION_WORDS):
         output = run_checked([sys.executable, "scripts/agent_task_monitor.py"])

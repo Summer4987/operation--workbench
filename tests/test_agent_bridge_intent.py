@@ -155,6 +155,55 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertTrue(calls)
         self.assertIn("scripts/hermes_order_notify_status.py", calls[0][0])
 
+    def test_daily_report_question_uses_dedicated_diagnosis(self) -> None:
+        original_root = self.bridge.ROOT
+        original_run_checked = self.bridge.run_checked
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                data_dir = root / "business-report-dashboard" / "data"
+                data_dir.mkdir(parents=True)
+                (root / "outputs" / "morning_collection_status").mkdir(parents=True)
+                (root / "outputs" / "task_runs").mkdir(parents=True)
+                (root / "business-report-dashboard" / "direct-dashboard").mkdir(parents=True)
+                (root / "workbench-data.js").write_text("window.OPERATION_WORKBENCH_DATA = {};", encoding="utf-8")
+                (root / "business-report-dashboard" / "direct-dashboard" / "index.html").write_text("<html></html>", encoding="utf-8")
+                (data_dir / "direct-latest.json").write_text(
+                    json.dumps(
+                        {
+                            "generated_at": "2026-07-01 09:20:00",
+                            "source_dates": ["2026-06-30"],
+                            "store_summary": [{"store": "朝阳门店"}],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                (root / "outputs" / "morning_collection_status" / "latest.json").write_text(
+                    json.dumps({"status": "missing_run", "summary": {"step_count": 0}, "steps": []}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                (root / "outputs" / "task_runs" / "latest.json").write_text(
+                    json.dumps({"tasks": {}}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                self.bridge.ROOT = root
+                self.bridge.run_checked = lambda command: self.fail(f"不应该调用通用命令：{command}")
+
+                text = self.bridge.route_natural_text("日报为什么没更新", limit=3)
+        finally:
+            self.bridge.ROOT = original_root
+            self.bridge.run_checked = original_run_checked
+
+        self.assertIn("日报没有完整更新", text)
+        self.assertIn("加盟店日报：未生成", text)
+        self.assertIn("直营店日报：已生成", text)
+        self.assertIn("早间任务记录", text)
+        self.assertIn("没有早间子步骤记录", text)
+        self.assertIn("任务账本：ops.morning_collection：没有任务运行账本记录", text)
+        self.assertIn("发布产物：总看板数据文件存在", text)
+        self.assertNotIn("经营日报采集并发布现在是", text)
+
     def test_daily_excel_push_uses_dedicated_send(self) -> None:
         calls = []
         original = self.bridge.run_checked_with_timeout
