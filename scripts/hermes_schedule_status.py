@@ -51,12 +51,28 @@ def read_json(path: Path, fallback: Any) -> Any:
 
 def load_task_runs() -> tuple[dict[str, Any], Path]:
     runs = read_json(RUNS_PATH, {})
-    if isinstance(runs.get("tasks"), dict) and runs.get("tasks"):
-        return runs, RUNS_PATH
     legacy_runs = read_json(LEGACY_RUNS_PATH, {})
-    if isinstance(legacy_runs.get("tasks"), dict) and legacy_runs.get("tasks"):
-        return legacy_runs, LEGACY_RUNS_PATH
-    return {"tasks": {}}, RUNS_PATH
+    merged_tasks: dict[str, Any] = {}
+    source_path = RUNS_PATH
+    for path, payload in ((LEGACY_RUNS_PATH, legacy_runs), (RUNS_PATH, runs)):
+        tasks = payload.get("tasks") if isinstance(payload.get("tasks"), dict) else {}
+        if not tasks:
+            continue
+        if not merged_tasks:
+            source_path = path
+        for task_id, task in tasks.items():
+            if not isinstance(task, dict):
+                continue
+            current = merged_tasks.get(task_id)
+            if not isinstance(current, dict):
+                merged_tasks[task_id] = task
+                continue
+            current_at = parse_time(current.get("finished_at") or current.get("updated_at"))
+            task_at = parse_time(task.get("finished_at") or task.get("updated_at"))
+            if current_at is None or (task_at is not None and task_at >= current_at):
+                merged_tasks[task_id] = task
+                source_path = path
+    return {"tasks": merged_tasks}, source_path
 
 
 def parse_time(value: Any) -> datetime | None:
