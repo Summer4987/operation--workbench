@@ -12,12 +12,19 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+import process_reports as base  # noqa: E402
+
 REPO_ROOT = ROOT.parent
 CONFIG_PATH = ROOT / "direct_config.json"
 CHAIN_RAW_DIR = ROOT / "data" / "raw"
 DIRECT_RAW_DIR = ROOT / "data" / "direct" / "raw"
 DATA_DIR = ROOT / "data"
 DIRECT_DASHBOARD_DIR = ROOT / "direct-dashboard"
+LEGACY_ROOT = Path.home() / "Documents" / "New project" / "business-report-dashboard"
+LEGACY_CHAIN_RAW_DIR = LEGACY_ROOT / "data" / "raw"
+LEGACY_DIRECT_RAW_DIR = LEGACY_ROOT / "data" / "direct" / "raw"
+LEGACY_DATA_DIR = LEGACY_ROOT / "data"
 DIRECT_STORE_SLUGS = {
     "朝阳门店": "chaoyangmen",
     "银泰城店": "yintaicheng",
@@ -25,9 +32,27 @@ DIRECT_STORE_SLUGS = {
     "金融城店": "jinrongcheng",
     "保利中心店": "baolizhongxin",
 }
-
-sys.path.insert(0, str(ROOT))
-import process_reports as base  # noqa: E402
+UNIFIED_COLUMNS = [
+    "date",
+    "platform",
+    "store",
+    "store_raw",
+    *base.METRICS,
+    "customer_paid_available",
+    "customer_paid_orders",
+]
+REVIEW_COLUMNS = [
+    "date",
+    "platform",
+    "store",
+    "store_raw",
+    "rating",
+    "content",
+    "review_id",
+    "negative",
+    "keywords",
+    "source_file",
+]
 
 
 def load_config() -> dict:
@@ -75,6 +100,7 @@ def collect_eleme_paths(explicit: Path | None) -> list[Path]:
     copied = copy_to_raw(explicit, CHAIN_RAW_DIR)
     paths = [copied] if copied else []
     paths.extend(sorted(CHAIN_RAW_DIR.glob("门店下载_*.xlsx"), key=lambda item: item.stat().st_mtime))
+    paths.extend(sorted(LEGACY_CHAIN_RAW_DIR.glob("门店下载_*.xlsx"), key=lambda item: item.stat().st_mtime))
     return latest_by_report_date([path for path in paths if path], r"门店下载_(\d{8})至\1")
 
 
@@ -82,7 +108,12 @@ def collect_meituan_paths(explicit: Path | None) -> list[Path]:
     copied = copy_to_raw(explicit, DIRECT_RAW_DIR)
     chain_paths = latest_by_report_date(
         sorted(
-            (path for path in CHAIN_RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem),
+            (
+                path
+                for directory in (CHAIN_RAW_DIR, LEGACY_CHAIN_RAW_DIR)
+                for path in directory.glob("门店_全部门店_*.csv")
+                if "_UTF8" not in path.stem
+            ),
             key=lambda item: item.stat().st_mtime,
         ),
         r"门店_全部门店_(\d{8})_\1",
@@ -90,12 +121,46 @@ def collect_meituan_paths(explicit: Path | None) -> list[Path]:
     direct_candidates = [copied] if copied else []
     direct_candidates.extend(
         sorted(
-            (path for path in DIRECT_RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem),
+            (
+                path
+                for directory in (DIRECT_RAW_DIR, LEGACY_DIRECT_RAW_DIR)
+                for path in directory.glob("门店_全部门店_*.csv")
+                if "_UTF8" not in path.stem
+            ),
             key=lambda item: item.stat().st_mtime,
         )
     )
     direct_paths = latest_direct_meituan_paths([path for path in direct_candidates if path])
     return chain_paths + direct_paths
+
+
+def empty_unified() -> pd.DataFrame:
+    return pd.DataFrame(columns=UNIFIED_COLUMNS)
+
+
+def normalize_unified(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return empty_unified()
+    for column in UNIFIED_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = 0 if column in {*base.METRICS, "customer_paid_orders"} else ""
+    return frame[UNIFIED_COLUMNS].copy()
+
+
+def legacy_output_path(name: str) -> Path | None:
+    path = LEGACY_DATA_DIR / name
+    return path if path.exists() and path.stat().st_size > 4 else None
+
+
+def load_legacy_payload() -> dict:
+    path = legacy_output_path("direct-latest.json")
+    if not path:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
 
 
 def process(eleme_path: Path | None = None, meituan_path: Path | None = None) -> dict:
@@ -114,16 +179,19 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
         frames.append(frame)
         warnings.extend(direct_warnings(frame_warnings))
 
-    unified = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    unified = pd.concat([normalize_unified(frame) for frame in frames], ignore_index=True) if frames else empty_unified()
     if not unified.empty:
         unified = unified[unified["store"].isin(config["target_stores"])].copy()
         unified.sort_values(["date", "store", "platform"], inplace=True)
         unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
+    unified = normalize_unified(unified)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     unified_path = DATA_DIR / "direct_unified_daily.csv"
     unified.to_csv(unified_path, index=False, encoding="utf-8-sig")
 
+    legacy_payload = load_legacy_payload()
+    records = unified.to_dict(orient="records")
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "group": config["group"],
@@ -132,13 +200,32 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
         "store_summary": base.build_store_summary(unified, config["target_stores"]),
         "platform_summary": base.build_platform_summary(unified),
         "warnings": warnings,
-        "records": unified.to_dict(orient="records"),
+        "records": records,
     }
+    if not records and legacy_payload.get("records"):
+        payload.update(
+            {
+                "source_dates": legacy_payload.get("source_dates") or [],
+                "store_summary": legacy_payload.get("store_summary") or [],
+                "platform_summary": legacy_payload.get("platform_summary") or [],
+                "records": legacy_payload.get("records") or [],
+                "warnings": warnings
+                + [
+                    {
+                        "issue": "本次未找到 clean repo 原始数据，已沿用旧生产目录 direct-latest.json 作为兜底。",
+                        "source": str(legacy_output_path("direct-latest.json") or ""),
+                    }
+                ],
+            }
+        )
     payload["store_report_files"] = {store: f"stores/{base.store_slug(store)}.html" for store in config["target_stores"]}
     latest_date = base.latest_report_date(payload)
     review_df = base.read_review_files(alias_lookup)
-    if not review_df.empty:
-        review_df.to_csv(DATA_DIR / "direct_unified_reviews.csv", index=False, encoding="utf-8-sig")
+    if review_df.empty and legacy_output_path("direct_unified_reviews.csv"):
+        review_df = pd.read_csv(legacy_output_path("direct_unified_reviews.csv"))
+    if review_df.empty:
+        review_df = pd.DataFrame(columns=REVIEW_COLUMNS)
+    review_df.to_csv(DATA_DIR / "direct_unified_reviews.csv", index=False, encoding="utf-8-sig")
     payload["review_summary"] = base.summarize_reviews(review_df, config["target_stores"], latest_date) if latest_date else {}
     payload["focus_items"] = base.build_all_focus_items(payload, latest_date) if latest_date else []
     payload["all_store_diagnoses"] = base.build_all_store_diagnoses(payload, latest_date) if latest_date else []
@@ -150,7 +237,7 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     try:
         base.DASHBOARD_DIR = DIRECT_DASHBOARD_DIR
         dashboard_path = base.write_dashboard(payload)
-        store_report_paths = base.write_store_reports(payload)
+        store_report_paths = base.write_store_reports(payload) if latest_date else []
     finally:
         base.DASHBOARD_DIR = original_dashboard_dir
 
