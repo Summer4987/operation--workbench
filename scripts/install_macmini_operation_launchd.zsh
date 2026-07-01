@@ -345,6 +345,47 @@ run_with_timeout() {
   return "\$exit_status"
 }
 
+record_morning_task() {
+  "\$PYTHON" "\$ROOT/scripts/record_task_run.py" ops.morning_collection "\$@" --log-path "\$LOG_DIR/scheduler.log" || true
+}
+
+run_finalize_step() {
+  local label="\$1"
+  local seconds="\$2"
+  shift 2
+  echo "[\$(date '+%F %T')] 上午运营收尾补偿：\$label" >> "\$LOG_DIR/scheduler.log"
+  run_with_timeout "\$seconds" "\$@" >> "\$LOG_DIR/scheduler.log" 2>&1
+}
+
+run_finalize_payload() {
+  local deploy_runner="\$HOME/Library/Scripts/xiong-operation/deploy_workbench_to_cloud.zsh"
+  if [ ! -x "\$deploy_runner" ]; then
+    deploy_runner="\$ROOT/scripts/deploy_workbench_to_cloud.zsh"
+  fi
+  run_finalize_step "刷新上午采集状态" "\${MORNING_OPS_FINALIZE_STEP_TIMEOUT_SECONDS:-180}" "\$PYTHON" "\$ROOT/scripts/build_morning_collection_status.py" || return "\$?"
+  run_finalize_step "刷新任务健康状态" "\${MORNING_OPS_FINALIZE_STEP_TIMEOUT_SECONDS:-180}" "\$PYTHON" "\$ROOT/scripts/build_task_health.py" || return "\$?"
+  run_finalize_step "重建运营总看板数据" "\${MORNING_OPS_FINALIZE_STEP_TIMEOUT_SECONDS:-240}" "\$PYTHON" "\$ROOT/scripts/build_workbench_data.py" || return "\$?"
+  run_finalize_step "发布运营总看板 data-only" "\${MORNING_OPS_FINALIZE_DEPLOY_TIMEOUT_SECONDS:-240}" env OPERATION_ROOT="\$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only /bin/zsh "\$deploy_runner" || return "\$?"
+}
+
+run_timeout_finalize() {
+  local original_rc="\$1"
+  local finalize_rc=0
+  record_morning_task running --message "上午运营主流程超时或被终止，开始轻量收尾补偿。" --step "收尾补偿发布"
+  if run_finalize_payload; then
+    record_morning_task success --message "上午运营主流程超时或被终止，轻量收尾补偿已完成；未重跑预算、订货或平台提交。" --step "收尾补偿发布" --returncode 0
+    run_finalize_payload || finalize_rc="\$?"
+  else
+    finalize_rc="\$?"
+  fi
+  if [[ "\$finalize_rc" -ne 0 ]]; then
+    record_morning_task failed --message "上午运营主流程超时或被终止，轻量收尾补偿也失败，退出码：\$finalize_rc。" --step "收尾补偿发布" --returncode "\$finalize_rc" --failure-type "publish_failed"
+    return "\$finalize_rc"
+  fi
+  echo "[\$(date '+%F %T')] 上午运营轻量收尾补偿完成，原退出码：\$original_rc" >> "\$LOG_DIR/scheduler.log"
+  return 0
+}
+
 PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
 if [ ! -x "\$PYTHON" ]; then
   echo "[\$(date '+%F %T')] 未找到业务 Python venv：\$PYTHON，上午运营采集停止。" >> "\$LOG_DIR/scheduler.log"
@@ -368,7 +409,14 @@ rc="\$?"
 set -e
 if [[ "\$rc" -ne 0 ]]; then
   echo "[\$(date '+%F %T')] 上午运营采集异常结束，退出码：\$rc" >> "\$LOG_DIR/scheduler.log"
-  "\$PYTHON" "\$ROOT/scripts/record_task_run.py" ops.morning_collection failed --message "上午运营一键采集异常结束，退出码：\$rc。" --step "launchd 包装器" --log-path "\$LOG_DIR/scheduler.log" --returncode "\$rc" || true
+  if [[ "\$rc" -eq 124 || "\$rc" -eq 143 ]]; then
+    record_morning_task failed --message "上午运营一键采集超时或被终止，退出码：\$rc；开始轻量收尾补偿。" --step "launchd 包装器" --returncode "\$rc" --failure-type "timeout"
+    if run_timeout_finalize "\$rc"; then
+      rc=0
+    fi
+  else
+    record_morning_task failed --message "上午运营一键采集异常结束，退出码：\$rc。" --step "launchd 包装器" --returncode "\$rc"
+  fi
 fi
 echo "[\$(date '+%F %T')] 上午运营采集结束。" >> "\$LOG_DIR/scheduler.log"
 exit "\$rc"
