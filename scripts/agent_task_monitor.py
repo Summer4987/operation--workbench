@@ -451,6 +451,9 @@ def build_rerun_plan(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_wechat_text(payload: dict[str, Any]) -> str:
+    if is_morning_report(payload):
+        return build_morning_wechat_text(payload)
+
     summary = payload["summary"]
     problem_rows = [row for row in payload["tasks"] if row["status"] in {"failed", "attention", "missing", "running"}]
     if not problem_rows:
@@ -474,6 +477,64 @@ def build_wechat_text(payload: dict[str, Any]) -> str:
         names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in blocked[:4])
         lines.append(f"不能自动补跑的是：{names}。这些会碰预算、发布、订货或需要人工确认。")
     return "\n".join(lines) + "\n"
+
+
+def is_morning_report(payload: dict[str, Any]) -> bool:
+    tasks = payload.get("tasks") or []
+    return bool(tasks) and all(str(row.get("id") or "").startswith("morning.") for row in tasks if isinstance(row, dict))
+
+
+def build_morning_wechat_text(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    problem_rows = [row for row in payload["tasks"] if row["status"] in {"failed", "attention", "missing", "running"}]
+    if not problem_rows:
+        return f"今早自动化已完成。我按固定 14 项检查过，14 项都没有失败。\n"
+
+    unresolved = summary["failed"] + summary["attention"] + summary["missing"] + summary["running"]
+    lines = [
+        f"今早自动化我按固定 14 项检查了一遍：完成 {summary['completed']} 项，失败 {summary['failed']} 项，需核实 {unresolved} 项。",
+    ]
+
+    for index, row in enumerate(problem_rows[:5], start=1):
+        lines.append(format_morning_problem_row(index, row))
+    if len(problem_rows) > 5:
+        lines.append(f"另外还有 {len(problem_rows) - 5} 项需要核实，我先不刷屏；你问“展开早报”我再列完整明细。")
+
+    allowed = [item for item in payload["rerun_plan"] if item.get("auto_allowed")]
+    if allowed:
+        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in allowed[:3])
+        lines.append(f"我能直接补跑的只有：{names}。其他涉及登录、预算或发布，我不会擅自跑。")
+    else:
+        lines.append("这次没有能直接补跑的低风险项；涉及登录、预算或发布的，我只会先报原因。")
+    return "\n".join(lines) + "\n"
+
+
+def format_morning_problem_row(index: int, row: dict[str, Any]) -> str:
+    reason = humanize_morning_reason(row)
+    rerun = row.get("rerun") or {}
+    if rerun.get("suggested") and rerun.get("auto_allowed"):
+        action = "我可以补跑。"
+    elif row.get("risk") == "high":
+        action = "这项会碰预算或发布，我不会自动补跑。"
+    else:
+        action = "我会先保留现场，等确认后再处理。"
+    return f"{index}. {row['name']}：{row['status_text']}。{reason}{action}"
+
+
+def humanize_morning_reason(row: dict[str, Any]) -> str:
+    text = clean_sentence(row.get("failure_reason") or row.get("human_action") or "")
+    name = str(row.get("name") or "")
+    if "没有子步骤记录" in text:
+        return "总流程有记录，但缺少 14 项子步骤明细，我不能把它算成全部完成。"
+    if "产物已生成" in text and "没有找到早间步骤记录" in text:
+        return "文件已经生成过，但今天缺少这一步的运行记录，所以先算需核实。"
+    if "缺少产物" in text:
+        return "没有找到应生成的结果文件。"
+    if "没有找到早间步骤记录" in text:
+        return "今天没有找到这一步的运行记录。"
+    if text:
+        return f"{text}。"
+    return f"{name} 没有拿到足够的完成证据。"
 
 
 def format_problem_row(row: dict[str, Any]) -> str:
