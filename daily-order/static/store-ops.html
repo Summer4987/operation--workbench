@@ -74,6 +74,19 @@
         letter-spacing: 0;
       }
 
+      .logistics-heading {
+        min-width: 0;
+      }
+
+      .logistics-updated-at {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+
       .logistics-toolbar {
         display: flex;
         align-items: center;
@@ -288,7 +301,10 @@
       <section id="logisticsPanel" class="ops-panel logistics-panel" aria-label="物流信息">
         <div class="logistics-inner">
           <div class="logistics-toolbar">
-            <h1 class="logistics-title">物流信息</h1>
+            <div class="logistics-heading">
+              <h1 class="logistics-title">物流信息</h1>
+              <span id="logisticsUpdatedAt" class="logistics-updated-at">最新刷新：读取中</span>
+            </div>
             <button id="refreshLogisticsButton" type="button">刷新</button>
           </div>
           <div class="logistics-filter" aria-label="物流状态筛选">
@@ -340,6 +356,7 @@
       const panels = Array.from(document.querySelectorAll(".ops-panel"));
       const supplyFrame = document.querySelector("#supplyFrame");
       const logisticsList = document.querySelector("#logisticsList");
+      const logisticsUpdatedAt = document.querySelector("#logisticsUpdatedAt");
       const refreshLogisticsButton = document.querySelector("#refreshLogisticsButton");
       const logisticsFilterButtons = Array.from(document.querySelectorAll("[data-logistics-filter]"));
       let logisticsLoaded = false;
@@ -380,6 +397,7 @@
 
       async function loadLogistics(force = false) {
         if (!force && logisticsLoaded) return;
+        updateLogisticsTimestamp([]);
         logisticsList.innerHTML = emptyLogistics("正在读取物流记录", "快递单号、物流状态和取件码会在这里展示。");
         try {
           const response = await fetch("/daily-order/api/logistics");
@@ -391,8 +409,10 @@
           if (!response.ok) throw new Error(payload.detail || "物流记录读取失败");
           logisticsLoaded = true;
           logisticsItems = payload.items || [];
+          updateLogisticsTimestamp(logisticsItems);
           renderLogistics(logisticsItems);
         } catch (error) {
+          if (logisticsUpdatedAt) logisticsUpdatedAt.textContent = "最新刷新：读取失败";
           logisticsList.innerHTML = emptyLogistics("物流记录读取失败", error.message || "请稍后重试。");
         }
       }
@@ -478,6 +498,30 @@
         if (item.picked_up) return "picked";
         if (item.pickup_code) return "pickup";
         return "transit";
+      }
+
+      function updateLogisticsTimestamp(items) {
+        if (!logisticsUpdatedAt) return;
+        if (!items.length) {
+          logisticsUpdatedAt.textContent = "最新刷新：暂无数据";
+          return;
+        }
+        const latest = items
+          .map((item) => item.updated_at || item.captured_at || item.picked_up_at || "")
+          .filter(Boolean)
+          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || "";
+        logisticsUpdatedAt.textContent = latest ? `最新刷新：${formatLogisticsTime(latest)}` : "最新刷新：暂无时间";
+      }
+
+      function formatLogisticsTime(value) {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString("zh-CN", {
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       }
 
       function emptyLogisticsCopy(filter) {
