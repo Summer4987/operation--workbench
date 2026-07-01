@@ -15,7 +15,12 @@ DEFAULT_TOKEN = "daily-order-admin"
 
 
 def ssh(server: str, script: str, *, timeout: int = 45) -> tuple[int, str]:
-    return run(["ssh", server, "bash", "-s"], input_text=script, timeout=timeout)
+    command = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=12"]
+    cloud_key = Path.home() / ".ssh" / "xiong_operation_cloud_ed25519"
+    if cloud_key.exists():
+        command.extend(["-i", str(cloud_key)])
+    command.extend([server, "bash", "-s"])
+    return run(command, input_text=script, timeout=timeout)
 
 
 def run(command: list[str], *, timeout: int = 30, input_text: str | None = None) -> tuple[int, str]:
