@@ -68,6 +68,49 @@ class AgentBridgeIntentTests(unittest.TestCase):
         self.assertNotIn("安全边界：", text)
         self.assertNotIn("python3 scripts", text)
 
+    def test_status_reply_is_not_safety_boundary_dump(self) -> None:
+        original = self.bridge.build_snapshot
+        try:
+            self.bridge.build_snapshot = lambda refresh: {
+                "generated_at": "2026-07-01 12:00:00",
+                "root": "/tmp/project",
+                "counts": {"ok": 1},
+                "abnormal": [],
+                "planned": [],
+                "tasks": [],
+            }
+            text = self.bridge.route_natural_text("Hermes状态", limit=3)
+        finally:
+            self.bridge.build_snapshot = original
+
+        self.assertIn("Hermes 基础能力自检", text)
+        self.assertNotIn("安全边界：", text)
+
+    def test_order_notification_query_uses_dedicated_checker(self) -> None:
+        calls = []
+        original = self.bridge.run_checked_with_timeout
+        try:
+            self.bridge.run_checked_with_timeout = lambda command, timeout: calls.append((command, timeout)) or "企业微信通知链路是恢复状态。"
+            text = self.bridge.route_natural_text("企业微信通知和订单通知恢复了吗", limit=3)
+        finally:
+            self.bridge.run_checked_with_timeout = original
+
+        self.assertIn("企业微信通知链路是恢复状态", text)
+        self.assertTrue(calls)
+        self.assertIn("scripts/hermes_order_notify_status.py", calls[0][0])
+
+    def test_daily_excel_push_uses_dedicated_send(self) -> None:
+        calls = []
+        original = self.bridge.run_checked_with_timeout
+        try:
+            self.bridge.run_checked_with_timeout = lambda command, timeout: calls.append((command, timeout)) or "日配 Excel 已推送到企业微信。"
+            text = self.bridge.route_natural_text("推送日配 Excel", limit=3)
+        finally:
+            self.bridge.run_checked_with_timeout = original
+
+        self.assertIn("日配 Excel 已推送", text)
+        self.assertIn("--send-excel", calls[0][0])
+
     def test_meituan_promo_spend_query_starts_realtime_refresh_by_default(self) -> None:
         self.assertTrue(self.bridge.looks_like_promo_spend_query("查询一下所有门店的美团推广消耗"))
         calls = []

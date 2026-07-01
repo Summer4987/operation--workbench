@@ -43,6 +43,7 @@
 - “财务入口 / 财务录入入口” 指本地网页录入口，双击 `熊小小财务系统.command` 或运行 `python3 scripts/finance_system.py serve`，打开 `http://127.0.0.1:8765/`。
 - “财务状态 / 财务账本 / 财务同步 / 财务说明” 分别调用 `财务状态`、`财务账本`、`财务同步`、`财务说明`；飞书真实写入仍必须显式带 `--execute`。
 - “自动化报告 / 任务报告 / 失败报告 / 补跑计划” 指 `scripts/agent_task_monitor.py` 生成的任务透明化报告；只生成 dry-run 补跑计划，不直接执行高风险任务。
+- “企业微信通知 / 企微通知 / 订单通知 / 下单通知 / 微信群汇总 / 日配 Excel” 指云端订货通知链路，调用 `scripts/hermes_order_notify_status.py` 检查订货服务、企业微信 webhook、18 点微信群汇总 timer 和日配 Excel 下载接口。只有用户明确说“推送日配 Excel / 发送日配 Excel”时，才调用 `scripts/hermes_order_notify_status.py --send-excel`，不要把 Excel 链接夹进 18 点微信群汇总。
 - “桌面文件 / 下载文件 / 表格任务 / 文件任务 / Excel / PDF / Word / 回传给我” 指私人工作助理任务，默认使用 `~/HermesPrivate` 做副本和产物，不上传 GitHub，不覆盖原文件。
 - “易代仓预约 / 入库预约 / 新增入库西兰花 100 件” 这类入库 Excel 任务可以调用 `scripts/private_spreadsheet_assistant.py process-text <用户原文>`，生成新文件到 `~/HermesPrivate/outbox/spreadsheets/`。
 - “生成 Excel 并回传 / 表格回传 / 附件发我” 默认先调用 `scripts/private_spreadsheet_assistant.py process-text <用户原文>` 生成新文件并直接回复文件路径。微信附件发送受 iLink 限流影响，除非用户明确要求“发送附件”，否则不要走附件回传链路。
@@ -122,6 +123,8 @@
 - 用户发“财务记录：...”时，应调用财务系统写入草稿，并提醒这不是正式入账。
 - 用户问“财务系统怎么用 / 财务说明”时，应返回 `docs/FINANCE_SYSTEM_RUNBOOK.md` 的日常流程：录入、查看草稿、人工确认、标记待同步、dry-run、`--execute` 同步。
 - 用户问“自动化报告”时，应返回任务完成/失败、原因和补跑建议。
+- 用户问“企业微信通知恢复了吗 / 订单通知 / 微信群汇总 / 日配 Excel”时，必须实际调用 `scripts/hermes_order_notify_status.py` 查状态，再回复“恢复/未恢复 + 哪一环有问题”。不要凭记忆回答。
+- 用户说“推送日配 Excel”时，调用 `scripts/hermes_order_notify_status.py --send-excel` 单独推送；18 点微信群汇总仍然只发群采买汇总，不附带 Excel 链接。
 - 用户发自然语言但没有固定命令时，不要要求用户改格式；先用桥接入口识别。如果无法识别，再用一句话请用户补充文件名、金额、门店或目标动作。
 - 用户要求处理桌面或下载目录文件时，先判断是否是已支持的易代仓入库预约表；支持则直接处理并返回新文件路径。其他文件任务再说明会复制到 HermesPrivate 后处理；不要直接覆盖原文件。
 - 如果用户要求高风险动作，先确认是否只是预览/dry-run；没有明确确认不要执行真实平台写操作。例外：推广出价中用户明确给出平台、门店/对象和目标价格时，不需要二次确认，直接执行或报告执行器缺失。

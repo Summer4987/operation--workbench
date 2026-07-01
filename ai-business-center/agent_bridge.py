@@ -172,6 +172,37 @@ PROMO_SPEND_CACHE_WORDS = {
     "最近结果",
     "最新结果",
 }
+ORDER_NOTIFY_WORDS = {
+    "企业微信通知",
+    "企微通知",
+    "订单通知",
+    "下单通知",
+    "微信群汇总",
+    "日配excel",
+    "日配 excel",
+    "日配表格",
+    "订货通知",
+    "谁下单",
+}
+SEND_DAILY_EXCEL_WORDS = {
+    "推送日配excel",
+    "发送日配excel",
+    "发日配excel",
+    "推送日配 excel",
+    "发送日配 excel",
+    "日配excel推送",
+    "日配 excel 推送",
+}
+HERMES_SELF_CHECK_WORDS = {
+    "hermes自检",
+    "agent自检",
+    "检查hermes",
+    "检查agent",
+    "hermes能不能用",
+    "agent能不能用",
+    "hermes状态",
+    "agent状态",
+}
 
 
 def normalize_alias(value: str) -> str:
@@ -200,6 +231,25 @@ def run_checked(command: list[str]) -> str:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
+    output = completed.stdout.strip()
+    if completed.returncode != 0:
+        return output or f"命令执行失败，退出码 {completed.returncode}。"
+    return output
+
+
+def run_checked_with_timeout(command: list[str], timeout: int) -> str:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return f"我去查了，但超过 {timeout} 秒还没返回。通常是网络、微信通道或远端服务卡住了。"
     output = completed.stdout.strip()
     if completed.returncode != 0:
         return output or f"命令执行失败，退出码 {completed.returncode}。"
@@ -277,19 +327,17 @@ def format_status(snapshot: dict[str, Any], *, limit: int) -> str:
         for status, count in sorted(snapshot["counts"].items())
     )
     lines = [
-        "AI 业务中心状态",
-        f"生成时间：{snapshot['generated_at']}",
-        f"任务概况：{counts_text or '暂无任务'}",
+        f"我刚查了 Mac mini 业务中心。生成时间：{snapshot['generated_at']}。",
+        f"任务概况：{counts_text or '暂无任务'}。",
     ]
     abnormal = snapshot["abnormal"]
     if abnormal:
-        lines.append(f"异常/待处理：{len(abnormal)} 个")
+        lines.append(f"现在有 {len(abnormal)} 个异常或待处理任务。")
         lines.extend(task_line(task) for task in abnormal[:limit])
         if len(abnormal) > limit:
             lines.append(f"- 还有 {len(abnormal) - limit} 个异常任务，发送“任务列表”查看。")
     else:
-        lines.append("异常/待处理：0 个。")
-    lines.append("安全边界：这里只读检查和预览，不自动执行预算、出价、订货、发布等高风险动作。")
+        lines.append("目前没有看到异常任务。")
     return "\n".join(lines)
 
 
@@ -347,14 +395,13 @@ def find_task_or_term_from_text(snapshot: dict[str, Any], text: str) -> tuple[st
 
 def format_task_detail(task: dict[str, Any]) -> str:
     lines = [
-        f"{task['name']}（{task['id']}）",
-        f"状态：{center.status_badge(task['status'])}",
-        f"风险：{task.get('risk', 'unknown')}；模式：{task.get('mode', 'unknown')}",
-        f"说明：{task.get('description') or '无'}",
+        f"{task['name']}现在是：{center.status_badge(task['status'])}。",
     ]
+    if task.get("description"):
+        lines.append(str(task.get("description")).rstrip("。") + "。")
     evidence = task.get("evidence") or []
     if evidence:
-        lines.append("产物：")
+        lines.append("我查到的证据：")
         for item in evidence:
             lines.append(
                 f"- {center.status_badge(item.get('status', 'unknown'))} "
@@ -362,8 +409,8 @@ def format_task_detail(task: dict[str, Any]) -> str:
             )
     blockers = task.get("blockers") or []
     if blockers:
-        lines.append("可能阻塞：" + "、".join(blockers))
-    lines.append("建议：" + STATUS_HINTS.get(task["status"], "先做只读检查，再决定是否人工执行。"))
+        lines.append("可能卡在：" + "、".join(blockers) + "。")
+    lines.append("下一步：" + STATUS_HINTS.get(task["status"], "先做只读检查，再决定是否人工执行。") + "。")
     return "\n".join(lines)
 
 
@@ -494,6 +541,58 @@ def format_memory_summary() -> str:
         "核心记忆：Mac mini 是唯一生产主机；微信是日常入口；高风险动作默认只预览；私人文件必须复制后处理；微信 iLink 限流时要合并/排队/少发消息。",
     ]
     return "\n".join(summary + important)
+
+
+def format_hermes_self_check() -> str:
+    problems = []
+    ok_items = []
+    if MEMORY_PATH.exists():
+        ok_items.append("业务记忆文件能读")
+    else:
+        problems.append("业务记忆文件不存在")
+    aliases = load_aliases()
+    if aliases.get("task_aliases") and aliases.get("business_terms"):
+        ok_items.append("简称表能读")
+    else:
+        problems.append("简称表为空或读取失败")
+    notification_config = ROOT / "ai-business-center" / "config" / "notification_tasks.json"
+    try:
+        tasks = json.loads(notification_config.read_text(encoding="utf-8")).get("tasks") or []
+        morning_count = sum(1 for item in tasks if str(item.get("id", "")).startswith("morning."))
+        if morning_count == 14:
+            ok_items.append("早报固定 14 项配置正常")
+        else:
+            problems.append(f"早报任务不是 14 项，现在是 {morning_count} 项")
+    except Exception as exc:
+        problems.append(f"早报配置读取失败：{exc}")
+    if (ROOT / "scripts" / "agent_task_monitor.py").exists():
+        ok_items.append("自动化报告工具存在")
+    else:
+        problems.append("自动化报告工具缺失")
+    if (ROOT / "scripts" / "agent_rerun_dry_run.py").exists():
+        ok_items.append("安全补跑工具存在")
+    else:
+        problems.append("安全补跑工具缺失")
+    if (ROOT / "scripts" / "hermes_order_notify_status.py").exists():
+        ok_items.append("企业微信/日配 Excel 检查工具存在")
+    else:
+        problems.append("企业微信/日配 Excel 检查工具缺失")
+
+    if problems:
+        return "\n".join(
+            [
+                "Hermes 还没达到可放心使用的状态。",
+                "正常：" + "、".join(ok_items) + "。",
+                "问题：" + "；".join(problems) + "。",
+            ]
+        )
+    return "\n".join(
+        [
+            "Hermes 基础能力自检通过。",
+            "它现在应该能理解简称、查早上 14 项任务、查企业微信通知、生成补跑计划、处理已接入的表格任务。",
+            "如果某个真实平台任务失败，它必须先查证据和日志，再告诉你能不能补跑，不能只说“正常”。",
+        ]
+    )
 
 
 def build_console() -> str:
@@ -627,6 +726,9 @@ def route_natural_text(text: str, *, limit: int) -> str:
     if normalized_contains(stripped, MEMORY_WORDS):
         return format_memory_summary()
 
+    if normalized_contains(stripped, HERMES_SELF_CHECK_WORDS):
+        return format_hermes_self_check()
+
     if normalized_contains(stripped, CONSOLE_WORDS):
         return build_console()
 
@@ -656,6 +758,12 @@ def route_natural_text(text: str, *, limit: int) -> str:
             latest = MONITOR_OUTPUT_PATH.read_text(encoding="utf-8").strip()
             return latest or output
         return output
+
+    if normalized_contains(stripped, SEND_DAILY_EXCEL_WORDS):
+        return run_checked_with_timeout([sys.executable, "scripts/hermes_order_notify_status.py", "--send-excel"], timeout=75)
+
+    if normalized_contains(stripped, ORDER_NOTIFY_WORDS):
+        return run_checked_with_timeout([sys.executable, "scripts/hermes_order_notify_status.py"], timeout=75)
 
     if looks_like_promo_spend_query(stripped):
         if wants_cached_promo_spend_query(stripped):

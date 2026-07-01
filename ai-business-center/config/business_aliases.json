@@ -156,6 +156,14 @@
       "risk": "low",
       "command": "python3 scripts/agent_task_monitor.py",
       "safe_note": "只生成任务完成/失败/原因和 dry-run 补跑计划，不直接执行生产补跑。"
+    },
+    {
+      "name": "订货企业微信通知链路",
+      "aliases": ["企业微信通知", "企微通知", "订单通知", "下单通知", "微信群汇总", "日配Excel", "日配 Excel", "日配表格", "订货通知"],
+      "center": "inventory",
+      "risk": "low",
+      "command": "python3 scripts/hermes_order_notify_status.py",
+      "safe_note": "只检查云端订货服务、企业微信 webhook、18 点微信群汇总 timer 和日配 Excel 下载接口；单独说推送日配 Excel 时才调用 --send-excel。"
     }
   ]
 }
