@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated_at": "2026-06-30",
-  "description": "Hermes/Mac mini 自动化任务通知与 dry-run 补跑策略。高风险任务只报告，不由监控脚本执行。",
+  "description": "Hermes/Mac mini 真实定时自动化任务通知与补跑策略。这里只放会定时运行或用户明确触发的运营自动化；工具、审批队列、概念健康项不进入自动化失败报告。",
   "defaults": {
     "include_in_report": true,
     "rerun_policy": {
@@ -54,7 +54,7 @@
     },
     {
       "id": "growth.promo_budget",
-      "name": "推广预算设置全自动",
+      "name": "推广预算初始化设置",
       "risk": "high",
       "include_in_report": true,
       "human_action": "先检查预算窗口、平台登录态和安全校验；没有明确指令不得真实执行。",
@@ -83,7 +83,7 @@
       "id": "growth.promo_bid",
       "name": "推广出价调整全自动",
       "risk": "high",
-      "include_in_report": true,
+      "include_in_report": false,
       "rerun_policy": {
         "auto_allowed": false,
         "mode": "report_only",
@@ -96,7 +96,7 @@
       "id": "flow.inventory",
       "name": "库存全自动",
       "risk": "medium",
-      "include_in_report": true,
+      "include_in_report": false,
       "rerun_policy": {
         "auto_allowed": true,
         "mode": "dry_run_plan",
@@ -109,7 +109,7 @@
       "id": "flow.auto_ordering",
       "name": "订货全自动",
       "risk": "high",
-      "include_in_report": true,
+      "include_in_report": false,
       "human_action": "只检查建议和预览，不自动下单、不付款。",
       "rerun_policy": {
         "auto_allowed": false,
@@ -123,7 +123,7 @@
       "id": "tools.sales_receipt",
       "name": "销售单生成器",
       "risk": "low",
-      "include_in_report": true,
+      "include_in_report": false,
       "rerun_policy": {
         "auto_allowed": true,
         "mode": "dry_run_plan",
@@ -136,7 +136,7 @@
       "id": "tools.franchise_contract",
       "name": "加盟合同生成器",
       "risk": "medium",
-      "include_in_report": true,
+      "include_in_report": false,
       "rerun_policy": {
         "auto_allowed": false,
         "mode": "report_only",

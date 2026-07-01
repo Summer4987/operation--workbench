@@ -58,6 +58,14 @@ AUTOMATION_WORDS = {
     "早上",
     "今天任务",
 }
+EXECUTE_RERUN_WORDS = {
+    "执行补跑",
+    "现在补跑",
+    "开始补跑",
+    "马上补跑",
+    "补跑一下",
+    "帮我补跑",
+}
 FINANCE_WORDS = {
     "财务",
     "记账",
@@ -526,6 +534,10 @@ def route_natural_text(text: str, *, limit: int) -> str:
 
     if normalized_contains(stripped, {"财务草稿", "待确认财务", "待确认的财务", "我记了什么账"}):
         return run_checked([sys.executable, "scripts/finance_inbox.py", "list-drafts"])
+
+    if normalized_contains(stripped, EXECUTE_RERUN_WORDS):
+        run_checked([sys.executable, "scripts/agent_task_monitor.py"])
+        return run_checked([sys.executable, "scripts/agent_rerun_dry_run.py", "--execute"])
 
     if normalized_contains(stripped, AUTOMATION_WORDS):
         output = run_checked([sys.executable, "scripts/agent_task_monitor.py"])

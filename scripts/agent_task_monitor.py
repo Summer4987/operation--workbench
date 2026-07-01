@@ -287,38 +287,47 @@ def build_rerun_plan(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def build_wechat_text(payload: dict[str, Any]) -> str:
     summary = payload["summary"]
-    lines = [
-        f"Mac mini 自动化任务透明化报告（{payload['generated_at']}）",
-        f"总数 {summary['total']}｜完成 {summary['completed']}｜失败 {summary['failed']}｜关注 {summary['attention']}｜运行中 {summary['running']}｜未记录 {summary['missing']}",
-    ]
-    if summary["rerun_suggested"]:
-        lines.append(f"补跑建议 {summary['rerun_suggested']} 个：可自动补跑 {summary['auto_rerun_allowed']} 个，只报告 {summary['report_only']} 个。")
-    else:
-        lines.append("暂无补跑建议。")
+    problem_rows = [row for row in payload["tasks"] if row["status"] in {"failed", "attention", "missing", "running"}]
+    if not problem_rows:
+        return f"今天纳入监控的 {summary['total']} 个自动化任务没有发现失败。完成 {summary['completed']} 个。\n"
 
-    focus_rows = [row for row in payload["tasks"] if row["status"] in {"failed", "attention", "missing", "running"}]
-    if focus_rows:
-        lines.append("")
-        lines.append("重点任务：")
-        for row in focus_rows[:8]:
-            rerun = row.get("rerun") or {}
-            rerun_text = "可自动补跑" if rerun.get("suggested") and rerun.get("auto_allowed") else "只报告" if rerun.get("suggested") else "不建议补跑"
-            reason = row.get("failure_reason") or row.get("human_action") or "查看任务健康产物。"
-            lines.append(f"- {row['name']}：{row['status_text']}｜{reason}｜补跑：{rerun_text}")
+    lines = [
+        f"这次有 {len(problem_rows)} 个自动化任务需要处理，失败 {summary['failed']} 个，需关注 {summary['attention']} 个。",
+    ]
+    for row in problem_rows[:6]:
+        lines.append(format_problem_row(row))
 
     allowed = [item for item in payload["rerun_plan"] if item.get("auto_allowed")]
     if allowed:
-        lines.append("")
-        lines.append("允许自动补跑（只读/幂等，当前仅生成 dry-run plan）：")
-        for item in allowed:
-            command = " ".join(str(part) for part in item.get("command") or [])
-            lines.append(f"- {item['task_name']}：{command}")
+        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in allowed[:4])
+        lines.append(f"可以安全补跑的是：{names}。你说“执行补跑”时，我只会跑这些低风险或幂等任务。")
+    else:
+        lines.append("这次没有可以直接自动补跑的低风险任务。")
 
     blocked = [item for item in payload["rerun_plan"] if not item.get("auto_allowed")]
     if blocked:
-        lines.append("")
-        lines.append("高风险或非幂等任务：只报告，不自动执行。")
+        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in blocked[:4])
+        lines.append(f"不能自动补跑的是：{names}。这些会碰预算、发布、订货或需要人工确认。")
     return "\n".join(lines) + "\n"
+
+
+def format_problem_row(row: dict[str, Any]) -> str:
+    reason = row.get("failure_reason") or row.get("human_action") or "还没有拿到更细的失败原因。"
+    step = row.get("last_run_step") or ""
+    rerun = row.get("rerun") or {}
+    if rerun.get("suggested") and rerun.get("auto_allowed"):
+        rerun_text = "可以补跑"
+    elif rerun.get("suggested"):
+        rerun_text = "不自动补跑，需要人工确认"
+    else:
+        rerun_text = "暂不需要补跑"
+    detail = f"{row['name']}：{row['status_text']}。原因：{reason}"
+    if step:
+        detail += f" 出问题的步骤：{step}。"
+    else:
+        detail += "。"
+    detail += f" 处理：{rerun_text}。"
+    return detail
 
 
 def build_payload(args: argparse.Namespace) -> dict[str, Any]:
@@ -340,7 +349,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
         },
         "safety": {
             "executes_rerun": False,
-            "dry_run_plan_only": True,
+            "dry_run_plan_only": False,
             "high_risk_policy": "report_only",
         },
         "summary": build_summary(rows),
