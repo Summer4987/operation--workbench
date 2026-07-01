@@ -12,6 +12,7 @@ chmod u+rwX,go+rX "$ROOT/morning-ops/上午运营一键采集.command" \
   "$ROOT/morning-ops/我已处理验证码继续.command" \
   "$ROOT/morning-ops/run_morning_ops_if_10am.command" \
   "$ROOT/scripts/run_realtime_order_income.zsh" \
+  "$ROOT/scripts/ensure_browser_automation_env.zsh" \
   "$ROOT/scripts/run_evening_budget.zsh" \
   "$ROOT/scripts/run_current_budget.zsh" \
   "$ROOT/scripts/upload_store_inspection_evidence.zsh" \
@@ -69,6 +70,24 @@ run_with_timeout() {
 
 record_task_run() {
   run_with_timeout "\${TASK_STATE_WRITE_TIMEOUT_SECONDS:-10}" "\$PYTHON" "\$ROOT/scripts/record_task_run.py" "\$@" || true
+}
+
+ensure_browser_env() {
+  local ensure_script="\$ROOT/scripts/ensure_browser_automation_env.zsh"
+  if [[ ! -x "\$ensure_script" ]]; then
+    return 0
+  fi
+  if run_with_timeout "\${REALTIME_DEPENDENCY_CHECK_TIMEOUT_SECONDS:-240}" env OPERATION_ROOT="\$ROOT" /bin/zsh "\$ensure_script"; then
+    PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
+    export PYTHONPATH="\$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
+    return 0
+  fi
+  local rc=\$?
+  FINAL_RC="\$rc"
+  TASK_STEP="浏览器自动化依赖检查"
+  record_task_run "\$TASK_ID" failed --message "实时单量收入采集未执行：浏览器自动化环境不可用，Playwright 安装或导入失败。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc" --failure-type "dependency_missing"
+  TASK_STATE_FINALIZED="true"
+  return "\$rc"
 }
 
 latest_failure_message() {
@@ -139,6 +158,7 @@ fi
 {
   echo
   echo "[\$(date '+%F %T')] 实时单量收入采集开始"
+  ensure_browser_env || exit "\$FINAL_RC"
   run_with_timeout "\${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "\$PYTHON" "\$ROOT/scripts/cleanup_chrome_tabs.py" || true
   record_task_run "\$TASK_ID" running --message "实时单量收入采集开始。" --step "\$TASK_STEP" --log-path "\$LOG_FILE"
   TASK_STEP="采集平台实时单量"
