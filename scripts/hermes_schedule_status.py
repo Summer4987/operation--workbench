@@ -13,7 +13,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
-LEGACY_RUNS_PATH = Path.home() / "Documents" / "New project" / "outputs" / "task_runs" / "latest.json"
+PRODUCTION_RUNS_PATH = Path.home() / "Documents" / "New project" / "outputs" / "task_runs" / "latest.json"
+CLEAN_RUNS_PATH = Path.home() / "Documents" / "operation-workbench-clean" / "outputs" / "task_runs" / "latest.json"
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 LABEL_PREFIX = "com.summer.operation"
 GRACE_MINUTES = 20
@@ -29,6 +30,7 @@ LABEL_NAMES = {
 LABEL_TASK_IDS = {
     "com.summer.operation.morning": "ops.morning_collection",
     "com.summer.operation.realtime-order-income": "ops.realtime_order_income",
+    "com.summer.operation.evening": "growth.promo_budget",
 }
 STATUS_WORDS = {
     "ok": "正常",
@@ -56,11 +58,11 @@ def read_json(path: Path, fallback: Any) -> Any:
 
 
 def load_task_runs() -> tuple[dict[str, Any], Path]:
-    runs = read_json(RUNS_PATH, {})
-    legacy_runs = read_json(LEGACY_RUNS_PATH, {})
     merged_tasks: dict[str, Any] = {}
     source_path = RUNS_PATH
-    for path, payload in ((LEGACY_RUNS_PATH, legacy_runs), (RUNS_PATH, runs)):
+    candidate_paths = list(dict.fromkeys([PRODUCTION_RUNS_PATH, CLEAN_RUNS_PATH, RUNS_PATH]))
+    for path in candidate_paths:
+        payload = read_json(path, {})
         tasks = payload.get("tasks") if isinstance(payload.get("tasks"), dict) else {}
         if not tasks:
             continue

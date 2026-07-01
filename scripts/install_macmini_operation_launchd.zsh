@@ -1,22 +1,23 @@
 #!/bin/zsh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SOURCE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="${OPERATION_RUNTIME_ROOT:-${OPERATION_ROOT:-$SOURCE_ROOT}}"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 LAUNCHD_LOG_DIR="$HOME/Library/Logs/xiong-operation/launchd"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
 SECRETS_FILE="$HOME/Library/Application Support/xiong-operation/secrets.env"
 mkdir -p "$LAUNCH_DIR" "$LAUNCHD_LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
 
-chmod u+rwX,go+rX "$ROOT/morning-ops/上午运营一键采集.command" \
-  "$ROOT/morning-ops/我已处理验证码继续.command" \
-  "$ROOT/morning-ops/run_morning_ops_if_10am.command" \
-  "$ROOT/scripts/run_realtime_order_income.zsh" \
-  "$ROOT/scripts/ensure_browser_automation_env.zsh" \
-  "$ROOT/scripts/run_evening_budget.zsh" \
-  "$ROOT/scripts/run_current_budget.zsh" \
-  "$ROOT/scripts/upload_store_inspection_evidence.zsh" \
-  "$ROOT/安装实时单量收入采集.command"
+chmod u+rwX,go+rX "$SOURCE_ROOT/morning-ops/上午运营一键采集.command" \
+  "$SOURCE_ROOT/morning-ops/我已处理验证码继续.command" \
+  "$SOURCE_ROOT/morning-ops/run_morning_ops_if_10am.command" \
+  "$SOURCE_ROOT/scripts/run_realtime_order_income.zsh" \
+  "$SOURCE_ROOT/scripts/ensure_browser_automation_env.zsh" \
+  "$SOURCE_ROOT/scripts/run_evening_budget.zsh" \
+  "$SOURCE_ROOT/scripts/run_current_budget.zsh" \
+  "$SOURCE_ROOT/scripts/upload_store_inspection_evidence.zsh" \
+  "$SOURCE_ROOT/安装实时单量收入采集.command"
 
 cat > "$SCRIPT_DIR/run_realtime_order_income.zsh" <<EOF
 #!/bin/zsh
@@ -315,7 +316,7 @@ ssh "\${SSH_OPTS[@]}" "\$SERVER" "find '\$REMOTE_DIR' -type d -exec chmod 755 {}
 echo "运营总看板已发布：\$PUBLIC_URL"
 EOF
 chmod +x "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
-/bin/cp "$ROOT/scripts/deploy_workbench_to_cloud.zsh" "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
+/bin/cp "$SOURCE_ROOT/scripts/deploy_workbench_to_cloud.zsh" "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
 chmod +x "$SCRIPT_DIR/deploy_workbench_to_cloud.zsh"
 
 cat > "$SCRIPT_DIR/run_morning_ops.zsh" <<EOF
@@ -443,9 +444,9 @@ exit "\$rc"
 EOF
 chmod +x "$SCRIPT_DIR/run_morning_ops.zsh"
 
-/bin/cp "$ROOT/scripts/run_current_budget.zsh" "$SCRIPT_DIR/run_current_budget.zsh"
-/bin/cp "$ROOT/scripts/run_eleme_automation.zsh" "$SCRIPT_DIR/run_eleme_automation.zsh"
-/bin/cp "$ROOT/scripts/run_evening_budget.zsh" "$SCRIPT_DIR/run_evening_budget_entry.zsh"
+/bin/cp "$SOURCE_ROOT/scripts/run_current_budget.zsh" "$SCRIPT_DIR/run_current_budget.zsh"
+/bin/cp "$SOURCE_ROOT/scripts/run_eleme_automation.zsh" "$SCRIPT_DIR/run_eleme_automation.zsh"
+/bin/cp "$SOURCE_ROOT/scripts/run_evening_budget.zsh" "$SCRIPT_DIR/run_evening_budget_entry.zsh"
 chmod u+rwX,go+rX \
   "$SCRIPT_DIR/run_current_budget.zsh" \
   "$SCRIPT_DIR/run_eleme_automation.zsh" \
@@ -457,12 +458,12 @@ mkdir -p \
   "$NODE_RUNTIME_ROOT/dianjin-prototype" \
   "$NODE_RUNTIME_ROOT/config" \
   "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview"
-/bin/cp "$ROOT/scripts/build_promo_budget_preview.mjs" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"
-/bin/cp "$ROOT/scripts/promo_budget_resolver.mjs" "$NODE_RUNTIME_ROOT/scripts/promo_budget_resolver.mjs"
-/bin/cp "$ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
-/bin/cp "$ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
-/bin/cp "$ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
-/bin/cp "$ROOT/config/direct_meituan_accounts.json" "$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
+/bin/cp "$SOURCE_ROOT/scripts/build_promo_budget_preview.mjs" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"
+/bin/cp "$SOURCE_ROOT/scripts/promo_budget_resolver.mjs" "$NODE_RUNTIME_ROOT/scripts/promo_budget_resolver.mjs"
+/bin/cp "$SOURCE_ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
+/bin/cp "$SOURCE_ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
+/bin/cp "$SOURCE_ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
+/bin/cp "$SOURCE_ROOT/config/direct_meituan_accounts.json" "$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
 
 cat > "$SCRIPT_DIR/run_evening_budget.zsh" <<EOF
 #!/bin/zsh
