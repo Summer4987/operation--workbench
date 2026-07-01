@@ -65,7 +65,11 @@ def parse_time(value: Any) -> datetime | None:
     text = str(value)
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
-            return datetime.strptime(text[: len(fmt)], fmt)
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+        try:
+            return datetime.strptime(text[:19], fmt)
         except ValueError:
             pass
     return None
