@@ -301,7 +301,7 @@ def open_budget_modal(page) -> None:
                 if (
                     frame.get_by_text("预算设置").count() > 0
                     and frame.locator('input[type="number"]').count() > 0
-                    and frame.get_by_role("button", name="确定").count() > 0
+                    and confirm_button_locator(page) is not None
                 ):
                     return True
             except Exception:
@@ -646,6 +646,8 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
                 open_budget_modal(page)
                 input_box = budget_input_locator(page)
                 record["beforeInput"] = input_box.input_value(timeout=3000)
+                if confirm_button_locator(page) is None:
+                    raise RuntimeError("预算弹窗没有确定按钮")
                 close_budget_modal(page)
             except Exception as exc:
                 raise RuntimeError(f"预算前预检失败：{exc}") from exc

@@ -153,13 +153,14 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                         with mock.patch.object(self.module, "open_budget_modal"):
                             with mock.patch.object(self.module, "budget_input_locator", return_value=FakeInput()):
                                 with mock.patch.object(self.module, "close_budget_modal"):
-                                    result = self.module.execute_task(
-                                        context,
-                                        "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc",
-                                        task,
-                                        commit=False,
-                                        preflight=True,
-                                    )
+                                    with mock.patch.object(self.module, "confirm_button_locator", return_value=FakeLocator()):
+                                        result = self.module.execute_task(
+                                            context,
+                                            "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc",
+                                            task,
+                                            commit=False,
+                                            preflight=True,
+                                        )
         self.assertTrue(result["ok"])
         self.assertEqual(result["wmPoiId"], "")
 
