@@ -872,7 +872,7 @@ def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[s
     return page_url
 
 
-def write_run_log(output: Path, period: str, requested_period: str, mode: str, results: list[dict], *, partial: bool) -> None:
+def write_run_log(output: Path, period: str, requested_period: str, mode: str, results: list[dict], *, partial: bool, preflight: bool = False) -> None:
     output.write_text(
         json.dumps(
             {
@@ -880,6 +880,7 @@ def write_run_log(output: Path, period: str, requested_period: str, mode: str, r
                 "period": period,
                 "requestedPeriod": requested_period,
                 "mode": mode,
+                "preflight": preflight,
                 "partial": partial,
                 "results": results,
             },
@@ -956,7 +957,7 @@ def main() -> int:
                     })
                     print(f"失败：{task.get('keyword')}：{exc}", flush=True)
                 finally:
-                    write_run_log(partial_output, period, args.period, args.mode, results, partial=True)
+                    write_run_log(partial_output, period, args.period, args.mode, results, partial=True, preflight=args.preflight)
         finally:
             for context in launched_contexts:
                 try:
@@ -964,7 +965,7 @@ def main() -> int:
                 except Exception:
                     pass
 
-    write_run_log(output, period, args.period, args.mode, results, partial=False)
+    write_run_log(output, period, args.period, args.mode, results, partial=False, preflight=args.preflight)
     ok_count = sum(1 for item in results if item.get("ok"))
     fail_count = len(results) - ok_count
     print(f"美团预算执行日志：{output}")
