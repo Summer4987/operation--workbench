@@ -150,10 +150,13 @@ run_with_retry() {
   local exit_status=0
   while (( attempt <= attempts )); do
     echo "${label}：第 ${attempt}/${attempts} 次执行..."
-    if run_with_timeout "$seconds" "$@"; then
+    set +e
+    run_with_timeout "$seconds" "$@"
+    exit_status=$?
+    set -e
+    if (( exit_status == 0 )); then
       return 0
     fi
-    exit_status=$?
     if (( attempt < attempts )); then
       echo "${label}：本次失败，5 秒后自动重试。"
       sleep 5
@@ -169,11 +172,15 @@ run_budget_step() {
   local attempts="$3"
   shift 3
   record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
-  if run_with_retry "$step" "$seconds" "$attempts" "$@"; then
+  local rc=0
+  set +e
+  run_with_retry "$step" "$seconds" "$attempts" "$@"
+  rc=$?
+  set -e
+  if (( rc == 0 )); then
     record_task_run "$TASK_ID" success --message "${step}完成。" --step "$step" --log-path "$RUN_LOG" --returncode 0
     return 0
   fi
-  local rc=$?
   record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
   FAILED_STEPS+=("$step")
   return "$rc"
@@ -184,11 +191,15 @@ run_required_step() {
   local seconds="$2"
   shift 2
   record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
-  if run_with_timeout "$seconds" "$@"; then
+  local rc=0
+  set +e
+  run_with_timeout "$seconds" "$@"
+  rc=$?
+  set -e
+  if (( rc == 0 )); then
     record_task_run "$TASK_ID" success --message "${step}完成。" --step "$step" --log-path "$RUN_LOG" --returncode 0
     return 0
   fi
-  local rc=$?
   record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
   return "$rc"
 }
