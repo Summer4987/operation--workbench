@@ -576,17 +576,18 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             raise
         wm_id = wm_poi_id_from_url(base_url)
         if not wm_id:
-            raise
-    target_url = url_for_store(base_url, wm_id)
+            wm_id = ""
+    target_url = url_for_store(base_url, wm_id) if wm_id else base_url
     page = None
     created_page = False
-    for candidate in context.pages:
-        urls = [candidate.url, *(frame.url for frame in candidate.frames)]
-        if any(f"wmPoiId={wm_id}" in url for url in urls):
-            text = page_text(candidate)
-            if "推广设置" in text or "点金推广" in text:
-                page = candidate
-                break
+    if wm_id:
+        for candidate in context.pages:
+            urls = [candidate.url, *(frame.url for frame in candidate.frames)]
+            if any(f"wmPoiId={wm_id}" in url for url in urls):
+                text = page_text(candidate)
+                if "推广设置" in text or "点金推广" in text:
+                    page = candidate
+                    break
     if page is None:
         page = context.new_page()
         created_page = True

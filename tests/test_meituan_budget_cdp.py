@@ -37,10 +37,23 @@ class FakePage:
         self.url = url
         self.frames = [FakeFrame(url) for url in (frame_urls or [])]
 
+    def goto(self, url: str, **_kwargs) -> None:
+        self.url = url
+
 
 class FakeContext:
     def __init__(self, pages: list[FakePage]) -> None:
         self.pages = pages
+
+    def new_page(self) -> FakePage:
+        page = FakePage("about:blank")
+        self.pages.append(page)
+        return page
+
+
+class FakeInput:
+    def input_value(self, **_kwargs) -> str:
+        return "60"
 
 
 class MeituanBudgetCdpTests(unittest.TestCase):
@@ -81,6 +94,32 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                     ),
                     account["pages"]["promo_balance"],
                 )
+
+    def test_direct_task_without_wm_poi_id_can_use_account_entry(self) -> None:
+        context = FakeContext([])
+        task = {
+            "store": "万象城店",
+            "keyword": "万象城",
+            "sourceStore": "万象城店",
+            "targetBudget": 60,
+            "directMeituanAccountId": "direct_wanxiangcheng",
+        }
+        with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+            with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
+                with mock.patch.object(self.module, "read_budget", return_value=60):
+                    with mock.patch.object(self.module, "wait_budget", return_value=60):
+                        with mock.patch.object(self.module, "open_budget_modal"):
+                            with mock.patch.object(self.module, "budget_input_locator", return_value=FakeInput()):
+                                with mock.patch.object(self.module, "close_budget_modal"):
+                                    result = self.module.execute_task(
+                                        context,
+                                        "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc",
+                                        task,
+                                        commit=False,
+                                        preflight=True,
+                                    )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["wmPoiId"], "")
 
 
 if __name__ == "__main__":
