@@ -10,6 +10,7 @@ from urllib.error import URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import urlopen
 
+from one_click_meituan_balance import URL as MEITUAN_PROMO_FALLBACK_URL
 from one_click_meituan_balance import recent_meituan_promo_url
 
 
@@ -728,6 +729,15 @@ def recent_promo_url_from_page(page) -> str | None:
     return None
 
 
+def configured_meituan_promo_url() -> str | None:
+    value = os.environ.get("MEITUAN_PROMO_BASE_URL", "").strip()
+    return value or None
+
+
+def resolve_default_base_url() -> str:
+    return configured_meituan_promo_url() or recent_meituan_promo_url() or MEITUAN_PROMO_FALLBACK_URL
+
+
 def load_direct_promo_url_cache() -> dict[str, str]:
     try:
         payload = json.loads(DIRECT_PROMO_URL_CACHE_PATH.read_text(encoding="utf-8"))
@@ -793,6 +803,8 @@ def open_direct_promo_url(context, account: dict) -> str:
 def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[str, dict], context=None) -> str:
     account_id = task.get("directMeituanAccountId") or ""
     if not account_id:
+        if context is not None:
+            return recent_promo_url_from_context(context) or default_base_url
         return default_base_url
     account = direct_accounts.get(account_id)
     if context is not None:
@@ -855,10 +867,7 @@ def main() -> int:
         if limit < 1:
             raise RuntimeError("--limit 必须是 all 或正整数")
         tasks = tasks[:limit]
-    base_url = recent_meituan_promo_url()
-    if not base_url and any(not task.get("directMeituanAccountId") for task in tasks):
-        raise RuntimeError("没有找到本地 Chrome 最近的美团推广 URL，请先在本地 Chrome 打开一次美团点金推广页。")
-    base_url = base_url or ""
+    base_url = resolve_default_base_url()
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     output = LOG_DIR / f"meituan_cdp_{period}_{time.strftime('%Y%m%d_%H%M%S')}.json"
