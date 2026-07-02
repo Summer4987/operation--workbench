@@ -575,6 +575,56 @@ def confirm_button_enabled(locator) -> bool:
         return True
 
 
+def suppress_click_blocking_overlays(page) -> None:
+    for frame in page.frames:
+        try:
+            frame.evaluate(
+                """() => {
+                    const selectors = [
+                        '#J-imframe',
+                        'iframe[name="J-imframe"]',
+                        'iframe[id*="im" i]',
+                        '[class*="im" i]',
+                        '[class*="chat" i]',
+                        '[class*="float" i]',
+                        '[class*="service" i]'
+                    ];
+                    for (const selector of selectors) {
+                        for (const el of document.querySelectorAll(selector)) {
+                            const rect = el.getBoundingClientRect();
+                            const style = getComputedStyle(el);
+                            const fixed = style.position === 'fixed' || style.position === 'sticky';
+                            const floating = fixed || Number(style.zIndex || 0) >= 1000;
+                            if (rect.width > 0 && rect.height > 0 && floating) {
+                                el.style.pointerEvents = 'none';
+                                if (el.tagName === 'IFRAME') el.style.display = 'none';
+                            }
+                        }
+                    }
+                }"""
+            )
+        except Exception:
+            continue
+
+
+def click_confirm_button(page, locator) -> str:
+    suppress_click_blocking_overlays(page)
+    try:
+        locator.click(timeout=5000)
+        return "普通点击确定"
+    except Exception as first_exc:
+        suppress_click_blocking_overlays(page)
+        try:
+            locator.click(timeout=5000, force=True)
+            return f"强制点击确定（普通点击失败：{first_exc}）"
+        except Exception:
+            try:
+                locator.evaluate("(el) => el.click()")
+                return f"DOM 点击确定（普通点击失败：{first_exc}）"
+            except Exception as dom_exc:
+                raise RuntimeError(f"确定按钮点击失败：{first_exc}；DOM 兜底失败：{dom_exc}") from dom_exc
+
+
 def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str]:
     confirm_button = confirm_button_locator(page)
     if confirm_button is None:
@@ -591,10 +641,10 @@ def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str
             close_budget_modal(page)
             return final_budget, "确定按钮禁用，页面预算已是目标值"
         raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
-    confirm_button.click(timeout=5000)
+    click_message = click_confirm_button(page, confirm_button)
     time.sleep(6)
     final_budget = read_budget(page)
-    return final_budget, "已保存并读回确认"
+    return final_budget, f"已保存并读回确认，{click_message}"
 
 
 def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight: bool = False) -> dict:

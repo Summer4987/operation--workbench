@@ -57,11 +57,20 @@ class FakeInput:
 
 
 class FakeLocator:
-    def __init__(self, items: list["FakeLocator"] | None = None, *, visible: bool = True, enabled: bool = True) -> None:
+    def __init__(
+        self,
+        items: list["FakeLocator"] | None = None,
+        *,
+        visible: bool = True,
+        enabled: bool = True,
+        fail_normal_click: bool = False,
+    ) -> None:
         self.items = items or []
         self.visible = visible
         self.enabled = enabled
         self.clicked = False
+        self.fail_normal_click = fail_normal_click
+        self.click_kwargs: list[dict] = []
 
     def count(self) -> int:
         return len(self.items)
@@ -76,6 +85,12 @@ class FakeLocator:
         return self.enabled
 
     def click(self, **_kwargs) -> None:
+        self.click_kwargs.append(_kwargs)
+        if self.fail_normal_click and not _kwargs.get("force"):
+            raise RuntimeError("iframe intercepts pointer events")
+        self.clicked = True
+
+    def evaluate(self, *_args, **_kwargs) -> None:
         self.clicked = True
 
 
@@ -172,6 +187,16 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIs(locator, page.frame.confirm)
         locator.click()
         self.assertTrue(page.frame.confirm.clicked)
+
+    def test_click_confirm_button_forces_click_when_overlay_intercepts(self) -> None:
+        page = FakeConfirmPage()
+        locator = FakeLocator(fail_normal_click=True)
+
+        message = self.module.click_confirm_button(page, locator)
+
+        self.assertTrue(locator.clicked)
+        self.assertIn("强制点击确定", message)
+        self.assertEqual(locator.click_kwargs[-1].get("force"), True)
 
 
 if __name__ == "__main__":
