@@ -22,6 +22,8 @@ DEFAULT_LOG_PATH = ROOT / "outputs" / "agent_task_notifications" / "latest.log"
 DEFAULT_TARGET = "weixin"
 MAX_BATCH_MESSAGE_CHARS = 3600
 MIN_COOLDOWN_SECONDS = 180
+ILINK_RATE_LIMIT_MIN_BACKOFF_SECONDS = 1800
+ILINK_RATE_LIMIT_MAX_BACKOFF_SECONDS = 21600
 COOLDOWN_RE = re.compile(r"cooldown active for\s+([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
 TERMINAL_STATUSES = {"success", "failed", "skipped", "warning", "missing"}
 STATUS_LABELS = {
@@ -178,6 +180,21 @@ def cooldown_delay_seconds(output: str, *, minimum: int = MIN_COOLDOWN_SECONDS) 
     return max(minimum, int(float(match.group(1))) + 10)
 
 
+def is_ilink_rate_limited(output: str) -> bool:
+    body = str(output or "").lower()
+    return "ilink" in body and "rate limited" in body
+
+
+def delivery_backoff_seconds(output: str, consecutive_failures: int) -> int:
+    if is_ilink_rate_limited(output):
+        failures = max(1, consecutive_failures)
+        return min(
+            ILINK_RATE_LIMIT_MAX_BACKOFF_SECONDS,
+            ILINK_RATE_LIMIT_MIN_BACKOFF_SECONDS * (2 ** (failures - 1)),
+        )
+    return cooldown_delay_seconds(output)
+
+
 def build_batch_message(messages: list[str]) -> str:
     clean_messages = [compact_message(message) for message in messages if compact_message(message)]
     if not clean_messages:
@@ -271,6 +288,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     previous_state = read_json(state_path, {"sent": {}})
     sent = previous_state.get("sent") if isinstance(previous_state.get("sent"), dict) else {}
     cooldown_until = float(previous_state.get("cooldown_until") or 0)
+    consecutive_failures = int(previous_state.get("consecutive_failures") or 0)
     now = time.time()
     policy_rows = load_policy_rows()
     task_candidates = dict(tasks)
@@ -327,8 +345,10 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         if delivered:
             now_sent.update(pending_signatures)
             cooldown_until = 0
+            consecutive_failures = 0
         else:
-            delay = cooldown_delay_seconds(delivery_output)
+            consecutive_failures += 1
+            delay = delivery_backoff_seconds(delivery_output, consecutive_failures)
             if delay:
                 cooldown_until = time.time() + delay
     elif args.dry_run:
@@ -344,6 +364,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         "notifications": notifications,
         "skipped_by_cooldown": skipped_by_cooldown,
         "cooldown_until": cooldown_until,
+        "consecutive_failures": consecutive_failures,
         "last_delivery_output": delivery_output,
         "sent": now_sent,
     }
@@ -353,6 +374,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "sent": now_sent,
                 "cooldown_until": cooldown_until,
+                "consecutive_failures": consecutive_failures,
                 "last_delivery_output": delivery_output,
             },
         )

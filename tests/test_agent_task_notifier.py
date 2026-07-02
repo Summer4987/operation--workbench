@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -289,10 +290,70 @@ class AgentTaskNotifierTests(unittest.TestCase):
 
             self.assertEqual(first["notification_count"], 1)
             self.assertFalse(first["notifications"][0]["delivered"])
-            self.assertGreaterEqual(first["cooldown_until"], 1)
+            self.assertGreaterEqual(first["cooldown_until"] - time.time(), 1700)
+            self.assertEqual(first["consecutive_failures"], 1)
             self.assertEqual(first["sent"], {})
             self.assertTrue(second["skipped_by_cooldown"])
             self.assertEqual(len(calls), 1)
+
+    def test_notify_uses_exponential_backoff_for_repeated_ilink_rate_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.realtime_order_income": {
+                                "status": "success",
+                                "message": "实时单量收入采集完成。",
+                                "step": "发布工作台云端数据",
+                                "finished_at": "2026-07-02 10:31:17",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            state_path.write_text(
+                json.dumps({"sent": {}, "cooldown_until": 0, "consecutive_failures": 2}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": False,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                },
+            )()
+            original_loader = self.notifier.load_policy_rows
+            original_sender = self.notifier.send_weixin
+            try:
+                self.notifier.load_policy_rows = lambda: dict(self.notifier.DIRECT_TASK_ROWS)
+                self.notifier.send_weixin = (
+                    lambda message, target, hermes_bin: (
+                        False,
+                        "hermes send: Weixin send failed: iLink sendmessage rate limited; cooldown active for 30.0s",
+                    )
+                )
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+                self.notifier.send_weixin = original_sender
+
+            self.assertEqual(payload["consecutive_failures"], 3)
+            self.assertGreaterEqual(payload["cooldown_until"] - time.time(), 7100)
 
     def test_notify_includes_direct_runtime_task_success_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
