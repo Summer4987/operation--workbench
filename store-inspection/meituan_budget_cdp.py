@@ -296,66 +296,80 @@ def enter_dianjin_with_recovery(page, target_url: str) -> None:
 
 def open_budget_modal(page) -> None:
     def opened() -> bool:
-        return (
-            page.get_by_text("预算设置").count() > 0
-            and page.locator('input[type="number"]').count() > 0
-            and page.get_by_role("button", name="确定").count() > 0
-        )
-
-    def try_dom_click(selector: str) -> bool:
-        try:
-            count = page.locator(selector).count()
-        except Exception:
-            return False
-        for index in range(count):
-            item = page.locator(selector).nth(index)
+        for frame in page.frames:
             try:
-                if not item.is_visible():
-                    continue
-                item.click(timeout=3000)
-                time.sleep(1)
-                if opened():
+                if (
+                    frame.get_by_text("预算设置").count() > 0
+                    and frame.locator('input[type="number"]').count() > 0
+                    and frame.get_by_role("button", name="确定").count() > 0
+                ):
                     return True
             except Exception:
                 continue
         return False
 
+    def try_dom_click(selector: str) -> bool:
+        for frame in page.frames:
+            try:
+                count = frame.locator(selector).count()
+            except Exception:
+                continue
+            for index in range(count):
+                item = frame.locator(selector).nth(index)
+                try:
+                    if not item.is_visible():
+                        continue
+                    item.click(timeout=3000)
+                    time.sleep(1)
+                    if opened():
+                        return True
+                except Exception:
+                    continue
+        return False
+
     def budget_click_boxes() -> list[dict]:
-        return page.evaluate(
-            """() => {
-                const visible = (el) => {
-                    const rect = el.getBoundingClientRect();
-                    const style = getComputedStyle(el);
-                    return rect.width > 0 && rect.height > 0
-                        && style.display !== 'none'
-                        && style.visibility !== 'hidden';
-                };
-                const boxes = [];
-                const lines = [
-                    ...document.querySelectorAll(
-                        '.isomor-cpc-fresh-budget-line, .isomor-cpc-fresh-budget-lines, [class*=budget]'
-                    )
-                ];
-                for (const line of lines) {
-                    const text = (line.innerText || '').trim();
-                    if (!/(推广预算|每日预算|预算已耗尽|已消耗)/.test(text)) {
-                        continue;
-                    }
-                    const candidates = [
-                        ...line.querySelectorAll(
-                            '.isomor-cpc-fresh-right-wrapper, [class*=right-wrapper], [class*=cursor], [class*=arrow], [class*=action]'
-                        )
-                    ].filter(visible);
-                    const target = candidates[0] || line;
-                    if (!visible(target)) {
-                        continue;
-                    }
-                    const rect = target.getBoundingClientRect();
-                    boxes.push({x: rect.x, y: rect.y, w: rect.width, h: rect.height});
-                }
-                return boxes;
-            }"""
-        )
+        boxes: list[dict] = []
+        for frame in page.frames:
+            try:
+                frame_boxes = frame.evaluate(
+                    """() => {
+                        const visible = (el) => {
+                            const rect = el.getBoundingClientRect();
+                            const style = getComputedStyle(el);
+                            return rect.width > 0 && rect.height > 0
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden';
+                        };
+                        const boxes = [];
+                        const lines = [
+                            ...document.querySelectorAll(
+                                '.isomor-cpc-fresh-budget-line, .isomor-cpc-fresh-budget-lines, [class*=budget]'
+                            )
+                        ];
+                        for (const line of lines) {
+                            const text = (line.innerText || '').trim();
+                            if (!/(推广预算|每日预算|预算已耗尽|已消耗)/.test(text)) {
+                                continue;
+                            }
+                            const candidates = [
+                                ...line.querySelectorAll(
+                                    '.isomor-cpc-fresh-right-wrapper, [class*=right-wrapper], [class*=cursor], [class*=arrow], [class*=action]'
+                                )
+                            ].filter(visible);
+                            const target = candidates[0] || line;
+                            if (!visible(target)) {
+                                continue;
+                            }
+                            const rect = target.getBoundingClientRect();
+                            boxes.push({x: rect.x, y: rect.y, w: rect.width, h: rect.height});
+                        }
+                        return boxes;
+                    }"""
+                )
+            except Exception:
+                continue
+            boxes.extend(frame_boxes or [])
+        return boxes
 
     for selector in [
         ".isomor-cpc-fresh-budget-number",
@@ -374,22 +388,23 @@ def open_budget_modal(page) -> None:
                 return
 
     for label in ["推广预算", "每日预算"]:
-        locator = page.get_by_text(label)
-        for index in range(locator.count()):
-            item = locator.nth(index)
-            try:
-                if not item.is_visible():
-                    continue
-                box = item.bounding_box()
-                if not box:
-                    continue
-                for dx in [20, 120, 250, 340]:
-                    page.mouse.click(box["x"] + dx, box["y"] + 8)
-                    time.sleep(1)
-                    if opened():
-                        return
-            except Exception:
-                pass
+        for frame in page.frames:
+            locator = frame.get_by_text(label)
+            for index in range(locator.count()):
+                item = locator.nth(index)
+                try:
+                    if not item.is_visible():
+                        continue
+                    box = item.bounding_box()
+                    if not box:
+                        continue
+                    for dx in [20, 120, 250, 340]:
+                        page.mouse.click(box["x"] + dx, box["y"] + 8)
+                        time.sleep(1)
+                        if opened():
+                            return
+                except Exception:
+                    pass
     raise RuntimeError("未打开预算设置弹窗，可能当前门店预算区域不可编辑")
 
 
@@ -808,11 +823,16 @@ def base_url_for_task(default_base_url: str, task: dict, direct_accounts: dict[s
         return default_base_url
     account = direct_accounts.get(account_id)
     if context is not None:
-        return (
-            recent_promo_url_from_context(context)
-            or load_direct_promo_url_cache().get(account_id)
-            or open_direct_promo_url(context, account or {})
-        )
+        cached_url = recent_promo_url_from_context(context) or load_direct_promo_url_cache().get(account_id)
+        if cached_url:
+            return cached_url
+        try:
+            return open_direct_promo_url(context, account or {})
+        except Exception:
+            page_url = ((account or {}).get("pages") or {}).get("promo_balance")
+            if page_url:
+                return page_url
+            raise
     page_url = ((account or {}).get("pages") or {}).get("promo_balance")
     if not page_url:
         raise RuntimeError(f"直营美团账号未配置 promo_balance 页面：{account_id}")

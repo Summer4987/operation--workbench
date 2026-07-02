@@ -64,6 +64,24 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             current_url,
         )
 
+    def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
+        account = {
+            "id": "direct_test",
+            "pages": {"promo_balance": "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"},
+        }
+        context = FakeContext([])
+        with mock.patch.object(self.module, "load_direct_promo_url_cache", return_value={}):
+            with mock.patch.object(self.module, "open_direct_promo_url", side_effect=RuntimeError("入口缺失")):
+                self.assertEqual(
+                    self.module.base_url_for_task(
+                        "https://fallback.example",
+                        {"directMeituanAccountId": "direct_test"},
+                        {"direct_test": account},
+                        context,
+                    ),
+                    account["pages"]["promo_balance"],
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
