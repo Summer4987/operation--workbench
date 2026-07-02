@@ -529,7 +529,10 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             if item.get("status") == "failed"
         ]
         platform_recovery_text = "；".join(item for item in platform_recoveries[:2] if item)
-        if status_payload.get("status") == "failed":
+        if status_payload.get("status") == "stale":
+            row.update(status="warn", reason=status_payload.get("message") or "推广余额结果已过期，需重跑后再判断。")
+            row["human_action"] = status_payload.get("human_action") or "先重跑推广余额巡检，再汇报低余额门店。"
+        elif status_payload.get("status") == "failed":
             row.update(status="danger", reason=status_payload.get("message") or "推广余额巡检失败。")
             row["human_action"] = platform_recovery_text or status_payload.get("human_action") or "先恢复平台权限、登录或页面状态，再重跑推广余额巡检。"
             if evidence_count:

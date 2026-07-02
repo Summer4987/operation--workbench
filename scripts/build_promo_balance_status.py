@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,7 @@ EVIDENCE_DIR = ROOT / "outputs" / "store_inspection"
 EVIDENCE_MANIFEST_PATH = ROOT / "outputs" / "store_inspection_evidence_manifest" / "latest.json"
 
 PLATFORMS = ("饿了么", "美团")
+FRESHNESS_WINDOW = timedelta(minutes=90)
 PLATFORM_TOKENS = {
     "饿了么": ("eleme", "饿了么"),
     "美团": ("meituan", "美团"),
@@ -102,6 +103,18 @@ def read_json(path: Path, fallback: Any) -> Any:
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_time(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(text[:19], fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def normalize_failure_type(message: str) -> str:
@@ -363,13 +376,16 @@ def recharge_plan(warnings: list[dict]) -> dict:
 
 def build_status(payload: dict) -> dict:
     generated_at = payload.get("generated_at") or ""
+    source_time = parse_time(generated_at)
+    now = datetime.now()
+    is_stale = bool(source_time and now - source_time > FRESHNESS_WINDOW)
     summary = payload.get("summary") or {}
     failures = split_platform_failures(payload.get("message") or "") if payload.get("status") == "failed" else []
     items = balance_items(payload)
     direct_coverage = build_direct_coverage(items)
     coverage_rows = direct_coverage_rows(payload)
-    warnings = low_balance_items(payload)
-    unconfirmed_items = unconfirmed_balance_items(payload)
+    warnings = [] if is_stale else low_balance_items(payload)
+    unconfirmed_items = [] if is_stale else unconfirmed_balance_items(payload)
     platform_failure_count = len(failures)
     coverage_missing_count = sum(len(row.get("missing_stores") or []) for row in coverage_rows)
     low_balance_count = len(warnings)
@@ -387,6 +403,10 @@ def build_status(payload: dict) -> dict:
     if not payload:
         status = "missing"
         message = "推广余额巡检尚未生成。"
+    elif is_stale:
+        status = "stale"
+        age_minutes = int((now - source_time).total_seconds() // 60) if source_time else 0
+        message = f"推广余额结果已过期：{generated_at}，约 {age_minutes} 分钟前采集。旧余额没有当前商业价值，需重跑后再判断。"
     elif platform_failure_count and not store_count:
         status = "failed"
         message = f"推广余额巡检失败：{platform_failure_count} 个平台需要人工处理。"
@@ -409,6 +429,8 @@ def build_status(payload: dict) -> dict:
     human_action = ""
     if failures:
         human_action = failures[0].get("human_action", "")
+    elif is_stale:
+        human_action = "先重跑推广余额巡检，再汇报低余额门店；不要引用旧余额数值。"
     elif coverage_rows:
         human_action = coverage_rows[0].get("human_action", "")
     elif warnings:
@@ -440,6 +462,8 @@ def build_status(payload: dict) -> dict:
             "platform_count": platform_count,
             "warning_threshold": threshold,
             "lowest_balance": lowest_balance,
+            "source_is_stale": is_stale,
+            "freshness_window_minutes": int(FRESHNESS_WINDOW.total_seconds() // 60),
             "evidence_count": len(evidence_items),
         },
         "evidence_index": {
