@@ -767,8 +767,11 @@ def context_for_task(
 ):
     account_id = task.get("directMeituanAccountId") or ""
     if not account_id:
-        endpoint = "http://127.0.0.1:9222"
+        debug_port = int(os.environ.get("MEITUAN_HEADQUARTERS_DEBUG_PORT", "9222"))
+        endpoint = f"http://127.0.0.1:{debug_port}"
         if endpoint not in contexts:
+            if not cdp_available(debug_port):
+                raise RuntimeError(f"总部美团账号 CDP 端口不可用：{debug_port}")
             browser = playwright.chromium.connect_over_cdp(endpoint)
             contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
         return contexts[endpoint]

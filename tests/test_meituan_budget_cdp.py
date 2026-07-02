@@ -51,6 +51,29 @@ class FakeContext:
         return page
 
 
+class FakeBrowser:
+    def __init__(self, context: FakeContext) -> None:
+        self.contexts = [context]
+
+    def new_context(self) -> FakeContext:
+        return self.contexts[0]
+
+
+class FakeChromium:
+    def __init__(self, browser: FakeBrowser) -> None:
+        self.browser = browser
+        self.endpoints: list[str] = []
+
+    def connect_over_cdp(self, endpoint: str) -> FakeBrowser:
+        self.endpoints.append(endpoint)
+        return self.browser
+
+
+class FakePlaywright:
+    def __init__(self, browser: FakeBrowser) -> None:
+        self.chromium = FakeChromium(browser)
+
+
 class FakeInput:
     def input_value(self, **_kwargs) -> str:
         return "60"
@@ -178,6 +201,19 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                                         )
         self.assertTrue(result["ok"])
         self.assertEqual(result["wmPoiId"], "")
+
+    def test_headquarters_context_uses_configured_debug_port(self) -> None:
+        context = FakeContext([FakePage("https://e.waimai.meituan.com/")])
+        playwright = FakePlaywright(FakeBrowser(context))
+        contexts = {}
+
+        with mock.patch.object(self.module, "cdp_available", return_value=True):
+            with mock.patch.dict("os.environ", {"MEITUAN_HEADQUARTERS_DEBUG_PORT": "19227"}):
+                result = self.module.context_for_task(playwright, contexts, [], {}, {})
+
+        self.assertIs(result, context)
+        self.assertEqual(playwright.chromium.endpoints, ["http://127.0.0.1:19227"])
+        self.assertIn("http://127.0.0.1:19227", contexts)
 
     def test_confirm_button_locator_falls_back_to_exact_text(self) -> None:
         page = FakeConfirmPage()
