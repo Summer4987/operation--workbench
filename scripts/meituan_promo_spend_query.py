@@ -419,8 +419,11 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             page = context.new_page()
             created_page = True
             task_base_url = helpers["base_url_for_task"](base_url, task, direct_accounts, context)
-            wm_id = helpers["wm_poi_id"](task)
-            target_url = helpers["url_for_store"](task_base_url, wm_id)
+            try:
+                wm_id = helpers["wm_poi_id"](task)
+            except RuntimeError:
+                wm_id = ""
+            target_url = helpers["url_for_store"](task_base_url, wm_id) if wm_id else task_base_url
             record["wmPoiId"] = wm_id
             page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
             time.sleep(4)

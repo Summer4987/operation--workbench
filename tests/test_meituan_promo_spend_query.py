@@ -3,7 +3,9 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import sys
+import types
 import unittest
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -115,6 +117,43 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
 
         self.assertIn("第3档口", aliases)
         self.assertIn("吉祥美食城", aliases)
+
+    def test_direct_query_uses_base_url_when_wm_poi_id_is_absent(self) -> None:
+        page = types.SimpleNamespace(
+            url="https://e.waimai.meituan.com/",
+            goto=mock.Mock(),
+            close=mock.Mock(),
+        )
+        context = types.SimpleNamespace(new_page=mock.Mock(return_value=page))
+        helpers = {
+            "context_for_task": mock.Mock(return_value=context),
+            "base_url_for_task": mock.Mock(return_value="https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc"),
+            "wm_poi_id": mock.Mock(side_effect=RuntimeError("没有门店 wmPoiId")),
+            "url_for_store": mock.Mock(),
+            "enter_dianjin_with_recovery": mock.Mock(),
+            "wait_setting_ready": mock.Mock(return_value={}),
+            "page_text": mock.Mock(return_value="总推广花费\n120元\n"),
+            "classify_failure": mock.Mock(return_value="execution_failed"),
+            "save_failure_evidence": mock.Mock(),
+        }
+
+        result = self.query.query_task(
+            {"keyword": "万象城", "directMeituanAccountId": "direct_wanxiangcheng"},
+            helpers,
+            playwright=None,
+            contexts={},
+            launched_contexts=[],
+            base_url="",
+            direct_accounts={},
+        )
+
+        self.assertTrue(result["ok"])
+        page.goto.assert_called_once_with(
+            "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc",
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        helpers["url_for_store"].assert_not_called()
 
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(
