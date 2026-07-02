@@ -1766,7 +1766,7 @@ def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
         frames.append(frame)
         warnings.extend(frame_warnings)
 
-    unified = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    unified = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["date", "platform", "store"])
     unified = unified[unified["store"].isin(config["target_stores"])].copy()
     unified.sort_values(["date", "store", "platform"], inplace=True)
     unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)

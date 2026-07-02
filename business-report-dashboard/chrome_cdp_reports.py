@@ -1316,7 +1316,7 @@ def process_reports(eleme: Path | None = None, meituan: Path | None = None) -> N
         args.extend(["--eleme", str(eleme)])
     if meituan:
         args.extend(["--meituan", str(meituan)])
-    if eleme is None or meituan is None:
+    if (eleme is None) != (meituan is None):
         args.append("--allow-missing-platform")
     subprocess.run(args, cwd=ROOT, check=True)
 
