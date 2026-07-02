@@ -427,6 +427,62 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertEqual(payload["notification_count"], 1)
             self.assertIn("上午运营一键采集", payload["notifications"][0]["message"])
 
+    def test_notify_deduplicates_schedule_issue_when_runtime_task_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "failed",
+                                "message": "上午运营一键采集异常结束，退出码：1。",
+                                "step": "launchd 包装器",
+                                "finished_at": "2026-07-02 08:18:55",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": True,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                },
+            )()
+            self.notifier.load_schedule_issue_tasks = lambda: {
+                "schedule.com.summer.operation.morning": {
+                    "status": "failed",
+                    "message": "上午运营一键采集异常结束，退出码：1。",
+                    "step": "上午运营一键采集",
+                    "finished_at": "2026-07-02 08:18:55",
+                    "extra": {"launchd_label": "com.summer.operation.morning"},
+                }
+            }
+            original_loader = self.notifier.load_policy_rows
+            try:
+                self.notifier.load_policy_rows = lambda: dict(self.notifier.DIRECT_TASK_ROWS)
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+
+            self.assertEqual(payload["notification_count"], 1)
+            self.assertEqual(payload["notifications"][0]["task_id"], "ops.morning_collection")
+
 
 if __name__ == "__main__":
     unittest.main()

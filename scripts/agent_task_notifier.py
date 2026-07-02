@@ -274,7 +274,12 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     now = time.time()
     policy_rows = load_policy_rows()
     task_candidates = dict(tasks)
-    task_candidates.update(load_schedule_issue_tasks())
+    for task_id, task in load_schedule_issue_tasks().items():
+        label = ((task.get("extra") or {}).get("launchd_label") or "") if isinstance(task, dict) else ""
+        mapped_task_id = hermes_schedule_status.LABEL_TASK_IDS.get(str(label), "")
+        if mapped_task_id and mapped_task_id in tasks:
+            continue
+        task_candidates[task_id] = task
     notifications = []
     pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
