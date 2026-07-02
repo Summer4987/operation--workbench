@@ -22,6 +22,18 @@ PREVIEW_PATH = ROOT / "outputs" / "promo_budget_preview" / "latest.json"
 MEITUAN_BUDGET_LOG_DIR = ROOT / "outputs" / "meituan_budget_automation"
 OUTPUT_DIR = ROOT / "outputs" / "meituan_promo_spend"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+HEADQUARTERS_HOME_URL = "https://e.waimai.meituan.com/"
+STORE_ALIASES = {
+    "第3档口": ["第3档口", "吉祥美食城"],
+    "川湘府": ["川湘府", "第5号档口"],
+    "金融街": ["金融街"],
+    "光谷": ["光谷"],
+    "双井": ["双井"],
+    "丽泽": ["丽泽"],
+    "保利中心": ["保利中心"],
+    "安贞": ["安贞"],
+    "五一广场": ["五一广场"],
+}
 
 
 def now_text() -> str:
@@ -37,6 +49,24 @@ def parse_money(value: str) -> float | None:
 
 def normalize_space(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def task_store_aliases(task: dict[str, Any]) -> list[str]:
+    values = [
+        normalize_space(str(task.get(key) or ""))
+        for key in ("keyword", "store", "sourceStore")
+    ]
+    aliases: list[str] = []
+    joined = " ".join(values)
+    for value in values:
+        if value and value not in aliases:
+            aliases.append(value)
+    for key, extra_aliases in STORE_ALIASES.items():
+        if key in joined:
+            for alias in extra_aliases:
+                if alias not in aliases:
+                    aliases.append(alias)
+    return aliases
 
 
 def parse_spend_snapshot(text: str) -> dict[str, Any]:
@@ -229,6 +259,7 @@ def require_helpers() -> dict[str, Any]:
         from meituan_budget_cdp import (  # noqa: PLC0415
             base_url_for_task,
             classify_failure,
+            click_visible_text,
             context_for_task,
             enter_dianjin_with_recovery,
             load_direct_meituan_accounts,
@@ -245,6 +276,124 @@ def require_helpers() -> dict[str, Any]:
             raise RuntimeError("Mac mini 当前 Python 缺少 Playwright，不能读取美团后台。") from exc
         raise
     return locals()
+
+
+def select_headquarters_store(page, task: dict[str, Any]) -> str:
+    aliases = task_store_aliases(task)
+    if not aliases:
+        raise RuntimeError("总部账号缺少可匹配的分门店关键词。")
+
+    current = ""
+    try:
+        current = normalize_space(page.locator(".current-poi_31GHxd").first.inner_text(timeout=3000))
+    except Exception:
+        current = ""
+    if current and any(alias in current for alias in aliases):
+        return current
+
+    if page.locator(".roo-popup.bottom li").count() == 0:
+        selector = page.locator(".current-poi_31GHxd").first
+        if selector.count() == 0:
+            raise_if_meituan_verify_page(page)
+            try:
+                preview = normalize_space(page.locator("body").inner_text(timeout=3000))[:180]
+            except Exception:
+                preview = ""
+            raise RuntimeError(
+                "总部账号页面没有找到“全部门店”选择器。"
+                f" 当前URL：{page.url or '-'}；页面片段：{preview or '-'}"
+            )
+        selector.click(timeout=8000)
+        time.sleep(1)
+
+    items = page.locator(".roo-popup.bottom li")
+    available: list[str] = []
+    for index in range(items.count()):
+        item = items.nth(index)
+        text = normalize_space(item.inner_text(timeout=3000))
+        available.append(text)
+        if "全部门店" in text:
+            continue
+        if any(alias in text for alias in aliases):
+            item.click(timeout=8000)
+            for _ in range(12):
+                time.sleep(1)
+                try:
+                    current = normalize_space(page.locator(".current-poi_31GHxd").first.inner_text(timeout=3000))
+                except Exception:
+                    current = ""
+                if current and any(alias in current for alias in aliases):
+                    return current
+            return text
+    raise RuntimeError(
+        "总部账号门店下拉里没有匹配项："
+        + " / ".join(aliases)
+        + "；可选："
+        + "；".join(available[:12])
+    )
+
+
+def dismiss_common_modals(page) -> None:
+    for label in ("我知道了", "知道了", "确定"):
+        try:
+            locator = page.get_by_text(label)
+            for index in range(min(locator.count(), 4)):
+                item = locator.nth(index)
+                try:
+                    if item.is_visible():
+                        item.click(timeout=3000)
+                        time.sleep(0.8)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+
+
+def is_meituan_verify_page(page) -> bool:
+    url = page.url or ""
+    if "verify.meituan.com" in url:
+        return True
+    try:
+        text = normalize_space(page.locator("body").inner_text(timeout=3000))
+    except Exception:
+        text = ""
+    return "安全验证" in text or "验证" in text[:200]
+
+
+def raise_if_meituan_verify_page(page) -> None:
+    if is_meituan_verify_page(page):
+        raise RuntimeError("美团触发安全验证，请先在 Mac mini 的对应 Chrome 窗口完成验证后重试。")
+
+
+def headquarters_page_for_context(context) -> tuple[Any, bool]:
+    for page in context.pages:
+        if "e.waimai.meituan.com" in (page.url or ""):
+            return page, False
+    return context.new_page(), True
+
+
+def open_headquarters_promo_page(page, task: dict[str, Any], helpers: dict[str, Any]) -> str:
+    if "e.waimai.meituan.com" not in (page.url or ""):
+        page.goto(HEADQUARTERS_HOME_URL, wait_until="domcontentloaded", timeout=45_000)
+        time.sleep(4)
+    dismiss_common_modals(page)
+    selected = select_headquarters_store(page, task)
+    dismiss_common_modals(page)
+    text = helpers["page_text"](page)
+    if "门店推广" not in text:
+        time.sleep(4)
+        dismiss_common_modals(page)
+        text = helpers["page_text"](page)
+    if "门店推广" not in text:
+        raise RuntimeError(f"总部账号已切到分门店 {selected}，但页面没有出现门店推广入口。")
+    if not helpers["click_visible_text"](page, "门店推广"):
+        raise RuntimeError(f"总部账号已切到分门店 {selected}，但点击门店推广失败。")
+    for _ in range(20):
+        time.sleep(1)
+        raise_if_meituan_verify_page(page)
+        if any("waimaieapp.meituan.com/ad/v1" in (frame.url or "") for frame in page.frames):
+            return selected
+    raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广内层页面没有加载完成。")
 
 
 def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contexts: dict[str, Any], launched_contexts: list[Any], base_url: str, direct_accounts: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -266,14 +415,21 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
     created_page = False
     try:
         context = helpers["context_for_task"](playwright, contexts, launched_contexts, task, direct_accounts)
-        task_base_url = helpers["base_url_for_task"](base_url, task, direct_accounts, context)
-        wm_id = helpers["wm_poi_id"](task)
-        target_url = helpers["url_for_store"](task_base_url, wm_id)
-        record["wmPoiId"] = wm_id
-        page = context.new_page()
-        created_page = True
-        page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
-        time.sleep(4)
+        if task.get("directMeituanAccountId"):
+            page = context.new_page()
+            created_page = True
+            task_base_url = helpers["base_url_for_task"](base_url, task, direct_accounts, context)
+            wm_id = helpers["wm_poi_id"](task)
+            target_url = helpers["url_for_store"](task_base_url, wm_id)
+            record["wmPoiId"] = wm_id
+            page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
+            time.sleep(4)
+        else:
+            page, created_page = headquarters_page_for_context(context)
+            selected_store = open_headquarters_promo_page(page, task, helpers)
+            target_url = page.url
+            record["selected_store"] = selected_store
+        raise_if_meituan_verify_page(page)
         helpers["enter_dianjin_with_recovery"](page, target_url)
         helpers["wait_setting_ready"](page, timeout_seconds=20)
         text = helpers["page_text"](page)
@@ -321,10 +477,7 @@ def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: b
         tasks = tasks[:limit]
 
     direct_accounts = helpers["load_direct_meituan_accounts"]()
-    base_url = helpers["recent_meituan_promo_url"]()
-    if not base_url and any(not task.get("directMeituanAccountId") for task in tasks):
-        raise RuntimeError("没有找到本机 Chrome 最近的美团点金推广页，请先在 Mac mini 打开一次美团点金推广。")
-    base_url = base_url or ""
+    base_url = helpers["recent_meituan_promo_url"]() or HEADQUARTERS_HOME_URL
 
     results: list[dict[str, Any]] = []
     with helpers["sync_playwright"]() as playwright:

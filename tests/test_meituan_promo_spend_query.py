@@ -99,6 +99,23 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(snapshot["today_spend"], 20.4)
         self.assertEqual(snapshot["source"], "budget_percent")
 
+    def test_task_store_aliases_expand_short_brand_names(self) -> None:
+        aliases = self.query.task_store_aliases(
+            {
+                "keyword": "川湘府",
+                "store": "熊小小牛排饭POKEBEAR(第5号档口川湘府美食城店)",
+            }
+        )
+
+        self.assertIn("川湘府", aliases)
+        self.assertIn("第5号档口", aliases)
+
+    def test_task_store_aliases_include_third_stall_food_court(self) -> None:
+        aliases = self.query.task_store_aliases({"keyword": "第3档口"})
+
+        self.assertIn("第3档口", aliases)
+        self.assertIn("吉祥美食城", aliases)
+
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(
             [
