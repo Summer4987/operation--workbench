@@ -56,6 +56,48 @@ class FakeInput:
         return "60"
 
 
+class FakeLocator:
+    def __init__(self, items: list["FakeLocator"] | None = None, *, visible: bool = True, enabled: bool = True) -> None:
+        self.items = items or []
+        self.visible = visible
+        self.enabled = enabled
+        self.clicked = False
+
+    def count(self) -> int:
+        return len(self.items)
+
+    def nth(self, index: int) -> "FakeLocator":
+        return self.items[index]
+
+    def is_visible(self) -> bool:
+        return self.visible
+
+    def is_enabled(self, **_kwargs) -> bool:
+        return self.enabled
+
+    def click(self, **_kwargs) -> None:
+        self.clicked = True
+
+
+class FakeConfirmFrame:
+    url = "https://waimaieapp.meituan.com/ad/v1/rpc"
+
+    def __init__(self) -> None:
+        self.confirm = FakeLocator()
+
+    def get_by_role(self, *_args, **_kwargs) -> FakeLocator:
+        return FakeLocator([])
+
+    def get_by_text(self, *_args, **_kwargs) -> FakeLocator:
+        return FakeLocator([self.confirm])
+
+
+class FakeConfirmPage:
+    def __init__(self) -> None:
+        self.frame = FakeConfirmFrame()
+        self.frames = [self.frame]
+
+
 class MeituanBudgetCdpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -120,6 +162,15 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                                     )
         self.assertTrue(result["ok"])
         self.assertEqual(result["wmPoiId"], "")
+
+    def test_confirm_button_locator_falls_back_to_exact_text(self) -> None:
+        page = FakeConfirmPage()
+
+        locator = self.module.confirm_button_locator(page)
+
+        self.assertIs(locator, page.frame.confirm)
+        locator.click()
+        self.assertTrue(page.frame.confirm.clicked)
 
 
 if __name__ == "__main__":

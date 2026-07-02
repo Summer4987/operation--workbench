@@ -546,22 +546,52 @@ def fill_budget_with_recovery(page, target: float) -> tuple[str, str, int]:
     raise RuntimeError(f"输入框未变为目标预算：{after or before}")
 
 
+def confirm_button_locator(page):
+    locator_specs = [
+        lambda frame: frame.get_by_role("button", name=re.compile(r"^\s*确定\s*$")),
+        lambda frame: frame.get_by_text("确定", exact=True),
+    ]
+    for frame in page.frames:
+        for locator_for in locator_specs:
+            try:
+                locator = locator_for(frame)
+                count = locator.count()
+            except Exception:
+                continue
+            for index in range(count):
+                item = locator.nth(index)
+                try:
+                    if item.is_visible():
+                        return item
+                except Exception:
+                    continue
+    return None
+
+
+def confirm_button_enabled(locator) -> bool:
+    try:
+        return locator.is_enabled(timeout=3000)
+    except Exception:
+        return True
+
+
 def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str]:
-    confirm_button = page.get_by_role("button", name="确定")
-    if confirm_button.count() == 0:
+    confirm_button = confirm_button_locator(page)
+    if confirm_button is None:
         raise RuntimeError("预算弹窗没有确定按钮")
-    if not confirm_button.first.is_enabled(timeout=3000):
+    if not confirm_button_enabled(confirm_button):
         input_box = budget_input_locator(page)
         value = str(int(target) if target.is_integer() else target)
         trigger_form_dirty(page, input_box, value)
         time.sleep(1)
-    if not confirm_button.first.is_enabled(timeout=3000):
+        confirm_button = confirm_button_locator(page) or confirm_button
+    if not confirm_button_enabled(confirm_button):
         final_budget = read_budget(page)
         if final_budget is not None and abs(final_budget - target) <= 0.01:
             close_budget_modal(page)
             return final_budget, "确定按钮禁用，页面预算已是目标值"
         raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
-    confirm_button.first.click(timeout=5000)
+    confirm_button.click(timeout=5000)
     time.sleep(6)
     final_budget = read_budget(page)
     return final_budget, "已保存并读回确认"
