@@ -26,7 +26,7 @@ def notify(text: str) -> bool:
     webhook = os.environ.get("OPS_NOTIFY_WEBHOOK") or config.get("webhook") or ""
     webhook = str(webhook).strip()
     if not webhook:
-        return notify_via_hermes(text, config)
+        return notify_via_workbuddy(text, config) or notify_via_hermes(text, config)
 
     notify_type = str(os.environ.get("OPS_NOTIFY_TYPE") or config.get("type") or "wecom").strip().lower()
     if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
@@ -42,6 +42,47 @@ def notify(text: str) -> bool:
     except Exception as exc:
         print(f"通知发送失败：{exc}", file=sys.stderr)
         return False
+
+
+def notify_via_workbuddy(text: str, config: dict) -> bool:
+    workbuddy_bin = resolve_workbuddy_bin(config)
+    if not Path(workbuddy_bin).exists():
+        return False
+    target = str(os.environ.get("OPS_NOTIFY_TARGET") or config.get("target") or "weixin")
+    try:
+        result = subprocess.run(
+            [workbuddy_bin, "send", "--to", target, text],
+            cwd=ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=45,
+        )
+    except Exception as exc:
+        print(f"WorkBuddy 通知发送失败：{exc}", file=sys.stderr)
+        return False
+    output = (result.stdout or "").strip()
+    if output:
+        print(output)
+    if result.returncode != 0:
+        print(f"WorkBuddy 通知发送失败，退出码：{result.returncode}", file=sys.stderr)
+    return result.returncode == 0
+
+
+def resolve_workbuddy_bin(config: dict) -> str:
+    configured = os.environ.get("OPS_NOTIFY_WORKBUDDY_BIN") or config.get("workbuddy_bin")
+    candidates = [
+        configured,
+        Path.home() / "HermesPrivate" / "bin" / "workbuddy_hermes_send_compat.zsh",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(str(candidate)).expanduser()
+        if path.exists():
+            return str(path)
+    return str(Path.home() / "HermesPrivate" / "bin" / "workbuddy_hermes_send_compat.zsh")
 
 
 def notify_via_hermes(text: str, config: dict) -> bool:

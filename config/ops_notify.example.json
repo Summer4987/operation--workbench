@@ -2,5 +2,6 @@
   "type": "wecom",
   "webhook": "把企业微信机器人 webhook 放这里",
   "target": "weixin",
+  "workbuddy_bin": "~/HermesPrivate/bin/workbuddy_hermes_send_compat.zsh",
   "hermes_bin": "~/.local/bin/hermes"
 }

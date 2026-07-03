@@ -81,7 +81,10 @@ def test_login_preflight_notifies_and_uses_auth_exit_code():
 def test_ops_notify_falls_back_to_hermes_when_webhook_missing():
     text = OPS_NOTIFY_SCRIPT.read_text(encoding="utf-8")
 
-    assert "return notify_via_hermes(text, config)" in text
+    assert "return notify_via_workbuddy(text, config) or notify_via_hermes(text, config)" in text
+    assert "workbuddy_hermes_send_compat.zsh" in text
     assert "[hermes_bin, \"send\", \"--to\", target, text]" in text
+    assert "[workbuddy_bin, \"send\", \"--to\", target, text]" in text
     assert "OPS_NOTIFY_TARGET" in text
+    assert "OPS_NOTIFY_WORKBUDDY_BIN" in text
     assert ".hermes\" / \"hermes-agent\" / \"venv\" / \"bin\" / \"hermes" in text
