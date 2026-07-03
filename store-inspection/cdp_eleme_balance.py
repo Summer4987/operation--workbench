@@ -68,11 +68,74 @@ def parse_shop_rows(payload: dict) -> list[dict]:
     return items
 
 
+def parse_dom_balance_rows(rows: list[dict]) -> list[dict]:
+    items = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        store_name = str(row.get("shopName") or "").strip()
+        if not store_name:
+            continue
+        balance = row.get("balance")
+        try:
+            balance_float = round(float(str(balance).replace(",", "")), 2)
+        except (TypeError, ValueError):
+            continue
+        items.append(
+            {
+                "platform": "饿了么",
+                "store_name": store_name,
+                "store_id": str(row.get("shopId") or ""),
+                "balance": balance_float,
+                "status": "warning" if balance_float < THRESHOLD else "normal",
+                "source": "Chrome CDP页面表格读取",
+            }
+        )
+    return items
+
+
+def collect_dom_balance_rows(page) -> list[dict]:
+    return page.evaluate(
+        """
+        () => {
+          const visible = (el) => {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return rect.width > 0 && rect.height > 0
+              && style.visibility !== "hidden"
+              && style.display !== "none";
+          };
+          const textOf = (el) => (el?.innerText || el?.textContent || "").trim();
+          const rows = Array.from(document.querySelectorAll("tbody tr,.ant-table-row"))
+            .filter(visible)
+            .map((tr) => {
+              const cells = Array.from(tr.querySelectorAll("td,.ant-table-cell")).map(textOf);
+              if (cells.length < 4) return null;
+              const joined = cells.join("\\n");
+              const idMatch = joined.match(/\\b\\d{6,}\\b/);
+              const balanceCell = cells.find((cell, index) =>
+                index >= 2 && /^\\d+(?:,\\d{3})*(?:\\.\\d+)?$/.test(cell.replace(/\\s/g, ""))
+              );
+              const nameCell = cells.find((cell) => /POKE|熊小小|牛排饭/i.test(cell));
+              return {
+                shopId: idMatch ? idMatch[0] : (cells[0] || ""),
+                shopName: nameCell || cells[1] || "",
+                balance: balanceCell ? balanceCell.replace(/\\s/g, "") : "",
+              };
+            })
+            .filter(Boolean);
+          return rows;
+        }
+        """
+    )
+
+
 def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str]:
     config = cdp.load_config()
     playwright, browser = cdp.connect_browser(config)
     response_payloads: list[dict] = []
     response_url = ""
+    dom_rows: list[dict] = []
     try:
         context = cdp.first_context(browser)
         page = cdp.reusable_page(context)
@@ -159,6 +222,28 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                 if not response_payloads and BALANCE_API_KEY not in page.url:
                     # Keep the page active without clicking any business controls.
                     page.evaluate("() => document.body && document.body.innerText")
+                if not response_payloads:
+                    try:
+                        dom_rows = collect_dom_balance_rows(page)
+                    except Exception:
+                        dom_rows = []
+                    if dom_rows:
+                        rows_by_shop = {
+                            str(row.get("shopId") or row.get("shopName") or index): row
+                            for index, row in enumerate(dom_rows)
+                        }
+                        for page_number in range(2, 6):
+                            if not click_page_number(page_number):
+                                break
+                            page.wait_for_timeout(1200)
+                            try:
+                                for row in collect_dom_balance_rows(page):
+                                    key = str(row.get("shopId") or row.get("shopName") or len(rows_by_shop))
+                                    rows_by_shop[key] = row
+                            except Exception:
+                                break
+                        dom_rows = list(rows_by_shop.values())
+                        break
             if response_payloads:
                 total_count = int(response_payloads[0].get("totalCount") or len(response_payloads[0].get("result") or []))
                 page_size = max(1, len(response_payloads[0].get("result") or []))
@@ -172,7 +257,12 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                     page.wait_for_timeout(1000)
         finally:
             page.remove_listener("response", handle_response)
-        return merged_payload(), response_url
+        payload = merged_payload()
+        if payload:
+            return payload, response_url
+        if dom_rows:
+            return {"result": dom_rows, "source": "dom_table"}, "dom_table"
+        return None, response_url
     finally:
         cdp.disconnect_browser(playwright, browser)
 
@@ -187,7 +277,10 @@ def write_test_outputs(data: dict) -> None:
 
 def main() -> int:
     payload, response_url = collect_balance_payload()
-    items = parse_shop_rows(payload or {})
+    if (payload or {}).get("source") == "dom_table":
+        items = parse_dom_balance_rows((payload or {}).get("result") or [])
+    else:
+        items = parse_shop_rows(payload or {})
     data = apply_direct_coverage(
         build_result(items, THRESHOLD, "CDP接口没有读取到饿了么门店余额。"),
         {"饿了么"},
