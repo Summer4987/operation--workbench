@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "run_current_budget.zsh"
 REALTIME_SCRIPT = ROOT / "scripts" / "run_realtime_order_income.zsh"
 INSTALL_SCRIPT = ROOT / "scripts" / "install_macmini_operation_launchd.zsh"
+DEPLOY_SCRIPT = ROOT / "scripts" / "deploy_workbench_to_cloud.zsh"
 
 
 def test_current_budget_does_not_read_step_rc_after_fi():
@@ -46,3 +47,10 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
     assert "[[ ! -f \"\\$ensure_script\" || ! -x \"\\$ensure_script\" ]]" in text
     assert "python_has_playwright" in text
     assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text
+
+
+def test_data_only_deploy_verifies_direct_latest_from_stage_dir():
+    text = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"' in text
+    assert 'verify_remote_file "business-report-dashboard/data/direct-latest.json"\n' not in text

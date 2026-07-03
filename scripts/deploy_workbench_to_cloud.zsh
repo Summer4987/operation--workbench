@@ -186,7 +186,7 @@ verify_remote_file() {
 if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "index.html" "$STAGE_DIR/index.html"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
-  verify_remote_file "business-report-dashboard/data/direct-latest.json"
+  verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"
 else
   verify_remote_file "index.html" "$STAGE_DIR/index.html"
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
