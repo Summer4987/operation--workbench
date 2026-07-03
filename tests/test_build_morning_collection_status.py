@@ -119,6 +119,49 @@ class BuildMorningCollectionStatusTests(unittest.TestCase):
         self.assertEqual(payload["status"], "partial")
         self.assertIn("不能判定", payload["message"])
 
+    def test_failed_task_without_events_uses_wrapper_failure_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_runs = root / "outputs" / "task_runs" / "latest.json"
+            task_runs.parent.mkdir(parents=True)
+            task_runs.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "failed",
+                                "message": "上午运营一键采集异常结束，退出码：1。",
+                                "step": "launchd 包装器",
+                                "log_path": "/tmp/morning.log",
+                                "returncode": 1,
+                                "failure_type": "execution_failed",
+                                "updated_at": "2026-07-03 08:22:43",
+                                "extra": {
+                                    "failures": "双平台评价、饿了么午餐预算",
+                                },
+                            }
+                        },
+                        "events": [],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            original = morning_module.TASK_RUNS_PATH
+            try:
+                morning_module.TASK_RUNS_PATH = task_runs
+                payload = morning_module.build_payload()
+            finally:
+                morning_module.TASK_RUNS_PATH = original
+
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["summary"]["failed_count"], 2)
+        self.assertEqual(
+            {step["name"] for step in payload["failed_steps"]},
+            {"双平台评价", "饿了么午餐预算"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

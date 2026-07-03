@@ -318,6 +318,39 @@ def summarize_steps(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(by_step.values(), key=lambda item: parse_time(item.get("updated_at")) or datetime.min)
 
 
+def fallback_steps_from_task(task: dict[str, Any]) -> list[dict[str, Any]]:
+    if not task or task.get("status") != "failed":
+        return []
+    extra = task.get("extra") if isinstance(task.get("extra"), dict) else {}
+    failures = [
+        part.strip()
+        for part in str(extra.get("failures") or "").replace("，", ",").replace("、", ",").split(",")
+        if part.strip()
+    ]
+    if not failures:
+        failures = [str(task.get("step") or "上午运营一键采集")]
+    steps: list[dict[str, Any]] = []
+    for name in failures:
+        message = str(task.get("message") or f"{name}失败。")
+        failure_type = str(task.get("failure_type") or normalize_failure_type(message, task.get("returncode")))
+        platform = platform_for_step(name, message)
+        steps.append(
+            {
+                "name": name,
+                "status": "failed",
+                "module": module_for_step(name),
+                "platform": platform,
+                "message": message,
+                "failure_type": failure_type,
+                "human_action": human_action_for(name, failure_type, platform),
+                "returncode": task.get("returncode"),
+                "log_path": task.get("log_path") or "",
+                "updated_at": task.get("updated_at") or task.get("finished_at") or "",
+            }
+        )
+    return steps
+
+
 def build_payload() -> dict[str, Any]:
     run_state = read_json(TASK_RUNS_PATH, {"tasks": {}, "events": []})
     all_events = [event for event in run_state.get("events", []) if event.get("task_id") == TASK_ID]
@@ -329,8 +362,10 @@ def build_payload() -> dict[str, Any]:
             for event in run_state.get("events", [])[start_index:]
             if event.get("task_id") == TASK_ID
         ]
-    steps = summarize_steps(session_events)
     task = (run_state.get("tasks") or {}).get(TASK_ID) or {}
+    steps = summarize_steps(session_events)
+    if not steps:
+        steps = fallback_steps_from_task(task)
     failed_steps = [step for step in steps if step["status"] == "failed"]
     recovery_actions = [
         {
@@ -347,12 +382,12 @@ def build_payload() -> dict[str, Any]:
     repair_guides = build_repair_guides(failed_steps)
     completed_steps = [step for step in steps if step["status"] == "success"]
     running_steps = [step for step in steps if step["status"] == "running"]
-    if not all_events:
-        status = "missing_run"
-        message = "尚未找到上午运营一键采集运行记录。"
-    elif failed_steps or task.get("status") == "failed":
+    if failed_steps or task.get("status") == "failed":
         status = "failed"
         message = f"上午运营一键采集有 {len(failed_steps)} 个子步骤失败。"
+    elif not all_events:
+        status = "missing_run"
+        message = "尚未找到上午运营一键采集运行记录。"
     elif task.get("status") == "success" and completed_steps:
         status = "success"
         message = f"上午运营一键采集完成，{len(completed_steps)} 个子步骤有完成记录。"
