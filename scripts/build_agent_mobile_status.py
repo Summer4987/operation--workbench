@@ -27,8 +27,10 @@ QUESTIONS = [
 ]
 
 SAMPLE_COMMANDS = [
+    "今天跑得稳不稳？",
     "今天哪里有问题？",
     "刷新状态",
+    "预算那边是不是又挂了？",
     "执行非订货恢复",
     "重跑预算设置",
     "确认执行预算重跑",
@@ -92,11 +94,16 @@ def build_payload() -> dict[str, Any]:
         "commands": [
             {
                 "text": command,
-                "intent": agent_command.classify_intent(command),
-                "preview": agent_command.handle_command(command, execute=False)["answer"],
+                "intent": agent_command.classify_intent_with_llm(command, use_llm=False)[0],
+                "preview": agent_command.handle_command(command, execute=False, use_llm=False)["answer"],
             }
             for command in SAMPLE_COMMANDS
         ],
+        "assistant": {
+            "name": "运营 Agent",
+            "status": "online",
+            "intro": "我在看 Mac mini 最近一次自动化报告。",
+        },
         "sources": {
             "agent_pipeline": "outputs/agent_pipeline/daily_automation_guard/latest.json",
             "agent_monitor": "outputs/agent_task_monitor/latest.json",

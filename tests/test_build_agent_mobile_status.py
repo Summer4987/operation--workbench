@@ -19,6 +19,8 @@ class AgentMobileStatusTests(unittest.TestCase):
         self.assertFalse(payload["safety"]["execution_agent_enabled"])
         self.assertEqual({item["id"] for item in payload["answers"]}, {"status", "problems", "rerun", "execution_agent"})
         self.assertIn("blocked_ordering", {item["intent"] for item in payload["commands"]})
+        self.assertEqual(payload["assistant"]["name"], "运营 Agent")
+        self.assertIn("今天跑得稳不稳？", {item["text"] for item in payload["commands"]})
 
 
 if __name__ == "__main__":

@@ -3,73 +3,120 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Agent 手机入口</title>
+    <title>Agent 对话入口</title>
     <style>
       :root {
         color-scheme: light;
-        --bg: #f6f7f9;
+        --bg: #eef2f5;
+        --surface: #ffffff;
         --ink: #18202a;
-        --muted: #697386;
-        --line: #d9dee7;
-        --panel: #ffffff;
+        --muted: #667085;
+        --line: #d8dee8;
+        --agent: #ffffff;
+        --user: #dff4ee;
         --accent: #0f766e;
+        --accent-ink: #064e46;
         --danger: #b42318;
-        --warn: #a15c07;
+        --shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
       }
 
       * {
         box-sizing: border-box;
       }
 
+      html,
       body {
         margin: 0;
-        min-height: 100vh;
+        width: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
         background: var(--bg);
         color: var(--ink);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      main {
-        width: min(760px, 100%);
+      body {
+        min-height: 100vh;
+      }
+
+      .shell {
+        width: min(820px, 100%);
+        max-width: 100vw;
+        min-height: 100vh;
         margin: 0 auto;
-        padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        background: #f7f9fb;
+        overflow-x: hidden;
       }
 
-      header {
-        padding: 10px 0 14px;
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        width: 100%;
+        max-width: 100vw;
+        padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(247, 249, 251, 0.94);
+        backdrop-filter: blur(14px);
       }
 
-      .eyebrow {
-        margin: 0 0 5px;
-        color: var(--muted);
-        font-size: 13px;
+      .identity {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 11px;
+      }
+
+      .avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #0f766e;
+        color: #ffffff;
+        font-weight: 800;
       }
 
       h1 {
         margin: 0;
-        font-size: 28px;
-        line-height: 1.12;
+        font-size: 19px;
+        line-height: 1.2;
         letter-spacing: 0;
+      }
+
+      .presence,
+      .timestamp,
+      .meta {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 5px;
+        border-radius: 50%;
+        background: #12b76a;
       }
 
       .summary {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
-        margin: 14px 0;
-      }
-
-      .metric,
-      .answer,
-      .notice {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--panel);
+        margin-top: 12px;
       }
 
       .metric {
-        min-height: 74px;
-        padding: 11px 10px;
+        min-height: 58px;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
       }
 
       .metric span {
@@ -80,154 +127,216 @@
 
       .metric strong {
         display: block;
-        margin-top: 5px;
-        font-size: 24px;
+        margin-top: 3px;
+        font-size: 22px;
         line-height: 1;
       }
 
-      .tabs {
+      .chat {
+        padding: 14px 16px 18px;
+        overflow: hidden;
+      }
+
+      .thread {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .row {
+        display: grid;
+        gap: 5px;
+      }
+
+      .row.user {
+        justify-items: end;
+      }
+
+      .bubble {
+        max-width: min(620px, 88%);
+        padding: 12px 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--agent);
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
+      }
+
+      .user .bubble {
+        border-color: #bae6d8;
+        background: var(--user);
+      }
+
+      .bubble strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      .bubble p {
+        margin: 0;
+        color: #2d3748;
+        font-size: 15px;
+        line-height: 1.58;
+        overflow-wrap: anywhere;
+      }
+
+      .bubble.warning {
+        border-color: #fed7aa;
+        background: #fff7ed;
+      }
+
+      .chips {
+        display: flex;
         gap: 8px;
-        margin: 12px 0;
+        overflow-x: auto;
+        padding: 4px 0 2px;
+        scrollbar-width: none;
+      }
+
+      .chips::-webkit-scrollbar {
+        display: none;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .chip {
+        flex: 0 0 auto;
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0 12px;
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 14px;
+      }
+
+      .chip.active {
+        border-color: var(--accent);
+        background: #e6f4f1;
+        color: var(--accent-ink);
+        font-weight: 700;
+      }
+
+      .composer {
+        position: sticky;
+        bottom: 0;
+        z-index: 6;
+        width: 100%;
+        max-width: 100vw;
+        padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--line);
+        background: rgba(247, 249, 251, 0.96);
+        backdrop-filter: blur(14px);
       }
 
       .command-box {
-        margin: 12px 0;
         display: grid;
         grid-template-columns: 1fr auto;
         gap: 8px;
+        padding: 7px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
       }
 
       input {
         width: 100%;
-        min-height: 46px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 0 12px;
-        background: var(--panel);
+        min-height: 42px;
+        border: 0;
+        outline: 0;
+        padding: 0 7px;
+        background: transparent;
         color: var(--ink);
-        font: inherit;
         font-size: 16px;
       }
 
-      button {
-        min-height: 46px;
-        border: 1px solid var(--line);
+      .send {
+        min-width: 54px;
+        min-height: 42px;
+        border: 0;
         border-radius: 8px;
-        background: var(--panel);
-        color: var(--ink);
-        font: inherit;
-        font-size: 15px;
+        background: var(--accent);
+        color: #ffffff;
+        font-weight: 800;
+      }
+
+      .meta {
+        margin-top: 8px;
         text-align: center;
-      }
-
-      button.active {
-        border-color: var(--accent);
-        background: #e7f5f2;
-        color: #0b4f49;
-        font-weight: 700;
-      }
-
-      .answer {
-        padding: 16px;
-        min-height: 170px;
-      }
-
-      .answer h2 {
-        margin: 0 0 10px;
-        font-size: 17px;
-        line-height: 1.25;
-        letter-spacing: 0;
-      }
-
-      .answer p,
-      .notice p {
-        margin: 0;
-        color: #2d3748;
-        font-size: 16px;
-        line-height: 1.55;
-        overflow-wrap: anywhere;
-      }
-
-      .notice {
-        margin-top: 12px;
-        padding: 12px;
-        border-color: #c9d7d5;
-        background: #f0faf8;
-      }
-
-      .footer {
-        margin-top: 12px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.5;
       }
 
       .error {
         color: var(--danger);
       }
 
-      @media (max-width: 420px) {
-        main {
+      @media (max-width: 460px) {
+        .topbar {
           padding-left: 12px;
           padding-right: 12px;
         }
 
-        h1 {
-          font-size: 24px;
+        .chat,
+        .composer {
+          padding-left: 12px;
+          padding-right: 12px;
         }
 
-        .summary {
-          gap: 6px;
+        .bubble {
+          max-width: 92%;
         }
 
         .metric {
-          padding: 10px 8px;
-        }
-
-        .metric strong {
-          font-size: 22px;
+          padding: 8px;
         }
       }
     </style>
   </head>
   <body>
-    <main>
-      <header>
-        <p class="eyebrow" id="updatedAt">读取中</p>
-        <h1>Agent 手机入口</h1>
+    <main class="shell">
+      <header class="topbar">
+        <div class="identity">
+          <div class="avatar" aria-hidden="true">A</div>
+          <div>
+            <h1 id="assistantName">运营 Agent</h1>
+            <div class="presence"><span class="status-dot"></span><span id="assistantIntro">读取最近报告</span></div>
+          </div>
+          <div class="timestamp" id="updatedAt">读取中</div>
+        </div>
+        <section class="summary" aria-label="Agent 概览">
+          <div class="metric"><span>成功</span><strong id="agentSuccess">-</strong></div>
+          <div class="metric"><span>失败</span><strong id="agentFailed">-</strong></div>
+          <div class="metric"><span>关注</span><strong id="taskAttention">-</strong></div>
+        </section>
       </header>
 
-      <section class="summary" aria-label="Agent 概览">
-        <div class="metric"><span>成功</span><strong id="agentSuccess">-</strong></div>
-        <div class="metric"><span>失败</span><strong id="agentFailed">-</strong></div>
-        <div class="metric"><span>关注</span><strong id="taskAttention">-</strong></div>
+      <section class="chat" aria-live="polite">
+        <div class="thread" id="thread">
+          <div class="row agent">
+            <div class="bubble">
+              <strong>运营 Agent</strong>
+              <p>正在读取 Mac mini 最近一次自动化报告。</p>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section class="command-box" aria-label="对话命令">
-        <input id="commandInput" type="text" placeholder="输入：今天哪里有问题？" autocomplete="off" />
-        <button id="commandButton" type="button">询问</button>
-      </section>
-
-      <nav class="tabs" id="questionTabs" aria-label="常用问题"></nav>
-
-      <section class="answer" aria-live="polite">
-        <h2 id="answerTitle">等待数据</h2>
-        <p id="answerText">正在读取最近一次 Mac mini agent 报告。</p>
-      </section>
-
-      <section class="notice">
-        <p id="safetyText">手机入口只读，不执行真实动作。</p>
-      </section>
-
-      <p class="footer" id="sourceText"></p>
+      <footer class="composer">
+        <div class="chips" id="quickReplies" aria-label="常用问题"></div>
+        <div class="command-box" aria-label="对话命令">
+          <input id="commandInput" type="text" placeholder="问我：今天跑得稳不稳？" autocomplete="off" />
+          <button class="send" id="commandButton" type="button" aria-label="发送">发送</button>
+        </div>
+        <div class="meta" id="sourceText">手机入口只读</div>
+      </footer>
     </main>
 
     <script>
-      const tabs = document.querySelector("#questionTabs");
-      const answerTitle = document.querySelector("#answerTitle");
-      const answerText = document.querySelector("#answerText");
+      const thread = document.querySelector("#thread");
+      const quickReplies = document.querySelector("#quickReplies");
       const commandInput = document.querySelector("#commandInput");
       const commandButton = document.querySelector("#commandButton");
       let agentPayload = null;
@@ -237,41 +346,103 @@
         if (el) el.textContent = value;
       }
 
-      function renderAnswer(item, button) {
-        [...tabs.querySelectorAll("button")].forEach((node) => node.classList.toggle("active", node === button));
-        answerTitle.textContent = item.question;
-        answerText.textContent = item.answer || "这项暂时没有回答。";
-      }
-
       function normalizeCommand(value) {
         return String(value || "").trim().toLowerCase();
       }
 
-      function answerCommand(value) {
-        const raw = String(value || "").trim();
-        if (!raw) return;
+      function appendMessage(role, title, text, options = {}) {
+        const row = document.createElement("div");
+        row.className = `row ${role}`;
+        const bubble = document.createElement("div");
+        bubble.className = `bubble ${options.warning ? "warning" : ""}`.trim();
+        const strong = document.createElement("strong");
+        strong.textContent = title;
+        const p = document.createElement("p");
+        p.textContent = text || "这项暂时没有回答。";
+        bubble.append(strong, p);
+        row.appendChild(bubble);
+        thread.appendChild(row);
+        row.scrollIntoView({ block: "end", behavior: options.instant ? "auto" : "smooth" });
+      }
+
+      function resetThread() {
+        thread.innerHTML = "";
+      }
+
+      function findAnswer(raw) {
         const normalized = normalizeCommand(raw);
         const commands = Array.isArray(agentPayload?.commands) ? agentPayload.commands : [];
-        const matched = commands.find((item) => normalizeCommand(item.text) === normalized);
-        if (matched) {
-          answerTitle.textContent = raw;
-          answerText.textContent = matched.preview || "这条命令暂时没有预览。";
-          return;
+        const matchedCommand = commands.find((item) => normalizeCommand(item.text) === normalized);
+        if (matchedCommand) {
+          return { title: "运营 Agent", text: matchedCommand.preview, warning: matchedCommand.intent === "blocked_ordering" };
         }
+
         const answers = Array.isArray(agentPayload?.answers) ? agentPayload.answers : [];
-        const byKeyword = answers.find((item) => {
-          const text = `${item.question || ""} ${item.id || ""}`;
-          return [...normalized].some(Boolean) && (
+        const matchedAnswer = answers.find((item) => normalizeCommand(item.question) === normalized);
+        if (matchedAnswer) {
+          return { title: "运营 Agent", text: matchedAnswer.answer };
+        }
+
+        const keywordAnswer = answers.find((item) => {
+          return (
+            (normalized.includes("稳") && item.id === "status") ||
+            (normalized.includes("正常") && item.id === "status") ||
+            (normalized.includes("状态") && item.id === "status") ||
             (normalized.includes("问题") && item.id === "problems") ||
+            (normalized.includes("异常") && item.id === "problems") ||
+            (normalized.includes("失败") && item.id === "problems") ||
             (normalized.includes("补跑") && item.id === "rerun") ||
-            (normalized.includes("执行") && item.id === "execution_agent") ||
-            (normalized.includes("状态") && item.id === "status")
+            (normalized.includes("执行") && item.id === "execution_agent")
           );
         });
-        answerTitle.textContent = raw;
-        answerText.textContent = byKeyword
-          ? byKeyword.answer
-          : "手机页现在能回答常用状态问题。需要真正执行时，请在 Mac mini 上使用 agent_command.py；订货/下单/采购仍会被拦截。";
+        if (keywordAnswer) {
+          return { title: "运营 Agent", text: keywordAnswer.answer };
+        }
+
+        return {
+          title: "运营 Agent",
+          text: "我现在能看最近一次 Mac mini 报告、预算预览提示和订货拦截结果。需要真实执行时，仍要回到 Mac mini 的 agent_command.py。",
+        };
+      }
+
+      function ask(raw, options = {}) {
+        const text = String(raw || "").trim();
+        if (!text || !agentPayload) return;
+        if (!options.silentUser) appendMessage("user", "你", text);
+        const answer = findAnswer(text);
+        appendMessage("agent", answer.title, answer.text, { warning: answer.warning });
+        commandInput.value = "";
+      }
+
+      function renderQuickReplies(payload) {
+        quickReplies.innerHTML = "";
+        const commands = Array.isArray(payload.commands) ? payload.commands : [];
+        commands.slice(0, 7).forEach((item, index) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "chip";
+          button.textContent = item.text;
+          button.addEventListener("click", () => {
+            [...quickReplies.querySelectorAll("button")].forEach((node) => node.classList.toggle("active", node === button));
+            ask(item.text);
+          });
+          quickReplies.appendChild(button);
+          if (index === 0) button.classList.add("active");
+        });
+      }
+
+      function renderOpening(payload) {
+        const summary = payload.summary || {};
+        const failed = Number(summary.agent_failed || 0);
+        const attention = Number(summary.task_attention || 0);
+        let text = `最近一次 agent：成功 ${summary.agent_success ?? 0}，失败 ${summary.agent_failed ?? 0}，关注 ${summary.task_attention ?? 0}。`;
+        if (failed > 0 || attention > 0) {
+          text += " 我建议先问“今天哪里有问题？”。";
+        } else {
+          text += " 可以继续问我任务状态或预算预览。";
+        }
+        resetThread();
+        appendMessage("agent", payload.assistant?.name || "运营 Agent", text, { instant: true });
       }
 
       async function loadAgentStatus() {
@@ -281,34 +452,27 @@
           const payload = await response.json();
           agentPayload = payload;
           const summary = payload.summary || {};
-          setText("updatedAt", `更新于 ${payload.generated_at || "未知时间"}`);
+          setText("assistantName", payload.assistant?.name || payload.page_title || "运营 Agent");
+          setText("assistantIntro", payload.assistant?.intro || "我在看最近一次自动化报告");
+          setText("updatedAt", payload.generated_at || "未知时间");
           setText("agentSuccess", summary.agent_success ?? "-");
           setText("agentFailed", summary.agent_failed ?? "-");
           setText("taskAttention", summary.task_attention ?? "-");
-          setText("safetyText", payload.safety?.note || "手机入口只读，不执行真实动作。");
-          setText("sourceText", `数据来自 ${payload.host || "Mac mini"}，最近 agent 运行：${summary.pipeline_generated_at || "未知"}`);
-
-          tabs.innerHTML = "";
-          const answers = Array.isArray(payload.answers) ? payload.answers : [];
-          answers.forEach((item, index) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = item.question;
-            button.addEventListener("click", () => renderAnswer(item, button));
-            tabs.appendChild(button);
-            if (index === 0) renderAnswer(item, button);
-          });
-          commandButton.addEventListener("click", () => answerCommand(commandInput.value));
-          commandInput.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") answerCommand(commandInput.value);
-          });
+          setText("sourceText", `${payload.host || "Mac mini"} · 最近运行 ${summary.pipeline_generated_at || "未知"}`);
+          renderQuickReplies(payload);
+          renderOpening(payload);
         } catch (error) {
+          resetThread();
           setText("updatedAt", "读取失败");
-          answerTitle.textContent = "没有读到 Agent 数据";
-          answerText.textContent = `请确认 Mac mini 已运行并发布 agent 状态。错误：${error.message}`;
-          answerText.classList.add("error");
+          appendMessage("agent", "没有读到 Agent 数据", `请确认 Mac mini 已运行并发布 agent 状态。错误：${error.message}`, { warning: true, instant: true });
+          thread.querySelector("p")?.classList.add("error");
         }
       }
+
+      commandButton.addEventListener("click", () => ask(commandInput.value));
+      commandInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") ask(commandInput.value);
+      });
 
       loadAgentStatus();
     </script>
