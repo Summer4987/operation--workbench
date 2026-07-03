@@ -76,15 +76,16 @@ record_task_run() {
 
 ensure_browser_env() {
   local ensure_script="\$ROOT/scripts/ensure_browser_automation_env.zsh"
-  if [[ ! -x "\$ensure_script" ]]; then
+  if [[ ! -f "\$ensure_script" || ! -x "\$ensure_script" ]]; then
     return 0
   fi
-  if run_with_timeout "\${REALTIME_DEPENDENCY_CHECK_TIMEOUT_SECONDS:-240}" env OPERATION_ROOT="\$ROOT" /bin/zsh "\$ensure_script"; then
+  run_with_timeout "\${REALTIME_DEPENDENCY_CHECK_TIMEOUT_SECONDS:-240}" env OPERATION_ROOT="\$ROOT" /bin/zsh "\$ensure_script"
+  local rc=\$?
+  if [[ "\$rc" -eq 0 ]]; then
     PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
     export PYTHONPATH="\$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
     return 0
   fi
-  local rc=\$?
   FINAL_RC="\$rc"
   TASK_STEP="浏览器自动化依赖检查"
   record_task_run "\$TASK_ID" failed --message "实时单量收入采集未执行：浏览器自动化环境不可用，Playwright 安装或导入失败。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc" --failure-type "dependency_missing"
@@ -133,11 +134,14 @@ run_followup_step() {
   shift 2
   TASK_STEP="\$step"
   record_task_run "\$TASK_ID" running --message "\$TASK_STEP" --step "\$TASK_STEP" --log-path "\$LOG_FILE"
-  if run_with_timeout "\$seconds" "\$@"; then
+  run_with_timeout "\$seconds" "\$@"
+  local rc=\$?
+  if [[ "\$rc" -eq 0 ]]; then
     return 0
   fi
-  local rc=\$?
-  FINAL_RC="\$rc"
+  if [[ "\$FINAL_RC" -eq 0 ]]; then
+    FINAL_RC="\$rc"
+  fi
   record_task_run "\$TASK_ID" failed --message "实时单量收入采集后续步骤失败：\${TASK_STEP}。" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$rc"
   return "\$rc"
 }
