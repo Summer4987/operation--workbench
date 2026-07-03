@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import agent_notify  # noqa: E402
+import agent_llm  # noqa: E402
 
 OUTPUT_DIR = ROOT / "outputs" / "agent_command"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
@@ -103,6 +104,33 @@ def classify_intent(text: str) -> str:
     return "chat"
 
 
+def classify_intent_with_llm(text: str, *, use_llm: bool = True) -> tuple[str, dict[str, Any]]:
+    clean = text.strip()
+    if not clean:
+        return "help", {"used": False, "fallback": "empty-command"}
+
+    # Hard safety boundaries stay deterministic and run before any model advice.
+    non_ordering_scope = "非订货" in clean or "除了订货" in clean or "不含订货" in clean
+    if command_contains(clean, EXECUTE_KEYWORDS) and non_ordering_scope:
+        return "execute_non_ordering", {"used": False, "fallback": "hard-non-ordering-scope"}
+    if command_contains(clean, ORDERING_KEYWORDS):
+        return "blocked_ordering", {"used": False, "fallback": "hard-ordering-block"}
+    if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
+        return "budget_commit", {"used": False, "fallback": "hard-budget-confirmation"}
+
+    fallback_intent = classify_intent(clean)
+    if not use_llm:
+        return fallback_intent, {"used": False, "fallback": "llm-disabled-by-flag"}
+
+    advice = agent_llm.classify(clean)
+    if advice.get("used") and float(advice.get("confidence") or 0) >= 0.55:
+        intent = str(advice.get("intent") or "")
+        if intent in agent_llm.ALLOWED_INTENTS:
+            return intent, advice
+    advice["fallback_intent"] = fallback_intent
+    return fallback_intent, advice
+
+
 def chat_answer(question: str, *, refresh: bool = False) -> str:
     command = [sys.executable or "python3", str(ROOT / "scripts" / "agent_chat.py")]
     if refresh:
@@ -113,8 +141,8 @@ def chat_answer(question: str, *, refresh: bool = False) -> str:
     return output or f"agent_chat 没有返回内容，退出码 {result['returncode']}。"
 
 
-def handle_command(text: str, *, execute: bool) -> dict[str, Any]:
-    intent = classify_intent(text)
+def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[str, Any]:
+    intent, llm_record = classify_intent_with_llm(text, use_llm=use_llm)
     actions: list[dict[str, Any]] = []
     blocked = False
 
@@ -200,9 +228,22 @@ def handle_command(text: str, *, execute: bool) -> dict[str, Any]:
         "blocked": blocked,
         "answer": answer,
         "actions": actions,
+        "llm": {
+            "enabled": bool(use_llm),
+            "used": bool(llm_record.get("used")),
+            "provider": llm_record.get("provider", ""),
+            "model": llm_record.get("model", ""),
+            "intent": llm_record.get("intent", ""),
+            "confidence": llm_record.get("confidence", 0),
+            "reason": llm_record.get("reason", ""),
+            "fallback": llm_record.get("fallback", ""),
+            "fallback_intent": llm_record.get("fallback_intent", ""),
+            "error": llm_record.get("error", ""),
+        },
         "safety": {
             "ordering_excluded": True,
             "requires_execute_flag_for_mutation": True,
+            "llm_advisory_only": True,
         },
     }
 
@@ -214,11 +255,12 @@ def main() -> int:
     parser.add_argument("--notify", action="store_true", help="把本次 agent 命令结果发送到企业微信/通知通道")
     parser.add_argument("--notify-on-problem", action="store_true", help="仅在失败、拦截或执行动作时发送通知")
     parser.add_argument("--notify-dry-run", action="store_true", help="只生成通知内容，不实际发送")
+    parser.add_argument("--no-llm", action="store_true", help="禁用大模型意图识别，强制使用本地关键词规则")
     parser.add_argument("--output", default=str(LATEST_PATH), help="输出 JSON 路径")
     args = parser.parse_args()
 
     text = " ".join(args.command_text).strip()
-    payload = handle_command(text, execute=args.execute)
+    payload = handle_command(text, execute=args.execute, use_llm=not args.no_llm)
     should_notify = args.notify or (
         args.notify_on_problem
         and (

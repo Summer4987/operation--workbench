@@ -74,6 +74,52 @@ class AgentCommandTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertIn("--execute", output.read_text(encoding="utf-8"))
 
+    def test_llm_advice_can_route_casual_status_question(self) -> None:
+        original = agent_command.agent_llm.classify
+        try:
+            agent_command.agent_llm.classify = lambda text: {
+                "used": True,
+                "intent": "status",
+                "confidence": 0.9,
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+                "reason": "询问任务情况",
+            }
+            intent, llm = agent_command.classify_intent_with_llm("今天跑得稳不稳")
+            self.assertEqual(intent, "status")
+            self.assertTrue(llm["used"])
+        finally:
+            agent_command.agent_llm.classify = original
+
+    def test_llm_low_confidence_falls_back_to_keywords(self) -> None:
+        original = agent_command.agent_llm.classify
+        try:
+            agent_command.agent_llm.classify = lambda text: {
+                "used": True,
+                "intent": "chat",
+                "confidence": 0.2,
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+            }
+            intent, llm = agent_command.classify_intent_with_llm("刷新状态")
+            self.assertEqual(intent, "refresh_status")
+            self.assertEqual(llm["fallback_intent"], "refresh_status")
+        finally:
+            agent_command.agent_llm.classify = original
+
+    def test_ordering_hard_block_runs_before_llm(self) -> None:
+        original = agent_command.agent_llm.classify
+        try:
+            def fail_if_called(text: str) -> dict:
+                raise AssertionError("LLM should not be called for ordering commands")
+
+            agent_command.agent_llm.classify = fail_if_called
+            intent, llm = agent_command.classify_intent_with_llm("帮我订货补跑")
+            self.assertEqual(intent, "blocked_ordering")
+            self.assertEqual(llm["fallback"], "hard-ordering-block")
+        finally:
+            agent_command.agent_llm.classify = original
+
 
 if __name__ == "__main__":
     unittest.main()

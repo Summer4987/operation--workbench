@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "provider": "deepseek",
+  "api_key_env": "AGENT_LLM_API_KEY",
+  "base_url_env": "AGENT_LLM_BASE_URL",
+  "model_env": "AGENT_LLM_MODEL",
+  "mode": "advisory_only",
+  "allow_production_actions": false,
+  "allow_ordering_actions": false,
+  "allow_budget_commit": false,
+  "notify_wecom": true,
+  "timeout_seconds": 15,
+  "max_tokens": 160
+}
