@@ -45,11 +45,7 @@ def notify(text: str) -> bool:
 
 
 def notify_via_hermes(text: str, config: dict) -> bool:
-    hermes_bin = str(
-        os.environ.get("OPS_NOTIFY_HERMES_BIN")
-        or config.get("hermes_bin")
-        or Path.home() / ".local" / "bin" / "hermes"
-    )
+    hermes_bin = resolve_hermes_bin(config)
     target = str(os.environ.get("OPS_NOTIFY_TARGET") or config.get("target") or "weixin")
     if not Path(hermes_bin).exists():
         print("未配置 OPS_NOTIFY_WEBHOOK，且 Hermes CLI 不存在，跳过通知。")
@@ -73,6 +69,24 @@ def notify_via_hermes(text: str, config: dict) -> bool:
     if result.returncode != 0:
         print(f"Hermes 通知发送失败，退出码：{result.returncode}", file=sys.stderr)
     return result.returncode == 0
+
+
+def resolve_hermes_bin(config: dict) -> str:
+    configured = os.environ.get("OPS_NOTIFY_HERMES_BIN") or config.get("hermes_bin")
+    candidates = [
+        configured,
+        Path.home() / ".local" / "bin" / "hermes",
+        Path.home() / ".hermes" / "hermes-agent" / "venv" / "bin" / "hermes",
+        Path.home() / ".hermes" / "hermes-agent" / "hermes",
+        Path.home() / "HermesUninstalledBackup" / "20260702_163629" / "bin" / "hermes",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(str(candidate)).expanduser()
+        if path.exists():
+            return str(path)
+    return str(Path.home() / ".local" / "bin" / "hermes")
 
 
 def main() -> int:

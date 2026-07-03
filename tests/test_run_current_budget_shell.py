@@ -84,3 +84,4 @@ def test_ops_notify_falls_back_to_hermes_when_webhook_missing():
     assert "return notify_via_hermes(text, config)" in text
     assert "[hermes_bin, \"send\", \"--to\", target, text]" in text
     assert "OPS_NOTIFY_TARGET" in text
+    assert ".hermes\" / \"hermes-agent\" / \"venv\" / \"bin\" / \"hermes" in text
