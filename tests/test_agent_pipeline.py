@@ -21,7 +21,7 @@ class AgentPipelineTests(unittest.TestCase):
         )
 
         self.assertEqual(record["status"], "skipped")
-        self.assertIn("默认禁用", record["message"])
+        self.assertIn("--allow-execution", record["message"])
 
     def test_required_json_output_must_exist_and_parse(self) -> None:
         original_root = agent_pipeline.ROOT
@@ -60,6 +60,17 @@ class AgentPipelineTests(unittest.TestCase):
 
         self.assertIn("有 1 个 agent 失败", text)
         self.assertIn("校验 Agent", text)
+
+    def test_notify_text_reports_enabled_execution_agent(self) -> None:
+        text = agent_pipeline.build_notify_text(
+            {"id": "daily_automation_guard", "name": "每日自动化多 Agent 守护"},
+            [
+                {"status": "success", "name": "采集 Agent", "agent": "collect"},
+                {"status": "success", "name": "执行 Agent", "agent": "execution"},
+            ],
+        )
+
+        self.assertIn("执行 Agent 已参与非订货任务", text)
 
 
 if __name__ == "__main__":

@@ -122,7 +122,13 @@ def build_notify_text(pipeline: dict[str, Any], stages: list[dict[str, Any]]) ->
         first = failed[0]
         line = f"{title}：有 {len(failed)} 个 agent 失败，先看 {first['name']}。原因：{first.get('message') or '未写明'}。"
     else:
-        line = f"{title}：{ok_count} 个 agent 已完成，未触发真实执行动作。"
+        executed = [
+            stage for stage in stages if stage["status"] == "success" and str(stage.get("agent") or "").lower() in EXECUTION_AGENTS
+        ]
+        if executed:
+            line = f"{title}：{ok_count} 个 agent 已完成，执行 Agent 已参与非订货任务。"
+        else:
+            line = f"{title}：{ok_count} 个 agent 已完成，未触发真实执行动作。"
     if skipped:
         line += f" 跳过 {len(skipped)} 个 agent。"
     return line
@@ -150,7 +156,7 @@ def run_stage(stage: dict[str, Any], *, allow_execution: bool, dry_run: bool) ->
             {
                 "status": "skipped",
                 "finished_at": now_text(),
-                "message": "执行 Agent 默认禁用；本次只做观察、校验、分析、通知和巡检。",
+                "message": "执行 Agent 需要显式 --allow-execution；未启用时只做观察、校验、分析、通知和巡检。",
             }
         )
         return record
@@ -240,6 +246,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             "allow_execution": bool(args.allow_execution),
             "dry_run": bool(args.dry_run),
             "execution_agent_enabled": bool(args.allow_execution),
+            "ordering_excluded": True,
         },
         "summary": {
             "total": len(stage_records),

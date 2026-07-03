@@ -2,16 +2,40 @@
   "version": 1,
   "updated_at": "2026-07-03",
   "policy": {
-    "execution_agent": "disabled_by_default",
+    "execution_agent": "enabled_for_non_ordering_tasks",
     "production_source": "GitHub main",
-    "safe_default": "collect_validate_analyze_notify_healthcheck"
+    "safe_default": "collect_validate_analyze_notify_healthcheck",
+    "excluded_domain": "ordering_purchase"
   },
   "pipelines": [
     {
       "id": "daily_automation_guard",
       "name": "每日自动化多 Agent 守护",
       "task_id": "agents.daily_automation_guard",
-      "risk_policy": "不执行预算、出价、订货、财务发布或云端发布；只做观察、校验、分析、通知和巡检。",
+      "risk_policy": "执行 Agent 可参与非订货任务；订货、下单、采购类动作一律排除。",
+      "execution_actions": [
+        {
+          "id": "refresh_transparency_report",
+          "name": "刷新自动化透明化报告",
+          "risk": "low",
+          "command": ["{python}", "scripts/agent_task_monitor.py"],
+          "description": "重新生成自动化任务报告和补跑建议。"
+        },
+        {
+          "id": "refresh_mobile_agent_status",
+          "name": "刷新手机 Agent 状态",
+          "risk": "low",
+          "command": ["{python}", "scripts/build_agent_mobile_status.py"],
+          "description": "重新生成手机入口读取的 agent 状态。"
+        },
+        {
+          "id": "safe_rerun_plan",
+          "name": "生成安全补跑计划",
+          "risk": "low",
+          "command": ["{python}", "scripts/agent_rerun_dry_run.py"],
+          "description": "生成可补跑清单；不直接触发长时间补跑，订货相关任务保持排除。"
+        }
+      ],
       "stages": [
         {
           "id": "collect",
@@ -72,8 +96,13 @@
           "id": "execute",
           "agent": "execution",
           "name": "执行 Agent",
-          "enabled": false,
-          "success_message": "预留接口，默认不运行。"
+          "command": ["{python}", "scripts/agent_execution.py"],
+          "timeout_seconds": 900,
+          "required_outputs": ["outputs/agent_execution/latest.json"],
+          "json_required": [
+            {"path": "outputs/agent_execution/latest.json", "keys": ["generated_at", "summary", "actions", "safety"]}
+          ],
+          "success_message": "执行 Agent 已参与非订货任务，订货/下单/采购类动作已排除。"
         }
       ]
     }

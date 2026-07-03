@@ -64,6 +64,17 @@ def skipped_execution_agents(pipeline: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def successful_execution_agents(pipeline: dict[str, Any]) -> list[dict[str, Any]]:
+    stages = pipeline.get("stages") if isinstance(pipeline.get("stages"), list) else []
+    return [
+        stage
+        for stage in stages
+        if isinstance(stage, dict)
+        and str(stage.get("agent") or "").lower() in {"execute", "execution"}
+        and stage.get("status") == "success"
+    ]
+
+
 def failed_pipeline_stages(pipeline: dict[str, Any]) -> list[dict[str, Any]]:
     stages = pipeline.get("stages") if isinstance(pipeline.get("stages"), list) else []
     return [stage for stage in stages if isinstance(stage, dict) and stage.get("status") == "failed"]
@@ -101,7 +112,11 @@ def build_status_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> st
     skipped = skipped_execution_agents(pipeline)
     if skipped:
         names = "、".join(str(stage.get("name") or stage.get("id")) for stage in skipped)
-        line += f" 被跳过的是：{names}。它默认禁用，避免触发真实执行动作。"
+        line += f" 被跳过的是：{names}。它需要显式启用，且订货任务排除在外。"
+    executed = successful_execution_agents(pipeline)
+    if executed:
+        names = "、".join(str(stage.get("name") or stage.get("id")) for stage in executed)
+        line += f" 已参与执行的是：{names}；订货/下单/采购类动作仍然排除。"
     return line
 
 
@@ -140,9 +155,21 @@ def build_rerun_answer(monitor: dict[str, Any]) -> str:
 
 
 def build_execution_answer(pipeline: dict[str, Any]) -> str:
+    executed = successful_execution_agents(pipeline)
+    if executed:
+        details = []
+        execution_payload = read_json(ROOT / "outputs" / "agent_execution" / "latest.json", {})
+        summary = execution_payload.get("summary") if isinstance(execution_payload.get("summary"), dict) else {}
+        for stage in executed:
+            details.append(f"{stage.get('name') or stage.get('id')}（id: {stage.get('id')}, agent: {stage.get('agent')}）")
+        return (
+            "执行 Agent 已参与：" + "、".join(details) + "。"
+            f"最近执行结果：成功 {summary.get('success', 0)} 个，失败 {summary.get('failed', 0)} 个，"
+            f"拦截 {summary.get('blocked', 0)} 个；订货/下单/采购类动作不参与。"
+        )
     skipped = skipped_execution_agents(pipeline)
     if not skipped:
-        return "这次没有读到被跳过的执行 Agent。"
+        return "这次没有读到执行 Agent 的运行记录。"
     details = []
     for stage in skipped:
         details.append(

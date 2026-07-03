@@ -24,7 +24,7 @@ class AgentChatTests(unittest.TestCase):
                         "agent": "execution",
                         "name": "执行 Agent",
                         "status": "skipped",
-                        "message": "执行 Agent 默认禁用。",
+                        "message": "执行 Agent 需要显式 --allow-execution。",
                     },
                 ]
             }
@@ -32,7 +32,24 @@ class AgentChatTests(unittest.TestCase):
 
         self.assertIn("执行 Agent", answer)
         self.assertIn("id: execute", answer)
-        self.assertIn("默认禁用", answer)
+        self.assertIn("--allow-execution", answer)
+
+    def test_execution_question_reports_successful_execution_agent(self) -> None:
+        answer = agent_chat.build_execution_answer(
+            {
+                "stages": [
+                    {
+                        "id": "execute",
+                        "agent": "execution",
+                        "name": "执行 Agent",
+                        "status": "success",
+                    }
+                ]
+            }
+        )
+
+        self.assertIn("执行 Agent 已参与", answer)
+        self.assertIn("订货/下单/采购类动作不参与", answer)
 
     def test_problem_answer_prefers_pipeline_failure(self) -> None:
         answer = agent_chat.build_problem_answer(
