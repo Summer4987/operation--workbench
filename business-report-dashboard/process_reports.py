@@ -463,6 +463,32 @@ def build_platform_summary(unified: pd.DataFrame) -> list[dict]:
     return rows
 
 
+def validate_latest_platform_coverage(
+    unified: pd.DataFrame,
+    target_stores: list[str],
+    *,
+    required_platforms: tuple[str, ...] = ("饿了么", "美团"),
+    context: str = "日报",
+) -> None:
+    if unified.empty:
+        return
+    dates = [date for date in unified["date"].dropna().unique().tolist() if date]
+    if not dates:
+        raise RuntimeError(f"{context}没有有效日报日期，已停止写入看板。")
+    latest_date = max(dates)
+    latest_rows = unified[unified["date"] == latest_date]
+    present_platforms = {str(platform) for platform in latest_rows["platform"].dropna().unique().tolist()}
+    missing_platforms = [platform for platform in required_platforms if platform not in present_platforms]
+    if not missing_platforms:
+        return
+    store_count = len({store for store in latest_rows["store"].dropna().tolist() if store in target_stores})
+    raise RuntimeError(
+        f"{context}最新日期 {latest_date} 缺少平台：{'、'.join(missing_platforms)}。"
+        f"已停止写入看板，避免用不完整日报覆盖线上数据；当前最新日期只覆盖 {store_count} 家门店，"
+        f"平台={','.join(sorted(present_platforms)) or '无'}。"
+    )
+
+
 def fmt_money(value: float) -> str:
     return f"{value:,.2f}"
 
@@ -1770,6 +1796,7 @@ def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
     unified = unified[unified["store"].isin(config["target_stores"])].copy()
     unified.sort_values(["date", "store", "platform"], inplace=True)
     unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
+    validate_latest_platform_coverage(unified, config["target_stores"], context="加盟店日报")
 
     unified_path = DATA_DIR / "unified_daily.csv"
     unified.to_csv(unified_path, index=False, encoding="utf-8-sig")

@@ -184,6 +184,7 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
         unified = unified[unified["store"].isin(config["target_stores"])].copy()
         unified.sort_values(["date", "store", "platform"], inplace=True)
         unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
+        base.validate_latest_platform_coverage(unified, config["target_stores"], context="直营店日报")
     unified = normalize_unified(unified)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
