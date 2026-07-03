@@ -37,6 +37,7 @@ run_optional "日报重点状态更新" "$PYTHON" scripts/build_daily_focus_stat
 run_optional "评价待办状态更新" "$PYTHON" scripts/build_review_action_status.py
 run_optional "直营店日报看板生成" "$PYTHON" business-report-dashboard/process_direct_reports.py
 run_optional "推广余额状态更新" "$PYTHON" scripts/build_promo_balance_status.py
+"$PYTHON" scripts/build_agent_mobile_status.py
 "$PYTHON" scripts/build_workbench_data.py
 mkdir -p "$STAGE_DIR/data"
 "$PYTHON" - <<PY
@@ -59,6 +60,9 @@ for name in ("workbench-data.js", "workbench.js"):
 
 for name in ("workbench.css", "workbench.js", "workbench-data.js"):
     (stage / name).write_bytes((root / name).read_bytes())
+copy_agent_page = root / "agent.html"
+if copy_agent_page.exists():
+    (stage / "agent.html").write_bytes(copy_agent_page.read_bytes())
 (stage / "data" / "realtime-history.json").write_bytes((root / "data" / "realtime-history.json").read_bytes())
 
 def copy_if_exists(source: Path, target: Path) -> None:
@@ -81,6 +85,7 @@ for name in ("index.html", "styles.css", "app.js", "logic.js", "rules.js", "curr
     copy_if_exists(root / "dianjin-prototype" / name, stage / "dianjin-prototype" / name)
 for name in ("latest.json", "latest-data.js"):
     copy_if_exists(root / "outputs" / "promo_budget_preview" / name, stage / "outputs" / "promo_budget_preview" / name)
+copy_if_exists(root / "outputs" / "agent_mobile" / "latest.json", stage / "outputs" / "agent_mobile" / "latest.json")
 PY
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
@@ -89,6 +94,10 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/index.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" "$STAGE_DIR/PROJECT_TREE.md" \
+    "$SERVER:$REMOTE_DIR/"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/agent.html" \
     "$SERVER:$REMOTE_DIR/"
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/business-report-dashboard/data'"
@@ -114,13 +123,19 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/outputs/promo_budget_preview'"
   rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/outputs/promo_budget_preview/" "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/outputs/agent_mobile'"
+  rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/outputs/agent_mobile/" "$SERVER:$REMOTE_DIR/outputs/agent_mobile/"
 elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/outputs/agent_mobile'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/index.html" \
+    "$STAGE_DIR/index.html" "$STAGE_DIR/agent.html" \
     "$STAGE_DIR/workbench-data.js" \
     "$SERVER:$REMOTE_DIR/"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/outputs/agent_mobile/latest.json" \
+    "$SERVER:$REMOTE_DIR/outputs/agent_mobile/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/data/realtime-history.json" \
@@ -133,13 +148,17 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct_unified_daily.csv" "$STAGE_DIR/business-report-dashboard/data/direct_unified_reviews.csv" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
-  echo "已按 data-only 模式发布，更新工作台数据、实时历史、直营日报数据和直营日报独立看板。"
+  echo "已按 data-only 模式发布，更新工作台数据、Agent 手机入口、实时历史、直营日报数据和直营日报独立看板。"
 else
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection' '$REMOTE_DIR/outputs/agent_mobile'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/index.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" \
+    "$STAGE_DIR/index.html" "$STAGE_DIR/agent.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" \
     "$SERVER:$REMOTE_DIR/"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/outputs/agent_mobile/latest.json" \
+    "$SERVER:$REMOTE_DIR/outputs/agent_mobile/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/data/realtime-history.json" \
@@ -185,10 +204,14 @@ verify_remote_file() {
 
 if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "index.html" "$STAGE_DIR/index.html"
+  verify_remote_file "agent.html" "$STAGE_DIR/agent.html"
+  verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
   verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"
 else
   verify_remote_file "index.html" "$STAGE_DIR/index.html"
+  verify_remote_file "agent.html" "$STAGE_DIR/agent.html"
+  verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
   verify_remote_file "workbench.js" "$STAGE_DIR/workbench.js"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
