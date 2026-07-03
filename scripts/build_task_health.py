@@ -407,6 +407,10 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
     elif task_id == "ops.realtime_order_income":
         payload = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json", {})
         status_payload = read_json(REALTIME_COLLECTION_STATUS_PATH, {})
+        run_state = read_json(TASK_RUNS_PATH, {"tasks": {}})
+        task_run = (run_state.get("tasks") or {}).get(task_id)
+        if not isinstance(task_run, dict):
+            task_run = {}
         generated_at = parse_time(payload.get("generated_at"))
         source_status = classify_from_json_status(payload.get("status"))
         summary = payload.get("summary") or {}
@@ -452,7 +456,7 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         elif generated_at:
             last_success = status_payload.get("last_success_at") or payload.get("generated_at", "")
             row.update(status="ok", reason=f"实时采集覆盖 {summary.get('platform_store_count') or '-'} 个平台门店，最近成功 {last_success or '-'}。")
-        publish_issue, publish_log = realtime_publish_issue(now)
+        publish_issue, publish_log = ("", "") if task_run.get("status") == "success" else realtime_publish_issue(now)
         if publish_issue:
             row.update(status="warn", reason=f"实时采集数据已生成，但{publish_issue}")
             row["failure_type"] = "publish_failure"

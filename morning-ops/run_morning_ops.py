@@ -128,7 +128,16 @@ def notify(text: str) -> None:
         pass
 
 
-def record_task_run(status: str, message: str, step: str, log_path: Path, *, returncode: int | None = None, **extra: str) -> None:
+def record_task_run(
+    status: str,
+    message: str,
+    step: str,
+    log_path: Path,
+    *,
+    returncode: int | None = None,
+    failure_type: str = "",
+    **extra: str,
+) -> None:
     args = [
         sys.executable,
         str(TASK_RUN_RECORDER),
@@ -143,6 +152,8 @@ def record_task_run(status: str, message: str, step: str, log_path: Path, *, ret
     ]
     if returncode is not None:
         args.extend(["--returncode", str(returncode)])
+    if failure_type:
+        args.extend(["--failure-type", failure_type])
     for key, value in extra.items():
         args.extend(["--extra", f"{key}={value}"])
     try:
@@ -239,8 +250,7 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
         return StepResult(name, returncode, output, log_path)
     message = f"{name}失败，详情见 {log_path}"
     failure_type = "auth_block" if looks_like_auth_block(output) else ""
-    extra = {"failure_type": failure_type} if failure_type else {}
-    record_task_run("failed", message, name, log_path, returncode=returncode, **extra)
+    record_task_run("failed", message, name, log_path, returncode=returncode, failure_type=failure_type)
     if required:
         raise RuntimeError(message)
     print(message, file=sys.stderr, flush=True)

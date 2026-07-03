@@ -14,7 +14,7 @@ from atomic_io import atomic_write_text
 ROOT = Path(__file__).resolve().parents[1]
 RUN_STATE_DIR = ROOT / "outputs" / "task_runs"
 LATEST_PATH = RUN_STATE_DIR / "latest.json"
-MAX_EVENTS = 160
+MAX_EVENTS = 1000
 
 AUTH_BLOCK_PATTERNS = [
     "验证码",

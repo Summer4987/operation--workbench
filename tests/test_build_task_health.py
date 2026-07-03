@@ -15,7 +15,7 @@ import build_task_health as health_module  # noqa: E402
 
 
 class BuildTaskHealthTests(unittest.TestCase):
-    def test_success_run_does_not_hide_realtime_publish_issue(self) -> None:
+    def build_realtime_health(self, task_status: str | None) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "config").mkdir(parents=True)
@@ -59,19 +59,15 @@ class BuildTaskHealthTests(unittest.TestCase):
                 json.dumps({"status": "ok", "last_success_at": "2026-06-30 20:00:56", "summary": {}}, ensure_ascii=False),
                 encoding="utf-8",
             )
+            task_runs = {"tasks": {}}
+            if task_status is not None:
+                task_runs["tasks"]["ops.realtime_order_income"] = {
+                    "status": task_status,
+                    "message": "实时单量收入采集完成。",
+                    "updated_at": "2026-06-30 20:01:15",
+                }
             (root / "outputs" / "task_runs" / "latest.json").write_text(
-                json.dumps(
-                    {
-                        "tasks": {
-                            "ops.realtime_order_income": {
-                                "status": "success",
-                                "message": "实时单量收入采集完成。",
-                                "updated_at": "2026-06-30 20:01:15",
-                            }
-                        }
-                    },
-                    ensure_ascii=False,
-                ),
+                json.dumps(task_runs, ensure_ascii=False),
                 encoding="utf-8",
             )
             (root / "outputs" / "realtime_order_income" / "logs" / "2026-06-30.log").write_text(
@@ -91,7 +87,7 @@ class BuildTaskHealthTests(unittest.TestCase):
                 health_module.TASK_RUNS_PATH = root / "outputs" / "task_runs" / "latest.json"
                 health_module.REALTIME_COLLECTION_STATUS_PATH = root / "outputs" / "realtime_order_income_status" / "latest.json"
 
-                payload = health_module.build_task_health(now=datetime(2026, 6, 30, 20, 31), runtime={"inventory": {}})
+                return health_module.build_task_health(now=datetime(2026, 6, 30, 20, 31), runtime={"inventory": {}})
             finally:
                 (
                     health_module.ROOT,
@@ -99,6 +95,16 @@ class BuildTaskHealthTests(unittest.TestCase):
                     health_module.TASK_RUNS_PATH,
                     health_module.REALTIME_COLLECTION_STATUS_PATH,
                 ) = original_values
+
+    def test_success_run_ignores_stale_realtime_publish_issue(self) -> None:
+        payload = self.build_realtime_health(task_status="success")
+
+        task = payload["tasks"][0]
+        self.assertEqual(task["status"], "ok")
+        self.assertEqual(task["reason"], "实时单量收入采集完成。")
+
+    def test_missing_success_run_keeps_realtime_publish_issue_visible(self) -> None:
+        payload = self.build_realtime_health(task_status=None)
 
         task = payload["tasks"][0]
         self.assertEqual(task["status"], "warn")

@@ -12,6 +12,7 @@ OVERRIDES_PATH = ROOT / "config" / "promo_budget_overrides.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 OUTPUT_DIR = ROOT / "outputs" / "promo_budget_retry_plan"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+MEITUAN_BUDGET_DIR = ROOT / "outputs" / "meituan_budget_automation"
 
 SAFE_RETRY_FAILURE_TYPES = {
     "timeout",
@@ -180,6 +181,22 @@ def latest_budget_run(run_state: dict[str, Any]) -> dict[str, Any]:
     return task if isinstance(task, dict) else {}
 
 
+def latest_meituan_results(period: str) -> list[dict[str, Any]]:
+    if not period:
+        return []
+    paths = sorted(
+        MEITUAN_BUDGET_DIR.glob(f"meituan_cdp_{period}_*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in paths:
+        payload = read_json(path, {})
+        results = payload.get("results")
+        if isinstance(results, list):
+            return [item for item in results if isinstance(item, dict)]
+    return []
+
+
 def run_affects_item(item: dict[str, Any], run: dict[str, Any]) -> bool:
     if not run:
         return False
@@ -207,10 +224,29 @@ def store_result_for(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any
     return {}
 
 
+def platform_result_for(item: dict[str, Any]) -> dict[str, Any]:
+    if item.get("platform") != "美团":
+        return {}
+    names = {str(name) for name in (item.get("store"), item.get("source_store")) if name}
+    for result in latest_meituan_results(str(item.get("period") or "")):
+        candidates = {
+            str(result.get("store") or ""),
+            str(result.get("source_store") or ""),
+            str(result.get("keyword") or ""),
+        }
+        if any(name and any(name in candidate or candidate in name for candidate in candidates if candidate) for name in names):
+            return result
+    return {}
+
+
 def runtime_feedback_for(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
     result = store_result_for(item, run)
+    if not result:
+        result = platform_result_for(item)
     if result:
         status = str(result.get("status") or "")
+        if not status:
+            status = "success" if result.get("ok") else "failed"
         failure_type = str(result.get("failure_type") or "")
         message = str(result.get("message") or result.get("error") or "")
         return {
@@ -255,6 +291,10 @@ def retry_policy_for(item: dict[str, Any], overrides: dict[str, Any], latest_run
     failure_type = runtime_feedback.get("failure_type") or ""
     if runtime_feedback.get("status") == "failed" and failure_type in MANUAL_FAILURE_TYPES:
         manual_reasons.append(f"最近执行失败需人工处理：{failure_type}")
+    if runtime_feedback.get("status") == "failed" and failure_type == "confirm_disabled":
+        message = runtime_feedback.get("message") or ""
+        if "0-0" in message or "页面预算" in message:
+            manual_reasons.append(f"平台拒绝确认预算：{message}")
 
     return {
         "platform": platform,

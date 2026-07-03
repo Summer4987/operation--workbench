@@ -36,3 +36,7 @@ def test_success_extra_does_not_keep_previous_failure_fields(tmp_path, monkeypat
     )
 
     assert task["extra"] == {"mode": "commit", "source": "scheduled"}
+
+
+def test_task_run_state_keeps_enough_events_for_daily_audit():
+    assert task_run_state.MAX_EVENTS >= 1000
