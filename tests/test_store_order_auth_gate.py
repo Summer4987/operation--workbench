@@ -144,6 +144,19 @@ def test_daily_order_submit_catalog_returns_authenticated_store(monkeypatch):
     assert "?." not in page.text
 
 
+def test_daily_order_submit_catalog_filters_non_public_inventory_items(tmp_path):
+    module = load_inventory_module()
+
+    catalog = module.public_order_catalog(template_path=tmp_path / "missing-template.xlsx")
+    product_names = {item["name"] for item in catalog["products"]}
+    product_skus = {item["sku"] for item in catalog["products"]}
+
+    assert "藤椒牛肉（冻）" in product_names
+    assert "LDXXX00013" in product_skus
+    assert "牛肉筋（冻）" not in product_names
+    assert "LDXXX00014" not in product_skus
+
+
 def test_daily_order_submit_accepts_chengdu_session_cookie_for_owner(monkeypatch):
     daily_module = load_daily_order_module()
     inventory_module = load_inventory_module()

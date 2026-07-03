@@ -95,6 +95,7 @@ class Product:
     unit: str
     warehouse: str
     aliases: tuple[str, ...]
+    public_order: bool = True
 
 
 @dataclass(frozen=True)
@@ -183,7 +184,7 @@ def generate_structured_outbound_order(
         sku = _clean(item.get("sku"))
         product = products_by_sku.get(sku)
         quantity = _decimal(str(item.get("quantity", "")))
-        if not product or quantity is None or quantity <= 0:
+        if not product or not product.public_order or quantity is None or quantity <= 0:
             continue
         lines.append(
             OrderLine(
@@ -231,6 +232,7 @@ def public_order_catalog(template_path: Path = TEMPLATE_PATH) -> dict:
                 "unit": product.unit,
             }
             for product in products
+            if product.public_order
         ],
     }
 
@@ -396,6 +398,7 @@ def _load_project_catalog_products(path: Path = CATALOG_PATH) -> list[Product]:
                 unit=_clean(item.get("unit")) or "件",
                 warehouse=_clean(item.get("warehouse")),
                 aliases=_aliases_for_product(name),
+                public_order=bool(item.get("public_order", True)),
             )
         )
     return result

@@ -21,6 +21,21 @@
     "warehouse": "成都易代仓"
   },
   {
+    "sku": "LDXXX00014",
+    "name": "熊小小牛排饭-牛肉筋（冻）",
+    "spec": "28kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "public_order": false
+  },
+  {
+    "sku": "LDXXX00013",
+    "name": "熊小小牛排饭-藤椒牛肉（冻）",
+    "spec": "20kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓"
+  },
+  {
     "sku": "LDXXX00012",
     "name": "熊小小牛排饭-嫩肩牛肉（冻）",
     "spec": "15kg/箱",
