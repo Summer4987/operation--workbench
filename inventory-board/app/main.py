@@ -558,9 +558,10 @@ def seed_catalog() -> None:
     else:
         template = TEMPLATE_PATH if TEMPLATE_PATH.exists() else TEMPLATE_DIR / "熊小小牛排饭订单模板.xlsx"
         products = parse_product_catalog(template) if template.exists() else []
+    product_fields = {"sku", "name", "spec", "unit", "warehouse", "unit_cost"}
     with connect() as conn:
         for product in products:
-            upsert_product(conn, **product)
+            upsert_product(conn, **{key: value for key, value in product.items() if key in product_fields})
 
 
 def _sha256(path: Path) -> str:

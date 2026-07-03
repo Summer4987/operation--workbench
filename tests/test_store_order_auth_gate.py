@@ -157,6 +157,19 @@ def test_daily_order_submit_catalog_filters_non_public_inventory_items(tmp_path)
     assert "LDXXX00014" not in product_skus
 
 
+def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
+    monkeypatch.setattr(db_module, "DB_PATH", tmp_path / "inventory.sqlite3")
+
+    module.init_db()
+    module.seed_catalog()
+
+    rows = {item["sku"]: item for item in module.inventory_summary()}
+    assert rows["LDXXX00013"]["balance"] == 0
+    assert rows["LDXXX00014"]["balance"] == 0
+
+
 def test_daily_order_submit_accepts_chengdu_session_cookie_for_owner(monkeypatch):
     daily_module = load_daily_order_module()
     inventory_module = load_inventory_module()
