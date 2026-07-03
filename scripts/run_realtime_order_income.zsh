@@ -17,6 +17,7 @@ TASK_ID="ops.realtime_order_income"
 TASK_STEP="初始化"
 TASK_STATE_FINALIZED="false"
 FINAL_RC=0
+LOGIN_PREFLIGHT_RUNNER="$ROOT/scripts/check_platform_login_preflight.py"
 
 LOG_FILE="$LOG_DIR/$(date +%F).log"
 
@@ -159,6 +160,15 @@ trap finish_task_state EXIT
   echo "[$(date '+%F %T')] 实时单量收入采集开始"
   ensure_browser_env || exit "$FINAL_RC"
   run_with_timeout "${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "$PYTHON" "$ROOT/scripts/cleanup_chrome_tabs.py" || true
+  TASK_STEP="开跑前登录态预检"
+  record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
+  run_with_timeout "${REALTIME_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-240}" "$PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope realtime --notify
+  PREFLIGHT_RC=$?
+  if [[ "$PREFLIGHT_RC" -ne 0 ]]; then
+    FINAL_RC="$PREFLIGHT_RC"
+    record_task_run "$TASK_ID" failed --message "实时单量收入采集未执行：开跑前登录态预检失败，已通知人工处理。" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$PREFLIGHT_RC" --failure-type "auth_block"
+    exit "$FINAL_RC"
+  fi
   record_task_run "$TASK_ID" running --message "实时单量收入采集开始。" --step "$TASK_STEP" --log-path "$LOG_FILE"
   TASK_STEP="采集平台实时单量"
   record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"

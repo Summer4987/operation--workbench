@@ -6,6 +6,7 @@ cd "$ROOT"
 ELEME_RUNNER="${ELEME_AUTOMATION_RUNNER:-scripts/run_eleme_automation.zsh}"
 DEPLOY_RUNNER="${WORKBENCH_DEPLOY_RUNNER:-scripts/deploy_workbench_to_cloud.zsh}"
 CHROME_CLEANUP_RUNNER="$ROOT/scripts/cleanup_chrome_tabs.py"
+LOGIN_PREFLIGHT_RUNNER="$ROOT/scripts/check_platform_login_preflight.py"
 
 PERIOD="auto"
 MODE="commit"
@@ -254,6 +255,16 @@ else
   rc=$?
   exit "$rc"
 fi
+
+if [[ "$MODE" == "commit" ]]; then
+  if run_required_step "开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --notify; then
+    :
+  else
+    rc=$?
+    exit "$rc"
+  fi
+fi
+
 prepare_budget_node_runtime
 if run_required_step "${PERIOD}预算预览生成" "${BUDGET_PREVIEW_BUILD_TIMEOUT_SECONDS:-120}" run_node_runtime_script "$NODE_RUNTIME_ROOT" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"; then
   BUDGET_ROOT="$ROOT" BUDGET_NODE_RUNTIME_ROOT="$NODE_RUNTIME_ROOT" "$PYTHON" - <<'PY'

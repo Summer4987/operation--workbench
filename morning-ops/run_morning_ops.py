@@ -28,6 +28,7 @@ EVIDENCE_UPLOAD_RUNNER = WORKSPACE / "scripts" / "upload_store_inspection_eviden
 DAILY_FOCUS_STATUS_RUNNER = WORKSPACE / "scripts" / "build_daily_focus_status.py"
 REVIEW_ACTION_STATUS_RUNNER = WORKSPACE / "scripts" / "build_review_action_status.py"
 PROMO_BALANCE_STATUS_RUNNER = WORKSPACE / "scripts" / "build_promo_balance_status.py"
+LOGIN_PREFLIGHT_RUNNER = WORKSPACE / "scripts" / "check_platform_login_preflight.py"
 ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
 PROMO_PREVIEW_RUNNER = WORKSPACE / "scripts" / "build_promo_budget_preview.mjs"
 PROMO_BUDGET_SYNC_RUNNER = WORKSPACE / "scripts" / "sync_promo_budget_overrides.py"
@@ -362,6 +363,15 @@ def main() -> int:
                 if run_step("本地门店日报生成", [report_python, str(REPORT_PROCESSOR)], required=False).returncode != 0:
                     failures.append("本地门店日报")
             else:
+                preflight = run_step(
+                    "开跑前登录态预检",
+                    [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "morning", "--notify"],
+                    required=False,
+                    timeout_seconds=300,
+                )
+                if preflight.returncode != 0:
+                    failures.append("开跑前登录态预检")
+                    raise RuntimeError("开跑前登录态预检失败，已停止上午正式动作。")
                 ensure_backend_chrome(report_python)
                 if run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240).returncode != 0:
                     failures.append("双平台评价")

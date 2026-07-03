@@ -6,6 +6,8 @@ SCRIPT = ROOT / "scripts" / "run_current_budget.zsh"
 REALTIME_SCRIPT = ROOT / "scripts" / "run_realtime_order_income.zsh"
 INSTALL_SCRIPT = ROOT / "scripts" / "install_macmini_operation_launchd.zsh"
 DEPLOY_SCRIPT = ROOT / "scripts" / "deploy_workbench_to_cloud.zsh"
+MORNING_SCRIPT = ROOT / "morning-ops" / "run_morning_ops.py"
+LOGIN_PREFLIGHT_SCRIPT = ROOT / "scripts" / "check_platform_login_preflight.py"
 
 
 def test_current_budget_does_not_read_step_rc_after_fi():
@@ -54,3 +56,22 @@ def test_data_only_deploy_verifies_direct_latest_from_stage_dir():
 
     assert 'verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"' in text
     assert 'verify_remote_file "business-report-dashboard/data/direct-latest.json"\n' not in text
+
+
+def test_production_entrypoints_run_login_preflight_before_platform_work():
+    budget_text = SCRIPT.read_text(encoding="utf-8")
+    morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")
+    realtime_text = REALTIME_SCRIPT.read_text(encoding="utf-8")
+
+    assert "$PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope budget --notify" in budget_text
+    assert "[sys.executable, str(LOGIN_PREFLIGHT_RUNNER), \"--scope\", \"morning\", \"--notify\"]" in morning_text
+    assert "\"$PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope realtime --notify" in realtime_text
+    assert "PREFLIGHT_RC=$?" in realtime_text
+
+
+def test_login_preflight_notifies_and_uses_auth_exit_code():
+    text = LOGIN_PREFLIGHT_SCRIPT.read_text(encoding="utf-8")
+
+    assert "【运营自动化开跑前预检失败】" in text
+    assert "return 66" in text
+    assert "notify(notice)" in text
