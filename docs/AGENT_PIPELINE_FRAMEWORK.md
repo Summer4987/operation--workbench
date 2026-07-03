@@ -22,6 +22,26 @@ outputs/agent_pipeline/daily_automation_guard/latest.txt
 outputs/task_runs/latest.json
 ```
 
+## 对话入口
+
+可以用 `agent_chat.py` 直接问这些 agent 的运行结果：
+
+```bash
+python3 scripts/agent_chat.py "今天哪里有问题？"
+python3 scripts/agent_chat.py "哪些任务可以补跑？"
+python3 scripts/agent_chat.py "刚刚跳过的执行 Agent 是谁？"
+python3 scripts/agent_chat.py --refresh "现在 agent 状态怎么样？"
+```
+
+`--refresh` 会先运行安全的 `daily_automation_guard`，但仍然不会启用执行 Agent。
+
+回答会写入：
+
+```text
+outputs/agent_chat/latest.json
+outputs/agent_chat/latest.txt
+```
+
 ## Agent 职责
 
 - 采集 Agent：运行只读采集或状态生成命令，把外部和本地运行信号整理成产物。
