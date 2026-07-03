@@ -257,7 +257,7 @@ else
 fi
 
 if [[ "$MODE" == "commit" ]]; then
-  if run_required_step "开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --notify; then
+  if run_required_step "开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$REPORT_PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --notify; then
     :
   else
     rc=$?
