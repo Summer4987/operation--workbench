@@ -841,6 +841,18 @@ def page_requires_login(page, platform: str) -> bool:
     return False
 
 
+def page_snapshot_text(page, limit: int = 6000) -> str:
+    parts: list[str] = []
+    for target in [page, *page.frames]:
+        try:
+            text = target.evaluate("() => document.body ? document.body.innerText : ''")
+        except Exception:
+            continue
+        if text:
+            parts.append(compact_text(text))
+    return "\n".join(parts)[:limit]
+
+
 def click_meituan_realtime(target) -> bool:
     try:
         return bool(
@@ -927,6 +939,14 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
             pass
     result = merge_records([*api_records, *dom_records])
     log(f"美团：完成 {len(result)} 个目标门店")
+    if not result:
+        body = page_snapshot_text(page)
+        single_store = re.search(r"熊小小牛排饭POKEBEAR[（(]([^）)]+店)[）)]", body)
+        if single_store and ("今日实时数据" in body or "营业收入" in body or "订单量" in body):
+            raise RuntimeError(
+                f"美团当前停留在单店上下文：{single_store.group(1)}，"
+                "未进入连锁/全部门店实时排行，无法采集 8 家门店。"
+            )
     return result
 
 
