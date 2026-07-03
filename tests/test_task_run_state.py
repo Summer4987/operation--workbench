@@ -16,6 +16,10 @@ def test_meituan_verify_slider_failure_is_auth_block():
     assert classify_failure_text("美团登录态失效：身份核实，请按照说明拖动滑块") == "auth_block"
 
 
+def test_normal_security_center_menu_text_is_not_auth_block():
+    assert classify_failure_text("页面正常打开，左侧菜单包含：金融保险 安全中心 数据下载") == "execution_failed"
+
+
 def test_success_extra_does_not_keep_previous_failure_fields(tmp_path, monkeypatch):
     latest_path = tmp_path / "latest.json"
     monkeypatch.setattr(task_run_state, "RUN_STATE_DIR", tmp_path)

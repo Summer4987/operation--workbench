@@ -57,7 +57,6 @@ BUDGET_PERIODS = {
 AUTH_BLOCK_PATTERNS = [
     "验证码",
     "安全验证",
-    "安全中心",
     "风控",
     "未登录",
     "登录页",
