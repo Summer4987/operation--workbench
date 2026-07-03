@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import agent_chat  # noqa: E402
+import agent_command  # noqa: E402
 
 
 OUTPUT_DIR = ROOT / "outputs" / "agent_mobile"
@@ -23,6 +24,14 @@ QUESTIONS = [
     ("problems", "今天哪里有问题？"),
     ("rerun", "哪些任务可以补跑？"),
     ("execution_agent", "刚刚跳过的执行 Agent 是谁？"),
+]
+
+SAMPLE_COMMANDS = [
+    "今天哪里有问题？",
+    "刷新状态",
+    "执行非订货恢复",
+    "发布手机入口",
+    "订货补跑",
 ]
 
 
@@ -78,6 +87,14 @@ def build_payload() -> dict[str, Any]:
             "note": "手机入口只展示最近一次 Mac mini 生成的 agent 报告，不执行预算、出价、订货、财务发布或云端发布。",
         },
         "answers": answers,
+        "commands": [
+            {
+                "text": command,
+                "intent": agent_command.classify_intent(command),
+                "preview": agent_command.handle_command(command, execute=False)["answer"],
+            }
+            for command in SAMPLE_COMMANDS
+        ],
         "sources": {
             "agent_pipeline": "outputs/agent_pipeline/daily_automation_guard/latest.json",
             "agent_monitor": "outputs/agent_task_monitor/latest.json",

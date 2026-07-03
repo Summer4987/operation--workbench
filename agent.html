@@ -92,6 +92,25 @@
         margin: 12px 0;
       }
 
+      .command-box {
+        margin: 12px 0;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      input {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 12px;
+        background: var(--panel);
+        color: var(--ink);
+        font: inherit;
+        font-size: 16px;
+      }
+
       button {
         min-height: 46px;
         border: 1px solid var(--line);
@@ -186,6 +205,11 @@
         <div class="metric"><span>关注</span><strong id="taskAttention">-</strong></div>
       </section>
 
+      <section class="command-box" aria-label="对话命令">
+        <input id="commandInput" type="text" placeholder="输入：今天哪里有问题？" autocomplete="off" />
+        <button id="commandButton" type="button">询问</button>
+      </section>
+
       <nav class="tabs" id="questionTabs" aria-label="常用问题"></nav>
 
       <section class="answer" aria-live="polite">
@@ -204,6 +228,9 @@
       const tabs = document.querySelector("#questionTabs");
       const answerTitle = document.querySelector("#answerTitle");
       const answerText = document.querySelector("#answerText");
+      const commandInput = document.querySelector("#commandInput");
+      const commandButton = document.querySelector("#commandButton");
+      let agentPayload = null;
 
       function setText(id, value) {
         const el = document.querySelector(`#${id}`);
@@ -216,11 +243,43 @@
         answerText.textContent = item.answer || "这项暂时没有回答。";
       }
 
+      function normalizeCommand(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function answerCommand(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return;
+        const normalized = normalizeCommand(raw);
+        const commands = Array.isArray(agentPayload?.commands) ? agentPayload.commands : [];
+        const matched = commands.find((item) => normalizeCommand(item.text) === normalized);
+        if (matched) {
+          answerTitle.textContent = raw;
+          answerText.textContent = matched.preview || "这条命令暂时没有预览。";
+          return;
+        }
+        const answers = Array.isArray(agentPayload?.answers) ? agentPayload.answers : [];
+        const byKeyword = answers.find((item) => {
+          const text = `${item.question || ""} ${item.id || ""}`;
+          return [...normalized].some(Boolean) && (
+            (normalized.includes("问题") && item.id === "problems") ||
+            (normalized.includes("补跑") && item.id === "rerun") ||
+            (normalized.includes("执行") && item.id === "execution_agent") ||
+            (normalized.includes("状态") && item.id === "status")
+          );
+        });
+        answerTitle.textContent = raw;
+        answerText.textContent = byKeyword
+          ? byKeyword.answer
+          : "手机页现在能回答常用状态问题。需要真正执行时，请在 Mac mini 上使用 agent_command.py；订货/下单/采购仍会被拦截。";
+      }
+
       async function loadAgentStatus() {
         try {
           const response = await fetch("./outputs/agent_mobile/latest.json", { cache: "no-store" });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const payload = await response.json();
+          agentPayload = payload;
           const summary = payload.summary || {};
           setText("updatedAt", `更新于 ${payload.generated_at || "未知时间"}`);
           setText("agentSuccess", summary.agent_success ?? "-");
@@ -238,6 +297,10 @@
             button.addEventListener("click", () => renderAnswer(item, button));
             tabs.appendChild(button);
             if (index === 0) renderAnswer(item, button);
+          });
+          commandButton.addEventListener("click", () => answerCommand(commandInput.value));
+          commandInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") answerCommand(commandInput.value);
           });
         } catch (error) {
           setText("updatedAt", "读取失败");
