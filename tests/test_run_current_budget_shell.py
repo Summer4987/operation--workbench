@@ -33,6 +33,8 @@ def test_realtime_runner_preserves_collect_failure_after_followup_failure():
     assert "run_with_timeout \"$seconds\" \"$@\"\n  local rc=$?" in text
     assert "if [[ \"$FINAL_RC\" -eq 0 ]]; then\n    FINAL_RC=\"$rc\"\n  fi" in text
     assert "[[ ! -f \"$ensure_script\" || ! -x \"$ensure_script\" ]]" in text
+    assert "python_has_playwright" in text
+    assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text
 
 
 def test_macmini_installer_emits_realtime_runner_rc_handling():
@@ -42,3 +44,5 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
     assert "run_with_timeout \"\\$seconds\" \"\\$@\"\n  local rc=\\$?" in text
     assert "if [[ \"\\$FINAL_RC\" -eq 0 ]]; then\n    FINAL_RC=\"\\$rc\"\n  fi" in text
     assert "[[ ! -f \"\\$ensure_script\" || ! -x \"\\$ensure_script\" ]]" in text
+    assert "python_has_playwright" in text
+    assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text

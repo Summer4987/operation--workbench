@@ -74,6 +74,12 @@ record_task_run() {
   run_with_timeout "\${TASK_STATE_WRITE_TIMEOUT_SECONDS:-10}" "\$PYTHON" "\$ROOT/scripts/record_task_run.py" "\$@" || true
 }
 
+python_has_playwright() {
+  "\$PYTHON" - <<'PY' >/dev/null 2>&1
+import playwright  # noqa: F401
+PY
+}
+
 ensure_browser_env() {
   local ensure_script="\$ROOT/scripts/ensure_browser_automation_env.zsh"
   if [[ ! -f "\$ensure_script" || ! -x "\$ensure_script" ]]; then
@@ -84,6 +90,10 @@ ensure_browser_env() {
   if [[ "\$rc" -eq 0 ]]; then
     PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
     export PYTHONPATH="\$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages\${PYTHONPATH:+:\$PYTHONPATH}"
+    return 0
+  fi
+  if python_has_playwright; then
+    echo "浏览器自动化依赖检查脚本失败，已用当前 Python 直接确认 Playwright 可用，继续采集。"
     return 0
   fi
   FINAL_RC="\$rc"
