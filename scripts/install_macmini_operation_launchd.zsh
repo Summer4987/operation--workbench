@@ -93,7 +93,38 @@ ensure_browser_env() {
 }
 
 latest_failure_message() {
-  echo "实时单量收入采集失败，已拒绝覆盖 latest.json，保留上一份成功数据。"
+  REALTIME_ROOT="\$ROOT" "\$PYTHON" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ["REALTIME_ROOT"]) / "outputs" / "realtime_order_income" / "last_failed.json"
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("实时单量收入采集失败，已保留上一份成功数据。")
+    raise SystemExit
+
+summary = payload.get("summary") or {}
+parts = [
+    f"实时单量收入采集失败：已采集 {summary.get('platform_store_count', 0)} 个平台门店",
+    f"缺失 {summary.get('missing_count', 0)} 个",
+]
+errors = [str(item) for item in payload.get("errors") or [] if item]
+if errors:
+    parts.append("；".join(errors[:2]))
+else:
+    missing = payload.get("missing") or []
+    if missing:
+        stores = []
+        for item in missing[:4]:
+            if isinstance(item, dict):
+                stores.append(f"{item.get('platform') or '未知平台'}{item.get('store') or ''}")
+        if stores:
+            parts.append("缺失门店：" + "、".join(stores))
+parts.append("已拒绝覆盖 latest.json，保留上一份成功数据。")
+print("，".join(parts))
+PY
 }
 
 run_followup_step() {
