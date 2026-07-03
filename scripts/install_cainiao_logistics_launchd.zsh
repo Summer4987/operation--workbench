@@ -8,14 +8,11 @@ LABEL="com.summer.operation.cainiao-logistics"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="$ROOT/outputs/cainiao_logistics_launchd"
 RUNNER="$ROOT/scripts/run_cainiao_logistics_capture.zsh"
-RUNTIME_ROOT="$HOME/Library/Application Support/XiongCainiao"
-RUNTIME_SCRIPT="$RUNTIME_ROOT/scripts/cainiao_logistics_capture.py"
 ADB="${ANDROID_ADB_BIN:-$HOME/Library/Android/sdk/platform-tools/adb}"
-INLINE_COMMAND="set -e; cd \"$RUNTIME_ROOT\"; export ANDROID_ADB_BIN=\"$ADB\"; mkdir -p \"$RUNTIME_ROOT/outputs/cainiao_logistics\"; STAMP=\$(date +%Y%m%d-%H%M%S); python3 \"$RUNTIME_SCRIPT\" --scan-details --max-details \"\${CAINIAO_MAX_DETAILS:-12}\" --scroll-pages \"\${CAINIAO_SCROLL_PAGES:-1}\" --evidence-dir \"$RUNTIME_ROOT/outputs/cainiao_logistics/scheduled-\$STAMP\" --commit"
+INLINE_COMMAND="cd \"$ROOT\"; export ANDROID_ADB_BIN=\"$ADB\"; /bin/zsh \"$RUNNER\""
 
-mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR" "$RUNTIME_ROOT/scripts"
+mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR" "$ROOT/outputs/cainiao_logistics"
 chmod +x "$RUNNER"
-install -m 0644 "$ROOT/scripts/cainiao_logistics_capture.py" "$RUNTIME_SCRIPT"
 
 cat > "$PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -68,4 +65,4 @@ launchctl enable "gui/$(id -u)/$LABEL"
 echo "已安装：$LABEL"
 echo "时间：每天 10:00、14:00、17:00"
 echo "日志：$LOG_DIR/stdout.log / $LOG_DIR/stderr.log"
-echo "运行目录：$RUNTIME_ROOT"
+echo "运行目录：$ROOT"

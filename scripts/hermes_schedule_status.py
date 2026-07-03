@@ -29,6 +29,7 @@ LABEL_NAMES = {
 LABEL_TASK_IDS = {
     "com.summer.operation.morning": "ops.morning_collection",
     "com.summer.operation.realtime-order-income": "ops.realtime_order_income",
+    "com.summer.operation.cainiao-logistics": "ops.cainiao_logistics",
     "com.summer.operation.evening": "growth.promo_budget",
 }
 STATUS_WORDS = {
@@ -42,7 +43,7 @@ STATUS_WORDS = {
 }
 RERUN_HINTS = {
     "com.summer.operation.realtime-order-income": "可以补跑。它是只读采集加 data-only 发布，优先补这个；命令是 /bin/zsh ~/Library/Scripts/xiong-operation/run_realtime_order_income.zsh。",
-    "com.summer.operation.cainiao-logistics": "可以补采集，但它没有写入统一任务账本，先确认安卓连接和采集脚本日志。",
+    "com.summer.operation.cainiao-logistics": "可以补采集。它会写入统一任务账本；先确认安卓连接和菜鸟页面，再运行 /bin/zsh scripts/run_cainiao_logistics_capture.zsh。",
     "com.summer.operation.morning": "不建议直接补跑整条上午任务，因为会碰到预算/发布等高风险步骤；应该按失败子步骤拆开处理。",
     "com.summer.operation.evening": "不建议自动补跑。它涉及推广预算真实提交，必须人工确认目标和窗口。",
 }
