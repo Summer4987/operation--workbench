@@ -14,6 +14,9 @@ from typing import Any
 from atomic_io import atomic_write_text
 from task_run_state import classify_failure_text, record_task_event
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import agent_notify  # noqa: E402
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = ROOT / "config" / "agent_pipelines.json"
@@ -282,6 +285,24 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             returncode=0,
             extra={"pipeline_id": pipeline["id"], "stage_count": len(stage_records)},
         )
+    should_notify = bool(getattr(args, "notify", False))
+    if getattr(args, "notify_on_failure", False):
+        execution_ran = any(
+            stage.get("status") == "success" and str(stage.get("agent") or "").lower() in EXECUTION_AGENTS
+            for stage in stage_records
+        )
+        should_notify = bool(failed or execution_ran)
+    if should_notify:
+        status = "failed" if failed else "success"
+        action = "请先查看失败阶段日志。" if failed else "已完成，无需处理。"
+        payload["notification"] = agent_notify.send_agent_notification(
+            title=str(pipeline.get("name") or pipeline["id"]),
+            status=status,
+            detail=notify_text,
+            action=action,
+            source=f"agent_pipeline:{pipeline['id']}",
+            dry_run=bool(getattr(args, "notify_dry_run", False)),
+        )
     return payload
 
 
@@ -292,6 +313,9 @@ def main() -> int:
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="运行产物目录")
     parser.add_argument("--dry-run", action="store_true", help="只展示会运行的阶段，不执行命令")
     parser.add_argument("--allow-execution", action="store_true", help="允许 execution agent；默认禁止")
+    parser.add_argument("--notify", action="store_true", help="运行结束后发送企业微信/通知通道")
+    parser.add_argument("--notify-on-failure", action="store_true", help="仅在失败或执行 Agent 参与时发送通知")
+    parser.add_argument("--notify-dry-run", action="store_true", help="只生成通知内容，不实际发送")
     args = parser.parse_args()
 
     payload = run_pipeline(args)

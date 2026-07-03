@@ -13,6 +13,10 @@ from typing import Any
 from atomic_io import atomic_write_text
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import agent_notify  # noqa: E402
+
 OUTPUT_DIR = ROOT / "outputs" / "agent_command"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 PIPELINE_ID = "daily_automation_guard"
@@ -207,11 +211,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="自然语言 Agent 命令入口。")
     parser.add_argument("command_text", nargs="*", help="例如：刷新状态 / 执行非订货恢复 / 今天哪里有问题")
     parser.add_argument("--execute", action="store_true", help="允许执行非订货恢复或发布类动作；订货仍然拦截")
+    parser.add_argument("--notify", action="store_true", help="把本次 agent 命令结果发送到企业微信/通知通道")
+    parser.add_argument("--notify-on-problem", action="store_true", help="仅在失败、拦截或执行动作时发送通知")
+    parser.add_argument("--notify-dry-run", action="store_true", help="只生成通知内容，不实际发送")
     parser.add_argument("--output", default=str(LATEST_PATH), help="输出 JSON 路径")
     args = parser.parse_args()
 
     text = " ".join(args.command_text).strip()
     payload = handle_command(text, execute=args.execute)
+    should_notify = args.notify or (
+        args.notify_on_problem
+        and (
+            payload.get("blocked")
+            or bool(payload.get("actions"))
+            or any(action.get("returncode") not in {0, None} for action in payload.get("actions") or [])
+        )
+    )
+    if should_notify:
+        payload["notification"] = agent_notify.send_command_notification(payload, dry_run=args.notify_dry_run)
     write_json(Path(args.output).expanduser(), payload)
     print(payload["answer"])
     return 1 if any(action.get("returncode") not in {0, None} for action in payload.get("actions") or []) else 0

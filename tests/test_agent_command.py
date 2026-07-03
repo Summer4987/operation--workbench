@@ -47,6 +47,33 @@ class AgentCommandTests(unittest.TestCase):
         self.assertEqual(payload["intent"], "budget_preview")
         self.assertIn("预算预览", payload["answer"])
 
+    def test_cli_supports_notification_dry_run(self) -> None:
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "command.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "agent_command.py"),
+                    "重跑预算设置",
+                    "--notify",
+                    "--notify-dry-run",
+                    "--output",
+                    str(output),
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertTrue(output.exists())
+            self.assertIn("--execute", output.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

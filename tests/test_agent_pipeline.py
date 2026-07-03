@@ -72,6 +72,51 @@ class AgentPipelineTests(unittest.TestCase):
 
         self.assertIn("执行 Agent 已参与非订货任务", text)
 
+    def test_pipeline_notify_on_failure_dry_run(self) -> None:
+        import argparse
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            config_path = temp_path / "pipelines.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "pipelines": [
+                            {
+                                "id": "sample",
+                                "name": "样例 Agent",
+                                "stages": [
+                                    {
+                                        "id": "bad",
+                                        "agent": "validate",
+                                        "name": "失败 Agent",
+                                        "command": ["{python}", "-c", "import sys; sys.exit(2)"],
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                pipeline="sample",
+                config=str(config_path),
+                output_dir=str(temp_path / "outputs"),
+                allow_execution=False,
+                dry_run=False,
+                notify=False,
+                notify_on_failure=True,
+                notify_dry_run=True,
+            )
+
+            payload = agent_pipeline.run_pipeline(args)
+
+            self.assertEqual(payload["summary"]["failed"], 1)
+            self.assertEqual(payload["notification"]["delivery_output"], "dry-run")
+
 
 if __name__ == "__main__":
     unittest.main()

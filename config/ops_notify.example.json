@@ -1,7 +1,12 @@
 {
   "type": "wecom",
-  "webhook": "把企业微信机器人 webhook 放这里",
+  "webhook": "把企业微信群机器人 webhook 放这里，例如 https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...",
   "target": "weixin",
   "workbuddy_bin": "~/HermesPrivate/bin/workbuddy_hermes_send_compat.zsh",
-  "hermes_bin": "~/.local/bin/hermes"
+  "hermes_bin": "~/.local/bin/hermes",
+  "usage": {
+    "dry_run": "python3 scripts/agent_notify.py --title '测试通知' --status info --detail '只生成消息' --dry-run",
+    "send": "OPS_NOTIFY_WEBHOOK='企业微信机器人 webhook' python3 scripts/agent_notify.py --title '测试通知' --status info --detail '发送到企业微信'",
+    "command_notify": "python3 scripts/agent_command.py '任务现在正常吗？' --notify"
+  }
 }
