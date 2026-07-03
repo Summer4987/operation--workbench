@@ -3,6 +3,7 @@ from scripts.realtime_order_income import (
     build_api_record,
     build_dom_record,
     build_payload,
+    meituan_all_stores_active,
     meituan_realtime_active,
     meituan_realtime_switch_diagnostics,
     merge_records,
@@ -199,6 +200,12 @@ def test_meituan_realtime_active_accepts_active_frame_state():
     page = FakeRealtimePage(False, frames=[FakeRealtimeTarget(True)])
 
     assert meituan_realtime_active(page)
+
+
+def test_meituan_all_stores_active_accepts_frame_state():
+    page = FakeRealtimePage(False, frames=[FakeRealtimeTarget(True)])
+
+    assert meituan_all_stores_active(page)
 
 
 def test_meituan_realtime_switch_diagnostics_includes_control_state():

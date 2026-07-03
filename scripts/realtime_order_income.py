@@ -880,6 +880,104 @@ def click_meituan_realtime(target) -> bool:
         return False
 
 
+MEITUAN_ALL_STORES_ACTIVE_SCRIPT = """
+() => {
+  const body = document.body ? document.body.innerText : '';
+  return /(^|\\n)全部门店(\\n|\\s|$)/.test(body) && body.includes('今日实时');
+}
+"""
+
+
+def meituan_all_stores_active(page) -> bool:
+    for target in [page, *page.frames]:
+        try:
+            if target.evaluate(MEITUAN_ALL_STORES_ACTIVE_SCRIPT):
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def click_meituan_store_dropdown(target) -> bool:
+    try:
+        return bool(
+            target.evaluate(
+                """
+                () => {
+                  const visible = (el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                  };
+                  const current = Array.from(document.querySelectorAll('[class*="current-poi"],[class*="container_2x38j6"]'))
+                    .find((el) => visible(el) && /熊小小|全部门店/.test(el.innerText || el.textContent || el.getAttribute('title') || ''));
+                  if (!current) return false;
+                  current.scrollIntoView({ block: 'center', inline: 'center' });
+                  for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                    current.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+                  }
+                  return true;
+                }
+                """
+            )
+        )
+    except Exception:
+        return False
+
+
+def click_meituan_all_stores_option(target) -> bool:
+    try:
+        return bool(
+            target.evaluate(
+                """
+                () => {
+                  const visible = (el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                  };
+                  const option = Array.from(document.querySelectorAll('li,div,span,[role="button"],button'))
+                    .find((el) => visible(el) && (el.innerText || el.textContent || el.getAttribute('title') || '').replace(/\\s+/g, '').trim() === '全部门店（共9家）');
+                  if (!option) return false;
+                  option.scrollIntoView({ block: 'center', inline: 'center' });
+                  for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                    option.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+                  }
+                  return true;
+                }
+                """
+            )
+        )
+    except Exception:
+        return False
+
+
+def click_meituan_all_stores(page) -> None:
+    if meituan_all_stores_active(page):
+        return
+    for attempt in range(3):
+        for target in [page, *page.frames]:
+            if click_meituan_store_dropdown(target):
+                page.wait_for_timeout(1200)
+                break
+        for target in [page, *page.frames]:
+            if click_meituan_all_stores_option(target):
+                page.wait_for_timeout(5000 + attempt * 1000)
+                if meituan_all_stores_active(page):
+                    return
+                break
+        if meituan_all_stores_active(page):
+            return
+    body = page_snapshot_text(page)
+    single_store = re.search(r"熊小小牛排饭POKEBEAR[（(]([^）)]+店)[）)]", body)
+    if single_store:
+        raise RuntimeError(
+            f"美团当前停留在单店上下文：{single_store.group(1)}，"
+            "未能自动切回全部门店，无法采集 8 家门店。"
+        )
+    raise RuntimeError("美团未能自动切回全部门店，无法采集 8 家门店。")
+
+
 def click_meituan_realtime_and_scroll(page) -> None:
     for target in [page, *page.frames]:
         try:
@@ -929,6 +1027,7 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
         page.wait_for_timeout(7000)
         if page_requires_login(page, "美团"):
             raise RuntimeError("美团登录态失效：当前打开的是登录/验证码页面")
+        click_meituan_all_stores(page)
         click_meituan_realtime_and_scroll(page)
         for target in [page, *page.frames]:
             dom_records.extend(parse_dom_records(target, "美团"))
