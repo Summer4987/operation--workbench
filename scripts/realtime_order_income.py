@@ -899,6 +899,12 @@ def meituan_all_stores_active(page) -> bool:
 
 
 def click_meituan_store_dropdown(target) -> bool:
+    for selector in ['[class*="current-poi"]', '[class*="container_2x38j6"]']:
+        try:
+            target.locator(selector).first.click(timeout=3000, force=True)
+            return True
+        except Exception:
+            pass
     try:
         return bool(
             target.evaluate(
@@ -926,6 +932,16 @@ def click_meituan_store_dropdown(target) -> bool:
 
 
 def click_meituan_all_stores_option(target) -> bool:
+    try:
+        target.get_by_text("全部门店（共9家）", exact=True).first.click(timeout=5000, force=True)
+        return True
+    except Exception:
+        pass
+    try:
+        target.locator('[title="全部门店（共9家）"]').first.click(timeout=5000, force=True)
+        return True
+    except Exception:
+        pass
     try:
         return bool(
             target.evaluate(
