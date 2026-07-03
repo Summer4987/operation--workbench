@@ -882,8 +882,16 @@ def click_meituan_realtime(target) -> bool:
 
 MEITUAN_ALL_STORES_ACTIVE_SCRIPT = """
 () => {
+  const visible = (el) => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  };
+  const normalize = (value) => String(value || '').replace(/\\s+/g, '').trim();
+  const headerActive = Array.from(document.querySelectorAll('[class*="current-poi"],[class*="container_2x38j6"]'))
+    .some((el) => visible(el) && normalize(el.innerText || el.textContent || el.getAttribute('title')) === '全部门店');
   const body = document.body ? document.body.innerText : '';
-  return /(^|\\n)全部门店(\\n|\\s|$)/.test(body) && body.includes('今日实时');
+  return headerActive || /^全部门店\\s*xxxnpf/m.test(body);
 }
 """
 
