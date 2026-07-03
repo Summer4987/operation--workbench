@@ -8,6 +8,7 @@ INSTALL_SCRIPT = ROOT / "scripts" / "install_macmini_operation_launchd.zsh"
 DEPLOY_SCRIPT = ROOT / "scripts" / "deploy_workbench_to_cloud.zsh"
 MORNING_SCRIPT = ROOT / "morning-ops" / "run_morning_ops.py"
 LOGIN_PREFLIGHT_SCRIPT = ROOT / "scripts" / "check_platform_login_preflight.py"
+OPS_NOTIFY_SCRIPT = ROOT / "scripts" / "ops_notify.py"
 
 
 def test_current_budget_does_not_read_step_rc_after_fi():
@@ -75,3 +76,11 @@ def test_login_preflight_notifies_and_uses_auth_exit_code():
     assert "【运营自动化开跑前预检失败】" in text
     assert "return 66" in text
     assert "notify(notice)" in text
+
+
+def test_ops_notify_falls_back_to_hermes_when_webhook_missing():
+    text = OPS_NOTIFY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "return notify_via_hermes(text, config)" in text
+    assert "[hermes_bin, \"send\", \"--to\", target, text]" in text
+    assert "OPS_NOTIFY_TARGET" in text

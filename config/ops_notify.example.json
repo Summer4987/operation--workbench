@@ -1,4 +1,6 @@
 {
   "type": "wecom",
-  "webhook": "把企业微信机器人 webhook 放这里"
+  "webhook": "把企业微信机器人 webhook 放这里",
+  "target": "weixin",
+  "hermes_bin": "~/.local/bin/hermes"
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from urllib import request as url_request
@@ -25,8 +26,7 @@ def notify(text: str) -> bool:
     webhook = os.environ.get("OPS_NOTIFY_WEBHOOK") or config.get("webhook") or ""
     webhook = str(webhook).strip()
     if not webhook:
-        print("未配置 OPS_NOTIFY_WEBHOOK 或 config/ops_notify.json webhook，跳过通知。")
-        return False
+        return notify_via_hermes(text, config)
 
     notify_type = str(os.environ.get("OPS_NOTIFY_TYPE") or config.get("type") or "wecom").strip().lower()
     if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
@@ -42,6 +42,37 @@ def notify(text: str) -> bool:
     except Exception as exc:
         print(f"通知发送失败：{exc}", file=sys.stderr)
         return False
+
+
+def notify_via_hermes(text: str, config: dict) -> bool:
+    hermes_bin = str(
+        os.environ.get("OPS_NOTIFY_HERMES_BIN")
+        or config.get("hermes_bin")
+        or Path.home() / ".local" / "bin" / "hermes"
+    )
+    target = str(os.environ.get("OPS_NOTIFY_TARGET") or config.get("target") or "weixin")
+    if not Path(hermes_bin).exists():
+        print("未配置 OPS_NOTIFY_WEBHOOK，且 Hermes CLI 不存在，跳过通知。")
+        return False
+    try:
+        result = subprocess.run(
+            [hermes_bin, "send", "--to", target, text],
+            cwd=ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=45,
+        )
+    except Exception as exc:
+        print(f"Hermes 通知发送失败：{exc}", file=sys.stderr)
+        return False
+    output = (result.stdout or "").strip()
+    if output:
+        print(output)
+    if result.returncode != 0:
+        print(f"Hermes 通知发送失败，退出码：{result.returncode}", file=sys.stderr)
+    return result.returncode == 0
 
 
 def main() -> int:
