@@ -87,6 +87,15 @@ parts = [
 errors = [str(item) for item in payload.get("errors") or [] if item]
 if errors:
     parts.append("；".join(errors[:2]))
+else:
+    missing = payload.get("missing") or []
+    if missing:
+        stores = []
+        for item in missing[:4]:
+            if isinstance(item, dict):
+                stores.append(f"{item.get('platform') or '未知平台'}{item.get('store') or ''}")
+        if stores:
+            parts.append("缺失门店：" + "、".join(stores))
 parts.append("已拒绝覆盖 latest.json，保留上一份成功数据。")
 print("，".join(parts))
 PY

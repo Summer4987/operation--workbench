@@ -196,11 +196,14 @@ def write_latest(payload: dict[str, Any]) -> None:
 
 
 def classify_payload_failure(payload: dict[str, Any], task_run: dict[str, Any]) -> str:
-    if task_run.get("failure_type"):
-        return str(task_run["failure_type"])
+    task_failure_type = str(task_run.get("failure_type") or "")
+    if task_failure_type and task_failure_type != "execution_failed":
+        return task_failure_type
     errors = payload.get("errors") or []
     if errors:
         return classify_failure_text("；".join(str(item) for item in errors))
+    if task_failure_type:
+        return task_failure_type
     missing = payload.get("missing") or []
     if missing:
         return "missing_platform_store"

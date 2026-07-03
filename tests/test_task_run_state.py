@@ -8,6 +8,10 @@ def test_meituan_realtime_switch_failure_is_page_structure():
     assert classify_failure_text("美团页面未确认切换到今日实时") == "page_structure"
 
 
+def test_meituan_single_store_context_failure_is_page_structure():
+    assert classify_failure_text("美团当前停留在单店上下文：保利中心店，未进入连锁/全部门店实时排行") == "page_structure"
+
+
 def test_success_extra_does_not_keep_previous_failure_fields(tmp_path, monkeypatch):
     latest_path = tmp_path / "latest.json"
     monkeypatch.setattr(task_run_state, "RUN_STATE_DIR", tmp_path)
