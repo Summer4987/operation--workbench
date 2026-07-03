@@ -24,6 +24,9 @@ PUBLISH_KEYWORDS = ("发布", "上线", "同步到云端", "手机入口")
 PROBLEM_KEYWORDS = ("问题", "失败", "异常", "坏", "报错")
 RERUN_KEYWORDS = ("补跑", "重跑", "恢复")
 STATUS_KEYWORDS = ("状态", "怎么样", "情况")
+BUDGET_KEYWORDS = ("预算", "推广预算")
+BUDGET_RERUN_KEYWORDS = ("重跑", "补跑", "重新", "设置", "初始化")
+BUDGET_CONFIRM_KEYWORDS = ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")
 
 
 def now_text() -> str:
@@ -75,6 +78,10 @@ def classify_intent(text: str) -> str:
         return "execute_non_ordering"
     if command_contains(clean, ORDERING_KEYWORDS):
         return "blocked_ordering"
+    if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
+        return "budget_commit"
+    if command_contains(clean, BUDGET_KEYWORDS) and command_contains(clean, BUDGET_RERUN_KEYWORDS):
+        return "budget_preview"
     if command_contains(clean, PUBLISH_KEYWORDS) and command_contains(clean, ("发布", "上线", "同步到云端")):
         return "publish_mobile"
     if command_contains(clean, EXECUTE_KEYWORDS) and ("其他" in clean):
@@ -110,6 +117,28 @@ def handle_command(text: str, *, execute: bool) -> dict[str, Any]:
     if intent == "blocked_ordering":
         blocked = True
         answer = "这个请求属于订货/下单/采购范围。当前 agent 明确不参与订货任务，所以我不会执行，只能报告或等待你另行授权设计订货专用流程。"
+    elif intent == "budget_preview":
+        if not execute:
+            answer = "这是推广预算重跑请求。我会先跑预算预览/安全计划；为防误触发平台动作，请在 Mac mini 上加 `--execute` 开始预览。真实提交预算还需要说：确认执行预算重跑。"
+        else:
+            action = run_command(["/bin/zsh", "scripts/run_current_budget.zsh", "--period", "auto", "--mode", "preview"], timeout=3600)
+            actions.append(action)
+            run_command([sys.executable or "python3", "scripts/build_agent_mobile_status.py"], timeout=300)
+            if action["returncode"] == 0:
+                answer = "已开始并完成推广预算预览/安全计划；这次没有真实提交预算。"
+            else:
+                answer = f"推广预算预览/安全计划失败，退出码 {action['returncode']}。"
+    elif intent == "budget_commit":
+        if not execute:
+            answer = "你已说出预算确认语。真实提交预算需要在 Mac mini 上加 `--execute`，并且脚本仍会检查当前是否在允许时间窗口。"
+        else:
+            action = run_command(["/bin/zsh", "scripts/run_current_budget.zsh", "--period", "auto", "--mode", "commit"], timeout=3600)
+            actions.append(action)
+            run_command([sys.executable or "python3", "scripts/build_agent_mobile_status.py"], timeout=300)
+            if action["returncode"] == 0:
+                answer = "已执行推广预算真实提交流程，并刷新 agent 状态。"
+            else:
+                answer = f"推广预算真实提交没有完成，退出码 {action['returncode']}；可能被时间窗口、登录态或安全闸拦截。"
     elif intent == "execute_non_ordering":
         if not execute:
             answer = "这是非订货执行请求。为防误触发，请在 Mac mini 上加 `--execute` 执行；不加时我只做意图识别。"

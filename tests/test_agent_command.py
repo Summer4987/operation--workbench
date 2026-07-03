@@ -32,6 +32,21 @@ class AgentCommandTests(unittest.TestCase):
     def test_refresh_command_routes_to_refresh_intent(self) -> None:
         self.assertEqual(agent_command.classify_intent("刷新状态"), "refresh_status")
 
+    def test_budget_rerun_routes_to_preview(self) -> None:
+        self.assertEqual(agent_command.classify_intent("重跑预算设置"), "budget_preview")
+
+    def test_budget_commit_requires_confirmation_phrase(self) -> None:
+        payload = agent_command.handle_command("确认执行预算重跑", execute=False)
+
+        self.assertEqual(payload["intent"], "budget_commit")
+        self.assertIn("--execute", payload["answer"])
+
+    def test_budget_preview_requires_execute_flag(self) -> None:
+        payload = agent_command.handle_command("重跑预算设置", execute=False)
+
+        self.assertEqual(payload["intent"], "budget_preview")
+        self.assertIn("预算预览", payload["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()
