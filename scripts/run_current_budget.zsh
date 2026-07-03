@@ -235,7 +235,17 @@ run_node_runtime_script() {
 
 sync_budget_config() {
   PROMO_BUDGET_OVERRIDES_COPY_PATH="$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"
-  /bin/cp "$ROOT/config/direct_meituan_accounts.json" "$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
+  local direct_accounts_source="$ROOT/config/direct_meituan_accounts.json"
+  local direct_accounts_target="$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
+  local direct_accounts_tmp="${direct_accounts_target}.tmp.$$"
+  if /usr/bin/cmp -s "$direct_accounts_source" "$direct_accounts_target"; then
+    echo "美团直营账号配置已是最新，跳过重复复制：$direct_accounts_target"
+    return 0
+  fi
+  /bin/mkdir -p "$NODE_RUNTIME_ROOT/config"
+  /bin/cp "$direct_accounts_source" "$direct_accounts_tmp"
+  /bin/mv "$direct_accounts_tmp" "$direct_accounts_target"
+  echo "已同步美团直营账号配置：$direct_accounts_target"
 }
 
 if run_required_step "${PERIOD}预算配置同步" "${BUDGET_CONFIG_SYNC_TIMEOUT_SECONDS:-120}" sync_budget_config; then

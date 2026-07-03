@@ -14,3 +14,11 @@ def test_current_budget_does_not_read_step_rc_after_fi():
     assert "run_with_timeout \"$seconds\" \"$@\"\n    exit_status=$?" in text
     assert "run_with_retry \"$step\" \"$seconds\" \"$attempts\" \"$@\"\n  rc=$?" in text
     assert "run_with_timeout \"$seconds\" \"$@\"\n  rc=$?" in text
+
+
+def test_direct_meituan_accounts_sync_skips_identical_runtime_file():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "/usr/bin/cmp -s \"$direct_accounts_source\" \"$direct_accounts_target\"" in text
+    assert "美团直营账号配置已是最新，跳过重复复制" in text
+    assert "/bin/cp \"$ROOT/config/direct_meituan_accounts.json\" \"$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json\"" not in text
