@@ -181,6 +181,12 @@ def test_meituan_login_page_is_detected_before_realtime_switch():
     assert page_requires_login(page, "美团")
 
 
+def test_meituan_verify_slider_page_is_detected_before_store_switch():
+    page = FakePage("身份核实 请按照说明拖动滑块", "https://verify.meituan.com/v2/app/general_page?requestCode=abc")
+
+    assert page_requires_login(page, "美团")
+
+
 class FakeRealtimeTarget:
     def __init__(self, result, url: str = "https://e.waimai.meituan.com/"):
         self.result = result

@@ -823,9 +823,9 @@ def meituan_realtime_switch_diagnostics(page) -> str:
 
 
 def page_requires_login(page, platform: str) -> bool:
-    login_markers = ["账号登录", "验证码登录", "忘记密码", "登录", "安全验证", "验证码"]
+    login_markers = ["账号登录", "验证码登录", "忘记密码", "登录", "安全验证", "验证码", "身份核实", "拖动滑块"]
     platform_markers = {
-        "美团": ["美团外卖商家版", "e.waimai.meituan.com/new_fe/login"],
+        "美团": ["美团外卖商家版", "e.waimai.meituan.com/new_fe/login", "verify.meituan.com"],
         "饿了么": ["饿了么", "melody.shop.ele.me"],
     }
     for target in [page, *page.frames]:
