@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "updated_at": "2026-07-03",
+  "policy": {
+    "execution_agent": "disabled_by_default",
+    "production_source": "GitHub main",
+    "safe_default": "collect_validate_analyze_notify_healthcheck"
+  },
+  "pipelines": [
+    {
+      "id": "daily_automation_guard",
+      "name": "每日自动化多 Agent 守护",
+      "task_id": "agents.daily_automation_guard",
+      "risk_policy": "不执行预算、出价、订货、财务发布或云端发布；只做观察、校验、分析、通知和巡检。",
+      "stages": [
+        {
+          "id": "collect",
+          "agent": "collect",
+          "name": "采集 Agent",
+          "command": ["{python}", "scripts/build_task_health.py"],
+          "timeout_seconds": 120,
+          "required_outputs": ["outputs/task_health/latest.json"],
+          "json_required": [
+            {"path": "outputs/task_health/latest.json", "keys": ["generated_at", "tasks"]}
+          ],
+          "success_message": "已采集当前任务健康信号。"
+        },
+        {
+          "id": "validate",
+          "agent": "validate",
+          "name": "校验 Agent",
+          "required_outputs": [
+            "outputs/task_health/latest.json",
+            "outputs/task_runs/latest.json"
+          ],
+          "json_required": [
+            {"path": "outputs/task_health/latest.json", "keys": ["generated_at", "tasks"]},
+            {"path": "outputs/task_runs/latest.json", "keys": ["generated_at", "tasks"]}
+          ],
+          "success_message": "关键运行状态和健康产物可读取。"
+        },
+        {
+          "id": "analyze",
+          "agent": "analyze",
+          "name": "业务判断 Agent",
+          "command": ["{python}", "scripts/agent_task_monitor.py"],
+          "timeout_seconds": 120,
+          "required_outputs": ["outputs/agent_task_monitor/latest.json"],
+          "json_required": [
+            {"path": "outputs/agent_task_monitor/latest.json", "keys": ["generated_at", "summary", "tasks", "rerun_plan"]}
+          ],
+          "success_message": "已生成任务透明化分析和补跑建议。"
+        },
+        {
+          "id": "notify",
+          "agent": "notify",
+          "name": "通知 Agent",
+          "required_outputs": ["outputs/agent_task_monitor/latest.txt"],
+          "success_message": "已生成可发送的纯文本通知。"
+        },
+        {
+          "id": "healthcheck",
+          "agent": "healthcheck",
+          "name": "巡检 Agent",
+          "required_outputs": [
+            "outputs/task_health/latest.json",
+            "outputs/agent_task_monitor/latest.json"
+          ],
+          "success_message": "已完成本轮只读巡检。"
+        },
+        {
+          "id": "execute",
+          "agent": "execution",
+          "name": "执行 Agent",
+          "enabled": false,
+          "success_message": "预留接口，默认不运行。"
+        }
+      ]
+    }
+  ]
+}
