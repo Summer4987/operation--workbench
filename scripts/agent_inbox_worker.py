@@ -14,11 +14,13 @@ from pathlib import Path
 from typing import Any
 
 from atomic_io import atomic_write_text
+import agent_notify
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "agent_inbox_worker"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
+LAST_COMMAND_PATH = OUTPUT_DIR / "last_command.json"
 DEFAULT_BASE_URL = "http://139.155.148.169"
 
 
@@ -28,6 +30,14 @@ def now_text() -> str:
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
 
 
 def load_token() -> str:
@@ -70,12 +80,47 @@ def run_agent_command(text: str, execute: bool) -> dict[str, Any]:
     command = [sys.executable or "python3", "scripts/agent_command.py", text]
     if execute:
         command.append("--execute")
-    command.extend(["--notify", "--output", str(LATEST_PATH.parent / "last_command.json")])
+    LAST_COMMAND_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        LAST_COMMAND_PATH.unlink()
+    except FileNotFoundError:
+        pass
+    command.extend(["--output", str(LAST_COMMAND_PATH)])
     result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=3900)
+    command_payload = read_json(LAST_COMMAND_PATH)
     return {
         "command": command,
         "returncode": result.returncode,
         "output_tail": (result.stdout or "")[-4000:],
+        "command_payload": command_payload,
+    }
+
+
+def notify_task_completion(task: dict[str, Any], status: str, result: dict[str, Any]) -> dict[str, Any]:
+    command_payload = result.get("command_payload") if isinstance(result.get("command_payload"), dict) else {}
+    answer = str(command_payload.get("answer") or result.get("output_tail") or "").strip()
+    intent = str(command_payload.get("intent") or task.get("intent") or "unknown")
+    if command_payload.get("blocked"):
+        notice_status = "blocked"
+        action = "这个动作已被安全规则挡住；订货/下单/采购仍不参与。"
+    elif status == "success":
+        notice_status = "success"
+        action = "队列任务已完成。"
+    else:
+        notice_status = "failed"
+        action = "请到 Mac mini 查看 agent_inbox_worker 和对应命令日志。"
+    message = agent_notify.build_message(
+        title=f"企微队列 {str(task.get('id') or '')[:8]}：{task.get('text') or 'Agent 命令'}",
+        status=notice_status,
+        detail=answer or f"命令退出码 {result.get('returncode')}",
+        action=action,
+        source=f"agent_inbox_worker:{intent}",
+    )
+    delivered, delivery_output = agent_notify.notify_message(message, dry_run=False)
+    return {
+        "delivered": delivered,
+        "delivery_output": delivery_output,
+        "message": message,
     }
 
 
@@ -102,6 +147,7 @@ def process_once(base_url: str, token: str, limit: int) -> dict[str, Any]:
         except Exception as exc:
             result = {"returncode": 1, "output_tail": f"{type(exc).__name__}: {exc}"}
             status = "failed"
+        result["queue_notification"] = notify_task_completion(claimed, status, result)
         request_json(
             base_url,
             "/agent-wecom/inbox/complete",

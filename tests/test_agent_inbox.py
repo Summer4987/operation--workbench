@@ -61,8 +61,10 @@ class AgentInboxTests(unittest.TestCase):
 
     def test_worker_processes_pending_task(self) -> None:
         calls = []
+        notices = []
         original_request_json = agent_inbox_worker.request_json
         original_run = agent_inbox_worker.run_agent_command
+        original_notify = agent_inbox_worker.agent_notify.notify_message
         try:
             def fake_request(base_url, path, token, *, method="GET", payload=None, timeout=20):
                 calls.append((path, method, payload))
@@ -75,16 +77,55 @@ class AgentInboxTests(unittest.TestCase):
                 raise AssertionError(path)
 
             agent_inbox_worker.request_json = fake_request
-            agent_inbox_worker.run_agent_command = lambda text, execute: {"returncode": 0, "output_tail": "ok"}
+            agent_inbox_worker.run_agent_command = lambda text, execute: {
+                "returncode": 0,
+                "output_tail": "ok",
+                "command_payload": {"intent": "refresh_status", "answer": "已刷新 agent 状态。"},
+            }
+            agent_inbox_worker.agent_notify.notify_message = lambda message, dry_run=False: notices.append(message) or (True, "sent")
 
             result = agent_inbox_worker.process_once("http://example.invalid", "token", 3)
 
             self.assertTrue(result["ok"])
             self.assertEqual(result["processed"][0]["status"], "success")
             self.assertTrue(any(call[0] == "/agent-wecom/inbox/complete" for call in calls))
+            self.assertEqual(len(notices), 1)
+            self.assertIn("企微队列 t1", notices[0])
+            complete_payload = [call[2] for call in calls if call[0] == "/agent-wecom/inbox/complete"][0]
+            self.assertTrue(complete_payload["result"]["queue_notification"]["delivered"])
         finally:
             agent_inbox_worker.request_json = original_request_json
             agent_inbox_worker.run_agent_command = original_run
+            agent_inbox_worker.agent_notify.notify_message = original_notify
+
+    def test_worker_runs_agent_command_without_nested_notify(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            original_latest = agent_inbox_worker.LAST_COMMAND_PATH
+            original_run = agent_inbox_worker.subprocess.run
+            try:
+                agent_inbox_worker.LAST_COMMAND_PATH = Path(temp_dir) / "last_command.json"
+
+                def fake_run(command, **kwargs):
+                    agent_inbox_worker.LAST_COMMAND_PATH.write_text(
+                        '{"intent":"status","answer":"状态正常"}',
+                        encoding="utf-8",
+                    )
+
+                    class Result:
+                        returncode = 0
+                        stdout = "状态正常"
+
+                    self.assertNotIn("--notify", command)
+                    return Result()
+
+                agent_inbox_worker.subprocess.run = fake_run
+                result = agent_inbox_worker.run_agent_command("任务正常吗", execute=False)
+
+                self.assertEqual(result["returncode"], 0)
+                self.assertEqual(result["command_payload"]["answer"], "状态正常")
+            finally:
+                agent_inbox_worker.LAST_COMMAND_PATH = original_latest
+                agent_inbox_worker.subprocess.run = original_run
 
     def test_nginx_exposes_inbox_without_auth_request(self) -> None:
         text = (ROOT / "inventory-board" / "deploy" / "nginx.conf").read_text(encoding="utf-8")
