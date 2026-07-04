@@ -125,7 +125,13 @@ notify_realtime_failure_once() {
     echo "实时单量收入采集失败通知已发送过，跳过重复推送。"
     return 0
   fi
-  local notice="【实时单量采集失败】${failure_message} 请在 Mac mini 的 Chrome 里恢复美团登录/验证码后，再补跑实时单量采集。"
+  local action="请在 Mac mini 的 Chrome 里查看对应平台页面后，再补跑实时单量采集。"
+  if [[ "$failure_message" == *"登录"* || "$failure_message" == *"验证码"* || "$failure_message" == *"身份核实"* || "$failure_message" == *"滑块"* ]]; then
+    action="请在 Mac mini 的 Chrome 里恢复平台登录/验证码后，再补跑实时单量采集。"
+  elif [[ "$failure_message" == *"全部门店"* || "$failure_message" == *"单店上下文"* ]]; then
+    action="请在 Mac mini 的美团后台确认已切到连锁/全部门店视图；如果页面已正常，可直接补跑实时单量采集。"
+  fi
+  local notice="【实时单量采集失败】${failure_message} ${action}"
   if run_with_timeout "${REALTIME_NOTIFY_TIMEOUT_SECONDS:-15}" "$PYTHON" "$NOTIFY_RUNNER" "$notice"; then
     printf "%s" "$signature" > "$signature_file"
   else

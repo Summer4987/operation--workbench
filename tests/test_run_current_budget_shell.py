@@ -42,6 +42,9 @@ def test_realtime_runner_preserves_collect_failure_after_followup_failure():
     assert "NOTIFY_RUNNER=\"$ROOT/scripts/ops_notify.py\"" in text
     assert "notify_realtime_failure_once \"$failure_message\"" in text
     assert "last_notify_signature.txt" in text
+    assert "恢复平台登录/验证码" in text
+    assert "确认已切到连锁/全部门店视图" in text
+    assert "恢复美团登录/验证码" not in text
 
 
 def test_macmini_installer_emits_realtime_runner_rc_handling():
@@ -56,6 +59,9 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
     assert "NOTIFY_RUNNER=\"\\$ROOT/scripts/ops_notify.py\"" in text
     assert "notify_realtime_failure_once \"\\$failure_message\"" in text
     assert "last_notify_signature.txt" in text
+    assert "恢复平台登录/验证码" in text
+    assert "确认已切到连锁/全部门店视图" in text
+    assert "恢复美团登录/验证码" not in text
 
 
 def test_data_only_deploy_verifies_direct_latest_from_stage_dir():
