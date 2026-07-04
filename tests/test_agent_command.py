@@ -32,6 +32,18 @@ class AgentCommandTests(unittest.TestCase):
     def test_refresh_command_routes_to_refresh_intent(self) -> None:
         self.assertEqual(agent_command.classify_intent("刷新状态"), "refresh_status")
 
+    def test_normal_status_question_is_hard_status(self) -> None:
+        intent, llm = agent_command.classify_intent_with_llm("今天 agent 正常吗")
+
+        self.assertEqual(intent, "status")
+        self.assertEqual(llm["fallback"], "hard-status-query")
+
+    def test_execution_agent_question_still_routes_to_execution_status(self) -> None:
+        intent, llm = agent_command.classify_intent_with_llm("刚刚跳过的执行 Agent 是谁")
+
+        self.assertEqual(intent, "execution_status")
+        self.assertEqual(llm["fallback"], "hard-execution-status-query")
+
     def test_budget_rerun_routes_to_preview(self) -> None:
         self.assertEqual(agent_command.classify_intent("重跑预算设置"), "budget_preview")
 
@@ -85,7 +97,7 @@ class AgentCommandTests(unittest.TestCase):
                 "model": "deepseek-chat",
                 "reason": "询问任务情况",
             }
-            intent, llm = agent_command.classify_intent_with_llm("今天跑得稳不稳")
+            intent, llm = agent_command.classify_intent_with_llm("今天靠不靠谱")
             self.assertEqual(intent, "status")
             self.assertTrue(llm["used"])
         finally:
@@ -103,7 +115,7 @@ class AgentCommandTests(unittest.TestCase):
             }
             intent, llm = agent_command.classify_intent_with_llm("刷新状态")
             self.assertEqual(intent, "refresh_status")
-            self.assertEqual(llm["fallback_intent"], "refresh_status")
+            self.assertEqual(llm["fallback"], "hard-refresh-query")
         finally:
             agent_command.agent_llm.classify = original
 

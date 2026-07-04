@@ -28,7 +28,8 @@ REFRESH_KEYWORDS = ("刷新", "更新", "重新生成")
 PUBLISH_KEYWORDS = ("发布", "上线", "同步到云端", "手机入口")
 PROBLEM_KEYWORDS = ("问题", "失败", "异常", "坏", "报错")
 RERUN_KEYWORDS = ("补跑", "重跑", "恢复")
-STATUS_KEYWORDS = ("状态", "怎么样", "情况")
+STATUS_KEYWORDS = ("状态", "怎么样", "情况", "正常", "稳", "顺利", "完成情况", "跑完")
+EXECUTION_STATUS_KEYWORDS = ("执行 agent", "执行Agent", "执行 Agent", "4号", "4 号", "跳过的执行", "跳过的是谁")
 BUDGET_KEYWORDS = ("预算", "推广预算")
 BUDGET_RERUN_KEYWORDS = ("重跑", "补跑", "重新", "设置", "初始化")
 BUDGET_CONFIRM_KEYWORDS = ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")
@@ -97,7 +98,7 @@ def classify_intent(text: str) -> str:
         return "rerun_plan"
     if command_contains(clean, PROBLEM_KEYWORDS):
         return "problems"
-    if command_contains(clean, ("执行 agent", "执行Agent", "执行")):
+    if command_contains(clean, EXECUTION_STATUS_KEYWORDS):
         return "execution_status"
     if command_contains(clean, STATUS_KEYWORDS):
         return "status"
@@ -117,6 +118,12 @@ def classify_intent_with_llm(text: str, *, use_llm: bool = True) -> tuple[str, d
         return "blocked_ordering", {"used": False, "fallback": "hard-ordering-block"}
     if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
         return "budget_commit", {"used": False, "fallback": "hard-budget-confirmation"}
+    if command_contains(clean, REFRESH_KEYWORDS):
+        return "refresh_status", {"used": False, "fallback": "hard-refresh-query"}
+    if command_contains(clean, EXECUTION_STATUS_KEYWORDS):
+        return "execution_status", {"used": False, "fallback": "hard-execution-status-query"}
+    if command_contains(clean, STATUS_KEYWORDS):
+        return "status", {"used": False, "fallback": "hard-status-query"}
 
     fallback_intent = classify_intent(clean)
     if not use_llm:
