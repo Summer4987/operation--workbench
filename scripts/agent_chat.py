@@ -13,6 +13,10 @@ from atomic_io import atomic_write_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import agent_llm  # noqa: E402
+
 PIPELINE_ID = "daily_automation_guard"
 PIPELINE_PATH = ROOT / "outputs" / "agent_pipeline" / PIPELINE_ID / "latest.json"
 MONITOR_PATH = ROOT / "outputs" / "agent_task_monitor" / "latest.json"
@@ -179,7 +183,92 @@ def build_execution_answer(pipeline: dict[str, Any]) -> str:
     return "刚刚跳过的是 " + "；".join(details) + "。"
 
 
-def answer_question(question: str, *, refreshed: dict[str, Any] | None = None) -> dict[str, Any]:
+def compact_task_rows(rows: Any, *, limit: int = 8) -> list[dict[str, Any]]:
+    if not isinstance(rows, list):
+        return []
+    compacted: list[dict[str, Any]] = []
+    for row in rows[:limit]:
+        if not isinstance(row, dict):
+            continue
+        compacted.append(
+            {
+                "id": row.get("id") or row.get("task_id"),
+                "name": row.get("name") or row.get("task_name"),
+                "status": row.get("status"),
+                "status_text": row.get("status_text"),
+                "message": compact_reason(row.get("failure_reason") or row.get("message"), fallback=""),
+                "auto_allowed": row.get("auto_allowed"),
+            }
+        )
+    return compacted
+
+
+def build_llm_context(
+    *,
+    intent: str,
+    pipeline: dict[str, Any],
+    monitor: dict[str, Any],
+    task_runs: dict[str, Any],
+    refreshed: dict[str, Any] | None,
+) -> dict[str, Any]:
+    stages = pipeline.get("stages") if isinstance(pipeline.get("stages"), list) else []
+    monitor_tasks = monitor.get("tasks") if isinstance(monitor.get("tasks"), list) else []
+    rerun_plan = monitor.get("rerun_plan") if isinstance(monitor.get("rerun_plan"), list) else []
+    return {
+        "intent": intent,
+        "generated_at": {
+            "pipeline": pipeline.get("generated_at"),
+            "monitor": monitor.get("generated_at"),
+            "task_runs": task_runs.get("generated_at") if isinstance(task_runs, dict) else "",
+        },
+        "pipeline": {
+            "name": (pipeline.get("pipeline") or {}).get("name") if isinstance(pipeline.get("pipeline"), dict) else "",
+            "summary": pipeline.get("summary") if isinstance(pipeline.get("summary"), dict) else {},
+            "safety": pipeline.get("safety") if isinstance(pipeline.get("safety"), dict) else {},
+            "stages": compact_task_rows(stages, limit=8),
+        },
+        "monitor": {
+            "summary": monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {},
+            "attention_tasks": compact_task_rows(attention_tasks(monitor), limit=8),
+            "rerun_plan": compact_task_rows(rerun_plan, limit=8),
+        },
+        "refresh": refreshed or {"ran": False},
+        "safety": {
+            "ordering_excluded": True,
+            "llm_advisory_only": True,
+            "requires_execute_flag_for_mutation": True,
+        },
+    }
+
+
+def maybe_improve_answer(
+    *,
+    question: str,
+    draft_answer: str,
+    intent: str,
+    pipeline: dict[str, Any],
+    monitor: dict[str, Any],
+    task_runs: dict[str, Any],
+    refreshed: dict[str, Any] | None,
+    use_llm: bool,
+) -> tuple[str, dict[str, Any]]:
+    if not use_llm:
+        return draft_answer, {"enabled": False, "used": False, "fallback": "llm-disabled-by-flag"}
+    context = build_llm_context(
+        intent=intent,
+        pipeline=pipeline,
+        monitor=monitor,
+        task_runs=task_runs,
+        refreshed=refreshed,
+    )
+    record = agent_llm.generate_answer(question=question, draft_answer=draft_answer, context=context)
+    record["draft_answer"] = draft_answer
+    if record.get("used") and float(record.get("confidence") or 0) >= 0.5:
+        return str(record.get("answer") or draft_answer), record
+    return draft_answer, record
+
+
+def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, use_llm: bool = True) -> dict[str, Any]:
     pipeline = read_json(PIPELINE_PATH, {})
     monitor = read_json(MONITOR_PATH, {})
     task_runs = read_json(TASK_RUNS_PATH, {})
@@ -202,12 +291,34 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None) -
         intent = "status"
         answer = build_status_answer(pipeline, monitor)
 
+    final_answer, llm_record = maybe_improve_answer(
+        question=normalized,
+        draft_answer=answer,
+        intent=intent,
+        pipeline=pipeline,
+        monitor=monitor,
+        task_runs=task_runs if isinstance(task_runs, dict) else {},
+        refreshed=refreshed,
+        use_llm=use_llm,
+    )
+
     return {
         "generated_at": now_text(),
         "host": socket.gethostname(),
         "question": normalized,
         "intent": intent,
-        "answer": answer,
+        "answer": final_answer,
+        "llm": {
+            "enabled": bool(use_llm),
+            "used": bool(llm_record.get("used")),
+            "provider": llm_record.get("provider", ""),
+            "model": llm_record.get("model", ""),
+            "confidence": llm_record.get("confidence", 0),
+            "reason": llm_record.get("reason", ""),
+            "error": llm_record.get("error", ""),
+            "fallback": llm_record.get("fallback", ""),
+            "draft_answer": llm_record.get("draft_answer", ""),
+        },
         "sources": {
             "pipeline": str(PIPELINE_PATH.relative_to(ROOT)),
             "monitor": str(MONITOR_PATH.relative_to(ROOT)),
@@ -222,6 +333,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="和本地多 Agent 运行结果对话。")
     parser.add_argument("question", nargs="*", help="要问 agent 的问题")
     parser.add_argument("--refresh", action="store_true", help="回答前先安全刷新 daily_automation_guard")
+    parser.add_argument("--no-llm", action="store_true", help="禁用大模型回答生成，强制使用本地规则回答")
     parser.add_argument("--json-out", default=str(OUTPUT_DIR / "latest.json"), help="JSON 回答输出路径")
     parser.add_argument("--text-out", default=str(OUTPUT_DIR / "latest.txt"), help="文本回答输出路径")
     args = parser.parse_args()
@@ -232,7 +344,7 @@ def main() -> int:
         refreshed = {"ran": True, **refresh_result}
 
     question = " ".join(args.question).strip() or "现在 agent 状态怎么样？"
-    payload = answer_question(question, refreshed=refreshed)
+    payload = answer_question(question, refreshed=refreshed, use_llm=not args.no_llm)
     json_out = Path(args.json_out).expanduser()
     text_out = Path(args.text_out).expanduser()
     write_json(json_out, payload)

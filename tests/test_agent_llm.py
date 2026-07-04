@@ -96,6 +96,41 @@ class AgentLlmTests(unittest.TestCase):
 
             self.assertEqual(payload["intent"], "budget_preview")
 
+    def test_generate_answer_accepts_mocked_json_response(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            config = temp_path / "agent_llm.json"
+            env = temp_path / "env"
+            config.write_text(json.dumps({"enabled": True, "mode": "advisory_only"}), encoding="utf-8")
+            env.write_text(
+                "export AGENT_LLM_API_KEY='secret'\n"
+                "export AGENT_LLM_BASE_URL='https://api.deepseek.com'\n"
+                "export AGENT_LLM_MODEL='deepseek-chat'\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                agent_llm,
+                "call_answer_completion",
+                return_value={
+                    "raw": {
+                        "answer": "今天 agent 正常，执行 Agent 没有参与订货。",
+                        "confidence": 0.88,
+                        "reason": "基于本地状态草稿回答",
+                    },
+                    "usage": {},
+                },
+            ):
+                payload = agent_llm.generate_answer(
+                    question="今天正常吗",
+                    draft_answer="成功 5 个，跳过 1 个。",
+                    context={"safety": {"ordering_excluded": True}},
+                    config_path=config,
+                    env_path=env,
+                )
+
+            self.assertTrue(payload["used"])
+            self.assertIn("agent 正常", payload["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()

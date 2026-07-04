@@ -96,6 +96,45 @@ class AgentChatTests(unittest.TestCase):
             agent_chat.MONITOR_PATH = original_monitor_path
             agent_chat.TASK_RUNS_PATH = original_task_runs_path
 
+    def test_answer_question_can_use_llm_generated_answer(self) -> None:
+        original_generate_answer = agent_chat.agent_llm.generate_answer
+        try:
+            agent_chat.agent_llm.generate_answer = lambda **kwargs: {
+                "used": True,
+                "answer": "今天整体正常，执行 Agent 仍按规则排除订货。",
+                "confidence": 0.82,
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+                "reason": "基于草稿改写",
+            }
+
+            payload = agent_chat.answer_question("今天稳不稳？")
+
+            self.assertTrue(payload["llm"]["used"])
+            self.assertIn("整体正常", payload["answer"])
+            self.assertIn("draft_answer", payload["llm"])
+        finally:
+            agent_chat.agent_llm.generate_answer = original_generate_answer
+
+    def test_answer_question_falls_back_when_llm_confidence_is_low(self) -> None:
+        original_generate_answer = agent_chat.agent_llm.generate_answer
+        try:
+            agent_chat.agent_llm.generate_answer = lambda **kwargs: {
+                "used": True,
+                "answer": "低置信度回答",
+                "confidence": 0.2,
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+                "reason": "不确定",
+            }
+
+            payload = agent_chat.answer_question("现在 agent 状态怎么样？")
+
+            self.assertFalse("低置信度回答" == payload["answer"])
+            self.assertTrue(payload["llm"]["used"])
+        finally:
+            agent_chat.agent_llm.generate_answer = original_generate_answer
+
 
 if __name__ == "__main__":
     unittest.main()

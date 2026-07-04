@@ -52,6 +52,16 @@ SYSTEM_PROMPT = """你是熊小小运营自动化的意图识别助手。
 {"intent":"status","confidence":0.0,"reason":"一句很短的中文理由"}
 """
 
+ANSWER_SYSTEM_PROMPT = """你是熊小小运营自动化的对话助手。
+只输出 JSON，不要输出 Markdown。
+你只能根据用户问题、本地状态草稿和结构化上下文回答，不能编造没有出现在上下文里的任务结果。
+订货、下单、采购、快驴相关动作不能建议自动执行，只能说明当前系统不参与。
+预算真实提交、平台执行、发布类动作必须说明需要显式执行确认；普通询问只能报告状态或给出安全建议。
+回答要像在企业微信里和老板汇报：短、清楚、直接说结论，再说原因和下一步。
+输出格式：
+{"answer":"一段中文回答","confidence":0.0,"reason":"一句很短的中文理由"}
+"""
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -169,6 +179,46 @@ def call_chat_completion(settings: dict[str, Any], user_text: str) -> dict[str, 
     }
 
 
+def call_answer_completion(settings: dict[str, Any], *, question: str, draft_answer: str, context: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "model": settings["model"],
+        "messages": [
+            {"role": "system", "content": ANSWER_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "question": question[:800],
+                        "draft_answer": draft_answer[:1800],
+                        "context": context,
+                    },
+                    ensure_ascii=False,
+                )[:5000],
+            },
+        ],
+        "temperature": 0.2,
+        "max_tokens": max(settings["max_tokens"], 260),
+        "response_format": {"type": "json_object"},
+    }
+    req = urllib.request.Request(
+        settings["base_url"] + "/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + settings["api_key"],
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=settings["timeout_seconds"]) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    parsed = extract_json_object(str(content))
+    return {
+        "raw": parsed,
+        "usage": data.get("usage") if isinstance(data.get("usage"), dict) else {},
+    }
+
+
 def classify(text: str, *, config_path: Path = CONFIG_PATH, env_path: Path = ENV_PATH) -> dict[str, Any]:
     settings = resolve_settings(config_path, env_path)
     record: dict[str, Any] = {
@@ -213,6 +263,61 @@ def classify(text: str, *, config_path: Path = CONFIG_PATH, env_path: Path = ENV
             {
                 "used": True,
                 "intent": intent,
+                "confidence": confidence,
+                "reason": str(raw.get("reason") or "")[:300],
+                "usage": response["usage"],
+            }
+        )
+    except urllib.error.HTTPError as exc:
+        record["error"] = f"http-{exc.code}"
+    except Exception as exc:
+        record["error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+    return record
+
+
+def generate_answer(
+    *,
+    question: str,
+    draft_answer: str,
+    context: dict[str, Any],
+    config_path: Path = CONFIG_PATH,
+    env_path: Path = ENV_PATH,
+) -> dict[str, Any]:
+    settings = resolve_settings(config_path, env_path)
+    record: dict[str, Any] = {
+        "generated_at": now_text(),
+        "host": socket.gethostname(),
+        "provider": settings["provider"],
+        "model": settings["model"],
+        "enabled": settings["enabled"],
+        "used": False,
+        "answer": "",
+        "confidence": 0.0,
+        "reason": "",
+        "error": "",
+        "mode": settings["mode"],
+    }
+    if not settings["enabled"]:
+        record["error"] = "llm-disabled"
+        return record
+    if settings["mode"] != "advisory_only":
+        record["error"] = "llm-mode-not-advisory"
+        return record
+    if not settings["api_key"]:
+        record["error"] = "missing-api-key"
+        return record
+
+    try:
+        response = call_answer_completion(settings, question=question, draft_answer=draft_answer, context=context)
+        raw = response["raw"]
+        answer = str(raw.get("answer") or "").strip()
+        confidence = float(raw.get("confidence") or 0)
+        if not answer:
+            raise ValueError("empty-answer")
+        record.update(
+            {
+                "used": True,
+                "answer": answer[:1200],
                 "confidence": confidence,
                 "reason": str(raw.get("reason") or "")[:300],
                 "usage": response["usage"],
