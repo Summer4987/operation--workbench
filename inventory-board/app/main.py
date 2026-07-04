@@ -221,6 +221,54 @@ async def agent_inbox_complete(request: Request, payload: dict):
     return {"item": item}
 
 
+@app.get("/agent")
+def agent_mobile_page():
+    return Response(
+        content=_agent_mobile_page_html(),
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
+
+
+@app.get("/agent/api/status")
+def agent_mobile_status(request: Request, limit: int = 20):
+    _require_agent_inbox_token(request)
+    return {
+        "generated_at": int(time.time()),
+        "summary": agent_inbox.task_summary(),
+        "items": [_public_agent_task(item) for item in agent_inbox.recent_tasks(limit=limit)],
+    }
+
+
+@app.post("/agent/api/send")
+async def agent_mobile_send(request: Request, payload: dict):
+    _require_agent_inbox_token(request)
+    text = " ".join(str(payload.get("text") or "").split())
+    if not text:
+        raise HTTPException(status_code=400, detail="消息不能为空")
+    policy = agent_inbox.command_policy(text)
+    if policy.get("intent") == "blocked_ordering" or not policy.get("enqueue"):
+        return {
+            "mode": "answer",
+            "answer": agent_wecom.answer_agent_text(text),
+            "policy": policy,
+            "task": None,
+        }
+    item = agent_inbox.append_task(
+        text=text,
+        intent=str(policy.get("intent") or ""),
+        execute=bool(policy.get("execute")),
+        source="agent-mobile",
+        sender=str(payload.get("sender") or "mobile"),
+    )
+    return {
+        "mode": "queued",
+        "answer": _agent_queue_answer(item),
+        "policy": policy,
+        "task": _public_agent_task(item),
+    }
+
+
 @app.get("/api/summary")
 def summary():
     items = inventory_summary()
@@ -757,6 +805,8 @@ def _is_public_request(request: Request) -> bool:
     path = request.url.path
     if path == "/login" or path == "/api/auth/login" or path == "/api/auth/check":
         return True
+    if path == "/agent" or path.startswith("/agent/api/"):
+        return True
     if path == "/agent-wecom/callback":
         return True
     if path.startswith("/agent-wecom/inbox/"):
@@ -764,6 +814,344 @@ def _is_public_request(request: Request) -> bool:
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())
     return False
+
+
+def _public_agent_task(item: dict) -> dict[str, object]:
+    result = item.get("result") if isinstance(item.get("result"), dict) else {}
+    command_payload = result.get("command_payload") if isinstance(result.get("command_payload"), dict) else {}
+    queue_notification = result.get("queue_notification") if isinstance(result.get("queue_notification"), dict) else {}
+    answer = str(command_payload.get("answer") or result.get("output_tail") or "").strip()
+    return {
+        "id": str(item.get("id") or ""),
+        "created_at": int(item.get("created_at") or 0),
+        "updated_at": int(item.get("updated_at") or 0),
+        "status": str(item.get("status") or ""),
+        "text": str(item.get("text") or ""),
+        "intent": str(item.get("intent") or ""),
+        "execute": bool(item.get("execute")),
+        "source": str(item.get("source") or ""),
+        "attempts": int(item.get("attempts") or 0),
+        "worker": str(item.get("worker") or ""),
+        "returncode": result.get("returncode"),
+        "answer": answer[-1200:],
+        "notified": bool(queue_notification.get("delivered")),
+    }
+
+
+def _agent_queue_answer(item: dict) -> str:
+    intent = str(item.get("intent") or "")
+    labels = {
+        "budget_commit": "真实预算提交流程",
+        "budget_preview": "预算预览/安全计划，不会直接提交预算",
+        "refresh_status": "刷新 Agent 状态和手机入口数据",
+        "publish_mobile": "发布手机入口和工作台数据",
+        "execute_non_ordering": "执行允许的非订货动作",
+    }
+    action = labels.get(intent, "执行允许的 Agent 动作")
+    return f"已收到，已加入 Mac mini 队列：{action}。队列编号：{str(item.get('id') or '')[:8]}。完成后会通过企业微信通知结果。"
+
+
+def _agent_mobile_page_html() -> str:
+    return r"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>熊小小运营 Agent</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #18212f;
+      --muted: #6b7280;
+      --line: #d8dde6;
+      --accent: #1769e0;
+      --accent-strong: #0f54bd;
+      --ok: #0b7a45;
+      --warn: #9a5b00;
+      --bad: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      max-width: 880px;
+      margin: 0 auto;
+      background: var(--panel);
+    }
+    header {
+      padding: calc(14px + env(safe-area-inset-top)) 16px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    h1 { margin: 0; font-size: 18px; line-height: 1.2; }
+    .sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .badge {
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .token {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      background: #fbfcfe;
+    }
+    input, textarea, button {
+      font: inherit;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px 12px;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+    textarea { min-height: 48px; resize: none; line-height: 1.35; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button:active { background: var(--accent-strong); }
+    button.secondary {
+      background: #eef2f7;
+      color: #243042;
+      border: 1px solid var(--line);
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .chips button {
+      white-space: nowrap;
+      background: #eef5ff;
+      color: #174ea6;
+      border: 1px solid #c6ddff;
+      padding: 9px 11px;
+      flex: 0 0 auto;
+    }
+    .messages {
+      padding: 16px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 88%;
+      border-radius: 12px;
+      padding: 11px 12px;
+      line-height: 1.45;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .me { align-self: flex-end; background: #dfeeff; }
+    .agent { align-self: flex-start; background: #f0f2f5; }
+    .meta { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+    .tasks {
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+      padding: 10px 16px;
+      max-height: 34vh;
+      overflow: auto;
+    }
+    .task {
+      display: grid;
+      gap: 4px;
+      padding: 10px 0;
+      border-bottom: 1px solid #edf0f5;
+      font-size: 13px;
+    }
+    .task:last-child { border-bottom: 0; }
+    .row { display: flex; justify-content: space-between; gap: 12px; }
+    .status-success { color: var(--ok); }
+    .status-failed { color: var(--bad); }
+    .status-running, .status-pending { color: var(--warn); }
+    .composer {
+      padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      background: var(--panel);
+    }
+    .hidden { display: none; }
+    @media (min-width: 720px) {
+      body { padding: 18px; }
+      .shell { border: 1px solid var(--line); border-radius: 10px; min-height: calc(100vh - 36px); overflow: hidden; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>熊小小运营 Agent</h1>
+        <div class="sub" id="summary">等待连接</div>
+      </div>
+      <div class="badge" id="connection">未连接</div>
+    </header>
+    <section class="token" id="tokenBox">
+      <input id="tokenInput" autocomplete="off" placeholder="输入 Agent token" />
+      <button id="saveToken" type="button">连接</button>
+    </section>
+    <section class="chips">
+      <button type="button" data-command="任务正常吗">任务状态</button>
+      <button type="button" data-command="今天哪里失败">今日失败</button>
+      <button type="button" data-command="哪些任务可以补跑">可补跑</button>
+      <button type="button" data-command="刷新状态">刷新状态</button>
+      <button type="button" data-command="重跑预算设置">预算预览</button>
+    </section>
+    <section class="messages" id="messages"></section>
+    <section class="tasks" id="tasks"></section>
+    <form class="composer" id="composer">
+      <textarea id="text" placeholder="直接问 Agent，比如：今天哪里失败？"></textarea>
+      <button type="submit">发送</button>
+    </form>
+  </main>
+  <script>
+    const tokenFromUrl = new URLSearchParams(location.search).get("token") || "";
+    const state = {
+      token: tokenFromUrl || localStorage.getItem("xiongAgentToken") || "",
+      messages: JSON.parse(localStorage.getItem("xiongAgentMessages") || "[]"),
+      seenAnswers: new Set(),
+    };
+    const els = {
+      tokenBox: document.getElementById("tokenBox"),
+      tokenInput: document.getElementById("tokenInput"),
+      saveToken: document.getElementById("saveToken"),
+      messages: document.getElementById("messages"),
+      tasks: document.getElementById("tasks"),
+      text: document.getElementById("text"),
+      composer: document.getElementById("composer"),
+      summary: document.getElementById("summary"),
+      connection: document.getElementById("connection"),
+    };
+    function saveMessages() {
+      localStorage.setItem("xiongAgentMessages", JSON.stringify(state.messages.slice(-80)));
+    }
+    function addMessage(role, text, meta = "") {
+      state.messages.push({role, text, meta, ts: Date.now()});
+      saveMessages();
+      renderMessages();
+    }
+    function renderMessages() {
+      els.messages.innerHTML = state.messages.slice(-60).map(item => `
+        <div class="msg ${item.role === "me" ? "me" : "agent"}">${escapeHtml(item.text)}${item.meta ? `<span class="meta">${escapeHtml(item.meta)}</span>` : ""}</div>
+      `).join("");
+      els.messages.scrollTop = els.messages.scrollHeight;
+    }
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+    function fmtTime(ts) {
+      if (!ts) return "";
+      const date = new Date(ts * 1000);
+      return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    }
+    function setToken(token) {
+      state.token = token.trim();
+      if (state.token) localStorage.setItem("xiongAgentToken", state.token);
+      els.tokenInput.value = state.token;
+      els.tokenBox.classList.toggle("hidden", Boolean(state.token));
+    }
+    async function api(path, options = {}) {
+      if (!state.token) throw new Error("missing-token");
+      const joiner = path.includes("?") ? "&" : "?";
+      const response = await fetch(`${path}${joiner}token=${encodeURIComponent(state.token)}`, {
+        ...options,
+        headers: {"Content-Type": "application/json", ...(options.headers || {})},
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+      return payload;
+    }
+    async function refresh() {
+      if (!state.token) {
+        els.connection.textContent = "未连接";
+        return;
+      }
+      try {
+        const payload = await api("/agent/api/status?limit=20");
+        els.connection.textContent = "已连接";
+        const summary = payload.summary || {};
+        els.summary.textContent = `待处理 ${summary.pending || 0}，运行中 ${summary.running || 0}，成功 ${summary.success || 0}，失败 ${summary.failed || 0}`;
+        renderTasks(payload.items || []);
+      } catch (error) {
+        els.connection.textContent = "连接失败";
+        els.summary.textContent = error.message === "missing-token" ? "请先输入 token" : error.message;
+      }
+    }
+    function renderTasks(items) {
+      els.tasks.innerHTML = items.map(item => {
+        const shortId = (item.id || "").slice(0, 8);
+        const answer = item.answer ? `<div>${escapeHtml(item.answer)}</div>` : "";
+        if (item.answer && !state.seenAnswers.has(item.id) && (item.status === "success" || item.status === "failed")) {
+          state.seenAnswers.add(item.id);
+          addMessage("agent", item.answer, `${shortId} · ${statusText(item.status)}`);
+        }
+        return `<div class="task">
+          <div class="row"><strong>${escapeHtml(item.text || "Agent 命令")}</strong><span class="status-${escapeHtml(item.status)}">${statusText(item.status)}</span></div>
+          <div class="row"><span>${escapeHtml(shortId)} · ${escapeHtml(item.intent || "")}</span><span>${fmtTime(item.updated_at || item.created_at)}</span></div>
+          ${answer}
+        </div>`;
+      }).join("");
+    }
+    function statusText(status) {
+      return {pending:"等待中", running:"执行中", success:"完成", failed:"失败"}[status] || status || "未知";
+    }
+    async function send(text) {
+      const clean = text.trim();
+      if (!clean) return;
+      addMessage("me", clean);
+      els.text.value = "";
+      try {
+        const payload = await api("/agent/api/send", {method: "POST", body: JSON.stringify({text: clean})});
+        addMessage("agent", payload.answer || "已收到。", payload.task ? `队列 ${(payload.task.id || "").slice(0, 8)}` : "即时回答");
+        await refresh();
+      } catch (error) {
+        addMessage("agent", `发送失败：${error.message}`);
+      }
+    }
+    els.saveToken.addEventListener("click", () => { setToken(els.tokenInput.value); refresh(); });
+    els.composer.addEventListener("submit", event => { event.preventDefault(); send(els.text.value); });
+    document.querySelectorAll("[data-command]").forEach(btn => btn.addEventListener("click", () => send(btn.dataset.command || "")));
+    setToken(state.token);
+    if (!state.messages.length) addMessage("agent", "我在。你可以问任务状态、今日失败，也可以发刷新状态或重跑预算设置。订货相关动作会被拦截。");
+    renderMessages();
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>"""
 
 
 def _operation_auth_username() -> str:

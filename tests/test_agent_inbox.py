@@ -48,6 +48,22 @@ class AgentInboxTests(unittest.TestCase):
             self.assertEqual(updated["status"], "success")
             self.assertEqual(agent_inbox.pending_tasks(path=path), [])
 
+    def test_recent_tasks_and_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "inbox.json"
+            first = agent_inbox.append_task(text="任务正常吗", intent="", execute=False, source="test", path=path)
+            second = agent_inbox.append_task(text="刷新状态", intent="refresh_status", execute=True, source="test", path=path)
+            agent_inbox.claim_task(second["id"], worker="macmini", path=path)
+            agent_inbox.complete_task(second["id"], status="success", result={"returncode": 0}, path=path)
+
+            recent = agent_inbox.recent_tasks(limit=2, path=path)
+            summary = agent_inbox.task_summary(path=path)
+
+            self.assertEqual([item["id"] for item in recent], [second["id"], first["id"]])
+            self.assertEqual(summary["pending"], 1)
+            self.assertEqual(summary["success"], 1)
+            self.assertEqual(summary["total"], 2)
+
     def test_wecom_action_message_enqueues(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             original = agent_inbox.inbox_path
@@ -133,6 +149,16 @@ class AgentInboxTests(unittest.TestCase):
 
         self.assertIn("proxy_pass http://127.0.0.1:8000", block)
         self.assertNotIn("auth_request", block)
+
+    def test_nginx_exposes_mobile_agent_without_auth_request(self) -> None:
+        text = (ROOT / "inventory-board" / "deploy" / "nginx.conf").read_text(encoding="utf-8")
+        page_block = text.split("location = /agent", 1)[1].split("location", 1)[0]
+        api_block = text.split("location /agent/api/", 1)[1].split("location", 1)[0]
+
+        self.assertIn("proxy_pass http://127.0.0.1:8000", page_block)
+        self.assertIn("proxy_pass http://127.0.0.1:8000", api_block)
+        self.assertNotIn("auth_request", page_block)
+        self.assertNotIn("auth_request", api_block)
 
 
 if __name__ == "__main__":

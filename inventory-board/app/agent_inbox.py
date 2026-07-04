@@ -86,6 +86,25 @@ def pending_tasks(limit: int = 5, path: Path | None = None) -> list[dict[str, An
     return rows[: max(1, min(int(limit or 5), 20))]
 
 
+def recent_tasks(limit: int = 20, path: Path | None = None) -> list[dict[str, Any]]:
+    payload = read_inbox(path)
+    rows = [item for item in payload.get("items", []) if isinstance(item, dict)]
+    return list(reversed(rows[-max(1, min(int(limit or 20), 50)) :]))
+
+
+def task_summary(path: Path | None = None) -> dict[str, int]:
+    payload = read_inbox(path)
+    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0, "total": 0}
+    for item in payload.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        counts["total"] += 1
+        status = str(item.get("status") or "")
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+
 def claim_task(task_id: str, *, worker: str, path: Path | None = None) -> dict[str, Any] | None:
     payload = read_inbox(path)
     claimed = None
