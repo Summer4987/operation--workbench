@@ -85,7 +85,7 @@ class AgentChatTests(unittest.TestCase):
                 agent_chat.MONITOR_PATH = monitor_path
                 agent_chat.TASK_RUNS_PATH = task_runs_path
 
-                payload = agent_chat.answer_question("现在 agent 状态怎么样？")
+                payload = agent_chat.answer_question("现在 agent 状态怎么样？", use_llm=False)
 
                 self.assertEqual(payload["intent"], "status")
                 self.assertIn("成功 5 个", payload["answer"])
