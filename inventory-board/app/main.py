@@ -19,9 +19,10 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from . import agent_wecom
 from .db import (
     connect,
     create_import,
@@ -147,6 +148,43 @@ def operation_auth_check(request: Request):
     if _operation_session_valid(request):
         return Response(status_code=204)
     raise HTTPException(status_code=401, detail="需要登录")
+
+
+@app.get("/agent-wecom/callback")
+def agent_wecom_verify(request: Request):
+    settings = agent_wecom.callback_settings()
+    if not agent_wecom.configured(settings):
+        raise HTTPException(status_code=503, detail="企业微信 Agent 回调未配置")
+    try:
+        plain = agent_wecom.verify_url(
+            msg_signature=request.query_params.get("msg_signature", ""),
+            timestamp=request.query_params.get("timestamp", ""),
+            nonce=request.query_params.get("nonce", ""),
+            echostr=request.query_params.get("echostr", ""),
+            settings=settings,
+        )
+    except agent_wecom.WeComCallbackError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return PlainTextResponse(plain)
+
+
+@app.post("/agent-wecom/callback")
+async def agent_wecom_callback(request: Request):
+    settings = agent_wecom.callback_settings()
+    if not agent_wecom.configured(settings):
+        raise HTTPException(status_code=503, detail="企业微信 Agent 回调未配置")
+    body = (await request.body()).decode("utf-8", "replace")
+    try:
+        response_xml = agent_wecom.handle_callback_post(
+            body=body,
+            msg_signature=request.query_params.get("msg_signature", ""),
+            timestamp=request.query_params.get("timestamp", ""),
+            nonce=request.query_params.get("nonce", ""),
+            settings=settings,
+        )
+    except agent_wecom.WeComCallbackError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return Response(content=response_xml, media_type="application/xml; charset=utf-8")
 
 
 @app.get("/api/summary")
@@ -684,6 +722,8 @@ def _request_token(request: Request) -> str:
 def _is_public_request(request: Request) -> bool:
     path = request.url.path
     if path == "/login" or path == "/api/auth/login" or path == "/api/auth/check":
+        return True
+    if path == "/agent-wecom/callback":
         return True
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())

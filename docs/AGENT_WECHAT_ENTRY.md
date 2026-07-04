@@ -17,12 +17,21 @@ Agent 现在可以把多 Agent 结果集合到企业微信群里：
 
 普通企业微信群机器人 Webhook 不能接收群消息，也不能读取你在群里说的话。所以仅靠 Webhook，不能实现“在企业微信群里直接问 agent，agent 在群里自动回复”。
 
-要做真正的企业微信对话入口，需要新增企业微信应用回调：
+要做真正的企业微信对话入口，需要企业微信自建应用回调。当前已新增云端回调入口：
 
-- 配置企业微信自建应用或客户联系回调。
-- 云端提供 HTTPS 回调地址，用于接收消息、校验 token、解密消息。
-- 回调服务把文本转给 `scripts/agent_command.py`。
-- 只读问题直接回答；执行类问题仍要求显式确认，并继续拦截订货/下单/采购。
+- URL：`http://139.155.148.169/agent-wecom/callback`
+- Token：配置到云服务器 `/etc/inventory-board.env` 的 `WECOM_AGENT_CALLBACK_TOKEN`
+- EncodingAESKey：配置到云服务器 `/etc/inventory-board.env` 的 `WECOM_AGENT_ENCODING_AES_KEY`
+- CorpID：可选；如果要校验接收方，可配置到云服务器 `/etc/inventory-board.env` 的 `WECOM_AGENT_CORP_ID`
+
+回调服务负责企业微信 URL 验证、消息签名校验、AES 解密和被动文本回复。它优先读取云端最新的 `operation-workbench/outputs/agent_mobile/latest.json`，所以能回答“任务正常吗 / 今天哪里失败 / 哪些能补跑 / 执行 Agent 是谁”。
+
+当前边界：
+
+- 企微回调入口只做只读回答，不直接执行生产动作。
+- 订货、下单、采购、快驴相关请求继续拦截。
+- 预算提交、发布、补跑等动作仍要求 Mac mini 显式确认。
+- 后续如果要让企微消息直接触发 Mac mini 执行，需要再加“云端收件箱 + Mac mini 轮询执行”的桥接层。
 
 ## 智能程度边界
 
@@ -32,4 +41,3 @@ Agent 的回答分两层：
 - DeepSeek 可用时，只基于草稿和结构化上下文改写成更自然的回答。
 
 DeepSeek 是 advisory-only，不允许单独决定生产动作。模型不可用、超时或置信度低时，会自动退回本地规则答案。
-
