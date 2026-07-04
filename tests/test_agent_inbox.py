@@ -86,6 +86,13 @@ class AgentInboxTests(unittest.TestCase):
             agent_inbox_worker.request_json = original_request_json
             agent_inbox_worker.run_agent_command = original_run
 
+    def test_nginx_exposes_inbox_without_auth_request(self) -> None:
+        text = (ROOT / "inventory-board" / "deploy" / "nginx.conf").read_text(encoding="utf-8")
+        block = text.split("location /agent-wecom/inbox/", 1)[1].split("location", 1)[0]
+
+        self.assertIn("proxy_pass http://127.0.0.1:8000", block)
+        self.assertNotIn("auth_request", block)
+
 
 if __name__ == "__main__":
     unittest.main()
