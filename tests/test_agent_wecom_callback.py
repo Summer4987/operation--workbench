@@ -11,12 +11,20 @@ sys.path.insert(0, str(ROOT / "inventory-board"))
 
 from app import agent_wecom  # noqa: E402
 
+try:
+    import cryptography  # noqa: F401
+
+    HAS_CRYPTOGRAPHY = True
+except Exception:
+    HAS_CRYPTOGRAPHY = False
+
 
 def sample_key() -> str:
     return base64.b64encode(b"0123456789abcdef0123456789abcdef").decode("utf-8").rstrip("=")
 
 
 class AgentWecomCallbackTests(unittest.TestCase):
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, "cryptography is required for WeCom AES callback tests")
     def test_encrypt_decrypt_roundtrip(self) -> None:
         key = sample_key()
         xml = "<xml><ToUserName><![CDATA[corp]]></ToUserName><Content><![CDATA[任务正常吗]]></Content></xml>"
@@ -27,6 +35,7 @@ class AgentWecomCallbackTests(unittest.TestCase):
         self.assertEqual(decrypted, xml)
         self.assertEqual(receive_id, "corp-id")
 
+    @unittest.skipUnless(HAS_CRYPTOGRAPHY, "cryptography is required for WeCom AES callback tests")
     def test_handle_callback_post_replies_with_status_answer(self) -> None:
         key = sample_key()
         token = "token123"

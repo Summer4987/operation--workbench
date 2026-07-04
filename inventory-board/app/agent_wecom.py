@@ -11,9 +11,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-
-
 DEFAULT_AGENT_STATUS_PATH = Path("/var/www/html/operation-workbench/outputs/agent_mobile/latest.json")
 
 
@@ -62,6 +59,8 @@ def _pkcs7_pad(data: bytes) -> bytes:
 
 
 def decrypt_message(encrypted: str, encoding_aes_key: str, expected_receive_id: str = "") -> tuple[str, str]:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
     key = _aes_key(encoding_aes_key)
     try:
         cipher_bytes = base64.b64decode(encrypted)
@@ -81,6 +80,8 @@ def decrypt_message(encrypted: str, encoding_aes_key: str, expected_receive_id: 
 
 
 def encrypt_message(xml_text: str, encoding_aes_key: str, receive_id: str) -> str:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
     key = _aes_key(encoding_aes_key)
     xml_bytes = xml_text.encode("utf-8")
     random16 = secrets.token_bytes(16)
