@@ -26,12 +26,29 @@ Agent 现在可以把多 Agent 结果集合到企业微信群里：
 
 回调服务负责企业微信 URL 验证、消息签名校验、AES 解密和被动文本回复。它优先读取云端最新的 `operation-workbench/outputs/agent_mobile/latest.json`，所以能回答“任务正常吗 / 今天哪里失败 / 哪些能补跑 / 执行 Agent 是谁”。
 
+## Mac mini 执行桥接
+
+已新增云端收件箱和 Mac mini 轮询 worker：
+
+- 云端收件箱接口：`/agent-wecom/inbox/pending`、`/agent-wecom/inbox/claim`、`/agent-wecom/inbox/complete`
+- 收件箱 Token：配置到云服务器 `/etc/inventory-board.env` 的 `AGENT_INBOX_TOKEN`
+- Mac mini 本地 Token：配置到 `~/.xiong-agent-env` 的 `AGENT_INBOX_TOKEN`
+- Mac mini worker：`scripts/agent_inbox_worker.py`
+- Mac mini launchd 安装脚本：`scripts/install_agent_inbox_worker_launchd.zsh`
+
+企微里以下话术会进入 Mac mini 队列：
+
+- `刷新状态`：刷新 agent 状态和手机入口数据。
+- `重跑预算设置`：只跑预算预览/安全计划，不真实提交预算。
+- `确认执行预算重跑`：进入真实预算提交流程，但仍受原脚本时间窗口、登录态和安全闸保护。
+- `发布手机入口`：发布手机入口和工作台数据。
+- `执行非订货恢复`：只执行允许的非订货动作。
+
 当前边界：
 
-- 企微回调入口只做只读回答，不直接执行生产动作。
 - 订货、下单、采购、快驴相关请求继续拦截。
-- 预算提交、发布、补跑等动作仍要求 Mac mini 显式确认。
-- 后续如果要让企微消息直接触发 Mac mini 执行，需要再加“云端收件箱 + Mac mini 轮询执行”的桥接层。
+- 普通“重跑预算设置”只做预览；真实预算提交必须说确认语。
+- Mac mini 执行结果会通过现有企业微信通知通道回报。
 
 ## 智能程度边界
 

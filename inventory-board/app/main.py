@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import agent_wecom
+from . import agent_inbox, agent_wecom
 from .db import (
     connect,
     create_import,
@@ -185,6 +185,40 @@ async def agent_wecom_callback(request: Request):
     except agent_wecom.WeComCallbackError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return Response(content=response_xml, media_type="application/xml; charset=utf-8")
+
+
+def _require_agent_inbox_token(request: Request) -> None:
+    token = request.query_params.get("token", "") or request.headers.get("x-agent-inbox-token", "")
+    if not agent_inbox.token_valid(token):
+        raise HTTPException(status_code=403, detail="invalid agent inbox token")
+
+
+@app.get("/agent-wecom/inbox/pending")
+def agent_inbox_pending(request: Request, limit: int = 5):
+    _require_agent_inbox_token(request)
+    return {"items": agent_inbox.pending_tasks(limit=limit)}
+
+
+@app.post("/agent-wecom/inbox/claim")
+async def agent_inbox_claim(request: Request, payload: dict):
+    _require_agent_inbox_token(request)
+    item = agent_inbox.claim_task(str(payload.get("id") or ""), worker=str(payload.get("worker") or "macmini"))
+    if not item:
+        raise HTTPException(status_code=404, detail="task not pending")
+    return {"item": item}
+
+
+@app.post("/agent-wecom/inbox/complete")
+async def agent_inbox_complete(request: Request, payload: dict):
+    _require_agent_inbox_token(request)
+    item = agent_inbox.complete_task(
+        str(payload.get("id") or ""),
+        status=str(payload.get("status") or "failed"),
+        result=payload.get("result") if isinstance(payload.get("result"), dict) else {},
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="task not found")
+    return {"item": item}
 
 
 @app.get("/api/summary")
@@ -724,6 +758,8 @@ def _is_public_request(request: Request) -> bool:
     if path == "/login" or path == "/api/auth/login" or path == "/api/auth/check":
         return True
     if path == "/agent-wecom/callback":
+        return True
+    if path.startswith("/agent-wecom/inbox/"):
         return True
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())

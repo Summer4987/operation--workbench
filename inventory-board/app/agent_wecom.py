@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from . import agent_inbox
+
 DEFAULT_AGENT_STATUS_PATH = Path("/var/www/html/operation-workbench/outputs/agent_mobile/latest.json")
 
 
@@ -202,6 +204,32 @@ def answer_agent_text(text: str, status: dict[str, Any] | None = None) -> str:
     return answer or "我收到了，但云端暂时没有可用 Agent 状态。请稍后再问，或在 Mac mini 刷新 Agent 状态。"
 
 
+def answer_or_enqueue(text: str, *, sender: str = "", status: dict[str, Any] | None = None) -> str:
+    policy = agent_inbox.command_policy(text)
+    if policy.get("intent") == "blocked_ordering":
+        return answer_agent_text(text, status=status)
+    if not policy.get("enqueue"):
+        return answer_agent_text(text, status=status)
+    item = agent_inbox.append_task(
+        text=text,
+        intent=str(policy.get("intent") or ""),
+        execute=bool(policy.get("execute")),
+        source="wecom-agent",
+        sender=sender,
+    )
+    if item["intent"] == "budget_commit":
+        action = "真实预算提交流程"
+    elif item["intent"] == "budget_preview":
+        action = "预算预览/安全计划，不会直接提交预算"
+    elif item["intent"] == "refresh_status":
+        action = "刷新 Agent 状态和手机入口数据"
+    elif item["intent"] == "publish_mobile":
+        action = "发布手机入口和工作台数据"
+    else:
+        action = "执行允许的非订货动作"
+    return f"已收到，已加入 Mac mini 队列：{action}。队列编号：{item['id'][:8]}。完成后会通过企业微信通知结果。"
+
+
 def callback_settings() -> dict[str, str]:
     return {
         "token": os.environ.get("WECOM_AGENT_CALLBACK_TOKEN", "").strip(),
@@ -233,7 +261,7 @@ def handle_callback_post(
     if msg_type != "text":
         answer = "我收到了，但当前企微 Agent 入口只处理文字消息。"
     else:
-        answer = answer_agent_text(inbound.get("Content", ""), status=status)
+        answer = answer_or_enqueue(inbound.get("Content", ""), sender=inbound.get("FromUserName", ""), status=status)
     reply_plain = build_plain_text_reply(inbound, answer)
     return build_encrypted_response(
         reply_plain_xml=reply_plain,
