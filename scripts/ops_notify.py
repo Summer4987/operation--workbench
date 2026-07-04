@@ -10,6 +10,7 @@ from urllib import request as url_request
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config" / "ops_notify.json"
+LEGACY_NOTICE = "未配置 OPS_NOTIFY_WEBHOOK；WorkBuddy/Hermes 已标记为 legacy，不再自动使用。"
 
 
 def load_config() -> dict:
@@ -26,7 +27,10 @@ def notify(text: str) -> bool:
     webhook = os.environ.get("OPS_NOTIFY_WEBHOOK") or config.get("webhook") or ""
     webhook = str(webhook).strip()
     if not webhook:
-        return notify_via_workbuddy(text, config) or notify_via_hermes(text, config)
+        if legacy_fallback_enabled(config):
+            return notify_via_workbuddy(text, config) or notify_via_hermes(text, config)
+        print(LEGACY_NOTICE, file=sys.stderr)
+        return False
 
     notify_type = str(os.environ.get("OPS_NOTIFY_TYPE") or config.get("type") or "wecom").strip().lower()
     if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
@@ -42,6 +46,13 @@ def notify(text: str) -> bool:
     except Exception as exc:
         print(f"通知发送失败：{exc}", file=sys.stderr)
         return False
+
+
+def legacy_fallback_enabled(config: dict) -> bool:
+    raw = os.environ.get("OPS_NOTIFY_ALLOW_LEGACY_FALLBACK")
+    if raw is None:
+        raw = str(config.get("allow_legacy_fallback") or "")
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def notify_via_workbuddy(text: str, config: dict) -> bool:

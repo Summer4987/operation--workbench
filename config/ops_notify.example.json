@@ -2,8 +2,10 @@
   "type": "wecom",
   "webhook": "把企业微信群机器人 webhook 放这里，例如 https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...",
   "target": "weixin",
-  "workbuddy_bin": "~/HermesPrivate/bin/workbuddy_hermes_send_compat.zsh",
-  "hermes_bin": "~/.local/bin/hermes",
+  "allow_legacy_fallback": false,
+  "legacy_note": "WorkBuddy/Hermes 已标记为 legacy，不再作为默认通知通道；新通知统一走企业微信 Webhook。",
+  "legacy_workbuddy_bin": "~/HermesPrivate/bin/workbuddy_hermes_send_compat.zsh",
+  "legacy_hermes_bin": "~/.local/bin/hermes",
   "usage": {
     "dry_run": "python3 scripts/agent_notify.py --title '测试通知' --status info --detail '只生成消息' --dry-run",
     "send": "OPS_NOTIFY_WEBHOOK='企业微信机器人 webhook' python3 scripts/agent_notify.py --title '测试通知' --status info --detail '发送到企业微信'",
