@@ -236,6 +236,20 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertNotIn("\n", sent_messages[0])
             self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
+    def test_send_weixin_prefers_ops_notify(self) -> None:
+        original_notify = self.notifier.ops_notify.notify
+        try:
+            calls: list[str] = []
+            self.notifier.ops_notify.notify = lambda message: calls.append(message) or True
+
+            delivered, output = self.notifier.send_weixin("测试消息", "weixin", "missing-hermes")
+        finally:
+            self.notifier.ops_notify.notify = original_notify
+
+        self.assertTrue(delivered)
+        self.assertEqual(output, "ops_notify")
+        self.assertEqual(calls, ["测试消息"])
+
     def test_notify_backs_off_when_weixin_cooldown_is_active(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

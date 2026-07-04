@@ -45,6 +45,7 @@ TASK_ID="ops.realtime_order_income"
 TASK_STEP="初始化"
 TASK_STATE_FINALIZED="false"
 FINAL_RC=0
+NOTIFY_RUNNER="\$ROOT/scripts/ops_notify.py"
 
 run_with_timeout() {
   local seconds="\$1"
@@ -138,6 +139,25 @@ print("，".join(parts))
 PY
 }
 
+notify_realtime_failure_once() {
+  local failure_message="\$1"
+  local notify_dir="\$ROOT/outputs/realtime_order_income"
+  local signature_file="\$notify_dir/last_notify_signature.txt"
+  mkdir -p "\$notify_dir"
+  local signature=""
+  signature="\$(printf "%s" "\$failure_message" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print \$1}')"
+  if [[ -f "\$signature_file" && "\$(cat "\$signature_file" 2>/dev/null)" == "\$signature" ]]; then
+    echo "实时单量收入采集失败通知已发送过，跳过重复推送。"
+    return 0
+  fi
+  local notice="【实时单量采集失败】\${failure_message} 请在 Mac mini 的 Chrome 里恢复美团登录/验证码后，再补跑实时单量采集。"
+  if run_with_timeout "\${REALTIME_NOTIFY_TIMEOUT_SECONDS:-15}" "\$PYTHON" "\$NOTIFY_RUNNER" "\$notice"; then
+    printf "%s" "\$signature" > "\$signature_file"
+  else
+    echo "实时单量收入采集失败通知发送失败。"
+  fi
+}
+
 run_followup_step() {
   local step="\$1"
   local seconds="\$2"
@@ -215,7 +235,9 @@ fi
   else
     COLLECT_RC=\$?
     FINAL_RC="\$COLLECT_RC"
-    record_task_run "\$TASK_ID" failed --message "\$(latest_failure_message)" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$COLLECT_RC"
+    failure_message="\$(latest_failure_message)"
+    record_task_run "\$TASK_ID" failed --message "\$failure_message" --step "\$TASK_STEP" --log-path "\$LOG_FILE" --returncode "\$COLLECT_RC"
+    notify_realtime_failure_once "\$failure_message"
   fi
   TASK_STEP="清理浏览器标签页"
   run_with_timeout "\${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "\$PYTHON" "\$ROOT/scripts/cleanup_chrome_tabs.py" || true

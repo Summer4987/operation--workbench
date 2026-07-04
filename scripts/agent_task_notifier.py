@@ -13,6 +13,7 @@ from atomic_io import atomic_write_text
 
 import agent_task_monitor
 import hermes_schedule_status
+import ops_notify
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,6 +161,8 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
 
 
 def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
+    if ops_notify.notify(message):
+        return True, "ops_notify"
     result = subprocess.run(
         [hermes_bin, "send", "--to", target, message],
         cwd=str(ROOT),

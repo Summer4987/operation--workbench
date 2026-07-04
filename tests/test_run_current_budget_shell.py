@@ -39,6 +39,9 @@ def test_realtime_runner_preserves_collect_failure_after_followup_failure():
     assert "[[ ! -f \"$ensure_script\" || ! -x \"$ensure_script\" ]]" in text
     assert "python_has_playwright" in text
     assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text
+    assert "NOTIFY_RUNNER=\"$ROOT/scripts/ops_notify.py\"" in text
+    assert "notify_realtime_failure_once \"$failure_message\"" in text
+    assert "last_notify_signature.txt" in text
 
 
 def test_macmini_installer_emits_realtime_runner_rc_handling():
@@ -50,6 +53,9 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
     assert "[[ ! -f \"\\$ensure_script\" || ! -x \"\\$ensure_script\" ]]" in text
     assert "python_has_playwright" in text
     assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text
+    assert "NOTIFY_RUNNER=\"\\$ROOT/scripts/ops_notify.py\"" in text
+    assert "notify_realtime_failure_once \"\\$failure_message\"" in text
+    assert "last_notify_signature.txt" in text
 
 
 def test_data_only_deploy_verifies_direct_latest_from_stage_dir():
@@ -64,7 +70,7 @@ def test_production_entrypoints_run_login_preflight_before_platform_work():
     morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")
     realtime_text = REALTIME_SCRIPT.read_text(encoding="utf-8")
 
-    assert "$PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope budget --notify" in budget_text
+    assert "$REPORT_PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope budget --notify" in budget_text
     assert "[sys.executable, str(LOGIN_PREFLIGHT_RUNNER), \"--scope\", \"morning\", \"--notify\"]" in morning_text
     assert "\"$PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope realtime --notify" in realtime_text
     assert "PREFLIGHT_RC=$?" in realtime_text
