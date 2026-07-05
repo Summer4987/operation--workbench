@@ -148,6 +148,32 @@ class AgentTaskMonitorTests(unittest.TestCase):
         self.assertEqual(row["status"], "attention")
         self.assertIn("没有子步骤记录", row["failure_reason"])
 
+    def test_morning_aggregate_includes_failed_step_detail(self) -> None:
+        row = monitor_module.build_morning_aggregate_report(
+            "morning.01_collection",
+            {"name": "上午运营一键采集总状态", "risk": "high", "expected_total": 14},
+            {
+                "status": "failed",
+                "task_message": "上午运营一键采集异常结束，退出码：1。",
+                "summary": {"step_count": 2, "completed_count": 1, "failed_count": 1},
+                "failed_steps": [
+                    {
+                        "name": "直营美团日报",
+                        "message": "直营美团日报失败。历史记录未保存该子步骤输出。",
+                        "failure_type": "execution_failed",
+                        "human_action": "查看直营美团日报日志。",
+                    }
+                ],
+            },
+            {"tasks": {"ops.morning_collection": {"status": "failed", "returncode": 1}}},
+        )
+
+        self.assertEqual(row["status"], "failed")
+        self.assertIn("失败明细：直营美团日报", row["failure_reason"])
+        self.assertIn("历史记录未保存该子步骤输出", row["failure_reason"])
+        self.assertEqual(row["failure_type"], "execution_failed")
+        self.assertIn("直营美团日报日志", row["human_action"])
+
     def test_morning_wechat_text_is_concise_and_human(self) -> None:
         payload = {
             "summary": {

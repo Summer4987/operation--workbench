@@ -193,6 +193,11 @@ def build_morning_aggregate_report(
     completed_count = int(summary.get("completed_count") or 0)
     failed_count = int(summary.get("failed_count") or 0)
     step_count = int(summary.get("step_count") or 0)
+    failed_steps = [
+        step
+        for step in morning_status.get("failed_steps") or []
+        if isinstance(step, dict)
+    ]
     expected_total = int(policy.get("expected_total") or 14)
     expected_substeps = int(policy.get("expected_substeps") or max(expected_total - 1, 1))
     if raw_status in {"failed"} or failed_count:
@@ -215,7 +220,14 @@ def build_morning_aggregate_report(
         reason = f"{reason}；但是没有子步骤记录，不能判定这 {expected_total} 个检查点全部完成。"
     elif status != "completed":
         reason = f"{reason}；子步骤完成 {completed_count}/{expected_total}，失败 {failed_count}。"
+    if failed_steps and status in {"failed", "attention", "missing"}:
+        failed_detail = "；".join(
+            f"{step.get('name') or '未知步骤'}：{step.get('message') or step.get('failure_type') or '查看日志'}"
+            for step in failed_steps[:3]
+        )
+        reason = f"{reason}；失败明细：{failed_detail}"
     rerun_decision = build_rerun_decision(status, {"risk": policy.get("risk")}, task_run, policy)
+    first_failed_step = failed_steps[0] if failed_steps else {}
     return {
         "id": task_id,
         "name": first_text(policy.get("name"), task_id),
@@ -225,12 +237,12 @@ def build_morning_aggregate_report(
         "status_text": completion_status_text(status),
         "completed": status == "completed",
         "failed": status == "failed",
-        "failure_type": first_text(task_run.get("failure_type"), ""),
+        "failure_type": first_text(first_failed_step.get("failure_type"), task_run.get("failure_type"), ""),
         "failure_reason": reason if status in {"failed", "attention", "missing"} else "",
         "last_run_at": first_text(morning_status.get("updated_at"), task_run.get("updated_at"), ""),
         "last_run_step": first_text(task_run.get("step"), "总状态"),
         "evidence": first_text(policy.get("evidence_path"), ""),
-        "human_action": first_text(policy.get("human_action"), ""),
+        "human_action": first_text(first_failed_step.get("human_action"), policy.get("human_action"), ""),
         "rerun": rerun_decision,
     }
 
