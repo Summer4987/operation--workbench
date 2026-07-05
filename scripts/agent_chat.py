@@ -93,6 +93,16 @@ def attention_tasks(monitor: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def failed_tasks(monitor: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = monitor.get("tasks") if isinstance(monitor.get("tasks"), list) else []
+    return [row for row in rows if isinstance(row, dict) and row.get("status") == "failed"]
+
+
+def verification_tasks(monitor: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = monitor.get("tasks") if isinstance(monitor.get("tasks"), list) else []
+    return [row for row in rows if isinstance(row, dict) and row.get("status") in {"attention", "missing", "running"}]
+
+
 def rerun_candidates(monitor: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     plan = monitor.get("rerun_plan") if isinstance(monitor.get("rerun_plan"), list) else []
     allowed = [item for item in plan if isinstance(item, dict) and item.get("auto_allowed")]
@@ -111,7 +121,7 @@ def build_status_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> st
     if monitor_summary:
         line += (
             f" 透明化报告里完成 {monitor_summary.get('completed', 0)} 个，"
-            f"失败 {monitor_summary.get('failed', 0)} 个，需关注 {monitor_summary.get('attention', 0)} 个。"
+            f"真正失败 {monitor_summary.get('failed', 0)} 个，需核实 {monitor_summary.get('attention', 0)} 个。"
         )
     skipped = skipped_execution_agents(pipeline)
     if skipped:
@@ -130,31 +140,49 @@ def build_problem_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> s
         first = failed_stages[0]
         return f"agent 流程本身有失败：{first.get('name')}。原因：{compact_reason(first.get('message'))}。"
 
-    rows = attention_tasks(monitor)
-    if not rows:
-        return "这组 agent 本身没有失败项。当前没有从透明化报告里读到失败或需关注任务。"
+    failures = failed_tasks(monitor)
+    checks = verification_tasks(monitor)
+    if not failures and not checks:
+        return "这组 agent 本身没有失败项。当前没有从透明化报告里读到需要处理或核实的任务。"
+
+    if not failures:
+        names = "、".join(str(row.get("name") or row.get("id")) for row in checks[:5])
+        extra = "" if len(checks) <= 5 else f"；另外还有 {len(checks) - 5} 项"
+        return (
+            f"今天没有读到真正失败项。需核实 {len(checks)} 项，但这些不是失败：{names}{extra}。"
+            "需核实通常表示产物存在但步骤账本缺记录，不能直接算失败。"
+        )
 
     parts = []
-    for row in rows[:5]:
+    for row in failures[:5]:
         name = row.get("name") or row.get("id")
-        status = row.get("status_text") or row.get("status")
         reason = compact_reason(row.get("failure_reason") or row.get("message"))
-        parts.append(f"{name}：{status}，{reason}")
-    extra = "" if len(rows) <= 5 else f" 另外还有 {len(rows) - 5} 项，建议看 outputs/agent_task_monitor/latest.json。"
-    return "现在主要问题是：" + "；".join(parts) + "。" + extra
+        evidence = row.get("evidence") or ""
+        evidence_text = f"，证据：{evidence}" if evidence else ""
+        parts.append(f"{name}：{reason}{evidence_text}")
+    extra_failures = "" if len(failures) <= 5 else f" 另外还有 {len(failures) - 5} 个失败项。"
+    verify_text = f"另有 {len(checks)} 项需核实，但不算失败。" if checks else "没有其它需核实项。"
+    return f"今天真正失败 {len(failures)} 项：" + "；".join(parts) + f"。{extra_failures}{verify_text}"
 
 
 def build_rerun_answer(monitor: dict[str, Any]) -> str:
     allowed, manual = rerun_candidates(monitor)
     if not allowed and not manual:
         return "当前没有读到补跑计划。"
+    failures = {str(row.get("id") or "") for row in failed_tasks(monitor)}
     parts = []
     if allowed:
         names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in allowed[:6])
         parts.append(f"可以自动补跑的是：{names}")
     if manual:
-        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in manual[:6])
-        parts.append(f"需要人工确认或只报告的是：{names}")
+        failed_manual = [item for item in manual if str(item.get("task_id") or "") in failures]
+        other_manual = [item for item in manual if str(item.get("task_id") or "") not in failures]
+        if failed_manual:
+            names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in failed_manual[:6])
+            parts.append(f"真正失败且需要人工确认的是：{names}")
+        if other_manual:
+            names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in other_manual[:6])
+            parts.append(f"需核实但不是失败的是：{names}")
     return "；".join(parts) + "。"
 
 

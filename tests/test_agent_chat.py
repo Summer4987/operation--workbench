@@ -60,6 +60,48 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("校验 Agent", answer)
         self.assertIn("缺少产物", answer)
 
+    def test_problem_answer_separates_failures_from_attention(self) -> None:
+        answer = agent_chat.build_problem_answer(
+            {"stages": []},
+            {
+                "tasks": [
+                    {
+                        "id": "morning.01",
+                        "name": "上午运营一键采集总状态",
+                        "status": "failed",
+                        "failure_reason": "直营美团日报失败",
+                        "evidence": "outputs/morning_collection_status/latest.json",
+                    },
+                    {
+                        "id": "morning.02",
+                        "name": "Chrome/登录环境检查",
+                        "status": "attention",
+                        "failure_reason": "产物已生成但缺少步骤记录",
+                    },
+                    {
+                        "id": "morning.03",
+                        "name": "双平台评价下载",
+                        "status": "attention",
+                        "failure_reason": "产物已生成但缺少步骤记录",
+                    },
+                ]
+            },
+        )
+
+        self.assertIn("真正失败 1 项", answer)
+        self.assertIn("直营美团日报失败", answer)
+        self.assertIn("另有 2 项需核实，但不算失败", answer)
+        self.assertNotIn("Chrome/登录环境检查：", answer)
+
+    def test_problem_answer_reports_attention_as_verification_not_failure(self) -> None:
+        answer = agent_chat.build_problem_answer(
+            {"stages": []},
+            {"tasks": [{"name": "Chrome/登录环境检查", "status": "attention"}]},
+        )
+
+        self.assertIn("没有读到真正失败项", answer)
+        self.assertIn("不是失败", answer)
+
     def test_answer_question_uses_latest_files(self) -> None:
         original_root = agent_chat.ROOT
         original_pipeline_path = agent_chat.PIPELINE_PATH
