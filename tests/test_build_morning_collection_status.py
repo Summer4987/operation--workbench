@@ -218,6 +218,71 @@ class BuildMorningCollectionStatusTests(unittest.TestCase):
         self.assertEqual(step["failure_type"], "auth_block")
         self.assertIn("请确认日常 Chrome 已登录", step["message"])
 
+    def test_summary_failure_is_replaced_by_named_historical_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_runs = root / "outputs" / "task_runs" / "latest.json"
+            task_runs.parent.mkdir(parents=True)
+            task_runs.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "failed",
+                                "message": "上午运营一键采集异常结束，退出码：1。",
+                                "step": "汇总",
+                                "log_path": "/tmp/morning.log",
+                                "returncode": 1,
+                                "updated_at": "2026-07-05 08:29:49",
+                                "extra": {
+                                    "failures": "直营美团日报",
+                                },
+                            }
+                        },
+                        "events": [
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "running",
+                                "message": "上午运营一键采集开始。",
+                                "step": "初始化",
+                                "created_at": "2026-07-05 08:00:00",
+                            },
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "success",
+                                "message": "运营总看板发布腾讯云完成。",
+                                "step": "运营总看板发布腾讯云",
+                                "created_at": "2026-07-05 08:28:00",
+                            },
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "failed",
+                                "message": "上午运营一键采集异常结束，退出码：1。",
+                                "step": "汇总",
+                                "returncode": 1,
+                                "created_at": "2026-07-05 08:29:49",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            original = morning_module.TASK_RUNS_PATH
+            try:
+                morning_module.TASK_RUNS_PATH = task_runs
+                payload = morning_module.build_payload()
+            finally:
+                morning_module.TASK_RUNS_PATH = original
+
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["summary"]["completed_count"], 1)
+        self.assertEqual(payload["summary"]["failed_count"], 1)
+        step = payload["failed_steps"][0]
+        self.assertEqual(step["name"], "直营美团日报")
+        self.assertIn("历史记录未保存该子步骤输出", step["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

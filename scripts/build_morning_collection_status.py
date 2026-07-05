@@ -363,7 +363,11 @@ def fallback_steps_from_task(task: dict[str, Any]) -> list[dict[str, Any]]:
         failures = [str(task.get("step") or "上午运营一键采集")]
     steps: list[dict[str, Any]] = []
     for name in failures:
-        message = str(task.get("message") or f"{name}失败。")
+        task_message = str(task.get("message") or "")
+        if task_message and name not in task_message:
+            message = f"{name}失败。历史记录未保存该子步骤输出；总消息：{task_message}"
+        else:
+            message = task_message or f"{name}失败。"
         failure_type = str(task.get("failure_type") or normalize_failure_type(message, task.get("returncode")))
         platform = platform_for_step(name, message)
         steps.append(
@@ -408,8 +412,12 @@ def build_payload() -> dict[str, Any]:
         ]
     task = (run_state.get("tasks") or {}).get(TASK_ID) or {}
     steps = summarize_steps(session_events)
+    fallback_steps = fallback_steps_from_task(task)
     if not steps:
-        steps = fallback_steps_from_task(task)
+        steps = fallback_steps
+    elif fallback_steps and all(step.get("name") == "汇总" for step in steps if step.get("status") == "failed"):
+        success_steps = [step for step in steps if step.get("status") == "success"]
+        steps = [*success_steps, *fallback_steps]
     failed_steps = [step for step in steps if step["status"] == "failed"]
     recovery_actions = [
         {
