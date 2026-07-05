@@ -339,6 +339,12 @@ def apply_run_state(row: dict[str, Any], run_state: dict[str, Any], now: datetim
             row["evidence"] = "outputs/morning_collection_status/latest.json"
             recovery_actions = payload.get("recovery_actions") or []
             failed_steps = payload.get("failed_steps") or []
+            if failed_steps:
+                failed_detail = "；".join(
+                    f"{item.get('name')}：{item.get('message') or item.get('failure_type') or '查看日志'}"
+                    for item in failed_steps[:2]
+                )
+                row["reason"] = f"{row['reason']}｜失败明细：{failed_detail}"
             if recovery_actions:
                 row["human_action"] = "；".join(
                     f"{item.get('step')}：{item.get('human_action') or item.get('message') or '查看日志'}"
@@ -385,6 +391,14 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
         generated_at = parse_time(payload.get("generated_at"))
         summary = payload.get("summary") or {}
         repair_guides = payload.get("repair_guides") or []
+        failed_steps = payload.get("failed_steps") if isinstance(payload.get("failed_steps"), list) else []
+        failed_detail = ""
+        if failed_steps:
+            failed_detail = "；".join(
+                f"{item.get('name')}：{item.get('message') or item.get('failure_type') or '查看日志'}"
+                for item in failed_steps[:2]
+                if isinstance(item, dict)
+            )
         repair_suffix = f"，修复向导 {len(repair_guides)} 个" if repair_guides else ""
         if payload.get("status") == "missing_run":
             row.update(status="warn", reason=payload.get("message") or "上午运营一键采集尚未写入运行记录。")
@@ -395,6 +409,8 @@ def enrich_known_task(row: dict[str, Any], now: datetime, runtime: dict[str, Any
             row.update(status=status, reason=f"{payload.get('message')} 完成 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个{repair_suffix}。")
         if payload.get("human_action"):
             row["human_action"] = payload.get("human_action", "")
+        if failed_detail:
+            row["reason"] = f"{row['reason']} 失败明细：{failed_detail}。"
         if repair_guides:
             first_guide = repair_guides[0]
             first_step = (first_guide.get("checklist") or [""])[0]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import json
 import os
 import subprocess
 import sys
@@ -266,6 +267,26 @@ def run_step_with_pause(name: str, args: list[str], *, required: bool = True, ti
     return result
 
 
+def add_failure(failures: list[dict[str, object]], label: str, result: StepResult) -> None:
+    output_tail = (result.output or "").strip()[-1600:]
+    failure_type = "auth_block" if looks_like_auth_block(result.output) else ""
+    failures.append(
+        {
+            "name": label,
+            "step": result.name,
+            "returncode": result.returncode,
+            "failure_type": failure_type,
+            "message": f"{result.name}失败，退出码 {result.returncode}。",
+            "output_tail": output_tail,
+            "log_path": str(result.log_path),
+        }
+    )
+
+
+def failure_names(failures: list[dict[str, object]]) -> list[str]:
+    return [str(item.get("name") or item.get("step") or "未知失败项") for item in failures]
+
+
 def ensure_backend_chrome(report_python: str) -> None:
     run_step(
         "启动/检查后台 Chrome",
@@ -354,13 +375,14 @@ def main() -> int:
         )
         print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}，来源：{args.source}）。", flush=True)
         cleanup_chrome_sessions("任务开始前 Chrome 会话清理")
-        failures = []
+        failures: list[dict[str, object]] = []
         try:
             report_python = str(REPORT_PYTHON if REPORT_PYTHON.exists() else Path(sys.executable))
             if args.mode == "preview":
                 print("预览模式：跳过平台评价下载、日报后台采集、余额巡检，不打开外卖后台页面。", flush=True)
-                if run_step("本地门店日报生成", [report_python, str(REPORT_PROCESSOR)], required=False).returncode != 0:
-                    failures.append("本地门店日报")
+                result = run_step("本地门店日报生成", [report_python, str(REPORT_PROCESSOR)], required=False)
+                if result.returncode != 0:
+                    add_failure(failures, "本地门店日报", result)
             else:
                 preflight = run_step(
                     "开跑前登录态预检",
@@ -369,55 +391,65 @@ def main() -> int:
                     timeout_seconds=300,
                 )
                 if preflight.returncode != 0:
-                    failures.append("开跑前登录态预检")
+                    add_failure(failures, "开跑前登录态预检", preflight)
                     raise RuntimeError("开跑前登录态预检失败，已停止上午正式动作。")
                 ensure_backend_chrome(report_python)
-                if run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240).returncode != 0:
-                    failures.append("双平台评价")
-                if run_step_with_pause("直营美团评价下载", [report_python, str(DIRECT_MEITUAN_REVIEW_RUNNER), "--all"], required=False, timeout_seconds=420).returncode != 0:
-                    failures.append("直营美团评价")
-                if run_step_with_pause("直营美团日报下载", [report_python, str(DIRECT_MEITUAN_DAILY_RUNNER), "--all", "--submit"], required=False, timeout_seconds=600).returncode != 0:
-                    failures.append("直营美团日报")
+                result = run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240)
+                if result.returncode != 0:
+                    add_failure(failures, "双平台评价", result)
+                result = run_step_with_pause("直营美团评价下载", [report_python, str(DIRECT_MEITUAN_REVIEW_RUNNER), "--all"], required=False, timeout_seconds=420)
+                if result.returncode != 0:
+                    add_failure(failures, "直营美团评价", result)
+                result = run_step_with_pause("直营美团日报下载", [report_python, str(DIRECT_MEITUAN_DAILY_RUNNER), "--all", "--submit"], required=False, timeout_seconds=600)
+                if result.returncode != 0:
+                    add_failure(failures, "直营美团日报", result)
                 ensure_backend_chrome(report_python)
-                if run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720).returncode != 0:
-                    failures.append("门店日报")
-                if run_step("日报重点状态更新", [sys.executable, str(DAILY_FOCUS_STATUS_RUNNER)], required=False, timeout_seconds=120).returncode != 0:
-                    failures.append("日报重点状态")
-                if run_step("评价待办状态更新", [sys.executable, str(REVIEW_ACTION_STATUS_RUNNER)], required=False, timeout_seconds=120).returncode != 0:
-                    failures.append("评价待办状态")
+                result = run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720)
+                if result.returncode != 0:
+                    add_failure(failures, "门店日报", result)
+                result = run_step("日报重点状态更新", [sys.executable, str(DAILY_FOCUS_STATUS_RUNNER)], required=False, timeout_seconds=120)
+                if result.returncode != 0:
+                    add_failure(failures, "日报重点状态", result)
+                result = run_step("评价待办状态更新", [sys.executable, str(REVIEW_ACTION_STATUS_RUNNER)], required=False, timeout_seconds=120)
+                if result.returncode != 0:
+                    add_failure(failures, "评价待办状态", result)
                 balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
                 if balance_result.returncode != 0:
                     if args.source == "scheduled":
                         print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
                     else:
-                        failures.append("推广余额总巡检")
+                        add_failure(failures, "推广余额总巡检", balance_result)
                 run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
-                if run_step("推广余额状态更新", [sys.executable, str(PROMO_BALANCE_STATUS_RUNNER)], required=False, timeout_seconds=120).returncode != 0:
-                    failures.append("推广余额状态")
+                result = run_step("推广余额状态更新", [sys.executable, str(PROMO_BALANCE_STATUS_RUNNER)], required=False, timeout_seconds=120)
+                if result.returncode != 0:
+                    add_failure(failures, "推广余额状态", result)
                 if is_production_environment():
                     run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
                 else:
                     print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
-            if run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False).returncode != 0:
-                failures.append("预算配置同步")
+            result = run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False)
+            if result.returncode != 0:
+                add_failure(failures, "预算配置同步", result)
             node = str(NODE if NODE.exists() else "node")
-            if run_step("推广预算初始化预览", [node, str(PROMO_PREVIEW_RUNNER)], required=False).returncode != 0:
-                failures.append("推广预算预览")
+            result = run_step("推广预算初始化预览", [node, str(PROMO_PREVIEW_RUNNER)], required=False)
+            if result.returncode != 0:
+                add_failure(failures, "推广预算预览", result)
             if args.mode == "preview":
                 print("预览模式：跳过双平台预算页面检查和保存。", flush=True)
             else:
-                if run_step_with_pause(
+                result = run_step_with_pause(
                     f"饿了么{budget_period}预算真实提交",
                     ["/bin/zsh", str(ELEME_BUDGET_RUNNER), "--time", budget_time, "--mode", "commit", "--limit", "all"],
                     required=False,
                     timeout_seconds=int(os.environ.get("ELEME_BUDGET_TIMEOUT_SECONDS", "1800")),
-                ).returncode != 0:
-                    failures.append(f"饿了么{budget_period}预算")
+                )
+                if result.returncode != 0:
+                    add_failure(failures, f"饿了么{budget_period}预算", result)
                 meituan_budget_timeout = env_int(
                     "MEITUAN_BUDGET_TIMEOUT_SECONDS",
                     DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS,
                 )
-                if run_step_with_pause(
+                result = run_step_with_pause(
                     f"美团{budget_period}预算真实提交",
                     [
                         str(REPORT_PYTHON),
@@ -431,27 +463,33 @@ def main() -> int:
                     ],
                     required=False,
                     timeout_seconds=meituan_budget_timeout,
-                ).returncode != 0:
-                    failures.append(f"美团{budget_period}预算")
-            if run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False).returncode != 0:
-                failures.append("运营总看板")
+                )
+                if result.returncode != 0:
+                    add_failure(failures, f"美团{budget_period}预算", result)
+            result = run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False)
+            if result.returncode != 0:
+                add_failure(failures, "运营总看板", result)
             if args.mode == "preview":
                 print("预览模式：跳过运营总看板云端发布。", flush=True)
-            elif run_step("运营总看板发布腾讯云", ["/bin/zsh", str(WORKBENCH_DEPLOY_RUNNER)], required=False).returncode != 0:
-                failures.append("总看板云端发布")
+            else:
+                result = run_step("运营总看板发布腾讯云", ["/bin/zsh", str(WORKBENCH_DEPLOY_RUNNER)], required=False)
+                if result.returncode != 0:
+                    add_failure(failures, "总看板云端发布", result)
             cleanup_chrome_sessions("任务结束后 Chrome 会话清理")
             if failures:
-                print(f"\n运营一键采集完成，但有失败项：{'、'.join(failures)}。", file=sys.stderr, flush=True)
+                names = failure_names(failures)
+                print(f"\n运营一键采集完成，但有失败项：{'、'.join(names)}。", file=sys.stderr, flush=True)
                 record_task_run(
                     "failed",
-                    f"上午运营一键采集完成，但有失败项：{'、'.join(failures)}。",
+                    f"上午运营一键采集完成，但有失败项：{'、'.join(names)}。",
                     "汇总",
                     log_path,
                     returncode=1,
                     mode=args.mode,
                     source=args.source,
                     budget_period=budget_period,
-                    failures="、".join(failures),
+                    failures="、".join(names),
+                    failure_details=json.dumps(failures, ensure_ascii=False),
                 )
                 refresh_final_status()
                 return 1

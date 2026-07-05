@@ -322,6 +322,38 @@ def fallback_steps_from_task(task: dict[str, Any]) -> list[dict[str, Any]]:
     if not task or task.get("status") != "failed":
         return []
     extra = task.get("extra") if isinstance(task.get("extra"), dict) else {}
+    details = []
+    try:
+        parsed = json.loads(str(extra.get("failure_details") or "[]"))
+        if isinstance(parsed, list):
+            details = [item for item in parsed if isinstance(item, dict)]
+    except Exception:
+        details = []
+    if details:
+        steps = []
+        for detail in details:
+            name = str(detail.get("name") or detail.get("step") or "上午运营一键采集")
+            output_tail = str(detail.get("output_tail") or "").strip()
+            message = str(detail.get("message") or task.get("message") or f"{name}失败。")
+            if output_tail:
+                message = f"{message} 关键日志：{compact_log_tail(output_tail)}"
+            failure_type = str(detail.get("failure_type") or normalize_failure_type(output_tail or message, detail.get("returncode") or task.get("returncode")))
+            platform = platform_for_step(name, message)
+            steps.append(
+                {
+                    "name": name,
+                    "status": "failed",
+                    "module": module_for_step(name),
+                    "platform": platform,
+                    "message": message,
+                    "failure_type": failure_type,
+                    "human_action": human_action_for(name, failure_type, platform),
+                    "returncode": detail.get("returncode") or task.get("returncode"),
+                    "log_path": detail.get("log_path") or task.get("log_path") or "",
+                    "updated_at": task.get("updated_at") or task.get("finished_at") or "",
+                }
+            )
+        return steps
     failures = [
         part.strip()
         for part in str(extra.get("failures") or "").replace("，", ",").replace("、", ",").split(",")
@@ -349,6 +381,18 @@ def fallback_steps_from_task(task: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return steps
+
+
+def compact_log_tail(value: str, *, limit: int = 360) -> str:
+    lines = []
+    noisy = ("Workbook contains no default style", "openpyxl", "FutureWarning")
+    for raw in str(value or "").splitlines():
+        line = raw.strip()
+        if not line or any(pattern in line for pattern in noisy):
+            continue
+        lines.append(line)
+    text = "；".join(lines[-6:]) if lines else str(value or "").strip().replace("\n", "；")
+    return text[-limit:]
 
 
 def build_payload() -> dict[str, Any]:

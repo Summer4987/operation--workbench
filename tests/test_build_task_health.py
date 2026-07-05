@@ -15,6 +15,89 @@ import build_task_health as health_module  # noqa: E402
 
 
 class BuildTaskHealthTests(unittest.TestCase):
+    def test_morning_collection_reason_includes_failed_step_detail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir(parents=True)
+            (root / "outputs" / "task_runs").mkdir(parents=True)
+            (root / "outputs" / "morning_collection_status").mkdir(parents=True)
+            (root / "config" / "ai_business_center_tasks.json").write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "id": "ops.morning_collection",
+                                "name": "上午运营一键采集总状态",
+                                "center": "运营中心",
+                                "module": "上午运营",
+                                "status": "running",
+                                "risk": "high",
+                                "schedule": "每天早上主流程",
+                                "outputs": ["outputs/morning_collection_status/latest.json"],
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            (root / "outputs" / "task_runs" / "latest.json").write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "failed",
+                                "message": "上午运营一键采集完成，但有失败项：直营美团日报。",
+                                "updated_at": "2026-07-05 08:29:49",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            (root / "outputs" / "morning_collection_status" / "latest.json").write_text(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "message": "上午运营一键采集有 1 个子步骤失败。",
+                        "generated_at": "2026-07-05 08:29:49",
+                        "summary": {"completed_count": 1, "failed_count": 1, "running_count": 0},
+                        "failed_steps": [
+                            {
+                                "name": "直营美团日报",
+                                "message": "直营美团日报下载失败，退出码 1。关键日志：请确认日常 Chrome 已登录。",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            original_values = (
+                health_module.ROOT,
+                health_module.TASKS_PATH,
+                health_module.TASK_RUNS_PATH,
+                health_module.MORNING_COLLECTION_STATUS_PATH,
+            )
+            try:
+                health_module.ROOT = root
+                health_module.TASKS_PATH = root / "config" / "ai_business_center_tasks.json"
+                health_module.TASK_RUNS_PATH = root / "outputs" / "task_runs" / "latest.json"
+                health_module.MORNING_COLLECTION_STATUS_PATH = root / "outputs" / "morning_collection_status" / "latest.json"
+
+                payload = health_module.build_task_health(now=datetime(2026, 7, 5, 8, 40), runtime={})
+            finally:
+                (
+                    health_module.ROOT,
+                    health_module.TASKS_PATH,
+                    health_module.TASK_RUNS_PATH,
+                    health_module.MORNING_COLLECTION_STATUS_PATH,
+                ) = original_values
+
+        self.assertEqual(payload["tasks"][0]["status"], "danger")
+        self.assertIn("请确认日常 Chrome 已登录", payload["tasks"][0]["reason"])
+
     def build_realtime_health(self, task_status: str | None) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
