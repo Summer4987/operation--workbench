@@ -319,6 +319,8 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
         intent = "status"
         answer = build_status_answer(pipeline, monitor)
 
+    factual_intents = {"problems", "rerun", "execution_agent"}
+    effective_use_llm = bool(use_llm and intent not in factual_intents)
     final_answer, llm_record = maybe_improve_answer(
         question=normalized,
         draft_answer=answer,
@@ -327,7 +329,7 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
         monitor=monitor,
         task_runs=task_runs if isinstance(task_runs, dict) else {},
         refreshed=refreshed,
-        use_llm=use_llm,
+        use_llm=effective_use_llm,
     )
 
     return {
@@ -337,7 +339,7 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
         "intent": intent,
         "answer": final_answer,
         "llm": {
-            "enabled": bool(use_llm),
+            "enabled": bool(effective_use_llm),
             "used": bool(llm_record.get("used")),
             "provider": llm_record.get("provider", ""),
             "model": llm_record.get("model", ""),

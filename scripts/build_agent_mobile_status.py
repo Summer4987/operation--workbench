@@ -58,7 +58,7 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 def build_payload() -> dict[str, Any]:
     answers = []
     for key, question in QUESTIONS:
-        response = agent_chat.answer_question(question)
+        response = agent_chat.answer_question(question, use_llm=False)
         answers.append(
             {
                 "id": key,

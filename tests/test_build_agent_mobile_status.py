@@ -22,6 +22,21 @@ class AgentMobileStatusTests(unittest.TestCase):
         self.assertEqual(payload["assistant"]["name"], "运营 Agent")
         self.assertIn("今天跑得稳不稳？", {item["text"] for item in payload["commands"]})
 
+    def test_payload_answers_do_not_use_llm_rewrite(self) -> None:
+        original_generate_answer = build_agent_mobile_status.agent_chat.agent_llm.generate_answer
+        try:
+            build_agent_mobile_status.agent_chat.agent_llm.generate_answer = lambda **kwargs: {
+                "used": True,
+                "answer": "错误改写",
+                "confidence": 1,
+            }
+
+            payload = build_agent_mobile_status.build_payload()
+
+            self.assertNotIn("错误改写", {item["answer"] for item in payload["answers"]})
+        finally:
+            build_agent_mobile_status.agent_chat.agent_llm.generate_answer = original_generate_answer
+
 
 if __name__ == "__main__":
     unittest.main()
