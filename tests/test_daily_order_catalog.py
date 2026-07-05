@@ -155,6 +155,14 @@ def test_packaging_order_groups_bowls_before_starch_boxes():
         ]
 
 
+def test_chengdu_order_catalog_removes_legacy_packaging_bag_sku():
+    root = Path(__file__).resolve().parents[1]
+    catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+
+    assert all(item.get("sku") != "CJ-044" for item in catalog["items"])
+    assert all(item.get("name") != "打包袋" for item in catalog["items"])
+
+
 def test_condiment_and_supply_categories_are_grouped_by_delivery_source():
     root = Path(__file__).resolve().parents[1]
     expected = {

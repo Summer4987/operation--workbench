@@ -155,6 +155,8 @@ def test_daily_order_submit_catalog_filters_non_public_inventory_items(tmp_path)
     assert "LDXXX00013" in product_skus
     assert "牛肉筋（冻）" not in product_names
     assert "LDXXX00014" not in product_skus
+    assert "打包袋" in product_names
+    assert "CWXXX0004" in product_skus
 
 
 def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypatch):
@@ -168,6 +170,10 @@ def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypa
     rows = {item["sku"]: item for item in module.inventory_summary()}
     assert rows["LDXXX00013"]["balance"] == 0
     assert rows["LDXXX00014"]["balance"] == 0
+    assert rows["CWXXX0004"]["name"] == "打包袋"
+    assert rows["CWXXX0004"]["spec"] == "1000个/袋"
+    assert rows["CWXXX0004"]["unit"] == "袋"
+    assert rows["CWXXX0004"]["balance"] == 50
 
 
 def test_daily_order_submit_accepts_chengdu_session_cookie_for_owner(monkeypatch):

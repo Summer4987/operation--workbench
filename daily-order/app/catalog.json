@@ -309,17 +309,6 @@
       "purchase_channel": "四川鸿鹄包装群"
     },
     {
-      "sku": "CJ-044",
-      "source": "厂家配送（2日内）",
-      "category": "包材",
-      "name": "打包袋",
-      "spec": "1000个/袋",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/CJ-044.svg",
-      "purchase_channel": "四川鸿鹄包装群"
-    },
-    {
       "sku": "KD-002",
       "source": "快递到店",
       "category": "调料",

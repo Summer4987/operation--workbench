@@ -682,6 +682,46 @@ def seed_catalog() -> None:
     with connect() as conn:
         for product in products:
             upsert_product(conn, **{key: value for key, value in product.items() if key in product_fields})
+            _seed_initial_inventory_balance(conn, product)
+
+
+def _seed_initial_inventory_balance(conn, product: dict) -> None:
+    quantity = _to_float(product.get("initial_balance"))
+    sku = str(product.get("sku") or "").strip()
+    if not sku or quantity <= 0:
+        return
+    file_hash = f"seed-initial-stock:{sku}:{quantity:g}"
+    import_id = create_import(
+        conn,
+        file_hash=file_hash,
+        filename=f"{sku}-initial-stock",
+        movement_type="inbound",
+        source="catalog_seed",
+    )
+    if import_id is None:
+        return
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO movements (
+            import_file_id, row_key, movement_type, sku, name, spec, unit, warehouse, address, store_name,
+            quantity, signed_quantity, document_date, source_row, created_at
+        )
+        VALUES (?, ?, 'inbound', ?, ?, ?, ?, ?, '', '', ?, ?, '', 0, ?)
+        """,
+        (
+            import_id,
+            f"{file_hash}:1",
+            sku,
+            product.get("name") or sku,
+            product.get("spec", ""),
+            product.get("unit", ""),
+            product.get("warehouse", ""),
+            quantity,
+            quantity,
+            now_iso(),
+        ),
+    )
+    finish_import(conn, import_id, status="success", line_count=1, message="catalog initial stock")
 
 
 def _sha256(path: Path) -> str:
