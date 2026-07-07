@@ -366,7 +366,12 @@ def click_after_dismissing_overlay(page, locator) -> None:
         time.sleep(0.8)
     except Exception:
         pass
-    locator.click(timeout=8000)
+    try:
+        locator.click(timeout=8000)
+    except Exception as exc:
+        if "intercepts pointer events" not in str(exc) and "backdrop" not in str(exc):
+            raise
+        locator.click(timeout=8000, force=True)
 
 
 def dismiss_common_modals(page) -> None:
