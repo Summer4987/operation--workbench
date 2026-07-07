@@ -120,7 +120,13 @@ def report_params_ready(page, frame) -> bool:
     )
 
 
-def generate_report(page, account: dict, target_date: str) -> None:
+def report_generation_temporarily_unavailable(result: dict) -> bool:
+    message = str(result.get("message") or result.get("msg") or "")
+    code = str(result.get("code") or "")
+    return code == "100045" or "维护中" in message
+
+
+def generate_report(page, account: dict, target_date: str) -> bool:
     fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
     goto_report_page(page, account)
     result = page.evaluate(
@@ -208,11 +214,15 @@ def generate_report(page, account: dict, target_date: str) -> None:
         }""",
         {"targetDate": target_date, "fields": fields},
     )
+    if not result.get("success") and report_generation_temporarily_unavailable(result):
+        print(f"直营美团报表生成接口暂不可用，继续尝试下载中心已有报表：{result}")
+        return False
     if not result.get("success"):
         raise RuntimeError(f"直营美团生成报表失败：{result}")
     if not result.get("customerPaidField"):
         print("直营美团未在字段接口找到“顾客实付”字段，已继续提交现有字段。")
     print(f"直营美团报表任务已提交：{target_date}")
+    return True
 
 
 def download_url_to_direct_raw(context, url: str, filename: str) -> Path:
@@ -245,8 +255,12 @@ def download_url_to_direct_raw(context, url: str, filename: str) -> Path:
 def download_latest(page, context, account: dict, target_date: str | None) -> Path:
     frame = goto_report_page(page, account)
     history = meituan_history(frame)
-    rows = history.get("data", {}).get("list", [])
-    ready_rows = [row for row in rows if row.get("status") == 2 and row.get("url")]
+    history_data = history.get("data") if isinstance(history, dict) else {}
+    rows = history_data.get("list", []) if isinstance(history_data, dict) else []
+    ready_rows = [
+        row for row in rows
+        if isinstance(row, dict) and row.get("status") == 2 and row.get("url")
+    ]
     if target_date:
         dashed = date_with_dashes(target_date)
         ready_rows = [
