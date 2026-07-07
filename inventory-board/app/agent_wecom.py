@@ -225,6 +225,8 @@ def answer_or_enqueue(text: str, *, sender: str = "", status: dict[str, Any] | N
         action = "刷新 Agent 状态和手机入口数据"
     elif item["intent"] == "publish_mobile":
         action = "发布手机入口和工作台数据"
+    elif item["intent"] == "rerun_plan":
+        action = "执行安全补跑清单，只跑低风险允许项"
     else:
         action = "执行允许的非订货动作"
     return f"已收到，已加入 Mac mini 队列：{action}。队列编号：{item['id'][:8]}。完成后会通过企业微信通知结果。"

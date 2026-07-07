@@ -64,6 +64,7 @@ class AgentChatTests(unittest.TestCase):
         answer = agent_chat.build_problem_answer(
             {"stages": []},
             {
+                "summary": {"total": 3, "completed": 0, "failed": 1, "attention": 2, "missing": 0, "running": 0},
                 "tasks": [
                     {
                         "id": "morning.01",
@@ -88,19 +89,45 @@ class AgentChatTests(unittest.TestCase):
             },
         )
 
-        self.assertIn("真正失败 1 项", answer)
+        self.assertIn("今天需要处理的任务", answer)
+        self.assertIn("1. 上午运营一键采集总状态：失败", answer)
         self.assertIn("直营美团日报失败", answer)
-        self.assertIn("另有 2 项需核实，但不算失败", answer)
-        self.assertNotIn("Chrome/登录环境检查：", answer)
+        self.assertIn("2. Chrome/登录环境检查：需核实", answer)
 
     def test_problem_answer_reports_attention_as_verification_not_failure(self) -> None:
         answer = agent_chat.build_problem_answer(
             {"stages": []},
-            {"tasks": [{"name": "Chrome/登录环境检查", "status": "attention"}]},
+            {
+                "summary": {"total": 1, "completed": 0, "failed": 0, "attention": 1, "missing": 0, "running": 0},
+                "tasks": [{"name": "Chrome/登录环境检查", "status": "attention"}],
+            },
         )
 
-        self.assertIn("没有读到真正失败项", answer)
-        self.assertIn("不是失败", answer)
+        self.assertIn("今天需要处理的任务", answer)
+        self.assertIn("1. Chrome/登录环境检查：需核实", answer)
+
+    def test_status_answer_is_numbered_task_board(self) -> None:
+        answer = agent_chat.build_status_answer(
+            {"summary": {"success": 5, "failed": 0, "skipped": 0}},
+            {
+                "summary": {"total": 3, "completed": 1, "failed": 1, "attention": 1, "missing": 0, "running": 0},
+                "tasks": [
+                    {"id": "m1", "name": "直营店日报采集", "status": "failed", "failure_reason": "直营美团日报失败", "rerun": {"suggested": True, "auto_allowed": False}},
+                    {"id": "m2", "name": "推广余额巡检", "status": "completed", "rerun": {"suggested": False}},
+                    {"id": "m3", "name": "总看板云端发布", "status": "attention", "failure_reason": "产物已生成但缺少步骤记录", "rerun": {"suggested": True, "auto_allowed": True}},
+                ],
+                "rerun_plan": [
+                    {"task_id": "m3", "task_name": "总看板云端发布", "auto_allowed": True},
+                    {"task_id": "m1", "task_name": "直营店日报采集", "auto_allowed": False},
+                ],
+            },
+        )
+
+        self.assertIn("今天自动化任务状态", answer)
+        self.assertIn("1. 直营店日报采集：失败", answer)
+        self.assertIn("2. 推广余额巡检：成功", answer)
+        self.assertIn("3. 总看板云端发布：需核实", answer)
+        self.assertIn("可自动处理：总看板云端发布", answer)
 
     def test_answer_question_uses_latest_files(self) -> None:
         original_root = agent_chat.ROOT
@@ -131,7 +158,7 @@ class AgentChatTests(unittest.TestCase):
 
                 self.assertEqual(payload["intent"], "status")
                 self.assertIn("成功 5 个", payload["answer"])
-                self.assertIn("执行 Agent", payload["answer"])
+                self.assertFalse(payload["llm"]["enabled"])
         finally:
             agent_chat.ROOT = original_root
             agent_chat.PIPELINE_PATH = original_pipeline_path
@@ -150,7 +177,7 @@ class AgentChatTests(unittest.TestCase):
                 "reason": "基于草稿改写",
             }
 
-            payload = agent_chat.answer_question("今天稳不稳？")
+            payload = agent_chat.answer_question("帮助")
 
             self.assertTrue(payload["llm"]["used"])
             self.assertIn("整体正常", payload["answer"])
@@ -170,7 +197,7 @@ class AgentChatTests(unittest.TestCase):
                 "reason": "不确定",
             }
 
-            payload = agent_chat.answer_question("现在 agent 状态怎么样？")
+            payload = agent_chat.answer_question("帮助")
 
             self.assertFalse("低置信度回答" == payload["answer"])
             self.assertTrue(payload["llm"]["used"])

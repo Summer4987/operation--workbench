@@ -153,6 +153,8 @@ def command_policy(text: str) -> dict[str, Any]:
         return {"enqueue": True, "intent": "refresh_status", "execute": True, "reason": "refresh-status"}
     if any(word in clean for word in ("发布手机入口", "发布入口", "同步到云端", "上线手机入口")):
         return {"enqueue": True, "intent": "publish_mobile", "execute": True, "reason": "publish-mobile"}
+    if any(word in clean for word in ("执行补跑", "开始补跑", "自动补跑", "修复失败任务")):
+        return {"enqueue": True, "intent": "rerun_plan", "execute": True, "reason": "safe-rerun-execute"}
     if "非订货" in clean and any(word in clean for word in ("执行", "恢复", "处理", "补跑", "修复")):
         return {"enqueue": True, "intent": "execute_non_ordering", "execute": True, "reason": "non-ordering-execution"}
     return {"enqueue": False, "intent": "", "execute": False, "reason": "read-only"}

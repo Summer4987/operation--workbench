@@ -29,6 +29,13 @@ class AgentInboxTests(unittest.TestCase):
         self.assertFalse(policy["enqueue"])
         self.assertEqual(policy["intent"], "blocked_ordering")
 
+    def test_execute_rerun_policy_enqueues_safe_rerun(self) -> None:
+        policy = agent_inbox.command_policy("执行补跑")
+
+        self.assertTrue(policy["enqueue"])
+        self.assertEqual(policy["intent"], "rerun_plan")
+        self.assertTrue(policy["execute"])
+
     def test_inbox_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "inbox.json"

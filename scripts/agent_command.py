@@ -214,7 +214,14 @@ def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[st
         else:
             answer = chat_answer("现在 agent 状态怎么样？", refresh=True)
     elif intent == "rerun_plan":
-        answer = chat_answer("哪些任务可以补跑？")
+        run_command([sys.executable or "python3", "scripts/agent_task_monitor.py"], timeout=300)
+        command = [sys.executable or "python3", "scripts/agent_rerun_dry_run.py"]
+        if execute:
+            command.append("--execute")
+        action = run_command(command, timeout=1800)
+        actions.append(action)
+        run_command([sys.executable or "python3", "scripts/build_agent_mobile_status.py"], timeout=300)
+        answer = action["output_tail"].strip() or f"补跑计划没有返回内容，退出码 {action['returncode']}。"
     elif intent == "problems":
         answer = chat_answer("今天哪里有问题？")
     elif intent == "execution_status":

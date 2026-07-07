@@ -59,6 +59,27 @@ class AgentCommandTests(unittest.TestCase):
         self.assertEqual(payload["intent"], "budget_preview")
         self.assertIn("预算预览", payload["answer"])
 
+    def test_execute_rerun_runs_safe_rerun_script(self) -> None:
+        original_run_command = agent_command.run_command
+        try:
+            calls = []
+
+            def fake_run_command(command, *, timeout=900):
+                calls.append(command)
+                if any(str(part).endswith("agent_rerun_dry_run.py") for part in command):
+                    return {"command": command, "returncode": 0, "output_tail": "我已经尝试补跑 1 个低风险任务，成功 1 个，失败 0 个。"}
+                return {"command": command, "returncode": 0, "output_tail": "ok"}
+
+            agent_command.run_command = fake_run_command
+            payload = agent_command.handle_command("执行补跑", execute=True, use_llm=False)
+        finally:
+            agent_command.run_command = original_run_command
+
+        self.assertEqual(payload["intent"], "rerun_plan")
+        self.assertIn("成功 1 个", payload["answer"])
+        self.assertTrue(any(any(str(part).endswith("agent_task_monitor.py") for part in command) for command in calls))
+        self.assertTrue(any(command[-1] == "--execute" and any(str(part).endswith("agent_rerun_dry_run.py") for part in command) for command in calls))
+
     def test_cli_supports_notification_dry_run(self) -> None:
         import subprocess
         import tempfile

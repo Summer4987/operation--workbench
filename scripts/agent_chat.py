@@ -110,7 +110,95 @@ def rerun_candidates(monitor: dict[str, Any]) -> tuple[list[dict[str, Any]], lis
     return allowed, manual
 
 
+def monitor_tasks(monitor: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = monitor.get("tasks") if isinstance(monitor.get("tasks"), list) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def task_state_text(row: dict[str, Any]) -> str:
+    labels = {
+        "completed": "成功",
+        "failed": "失败",
+        "attention": "需核实",
+        "missing": "未记录",
+        "running": "运行中",
+        "skipped": "已跳过",
+    }
+    status = str(row.get("status") or "")
+    return labels.get(status, str(row.get("status_text") or status or "未知"))
+
+
+def task_action_text(row: dict[str, Any]) -> str:
+    rerun = row.get("rerun") if isinstance(row.get("rerun"), dict) else {}
+    if rerun.get("suggested") and rerun.get("auto_allowed"):
+        return "可自动补跑"
+    if rerun.get("suggested"):
+        return "需人工确认，不自动补跑"
+    return "不用补跑"
+
+
+def task_reason(row: dict[str, Any]) -> str:
+    status = str(row.get("status") or "")
+    if status in {"completed", "skipped"}:
+        return ""
+    return compact_reason(row.get("failure_reason") or row.get("message") or row.get("human_action"), fallback="")
+
+
+def format_task_line(index: int, row: dict[str, Any]) -> str:
+    name = str(row.get("name") or row.get("id") or "未命名任务")
+    line = f"{index}. {name}：{task_state_text(row)}"
+    reason = task_reason(row)
+    if reason:
+        line += f"。原因：{reason}"
+    action = task_action_text(row)
+    if action != "不用补跑" or str(row.get("status") or "") != "completed":
+        line += f"。处理：{action}"
+    return line
+
+
+def build_numbered_task_report(monitor: dict[str, Any], *, problem_only: bool = False) -> str:
+    summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
+    rows = monitor_tasks(monitor)
+    if problem_only:
+        rows = [row for row in rows if row.get("status") in {"failed", "attention", "missing", "running"}]
+    total = int(summary.get("total") or len(monitor_tasks(monitor)) or len(rows))
+    completed = int(summary.get("completed") or 0)
+    failed = int(summary.get("failed") or 0)
+    attention = int(summary.get("attention") or 0)
+    missing = int(summary.get("missing") or 0)
+    running = int(summary.get("running") or 0)
+    if not rows:
+        if problem_only:
+            return f"今天没有失败项，也没有需要核实的任务。已完成 {completed}/{total} 项。"
+        return "当前没有读到任务明细，请先刷新 Agent 状态。"
+
+    unresolved = failed + attention + missing + running
+    title = "今天需要处理的任务：" if problem_only else "今天自动化任务状态："
+    lines = [
+        title,
+        f"总览：成功 {completed}/{total}，失败 {failed}，需核实 {attention + missing}，运行中 {running}。",
+    ]
+    for index, row in enumerate(rows[:20], start=1):
+        lines.append(format_task_line(index, row))
+    if len(rows) > 20:
+        lines.append(f"另外还有 {len(rows) - 20} 项没有展开。")
+
+    allowed, manual = rerun_candidates(monitor)
+    if allowed:
+        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in allowed[:6])
+        lines.append(f"可自动处理：{names}。你说“执行补跑”时，我只跑这些低风险项。")
+    else:
+        lines.append("可自动处理：当前没有低风险自动补跑项。")
+    if manual and unresolved:
+        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in manual[:6])
+        extra = "" if len(manual) <= 6 else f"；另有 {len(manual) - 6} 项"
+        lines.append(f"需要你确认：{names}{extra}。")
+    return "\n".join(lines)
+
+
 def build_status_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> str:
+    if monitor_tasks(monitor):
+        return build_numbered_task_report(monitor)
     summary = pipeline.get("summary") if isinstance(pipeline.get("summary"), dict) else {}
     monitor_summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
     line = (
@@ -139,6 +227,9 @@ def build_problem_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> s
     if failed_stages:
         first = failed_stages[0]
         return f"agent 流程本身有失败：{first.get('name')}。原因：{compact_reason(first.get('message'))}。"
+
+    if monitor_tasks(monitor):
+        return build_numbered_task_report(monitor, problem_only=True)
 
     failures = failed_tasks(monitor)
     checks = verification_tasks(monitor)
@@ -170,20 +261,32 @@ def build_rerun_answer(monitor: dict[str, Any]) -> str:
     if not allowed and not manual:
         return "当前没有读到补跑计划。"
     failures = {str(row.get("id") or "") for row in failed_tasks(monitor)}
-    parts = []
+    lines = ["补跑计划："]
     if allowed:
-        names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in allowed[:6])
-        parts.append(f"可以自动补跑的是：{names}")
+        lines.append("可自动补跑：")
+        for index, item in enumerate(allowed[:10], start=1):
+            name = str(item.get("task_name") or item.get("task_id"))
+            reason = compact_reason(item.get("reason"), fallback="低风险或幂等任务")
+            lines.append(f"{index}. {name}：{reason}")
+    else:
+        lines.append("可自动补跑：当前没有。")
     if manual:
         failed_manual = [item for item in manual if str(item.get("task_id") or "") in failures]
         other_manual = [item for item in manual if str(item.get("task_id") or "") not in failures]
         if failed_manual:
-            names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in failed_manual[:6])
-            parts.append(f"真正失败且需要人工确认的是：{names}")
+            lines.append("失败但需人工确认：")
+            for index, item in enumerate(failed_manual[:10], start=1):
+                name = str(item.get("task_name") or item.get("task_id"))
+                reason = compact_reason(item.get("reason"), fallback="高风险或需要登录态确认")
+                lines.append(f"{index}. {name}：{reason}")
         if other_manual:
-            names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in other_manual[:6])
-            parts.append(f"需核实但不是失败的是：{names}")
-    return "；".join(parts) + "。"
+            lines.append("需核实但不是失败：")
+            for index, item in enumerate(other_manual[:10], start=1):
+                name = str(item.get("task_name") or item.get("task_id"))
+                reason = compact_reason(item.get("reason"), fallback="需要补齐完成证据")
+                lines.append(f"{index}. {name}：{reason}")
+    lines.append("你说“执行补跑”时，我只会执行可自动补跑清单里的低风险项。")
+    return "\n".join(lines)
 
 
 def build_execution_answer(pipeline: dict[str, Any]) -> str:
@@ -319,7 +422,7 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
         intent = "status"
         answer = build_status_answer(pipeline, monitor)
 
-    factual_intents = {"problems", "rerun", "execution_agent"}
+    factual_intents = {"status", "problems", "rerun", "execution_agent"}
     effective_use_llm = bool(use_llm and intent not in factual_intents)
     final_answer, llm_record = maybe_improve_answer(
         question=normalized,
