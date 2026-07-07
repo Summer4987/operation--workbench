@@ -311,7 +311,8 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
     if current and any(alias in current for alias in aliases):
         return current
 
-    if page.locator(".roo-popup.bottom li").count() == 0:
+    popup_items = page.locator(".roo-popup.bottom li")
+    if popup_items.count() == 0:
         selector = page.locator(".current-poi_31GHxd").first
         if selector.count() == 0:
             raise_if_meituan_verify_page(page)
@@ -324,9 +325,9 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
                 f" 当前URL：{page.url or '-'}；页面片段：{preview or '-'}"
             )
         click_after_dismissing_overlay(page, selector)
-        time.sleep(1)
+        popup_items = wait_headquarters_store_menu(page)
 
-    items = page.locator(".roo-popup.bottom li")
+    items = popup_items
     available: list[str] = []
     for index in range(items.count()):
         item = items.nth(index)
@@ -353,6 +354,15 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
     )
 
 
+def wait_headquarters_store_menu(page):
+    items = page.locator(".roo-popup.bottom li")
+    for _ in range(10):
+        if items.count() > 0:
+            return items
+        time.sleep(0.5)
+    return items
+
+
 def click_after_dismissing_overlay(page, locator) -> None:
     try:
         locator.click(timeout=8000)
@@ -375,7 +385,7 @@ def click_after_dismissing_overlay(page, locator) -> None:
 
 
 def dismiss_common_modals(page) -> None:
-    for label in ("我知道了", "知道了", "确定"):
+    for label in ("稍后处理", "我知道了", "知道了", "确定"):
         try:
             locator = page.get_by_text(label)
             for index in range(min(locator.count(), 4)):
