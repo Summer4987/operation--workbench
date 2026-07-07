@@ -923,7 +923,7 @@ def _agent_mobile_page_html() -> str:
     .shell {
       min-height: 100vh;
       display: grid;
-      grid-template-rows: auto auto 1fr auto;
+      grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
       max-width: 880px;
       margin: 0 auto;
       background: var(--panel);
@@ -1000,6 +1000,7 @@ def _agent_mobile_page_html() -> str:
     .messages {
       padding: 16px;
       overflow: auto;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -1020,7 +1021,7 @@ def _agent_mobile_page_html() -> str:
       border-top: 1px solid var(--line);
       background: #fbfcfe;
       padding: 10px 16px;
-      max-height: 34vh;
+      max-height: 24vh;
       overflow: auto;
     }
     .task {
@@ -1079,9 +1080,26 @@ def _agent_mobile_page_html() -> str:
   </main>
   <script>
     const tokenFromUrl = new URLSearchParams(location.search).get("token") || "";
+    function loadStoredValue(key, fallback = "") {
+      try {
+        return localStorage.getItem(key) || fallback;
+      } catch (error) {
+        return fallback;
+      }
+    }
+    function loadStoredMessages() {
+      try {
+        const value = localStorage.getItem("xiongAgentMessages") || "[]";
+        const messages = JSON.parse(value);
+        return Array.isArray(messages) ? messages : [];
+      } catch (error) {
+        try { localStorage.removeItem("xiongAgentMessages"); } catch (_ignored) {}
+        return [];
+      }
+    }
     const state = {
-      token: tokenFromUrl || localStorage.getItem("xiongAgentToken") || "",
-      messages: JSON.parse(localStorage.getItem("xiongAgentMessages") || "[]"),
+      token: tokenFromUrl || loadStoredValue("xiongAgentToken"),
+      messages: loadStoredMessages(),
       seenAnswers: new Set(),
     };
     const els = {
@@ -1096,7 +1114,11 @@ def _agent_mobile_page_html() -> str:
       connection: document.getElementById("connection"),
     };
     function saveMessages() {
-      localStorage.setItem("xiongAgentMessages", JSON.stringify(state.messages.slice(-80)));
+      try {
+        localStorage.setItem("xiongAgentMessages", JSON.stringify(state.messages.slice(-80)));
+      } catch (error) {
+        state.messages = state.messages.slice(-20);
+      }
     }
     function addMessage(role, text, meta = "") {
       state.messages.push({role, text, meta, ts: Date.now()});
@@ -1119,7 +1141,9 @@ def _agent_mobile_page_html() -> str:
     }
     function setToken(token) {
       state.token = token.trim();
-      if (state.token) localStorage.setItem("xiongAgentToken", state.token);
+      if (state.token) {
+        try { localStorage.setItem("xiongAgentToken", state.token); } catch (error) {}
+      }
       els.tokenInput.value = state.token;
       els.tokenBox.classList.toggle("hidden", Boolean(state.token));
     }
