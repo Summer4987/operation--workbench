@@ -171,6 +171,7 @@ class AgentInboxTests(unittest.TestCase):
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
 
         self.assertIn("grid-template-rows: auto auto auto minmax(0, 1fr) auto auto", text)
+        self.assertIn("height: 100dvh", text)
         self.assertIn("function loadStoredMessages()", text)
         self.assertIn("localStorage.removeItem(\"xiongAgentMessages\")", text)
         self.assertIn("min-height: 0", text)

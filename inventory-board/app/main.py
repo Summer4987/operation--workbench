@@ -922,6 +922,8 @@ def _agent_mobile_page_html() -> str:
     }
     .shell {
       min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
       display: grid;
       grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
       max-width: 880px;
@@ -1047,7 +1049,13 @@ def _agent_mobile_page_html() -> str:
     .hidden { display: none; }
     @media (min-width: 720px) {
       body { padding: 18px; }
-      .shell { border: 1px solid var(--line); border-radius: 10px; min-height: calc(100vh - 36px); overflow: hidden; }
+      .shell {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        min-height: calc(100vh - 36px);
+        height: calc(100vh - 36px);
+        overflow: hidden;
+      }
     }
   </style>
 </head>
