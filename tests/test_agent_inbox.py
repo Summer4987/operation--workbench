@@ -210,11 +210,12 @@ class AgentInboxTests(unittest.TestCase):
         self.assertIn('data-command="巡检美团实时消耗"', text)
         self.assertIn("一键查余量", text)
 
-    def test_mobile_budget_preview_button_uses_preview_wording(self) -> None:
+    def test_mobile_agent_page_omits_budget_preview_button(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
 
-        self.assertIn('data-command="生成预算预览"', text)
+        self.assertNotIn('data-command="生成预算预览"', text)
         self.assertNotIn('data-command="重跑预算设置"', text)
+        self.assertNotIn(">预算预览</button>", text)
 
 
 if __name__ == "__main__":

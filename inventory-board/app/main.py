@@ -1079,7 +1079,6 @@ def _agent_mobile_page_html() -> str:
       <button type="button" data-command="哪些任务可以补跑">可补跑</button>
       <button type="button" data-command="巡检美团实时消耗">一键查余量</button>
       <button type="button" data-command="刷新状态">刷新状态</button>
-      <button type="button" data-command="生成预算预览">预算预览</button>
     </section>
     <section class="messages" id="messages"></section>
     <section class="tasks" id="tasks"></section>
@@ -1219,7 +1218,7 @@ def _agent_mobile_page_html() -> str:
     els.composer.addEventListener("submit", event => { event.preventDefault(); send(els.text.value); });
     document.querySelectorAll("[data-command]").forEach(btn => btn.addEventListener("click", () => send(btn.dataset.command || "")));
     setToken(state.token);
-    if (!state.messages.length) addMessage("agent", "我在。你可以问任务状态、今日失败，也可以点一键查余量。订货相关动作会被拦截。");
+    if (!state.messages.length) addMessage("agent", "我在。你可以问任务状态、今日失败，也可以点一键查余量。预算设置不放在手机快捷按钮里，订货相关动作会被拦截。");
     renderMessages();
     refresh();
     setInterval(refresh, 5000);
