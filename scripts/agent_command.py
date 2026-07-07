@@ -33,6 +33,8 @@ EXECUTION_STATUS_KEYWORDS = ("执行 agent", "执行Agent", "执行 Agent", "4�
 BUDGET_KEYWORDS = ("预算", "推广预算")
 BUDGET_RERUN_KEYWORDS = ("重跑", "补跑", "重新", "设置", "初始化")
 BUDGET_CONFIRM_KEYWORDS = ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")
+MEITUAN_SPEND_KEYWORDS = ("美团", "meituan")
+SPEND_INSPECTION_KEYWORDS = ("消耗", "花费", "推广花费", "实时消耗", "消耗量", "巡检")
 
 
 def now_text() -> str:
@@ -86,6 +88,8 @@ def classify_intent(text: str) -> str:
         return "blocked_ordering"
     if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
         return "budget_commit"
+    if command_contains(clean, MEITUAN_SPEND_KEYWORDS) and command_contains(clean, SPEND_INSPECTION_KEYWORDS):
+        return "meituan_spend_inspection"
     if command_contains(clean, BUDGET_KEYWORDS) and command_contains(clean, BUDGET_RERUN_KEYWORDS):
         return "budget_preview"
     if command_contains(clean, PUBLISH_KEYWORDS) and command_contains(clean, ("发布", "上线", "同步到云端")):
@@ -118,6 +122,8 @@ def classify_intent_with_llm(text: str, *, use_llm: bool = True) -> tuple[str, d
         return "blocked_ordering", {"used": False, "fallback": "hard-ordering-block"}
     if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
         return "budget_commit", {"used": False, "fallback": "hard-budget-confirmation"}
+    if command_contains(clean, MEITUAN_SPEND_KEYWORDS) and command_contains(clean, SPEND_INSPECTION_KEYWORDS):
+        return "meituan_spend_inspection", {"used": False, "fallback": "hard-meituan-spend-inspection"}
     if command_contains(clean, REFRESH_KEYWORDS):
         return "refresh_status", {"used": False, "fallback": "hard-refresh-query"}
     if command_contains(clean, EXECUTION_STATUS_KEYWORDS):
@@ -178,6 +184,16 @@ def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[st
                 answer = "已执行推广预算真实提交流程，并刷新 agent 状态。"
             else:
                 answer = f"推广预算真实提交没有完成，退出码 {action['returncode']}；可能被时间窗口、登录态或安全闸拦截。"
+    elif intent == "meituan_spend_inspection":
+        if not execute:
+            answer = "这是美团推广实时消耗只读巡检。它不会改预算、出价或投放开关；需要在 Mac mini 上加 `--execute` 才会打开后台读取页面。"
+        else:
+            action = run_command(
+                [sys.executable or "python3", "scripts/meituan_promo_spend_query.py", "--period", "all", "--quiet"],
+                timeout=1200,
+            )
+            actions.append(action)
+            answer = action["output_tail"].strip() or f"美团推广消耗巡检没有返回内容，退出码 {action['returncode']}。"
     elif intent == "execute_non_ordering":
         if not execute:
             answer = "这是非订货执行请求。为防误触发，请在 Mac mini 上加 `--execute` 执行；不加时我只做意图识别。"
@@ -229,7 +245,7 @@ def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[st
     elif intent == "status":
         answer = chat_answer("现在 agent 状态怎么样？")
     elif intent == "help":
-        answer = "你可以说：今天哪里有问题、刷新状态、执行非订货恢复、发布手机入口、哪些任务可以补跑。订货/下单/采购会被拦截。"
+        answer = "你可以说：今天哪里有问题、刷新状态、巡检美团消耗、执行非订货恢复、发布手机入口、哪些任务可以补跑。订货/下单/采购会被拦截。"
     else:
         answer = chat_answer(text)
 

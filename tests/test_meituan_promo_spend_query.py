@@ -77,6 +77,8 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         """
         snapshot = self.query.parse_spend_snapshot(text)
         self.assertEqual(snapshot["today_spend"], 42.4)
+        self.assertEqual(snapshot["budget"], 80)
+        self.assertEqual(snapshot["budget_percent"], 53)
         self.assertEqual(snapshot["source"], "budget_percent")
         self.assertIsNone(snapshot["seven_day_spend"])
 
@@ -93,6 +95,8 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         """
         snapshot = self.query.parse_spend_snapshot(text)
         self.assertEqual(snapshot["today_spend"], 100)
+        self.assertEqual(snapshot["budget"], 100)
+        self.assertEqual(snapshot["budget_percent"], 100)
         self.assertEqual(snapshot["source"], "budget_exhausted")
 
     def test_parse_budget_percent_from_single_line_text(self) -> None:
@@ -162,9 +166,28 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
                 {"keyword": "万象城", "ok": False, "error": "登录失效"},
             ]
         )
-        self.assertIn("查到了 1/2 家美团门店", text)
-        self.assertIn("银泰城：今日 150.01 元", text)
-        self.assertIn("没查到的门店：万象城：登录失效", text)
+        self.assertIn("美团推广实时消耗巡检", text)
+        self.assertIn("总览：已读到 1/2 家", text)
+        self.assertIn("1. 银泰城：正常，今日 150.01 元", text)
+        self.assertIn("2. 万象城：未核实。原因：登录失效", text)
+
+    def test_format_human_reports_budget_warning(self) -> None:
+        text = self.query.format_human(
+            [
+                {
+                    "keyword": "银泰城",
+                    "ok": True,
+                    "today_spend": 95,
+                    "budget": 100,
+                    "budget_percent": 95,
+                    "source": "budget_percent",
+                },
+            ]
+        )
+
+        self.assertIn("预警 1", text)
+        self.assertIn("1. 银泰城：预警，今日 95 元，预算 100 元，消耗 95%，已消耗预算 95%", text)
+        self.assertIn("本巡检只读", text)
 
 
 if __name__ == "__main__":

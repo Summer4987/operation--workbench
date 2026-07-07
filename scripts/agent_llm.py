@@ -30,6 +30,7 @@ ALLOWED_INTENTS = {
     "execute_non_ordering",
     "budget_preview",
     "budget_commit",
+    "meituan_spend_inspection",
     "publish_mobile",
     "chat",
     "help",
@@ -40,6 +41,7 @@ SYSTEM_PROMPT = """你是熊小小运营自动化的意图识别助手。
 你只能做理解、分类和总结建议，不能决定真实生产执行。
 订货、下单、采购、快驴相关动作必须归类为 blocked_ordering，但这类硬拦截通常由外层规则先处理。
 真实预算提交只有用户明确说“确认执行预算重跑/确认提交预算”等确认语时才是 budget_commit；普通“重跑预算/预算有问题”只能是 budget_preview。
+巡检、查询、查看美团实时消耗、推广花费、消耗量归类为 meituan_spend_inspection；这是只读巡检，不是预算提交。
 非订货恢复、执行其他自动化、处理非订货问题归类为 execute_non_ordering。
 查询任务是否正常、怎么样、情况如何归类为 status。
 询问哪里失败、哪里异常、有什么问题归类为 problems。

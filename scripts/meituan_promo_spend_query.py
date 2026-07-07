@@ -156,7 +156,12 @@ def parse_budget_spend(lines: list[str]) -> dict[str, Any]:
         percent = float(match.group(1))
         budget = parse_money(match.group(2))
         if budget is not None:
-            return {"today_spend": round(budget * percent / 100, 2), "source": "budget_percent"}
+            return {
+                "today_spend": round(budget * percent / 100, 2),
+                "budget": budget,
+                "budget_percent": percent,
+                "source": "budget_percent",
+            }
     match = re.search(
         r"(?:推广预算|每日预算)(?:(?!推广出价|定向推广|计费规则).)*?预算已耗尽\s*([0-9,.]+)\s*元",
         compact,
@@ -164,7 +169,12 @@ def parse_budget_spend(lines: list[str]) -> dict[str, Any]:
     if match:
         budget = parse_money(match.group(1))
         if budget is not None:
-            return {"today_spend": budget, "source": "budget_exhausted"}
+            return {
+                "today_spend": budget,
+                "budget": budget,
+                "budget_percent": 100.0,
+                "source": "budget_exhausted",
+            }
 
     for index, line in enumerate(lines):
         if line not in {"推广预算", "每日预算"}:
@@ -194,9 +204,19 @@ def parse_budget_spend(lines: list[str]) -> dict[str, Any]:
         if budget is None:
             continue
         if exhausted:
-            return {"today_spend": budget, "source": "budget_exhausted"}
+            return {
+                "today_spend": budget,
+                "budget": budget,
+                "budget_percent": 100.0,
+                "source": "budget_exhausted",
+            }
         if percent is not None:
-            return {"today_spend": round(budget * percent / 100, 2), "source": "budget_percent"}
+            return {
+                "today_spend": round(budget * percent / 100, 2),
+                "budget": budget,
+                "budget_percent": percent,
+                "source": "budget_percent",
+            }
     return {}
 
 
@@ -528,21 +548,61 @@ def money(value: Any) -> str:
     return f"{float(value):.2f}".rstrip("0").rstrip(".")
 
 
+def inspect_level(item: dict[str, Any]) -> tuple[str, str]:
+    if not item.get("ok"):
+        return "未核实", str(item.get("error") or "没有读到页面数据")
+    percent = item.get("budget_percent")
+    source = str(item.get("source") or "")
+    if source == "budget_exhausted" or (percent is not None and float(percent) >= 100):
+        return "异常", "预算已耗尽"
+    if percent is not None and float(percent) >= 90:
+        return "预警", f"已消耗预算 {float(percent):.0f}%"
+    if item.get("today_spend") in (0, 0.0):
+        return "预警", "今日消耗为 0，需确认是否本应投放"
+    return "正常", ""
+
+
+def format_item_line(index: int, item: dict[str, Any]) -> str:
+    keyword = item.get("keyword") or item.get("store") or "未命名门店"
+    level, reason = inspect_level(item)
+    if not item.get("ok"):
+        return f"{index}. {keyword}：{level}。原因：{reason}"
+
+    parts = [f"{index}. {keyword}：{level}，今日 {money(item.get('today_spend'))} 元"]
+    if item.get("budget") is not None:
+        parts.append(f"预算 {money(item.get('budget'))} 元")
+    if item.get("budget_percent") is not None:
+        parts.append(f"消耗 {float(item.get('budget_percent')):.0f}%")
+    if item.get("yesterday_spend") is not None:
+        parts.append(f"昨日 {money(item.get('yesterday_spend'))} 元")
+    if item.get("updated_at_hint"):
+        parts.append(f"页面更新时间 {item.get('updated_at_hint')}")
+    if reason:
+        parts.append(reason)
+    return "，".join(parts) + "。"
+
+
 def format_human(items: list[dict[str, Any]]) -> str:
     ok_items = [item for item in items if item.get("ok")]
-    failed_items = [item for item in items if not item.get("ok")]
     total = sum(float(item.get("today_spend") or 0) for item in ok_items if item.get("today_spend") is not None)
-    lines = [f"查到了 {len(ok_items)}/{len(items)} 家美团门店的推广消耗，今日合计 {money(total)} 元。"]
-    for item in ok_items:
-        keyword = item.get("keyword") or item.get("store") or "未命名门店"
-        detail = f"{keyword}：今日 {money(item.get('today_spend'))} 元"
-        if item.get("yesterday_spend") is not None:
-            detail += f"，昨日 {money(item.get('yesterday_spend'))} 元"
-        if item.get("updated_at_hint"):
-            detail += f"，页面更新时间 {item.get('updated_at_hint')}"
-        lines.append(detail + "。")
-    if failed_items:
-        lines.append("没查到的门店：" + "；".join(f"{item.get('keyword') or item.get('store')}：{item.get('error') or '未知错误'}" for item in failed_items[:8]) + "。")
+    level_counts = {"正常": 0, "预警": 0, "异常": 0, "未核实": 0}
+    for item in items:
+        level, _ = inspect_level(item)
+        level_counts[level] = level_counts.get(level, 0) + 1
+    lines = [
+        "美团推广实时消耗巡检：",
+        (
+            f"总览：已读到 {len(ok_items)}/{len(items)} 家，今日合计 {money(total)} 元；"
+            f"正常 {level_counts.get('正常', 0)}，预警 {level_counts.get('预警', 0)}，"
+            f"异常 {level_counts.get('异常', 0)}，未核实 {level_counts.get('未核实', 0)}。"
+        ),
+    ]
+    for index, item in enumerate(items, start=1):
+        lines.append(format_item_line(index, item))
+    if level_counts.get("异常") or level_counts.get("预警") or level_counts.get("未核实"):
+        lines.append("建议：先人工复核预警/异常门店；本巡检只读，不会修改预算、出价或投放开关。")
+    else:
+        lines.append("建议：当前只读巡检未发现明显异常；不需要自动修复。")
     return "\n".join(lines)
 
 

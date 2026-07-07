@@ -53,6 +53,32 @@ class AgentCommandTests(unittest.TestCase):
         self.assertEqual(payload["intent"], "budget_commit")
         self.assertIn("--execute", payload["answer"])
 
+    def test_meituan_spend_inspection_routes_to_readonly_inspection(self) -> None:
+        payload = agent_command.handle_command("巡检美团实时消耗", execute=False, use_llm=False)
+
+        self.assertEqual(payload["intent"], "meituan_spend_inspection")
+        self.assertIn("只读巡检", payload["answer"])
+        self.assertIn("--execute", payload["answer"])
+
+    def test_meituan_spend_inspection_execute_runs_query_script(self) -> None:
+        original_run_command = agent_command.run_command
+        try:
+            calls = []
+
+            def fake_run_command(command, *, timeout=900):
+                calls.append(command)
+                return {"command": command, "returncode": 0, "output_tail": "美团推广实时消耗巡检：\n总览：已读到 1/1 家。"}
+
+            agent_command.run_command = fake_run_command
+            payload = agent_command.handle_command("查一下美团推广花费", execute=True, use_llm=False)
+        finally:
+            agent_command.run_command = original_run_command
+
+        self.assertEqual(payload["intent"], "meituan_spend_inspection")
+        self.assertIn("美团推广实时消耗巡检", payload["answer"])
+        self.assertTrue(any(any(str(part).endswith("meituan_promo_spend_query.py") for part in command) for command in calls))
+        self.assertTrue(any("--period" in command and "all" in command and "--quiet" in command for command in calls))
+
     def test_budget_preview_requires_execute_flag(self) -> None:
         payload = agent_command.handle_command("重跑预算设置", execute=False)
 
