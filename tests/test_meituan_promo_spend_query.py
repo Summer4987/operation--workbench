@@ -189,6 +189,20 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertIn("1. 银泰城：预警，今日 95 元，预算 100 元，消耗 95%，已消耗预算 95%", text)
         self.assertIn("本巡检只读", text)
 
+    def test_format_human_compacts_playwright_call_log(self) -> None:
+        text = self.query.format_human(
+            [
+                {
+                    "keyword": "第3档口",
+                    "ok": False,
+                    "error": "Locator.click: Timeout 8000ms exceeded. Call log: <div class=\"backdrop_pypeX0\"> intercepts pointer events",
+                },
+            ]
+        )
+
+        self.assertIn("1. 第3档口：未核实。原因：页面弹出遮罩层挡住门店选择器", text)
+        self.assertNotIn("Call log", text)
+
 
 if __name__ == "__main__":
     unittest.main()

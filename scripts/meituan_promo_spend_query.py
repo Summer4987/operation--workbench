@@ -323,7 +323,7 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
                 "总部账号页面没有找到“全部门店”选择器。"
                 f" 当前URL：{page.url or '-'}；页面片段：{preview or '-'}"
             )
-        selector.click(timeout=8000)
+        click_after_dismissing_overlay(page, selector)
         time.sleep(1)
 
     items = page.locator(".roo-popup.bottom li")
@@ -351,6 +351,22 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
         + "；可选："
         + "；".join(available[:12])
     )
+
+
+def click_after_dismissing_overlay(page, locator) -> None:
+    try:
+        locator.click(timeout=8000)
+        return
+    except Exception as exc:
+        if "intercepts pointer events" not in str(exc) and "backdrop" not in str(exc):
+            raise
+    dismiss_common_modals(page)
+    try:
+        page.keyboard.press("Escape")
+        time.sleep(0.8)
+    except Exception:
+        pass
+    locator.click(timeout=8000)
 
 
 def dismiss_common_modals(page) -> None:
@@ -550,7 +566,7 @@ def money(value: Any) -> str:
 
 def inspect_level(item: dict[str, Any]) -> tuple[str, str]:
     if not item.get("ok"):
-        return "未核实", str(item.get("error") or "没有读到页面数据")
+        return "未核实", compact_error_message(str(item.get("error") or "没有读到页面数据"))
     percent = item.get("budget_percent")
     source = str(item.get("source") or "")
     if source == "budget_exhausted" or (percent is not None and float(percent) >= 100):
@@ -560,6 +576,20 @@ def inspect_level(item: dict[str, Any]) -> tuple[str, str]:
     if item.get("today_spend") in (0, 0.0):
         return "预警", "今日消耗为 0，需确认是否本应投放"
     return "正常", ""
+
+
+def compact_error_message(message: str) -> str:
+    text = normalize_space(message)
+    if "安全验证" in text or "verify.meituan.com" in text:
+        return "美团触发安全验证，需要先在 Mac mini 完成验证后重试"
+    if "backdrop" in text or "intercepts pointer events" in text:
+        return "页面弹出遮罩层挡住门店选择器，未能切换门店"
+    if "缺少 Playwright" in text or "No module named 'playwright'" in text:
+        return "Mac mini 浏览器自动化环境缺少 Playwright"
+    if "没有解析到推广花费" in text:
+        return "页面已打开，但没有解析到推广花费"
+    first = text.split("Call log:", 1)[0].strip()
+    return (first or text)[:180]
 
 
 def format_item_line(index: int, item: dict[str, Any]) -> str:
