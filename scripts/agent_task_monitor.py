@@ -153,9 +153,6 @@ def build_morning_task_report(
         if not status:
             status = "missing"
             reason = f"没有找到早间步骤记录：{step_name}"
-        elif status == "completed":
-            reason = f"{reason}；但没有找到早间步骤记录：{step_name}"
-            status = "attention"
         evidence_path = resolve_path(str(policy.get("evidence_path") or ""))
         last_run_at = path_updated_at(evidence_path) if evidence_path else ""
         evidence = str(policy.get("evidence_path") or "")

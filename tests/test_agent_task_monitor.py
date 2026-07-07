@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -147,6 +148,26 @@ class AgentTaskMonitorTests(unittest.TestCase):
 
         self.assertEqual(row["status"], "attention")
         self.assertIn("没有子步骤记录", row["failure_reason"])
+
+    def test_morning_step_with_evidence_is_completed_without_step_log(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            evidence = Path(temp_dir) / "latest.json"
+            evidence.write_text("{}", encoding="utf-8")
+            row = monitor_module.build_morning_task_report(
+                "morning.06_promo_balance",
+                {
+                    "name": "推广余额巡检",
+                    "risk": "low",
+                    "morning_step": "推广余额总巡检",
+                    "evidence_path": str(evidence),
+                },
+                {"steps": []},
+                {"tasks": {}},
+            )
+
+        self.assertEqual(row["status"], "completed")
+        self.assertEqual(row["failure_reason"], "")
+        self.assertTrue(row["completed"])
 
     def test_morning_aggregate_includes_failed_step_detail(self) -> None:
         row = monitor_module.build_morning_aggregate_report(
