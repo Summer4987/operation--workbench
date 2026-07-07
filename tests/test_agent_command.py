@@ -61,6 +61,12 @@ class AgentCommandTests(unittest.TestCase):
         self.assertIn("只读巡检", payload["answer"])
         self.assertIn("--execute", payload["answer"])
 
+    def test_meituan_remaining_routes_to_readonly_inspection(self) -> None:
+        payload = agent_command.handle_command("查询美团余量", execute=False, use_llm=False)
+
+        self.assertEqual(payload["intent"], "meituan_spend_inspection")
+        self.assertIn("只读巡检", payload["answer"])
+
     def test_meituan_spend_inspection_execute_runs_query_script(self) -> None:
         original_run_command = agent_command.run_command
         original_playwright_python = agent_command.PLAYWRIGHT_PYTHON

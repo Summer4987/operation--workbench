@@ -883,6 +883,7 @@ def _agent_queue_answer(item: dict) -> str:
     labels = {
         "budget_commit": "真实预算提交流程",
         "budget_preview": "预算预览/安全计划，不会直接提交预算",
+        "meituan_spend_inspection": "美团推广余量/实时消耗只读巡检，不会修改预算或出价",
         "refresh_status": "刷新 Agent 状态和手机入口数据",
         "publish_mobile": "发布手机入口和工作台数据",
         "execute_non_ordering": "执行允许的非订货动作",
@@ -1076,6 +1077,7 @@ def _agent_mobile_page_html() -> str:
       <button type="button" data-command="任务正常吗">任务状态</button>
       <button type="button" data-command="今天哪里失败">今日失败</button>
       <button type="button" data-command="哪些任务可以补跑">可补跑</button>
+      <button type="button" data-command="巡检美团实时消耗">一键查余量</button>
       <button type="button" data-command="刷新状态">刷新状态</button>
       <button type="button" data-command="重跑预算设置">预算预览</button>
     </section>
@@ -1217,7 +1219,7 @@ def _agent_mobile_page_html() -> str:
     els.composer.addEventListener("submit", event => { event.preventDefault(); send(els.text.value); });
     document.querySelectorAll("[data-command]").forEach(btn => btn.addEventListener("click", () => send(btn.dataset.command || "")));
     setToken(state.token);
-    if (!state.messages.length) addMessage("agent", "我在。你可以问任务状态、今日失败，也可以发刷新状态或重跑预算设置。订货相关动作会被拦截。");
+    if (!state.messages.length) addMessage("agent", "我在。你可以问任务状态、今日失败，也可以点一键查余量。订货相关动作会被拦截。");
     renderMessages();
     refresh();
     setInterval(refresh, 5000);

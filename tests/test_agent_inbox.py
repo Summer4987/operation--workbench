@@ -36,6 +36,13 @@ class AgentInboxTests(unittest.TestCase):
         self.assertEqual(policy["intent"], "rerun_plan")
         self.assertTrue(policy["execute"])
 
+    def test_meituan_remaining_policy_enqueues_readonly_inspection(self) -> None:
+        policy = agent_inbox.command_policy("一键查询美团余量")
+
+        self.assertTrue(policy["enqueue"])
+        self.assertEqual(policy["intent"], "meituan_spend_inspection")
+        self.assertTrue(policy["execute"])
+
     def test_inbox_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "inbox.json"
@@ -79,6 +86,20 @@ class AgentInboxTests(unittest.TestCase):
                 answer = agent_wecom.answer_or_enqueue("刷新状态", sender="summer", status={"answers": []})
                 self.assertIn("已加入 Mac mini 队列", answer)
                 self.assertEqual(agent_inbox.pending_tasks(path=Path(temp_dir) / "inbox.json")[0]["intent"], "refresh_status")
+            finally:
+                agent_inbox.inbox_path = original
+
+    def test_wecom_meituan_remaining_message_enqueues(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            original = agent_inbox.inbox_path
+            try:
+                agent_inbox.inbox_path = lambda: Path(temp_dir) / "inbox.json"
+                answer = agent_wecom.answer_or_enqueue("查询美团余量", sender="summer", status={"answers": []})
+                item = agent_inbox.pending_tasks(path=Path(temp_dir) / "inbox.json")[0]
+
+                self.assertIn("已加入 Mac mini 队列", answer)
+                self.assertEqual(item["intent"], "meituan_spend_inspection")
+                self.assertTrue(item["execute"])
             finally:
                 agent_inbox.inbox_path = original
 
@@ -175,6 +196,12 @@ class AgentInboxTests(unittest.TestCase):
         self.assertIn("function loadStoredMessages()", text)
         self.assertIn("localStorage.removeItem(\"xiongAgentMessages\")", text)
         self.assertIn("min-height: 0", text)
+
+    def test_mobile_agent_page_has_meituan_remaining_button(self) -> None:
+        text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
+
+        self.assertIn('data-command="巡检美团实时消耗"', text)
+        self.assertIn("一键查余量", text)
 
 
 if __name__ == "__main__":

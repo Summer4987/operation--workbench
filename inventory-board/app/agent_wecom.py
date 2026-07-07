@@ -221,6 +221,8 @@ def answer_or_enqueue(text: str, *, sender: str = "", status: dict[str, Any] | N
         action = "真实预算提交流程"
     elif item["intent"] == "budget_preview":
         action = "预算预览/安全计划，不会直接提交预算"
+    elif item["intent"] == "meituan_spend_inspection":
+        action = "美团推广余量/实时消耗只读巡检，不会修改预算或出价"
     elif item["intent"] == "refresh_status":
         action = "刷新 Agent 状态和手机入口数据"
     elif item["intent"] == "publish_mobile":

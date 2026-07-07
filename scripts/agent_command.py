@@ -35,7 +35,7 @@ BUDGET_KEYWORDS = ("预算", "推广预算")
 BUDGET_RERUN_KEYWORDS = ("重跑", "补跑", "重新", "设置", "初始化")
 BUDGET_CONFIRM_KEYWORDS = ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")
 MEITUAN_SPEND_KEYWORDS = ("美团", "meituan")
-SPEND_INSPECTION_KEYWORDS = ("消耗", "花费", "推广花费", "实时消耗", "消耗量", "巡检")
+SPEND_INSPECTION_KEYWORDS = ("消耗", "花费", "推广花费", "实时消耗", "消耗量", "余量", "剩余", "巡检")
 
 
 def now_text() -> str:
