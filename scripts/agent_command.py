@@ -21,6 +21,7 @@ import agent_llm  # noqa: E402
 OUTPUT_DIR = ROOT / "outputs" / "agent_command"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 PIPELINE_ID = "daily_automation_guard"
+PLAYWRIGHT_PYTHON = ROOT / "business-report-dashboard" / ".venv" / "bin" / "python"
 
 ORDERING_KEYWORDS = ("订货", "下单", "采购", "快驴", "order", "purchase", "kuailv", "inventory_order")
 EXECUTE_KEYWORDS = ("执行", "恢复", "处理", "补跑", "修复", "跑一下")
@@ -75,6 +76,10 @@ def run_command(command: list[str], *, timeout: int = 900) -> dict[str, Any]:
             "returncode": 124,
             "output_tail": (output + f"\n命令超时：{timeout} 秒")[-4000:],
         }
+
+
+def browser_python() -> str:
+    return str(PLAYWRIGHT_PYTHON) if PLAYWRIGHT_PYTHON.exists() else (sys.executable or "python3")
 
 
 def classify_intent(text: str) -> str:
@@ -189,7 +194,7 @@ def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[st
             answer = "这是美团推广实时消耗只读巡检。它不会改预算、出价或投放开关；需要在 Mac mini 上加 `--execute` 才会打开后台读取页面。"
         else:
             action = run_command(
-                [sys.executable or "python3", "scripts/meituan_promo_spend_query.py", "--period", "all", "--quiet"],
+                [browser_python(), "scripts/meituan_promo_spend_query.py", "--period", "all", "--quiet"],
                 timeout=1200,
             )
             actions.append(action)

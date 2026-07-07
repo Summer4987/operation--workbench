@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,7 @@ class AgentCommandTests(unittest.TestCase):
 
     def test_meituan_spend_inspection_execute_runs_query_script(self) -> None:
         original_run_command = agent_command.run_command
+        original_playwright_python = agent_command.PLAYWRIGHT_PYTHON
         try:
             calls = []
 
@@ -70,12 +72,18 @@ class AgentCommandTests(unittest.TestCase):
                 return {"command": command, "returncode": 0, "output_tail": "美团推广实时消耗巡检：\n总览：已读到 1/1 家。"}
 
             agent_command.run_command = fake_run_command
-            payload = agent_command.handle_command("查一下美团推广花费", execute=True, use_llm=False)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                fake_python = Path(temp_dir) / "python"
+                fake_python.write_text("", encoding="utf-8")
+                agent_command.PLAYWRIGHT_PYTHON = fake_python
+                payload = agent_command.handle_command("查一下美团推广花费", execute=True, use_llm=False)
         finally:
             agent_command.run_command = original_run_command
+            agent_command.PLAYWRIGHT_PYTHON = original_playwright_python
 
         self.assertEqual(payload["intent"], "meituan_spend_inspection")
         self.assertIn("美团推广实时消耗巡检", payload["answer"])
+        self.assertEqual(Path(calls[0][0]).name, "python")
         self.assertTrue(any(any(str(part).endswith("meituan_promo_spend_query.py") for part in command) for command in calls))
         self.assertTrue(any("--period" in command and "all" in command and "--quiet" in command for command in calls))
 
