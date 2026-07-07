@@ -1176,7 +1176,7 @@ def _agent_mobile_page_html() -> str:
         const payload = await api("/agent/api/status?limit=20");
         els.connection.textContent = "已连接";
         const summary = payload.summary || {};
-        els.summary.textContent = `待处理 ${summary.pending || 0}，运行中 ${summary.running || 0}，成功 ${summary.success || 0}，失败 ${summary.failed || 0}`;
+        els.summary.textContent = `待处理 ${summary.pending || 0}，运行中 ${summary.running || 0}，成功 ${summary.success || 0}，失败 ${summary.failed || 0}，已取消 ${summary.canceled || 0}`;
         renderTasks(payload.items || []);
       } catch (error) {
         els.connection.textContent = "连接失败";
@@ -1199,7 +1199,7 @@ def _agent_mobile_page_html() -> str:
       }).join("");
     }
     function statusText(status) {
-      return {pending:"等待中", running:"执行中", success:"完成", failed:"失败"}[status] || status || "未知";
+      return {pending:"等待中", running:"执行中", success:"完成", failed:"失败", canceled:"已取消"}[status] || status || "未知";
     }
     async function send(text) {
       const clean = text.trim();

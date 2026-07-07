@@ -94,7 +94,7 @@ def recent_tasks(limit: int = 20, path: Path | None = None) -> list[dict[str, An
 
 def task_summary(path: Path | None = None) -> dict[str, int]:
     payload = read_inbox(path)
-    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0, "total": 0}
+    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0, "canceled": 0, "total": 0}
     for item in payload.get("items", []):
         if not isinstance(item, dict):
             continue
@@ -128,7 +128,7 @@ def complete_task(task_id: str, *, status: str, result: dict[str, Any], path: Pa
     for item in payload.get("items", []):
         if not isinstance(item, dict) or item.get("id") != task_id:
             continue
-        item["status"] = "success" if status == "success" else "failed"
+        item["status"] = status if status in {"success", "failed", "canceled"} else "failed"
         item["updated_at"] = now_ts()
         item["result"] = result if isinstance(result, dict) else {}
         updated = item

@@ -69,6 +69,16 @@ class AgentInboxTests(unittest.TestCase):
             self.assertEqual(updated["status"], "success")
             self.assertEqual(agent_inbox.pending_tasks(path=path), [])
 
+    def test_inbox_can_mark_task_canceled(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "inbox.json"
+            item = agent_inbox.append_task(text="生成预算预览", intent="budget_preview", execute=True, source="test", path=path)
+            updated = agent_inbox.complete_task(item["id"], status="canceled", result={"returncode": 130}, path=path)
+            summary = agent_inbox.task_summary(path=path)
+
+            self.assertEqual(updated["status"], "canceled")
+            self.assertEqual(summary["canceled"], 1)
+
     def test_recent_tasks_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "inbox.json"
@@ -203,6 +213,7 @@ class AgentInboxTests(unittest.TestCase):
         self.assertIn("function loadStoredMessages()", text)
         self.assertIn("localStorage.removeItem(\"xiongAgentMessages\")", text)
         self.assertIn("min-height: 0", text)
+        self.assertIn('canceled:"已取消"', text)
 
     def test_mobile_agent_page_has_meituan_remaining_button(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
