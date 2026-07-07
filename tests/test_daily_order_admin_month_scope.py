@@ -56,6 +56,42 @@ def write_order(
     return path
 
 
+def write_custom_meal_order(
+    submission_dir: Path,
+    order_id: str,
+    submitted_at: str,
+    note: str,
+    store_name: str = "银泰城店",
+) -> Path:
+    order = {
+        "order_id": order_id,
+        "store_name": store_name,
+        "store_address": "测试地址",
+        "remark": "",
+        "status": "processed",
+        "processed_channels": ["快驴"],
+        "processed_at": submitted_at,
+        "submitted_at": submitted_at,
+        "client_host": "203.0.113.9",
+        "items": [
+            {
+                "sku": "MEAL-001",
+                "source": "快驴配送",
+                "purchase_channel": "快驴",
+                "category": "工作餐",
+                "name": "工作餐（自主填写）",
+                "spec": "",
+                "unit": "份",
+                "note": note,
+                "quantity": 1,
+            }
+        ],
+    }
+    path = submission_dir / f"{order_id}_{store_name}.json"
+    path.write_text(json.dumps(order, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
 def test_admin_summary_filters_orders_to_requested_month(tmp_path, monkeypatch):
     module = load_daily_order_module()
     submission_dir = tmp_path / "submissions"
@@ -73,6 +109,43 @@ def test_admin_summary_filters_orders_to_requested_month(tmp_path, monkeypatch):
     assert payload["month"] == "2026-06"
     assert payload["stats"]["order_count"] == 1
     assert payload["channels"][0]["totals"][0]["quantity"] == 10
+
+
+def test_admin_summary_keeps_custom_meal_notes_separate(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    submission_dir = tmp_path / "submissions"
+    submission_dir.mkdir()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", submission_dir)
+
+    write_custom_meal_order(submission_dir, "DO-MEAL-1", "2026-07-07T15:00:00+08:00", "熟凉面")
+    write_custom_meal_order(submission_dir, "DO-MEAL-2", "2026-07-07T16:00:00+08:00", "小葱少量")
+
+    client = TestClient(module.app)
+    response = client.get("/daily-order/api/admin/summary?status=processed&month=2026-07&token=daily-order-admin")
+
+    assert response.status_code == 200
+    payload = response.json()
+    channel = next(item for item in payload["channels"] if item["channel"] == "快驴")
+    order = next(item for item in channel["orders"] if item["store_name"] == "银泰城店")
+    notes = {item["note"] for item in order["items"] if item["sku"] == "MEAL-001"}
+    total_notes = {item["note"] for item in channel["totals"] if item["sku"] == "MEAL-001"}
+
+    assert notes == {"熟凉面", "小葱少量"}
+    assert total_notes == {"熟凉面", "小葱少量"}
+    assert len([item for item in order["items"] if item["sku"] == "MEAL-001"]) == 2
+
+
+def test_order_line_totals_keep_custom_meal_notes_separate():
+    module = load_daily_order_module()
+    rows = [
+        {"采购渠道": "快驴", "门店": "银泰城店", "SKU": "MEAL-001", "品名": "工作餐（自主填写）", "单位": "份", "备注": "熟凉面", "数量": 1},
+        {"采购渠道": "快驴", "门店": "银泰城店", "SKU": "MEAL-001", "品名": "工作餐（自主填写）", "单位": "份", "备注": "小葱少量", "数量": 1},
+    ]
+
+    totals = module._order_line_totals(rows)
+
+    assert {item["备注"] for item in totals} == {"熟凉面", "小葱少量"}
+    assert len(totals) == 2
 
 
 def test_channel_status_update_only_touches_requested_month(tmp_path, monkeypatch):

@@ -1231,11 +1231,11 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
                 channel_order["remark"] = "；".join(remarks)
             if not _channel_is_processed(order, item_channel):
                 channel_order["status"] = "pending"
-            sku = item["sku"]
+            item_key = _summary_item_key(item)
             line = store["items"].setdefault(
-                sku,
+                item_key,
                 {
-                    "sku": sku,
+                    "sku": item["sku"],
                     "name": item["name"],
                     "spec": item.get("spec", ""),
                     "unit": item.get("unit", ""),
@@ -1248,11 +1248,11 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
             line["quantity"] += float(item.get("quantity") or 0)
             if not _channel_is_processed(order, item_channel):
                 line["status"] = "pending"
-            order_line = channel_order["items"].setdefault(sku, {**line, "quantity": 0})
+            order_line = channel_order["items"].setdefault(item_key, {**line, "quantity": 0})
             order_line["quantity"] += float(item.get("quantity") or 0)
             if not _channel_is_processed(order, item_channel):
                 order_line["status"] = "pending"
-            total = channel["totals"].setdefault(sku, {**line, "quantity": 0})
+            total = channel["totals"].setdefault(item_key, {**line, "quantity": 0})
             total["quantity"] += float(item.get("quantity") or 0)
             if not _channel_is_processed(order, item_channel):
                 total["status"] = "pending"
@@ -1271,6 +1271,13 @@ def _channel_summary(orders: list[dict]) -> list[dict]:
         }
         for channel in channels.values()
     ], key=_channel_sort_key)
+
+
+def _summary_item_key(item: dict) -> str:
+    return "||".join(
+        str(item.get(part) or "")
+        for part in ("sku", "name", "spec", "unit", "note")
+    )
 
 
 def _require_admin(request: Request) -> None:
@@ -1330,12 +1337,13 @@ def _wechat_digest_messages(day: str) -> list[str]:
                 continue
             stores = groups.setdefault(item_channel, {})
             items = stores.setdefault(store_name, {})
-            item_key = f"{item.get('sku', '')}||{item.get('name', '')}||{item.get('unit', '')}"
+            item_key = _summary_item_key(item)
             line = items.setdefault(
                 item_key,
                 {
                     "name": item.get("name", ""),
                     "unit": item.get("unit", ""),
+                    "note": item.get("note", ""),
                     "quantity": 0,
                 },
             )
@@ -1351,7 +1359,8 @@ def _wechat_digest_messages(day: str) -> list[str]:
 
 
 def _plain_digest_line(item: dict) -> str:
-    return f"{item.get('name', '')} {_format_number(item.get('quantity'))}{item.get('unit') or ''}"
+    note = f" · {item.get('note')}" if item.get("note") else ""
+    return f"{item.get('name', '')}{note} {_format_number(item.get('quantity'))}{item.get('unit') or ''}"
 
 
 def _is_wechat_addon_time(submitted_time: datetime) -> bool:
@@ -1367,12 +1376,13 @@ def _wechat_addon_messages(order: dict) -> list[str]:
             continue
         stores = groups.setdefault(item_channel, {})
         items = stores.setdefault(store_name, {})
-        item_key = f"{item.get('sku', '')}||{item.get('name', '')}||{item.get('unit', '')}"
+        item_key = _summary_item_key(item)
         line = items.setdefault(
             item_key,
             {
                 "name": item.get("name", ""),
                 "unit": item.get("unit", ""),
+                "note": item.get("note", ""),
                 "quantity": 0,
             },
         )
@@ -1626,13 +1636,13 @@ def _order_line_rows(month: str = "", date: str = "") -> list[dict]:
 
 
 def _order_line_totals(rows: list[dict]) -> list[dict]:
-    totals: dict[tuple[str, str, str, str, str], float] = {}
+    totals: dict[tuple[str, str, str, str, str, str], float] = {}
     for row in rows:
-        key = (row["采购渠道"], row["门店"], row["SKU"], row["品名"], row["单位"])
+        key = (row["采购渠道"], row["门店"], row["SKU"], row["品名"], row["单位"], row["备注"])
         totals[key] = totals.get(key, 0.0) + _to_number(row["数量"])
     return [
-        {"采购渠道": channel, "门店": store, "SKU": sku, "品名": name, "单位": unit, "数量": quantity}
-        for (channel, store, sku, name, unit), quantity in sorted(totals.items())
+        {"采购渠道": channel, "门店": store, "SKU": sku, "品名": name, "单位": unit, "备注": note, "数量": quantity}
+        for (channel, store, sku, name, unit, note), quantity in sorted(totals.items())
     ]
 
 

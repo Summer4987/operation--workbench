@@ -205,11 +205,12 @@ function wechatMessageGroups(channel) {
         items: new Map(),
       };
       if (item.status !== "processed") orderEntry.status = "pending";
-      const itemKey = `${item.name}||${item.spec || ""}||${item.unit || ""}`;
+      const itemKey = `${item.name}||${item.spec || ""}||${item.unit || ""}||${item.note || ""}`;
       const line = store.items.get(itemKey) || {
         name: item.name || "",
         spec: item.spec || "",
         unit: item.unit || "",
+        note: item.note || "",
         quantity: 0,
       };
       line.quantity += Number(item.quantity || 0);
