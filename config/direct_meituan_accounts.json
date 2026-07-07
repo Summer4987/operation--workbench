@@ -7,6 +7,8 @@
       "stores": ["朝阳门店"],
       "meituan_store_name": "熊小小牛排饭POKEEBEAR（第B2档口雅宝食堂美食城店）",
       "keyword": "雅宝",
+      "daily_report_pause_until": "2026-07-11",
+      "daily_report_pause_reason": "美团人工客服确认该账号报表下载功能维护中，2026-07-11 恢复后再采集。",
       "profile_dir": "~/Library/Application Support/XiongOps/meituan-direct-chaoyangmen",
       "debug_port": 19223,
       "pages": {

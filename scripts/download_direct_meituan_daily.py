@@ -45,6 +45,39 @@ def enabled_account_ids() -> list[str]:
     ]
 
 
+def parse_pause_until(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+
+
+def daily_report_pause(account: dict, today: date | None = None) -> dict | None:
+    pause_until = parse_pause_until(account.get("daily_report_pause_until"))
+    if not pause_until:
+        return None
+    today = today or date.today()
+    if today >= pause_until:
+        return None
+    stores = "、".join(str(store) for store in account.get("stores") or [] if store)
+    return {
+        "account_id": account.get("id") or "",
+        "stores": stores,
+        "pause_until": pause_until.isoformat(),
+        "reason": account.get("daily_report_pause_reason") or "直营美团日报功能暂停。",
+    }
+
+
+def pause_message(pause: dict) -> str:
+    stores = f"（{pause['stores']}）" if pause.get("stores") else ""
+    return (
+        f"直营美团日报功能暂停：{pause.get('account_id', '')}{stores}，"
+        f"暂停至 {pause.get('pause_until')}；{pause.get('reason')}"
+    )
+
+
 def launch_context(playwright, account: dict, visible: bool, browser_executable: str | None):
     debug_port = account.get("debug_port")
     if debug_port and cdp_available(int(debug_port)):
@@ -316,6 +349,11 @@ def main() -> None:
     failures: list[str] = []
     for account_id in account_ids:
         try:
+            account = load_account(account_id)
+            pause = daily_report_pause(account)
+            if pause:
+                print(pause_message(pause))
+                continue
             path = run(account_id, args.target_date, args.submit, args.visible, args.wait_seconds, args.browser_executable)
             print(path)
         except Exception as exc:

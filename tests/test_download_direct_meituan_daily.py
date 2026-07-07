@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -40,6 +41,18 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
     def test_report_generation_maintenance_is_temporary(self) -> None:
         result = {"success": False, "code": 100045, "message": "维护中"}
         self.assertTrue(self.module.report_generation_temporarily_unavailable(result))
+
+    def test_daily_report_pause_is_active_until_resume_date(self) -> None:
+        account = {
+            "id": "direct_chaoyangmen",
+            "stores": ["朝阳门店"],
+            "daily_report_pause_until": "2026-07-11",
+            "daily_report_pause_reason": "客服确认维护中。",
+        }
+        pause = self.module.daily_report_pause(account, today=date(2026, 7, 10))
+        self.assertIsNotNone(pause)
+        self.assertIn("朝阳门店", self.module.pause_message(pause))
+        self.assertIsNone(self.module.daily_report_pause(account, today=date(2026, 7, 11)))
 
     def test_run_continues_to_download_when_submit_reports_maintenance(self) -> None:
         fake_page = object()
