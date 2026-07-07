@@ -162,13 +162,14 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(
             [
-                {"keyword": "银泰城", "ok": True, "today_spend": 150.01, "yesterday_spend": 150},
+                {"keyword": "银泰城", "ok": True, "today_spend": 150.01, "budget": 200, "remaining_budget": 49.99, "budget_percent": 75},
                 {"keyword": "万象城", "ok": False, "error": "登录失效"},
             ]
         )
         self.assertIn("美团推广实时消耗巡检", text)
         self.assertIn("总览：已读到 1/2 家", text)
-        self.assertIn("1. 银泰城：正常，今日 150.01 元", text)
+        self.assertIn("今日消耗 150.01 元，当前预算 200 元，剩余 49.99 元，使用率 75%", text)
+        self.assertNotIn("昨日", text)
         self.assertIn("2. 万象城：未核实。原因：登录失效", text)
 
     def test_format_human_reports_budget_warning(self) -> None:
@@ -186,8 +187,18 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         )
 
         self.assertIn("预警 1", text)
-        self.assertIn("1. 银泰城：预警，今日 95 元，预算 100 元，消耗 95%，已消耗预算 95%", text)
+        self.assertIn("1. 银泰城：预警，今日消耗 95 元，当前预算 100 元，使用率 95%，已消耗预算 95%", text)
         self.assertIn("本巡检只读", text)
+
+    def test_apply_budget_fields_uses_configured_budget_for_remaining(self) -> None:
+        record = {"today_spend": 75}
+
+        self.query.apply_budget_fields(record, 100)
+
+        self.assertEqual(record["budget"], 100)
+        self.assertEqual(record["remaining_budget"], 25)
+        self.assertEqual(record["budget_percent"], 75)
+        self.assertEqual(record["budget_source"], "configured")
 
     def test_format_human_compacts_playwright_call_log(self) -> None:
         text = self.query.format_human(

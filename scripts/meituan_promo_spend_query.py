@@ -78,6 +78,15 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
         "updated_at_hint": "",
         "source": "",
     }
+    budget_snapshot = parse_budget_spend(lines)
+
+    def with_budget(payload: dict[str, Any]) -> dict[str, Any]:
+        if budget_snapshot.get("budget") is not None and payload.get("budget") is None:
+            payload["budget"] = budget_snapshot["budget"]
+            payload["budget_source"] = "page"
+        if budget_snapshot.get("budget_percent") is not None and payload.get("budget_percent") is None:
+            payload["budget_percent"] = budget_snapshot["budget_percent"]
+        return payload
 
     for line in lines:
         match = re.search(r"今日\s*([0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2})\s*更新", line)
@@ -109,7 +118,7 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
                 today, yesterday = amount_after_label(offset, {"推广曝光量", "历史数据", "推广设置"})
                 if today is not None:
                     snapshot.update(today_spend=today, yesterday_spend=yesterday, source="realtime")
-                    return snapshot
+                    return with_budget(snapshot)
 
     compact = "\n".join(lines)
     realtime_match = re.search(r"推广实况(?P<section>.*?)(?:历史数据|推广设置|$)", compact, re.S)
@@ -121,7 +130,7 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
             yesterday_spend=parse_money(match.group(2) or ""),
             source="realtime_regex",
         )
-        return snapshot
+        return with_budget(snapshot)
 
     for index, line in enumerate(lines):
         if line == "总推广花费":
@@ -129,11 +138,12 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
                 amount = parse_money(candidate)
                 if amount is not None and "元" in candidate:
                     snapshot.update(today_spend=amount, source="homepage_total")
-                    return snapshot
+                    return with_budget(snapshot)
 
     budget_spend = parse_budget_spend(lines)
     if budget_spend.get("today_spend") is not None:
         snapshot.update(budget_spend)
+        snapshot["budget_source"] = "page"
         return snapshot
 
     for index, line in enumerate(lines):
@@ -141,9 +151,9 @@ def parse_spend_snapshot(text: str) -> dict[str, Any]:
             today, yesterday = amount_after_label(index, {"推广曝光量", "排名数据", "推广设置"})
             if today is not None:
                 snapshot.update(seven_day_spend=today, yesterday_spend=yesterday, source="fallback")
-                return snapshot
+                return with_budget(snapshot)
 
-    return snapshot
+    return with_budget(snapshot)
 
 
 def parse_budget_spend(lines: list[str]) -> dict[str, Any]:
@@ -462,6 +472,9 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
         "updated_at_hint": "",
         "source": "",
     }
+    configured_budget = task_budget(task)
+    if configured_budget is not None:
+        record["configured_budget"] = configured_budget
     page = None
     created_page = False
     try:
@@ -489,6 +502,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
         text = helpers["page_text"](page)
         snapshot = parse_spend_snapshot(text)
         record.update(snapshot)
+        apply_budget_fields(record, configured_budget)
         record["ok"] = record.get("today_spend") is not None or record.get("seven_day_spend") is not None
         if record["ok"]:
             amount = record.get("today_spend") if record.get("today_spend") is not None else record.get("seven_day_spend")
@@ -514,6 +528,32 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             except Exception:
                 pass
     return record
+
+
+def task_budget(task: dict[str, Any]) -> float | None:
+    for key in ("targetBudget", "budget", "currentBudget"):
+        value = task.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def apply_budget_fields(record: dict[str, Any], configured_budget: float | None) -> None:
+    if record.get("budget") is None and configured_budget is not None:
+        record["budget"] = configured_budget
+        record["budget_source"] = "configured"
+    spend = record.get("today_spend")
+    budget = record.get("budget")
+    if spend is None or budget in (None, 0, ""):
+        return
+    spend_value = float(spend)
+    budget_value = float(budget)
+    record["remaining_budget"] = round(max(budget_value - spend_value, 0), 2)
+    record["budget_percent"] = round(spend_value / budget_value * 100, 1)
 
 
 def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: bool = False) -> dict[str, Any]:
@@ -613,13 +653,13 @@ def format_item_line(index: int, item: dict[str, Any]) -> str:
     if not item.get("ok"):
         return f"{index}. {keyword}：{level}。原因：{reason}"
 
-    parts = [f"{index}. {keyword}：{level}，今日 {money(item.get('today_spend'))} 元"]
+    parts = [f"{index}. {keyword}：{level}，今日消耗 {money(item.get('today_spend'))} 元"]
     if item.get("budget") is not None:
-        parts.append(f"预算 {money(item.get('budget'))} 元")
+        parts.append(f"当前预算 {money(item.get('budget'))} 元")
+    if item.get("remaining_budget") is not None:
+        parts.append(f"剩余 {money(item.get('remaining_budget'))} 元")
     if item.get("budget_percent") is not None:
-        parts.append(f"消耗 {float(item.get('budget_percent')):.0f}%")
-    if item.get("yesterday_spend") is not None:
-        parts.append(f"昨日 {money(item.get('yesterday_spend'))} 元")
+        parts.append(f"使用率 {float(item.get('budget_percent')):.0f}%")
     if item.get("updated_at_hint"):
         parts.append(f"页面更新时间 {item.get('updated_at_hint')}")
     if reason:
@@ -630,6 +670,8 @@ def format_item_line(index: int, item: dict[str, Any]) -> str:
 def format_human(items: list[dict[str, Any]]) -> str:
     ok_items = [item for item in items if item.get("ok")]
     total = sum(float(item.get("today_spend") or 0) for item in ok_items if item.get("today_spend") is not None)
+    budget_total = sum(float(item.get("budget") or 0) for item in ok_items if item.get("budget") is not None)
+    remaining_total = sum(float(item.get("remaining_budget") or 0) for item in ok_items if item.get("remaining_budget") is not None)
     level_counts = {"正常": 0, "预警": 0, "异常": 0, "未核实": 0}
     for item in items:
         level, _ = inspect_level(item)
@@ -637,7 +679,8 @@ def format_human(items: list[dict[str, Any]]) -> str:
     lines = [
         "美团推广实时消耗巡检：",
         (
-            f"总览：已读到 {len(ok_items)}/{len(items)} 家，今日合计 {money(total)} 元；"
+            f"总览：已读到 {len(ok_items)}/{len(items)} 家，今日消耗 {money(total)} 元，"
+            f"当前预算 {money(budget_total)} 元，剩余 {money(remaining_total)} 元；"
             f"正常 {level_counts.get('正常', 0)}，预警 {level_counts.get('预警', 0)}，"
             f"异常 {level_counts.get('异常', 0)}，未核实 {level_counts.get('未核实', 0)}。"
         ),
