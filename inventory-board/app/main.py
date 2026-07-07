@@ -1079,7 +1079,7 @@ def _agent_mobile_page_html() -> str:
       <button type="button" data-command="哪些任务可以补跑">可补跑</button>
       <button type="button" data-command="巡检美团实时消耗">一键查余量</button>
       <button type="button" data-command="刷新状态">刷新状态</button>
-      <button type="button" data-command="重跑预算设置">预算预览</button>
+      <button type="button" data-command="生成预算预览">预算预览</button>
     </section>
     <section class="messages" id="messages"></section>
     <section class="tasks" id="tasks"></section>

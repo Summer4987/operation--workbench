@@ -32,6 +32,7 @@ RERUN_KEYWORDS = ("补跑", "重跑", "恢复")
 STATUS_KEYWORDS = ("状态", "怎么样", "情况", "正常", "稳", "顺利", "完成情况", "跑完")
 EXECUTION_STATUS_KEYWORDS = ("执行 agent", "执行Agent", "执行 Agent", "4号", "4 号", "跳过的执行", "跳过的是谁")
 BUDGET_KEYWORDS = ("预算", "推广预算")
+BUDGET_PREVIEW_KEYWORDS = ("预览", "安全计划", "安全检查", "试算", "计划")
 BUDGET_RERUN_KEYWORDS = ("重跑", "补跑", "重新", "设置", "初始化")
 BUDGET_CONFIRM_KEYWORDS = ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")
 MEITUAN_SPEND_KEYWORDS = ("美团", "meituan")
@@ -95,6 +96,8 @@ def classify_intent(text: str) -> str:
         return "budget_commit"
     if command_contains(clean, MEITUAN_SPEND_KEYWORDS) and command_contains(clean, SPEND_INSPECTION_KEYWORDS):
         return "meituan_spend_inspection"
+    if command_contains(clean, BUDGET_KEYWORDS) and command_contains(clean, BUDGET_PREVIEW_KEYWORDS):
+        return "budget_preview"
     if command_contains(clean, BUDGET_KEYWORDS) and command_contains(clean, BUDGET_RERUN_KEYWORDS):
         return "budget_preview"
     if command_contains(clean, PUBLISH_KEYWORDS) and command_contains(clean, ("发布", "上线", "同步到云端")):
@@ -129,6 +132,8 @@ def classify_intent_with_llm(text: str, *, use_llm: bool = True) -> tuple[str, d
         return "budget_commit", {"used": False, "fallback": "hard-budget-confirmation"}
     if command_contains(clean, MEITUAN_SPEND_KEYWORDS) and command_contains(clean, SPEND_INSPECTION_KEYWORDS):
         return "meituan_spend_inspection", {"used": False, "fallback": "hard-meituan-spend-inspection"}
+    if command_contains(clean, BUDGET_KEYWORDS) and command_contains(clean, BUDGET_PREVIEW_KEYWORDS):
+        return "budget_preview", {"used": False, "fallback": "hard-budget-preview"}
     if command_contains(clean, REFRESH_KEYWORDS):
         return "refresh_status", {"used": False, "fallback": "hard-refresh-query"}
     if command_contains(clean, EXECUTION_STATUS_KEYWORDS):

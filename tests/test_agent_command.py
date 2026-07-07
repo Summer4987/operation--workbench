@@ -48,6 +48,9 @@ class AgentCommandTests(unittest.TestCase):
     def test_budget_rerun_routes_to_preview(self) -> None:
         self.assertEqual(agent_command.classify_intent("重跑预算设置"), "budget_preview")
 
+    def test_budget_preview_wording_routes_to_preview(self) -> None:
+        self.assertEqual(agent_command.classify_intent("生成预算预览"), "budget_preview")
+
     def test_budget_commit_requires_confirmation_phrase(self) -> None:
         payload = agent_command.handle_command("确认执行预算重跑", execute=False)
 

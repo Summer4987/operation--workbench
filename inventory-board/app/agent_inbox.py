@@ -149,6 +149,8 @@ def command_policy(text: str) -> dict[str, Any]:
         return {"enqueue": True, "intent": "budget_commit", "execute": True, "reason": "explicit-budget-confirmation"}
     if ("美团" in clean or "meituan" in lower) and any(word in clean for word in ("消耗", "花费", "实时消耗", "消耗量", "余量", "剩余", "巡检")):
         return {"enqueue": True, "intent": "meituan_spend_inspection", "execute": True, "reason": "readonly-meituan-spend-inspection"}
+    if "预算" in clean and any(word in clean for word in ("预览", "安全计划", "安全检查", "试算", "计划")):
+        return {"enqueue": True, "intent": "budget_preview", "execute": True, "reason": "budget-preview-only"}
     if "预算" in clean and any(word in clean for word in ("重跑", "补跑", "重新", "设置", "初始化")):
         return {"enqueue": True, "intent": "budget_preview", "execute": True, "reason": "budget-preview-only"}
     if any(word in clean for word in ("刷新", "更新", "重新生成")) and any(word in clean for word in ("状态", "agent", "Agent", "入口")):

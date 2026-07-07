@@ -23,6 +23,13 @@ class AgentInboxTests(unittest.TestCase):
         self.assertEqual(policy["intent"], "budget_preview")
         self.assertTrue(policy["execute"])
 
+    def test_budget_preview_wording_enqueues_preview_only(self) -> None:
+        policy = agent_inbox.command_policy("生成预算预览")
+
+        self.assertTrue(policy["enqueue"])
+        self.assertEqual(policy["intent"], "budget_preview")
+        self.assertEqual(policy["reason"], "budget-preview-only")
+
     def test_ordering_policy_is_blocked(self) -> None:
         policy = agent_inbox.command_policy("帮我补跑订货")
 
@@ -202,6 +209,12 @@ class AgentInboxTests(unittest.TestCase):
 
         self.assertIn('data-command="巡检美团实时消耗"', text)
         self.assertIn("一键查余量", text)
+
+    def test_mobile_budget_preview_button_uses_preview_wording(self) -> None:
+        text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
+
+        self.assertIn('data-command="生成预算预览"', text)
+        self.assertNotIn('data-command="重跑预算设置"', text)
 
 
 if __name__ == "__main__":
