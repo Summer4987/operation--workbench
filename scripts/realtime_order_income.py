@@ -888,10 +888,14 @@ MEITUAN_ALL_STORES_ACTIVE_SCRIPT = """
     return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
   };
   const normalize = (value) => String(value || '').replace(/\\s+/g, '').trim();
+  const isAllStores = (value) => {
+    const text = normalize(value);
+    return text === '全部门店' || /^全部门店（共\\d+家）$/.test(text) || /^全部门店\\(共\\d+家\\)$/.test(text);
+  };
   const headerActive = Array.from(document.querySelectorAll('[class*="current-poi"],[class*="container_2x38j6"]'))
-    .some((el) => visible(el) && normalize(el.innerText || el.textContent || el.getAttribute('title')) === '全部门店');
+    .some((el) => visible(el) && isAllStores(el.innerText || el.textContent || el.getAttribute('title')));
   const body = document.body ? document.body.innerText : '';
-  return headerActive || /^全部门店\\s*xxxnpf/m.test(body);
+  return headerActive || /^全部门店(?:（共\\d+家）|\\(共\\d+家\\))?\\s*xxxnpf/m.test(body);
 }
 """
 
@@ -940,16 +944,18 @@ def click_meituan_store_dropdown(target) -> bool:
 
 
 def click_meituan_all_stores_option(target) -> bool:
-    try:
-        target.get_by_text("全部门店（共9家）", exact=True).first.click(timeout=5000, force=True)
-        return True
-    except Exception:
-        pass
-    try:
-        target.locator('[title="全部门店（共9家）"]').first.click(timeout=5000, force=True)
-        return True
-    except Exception:
-        pass
+    option_texts = ["全部门店（共9家）", "全部门店"]
+    for text in option_texts:
+        try:
+            target.get_by_text(text, exact=True).first.click(timeout=5000, force=True)
+            return True
+        except Exception:
+            pass
+        try:
+            target.locator(f'[title="{text}"]').first.click(timeout=5000, force=True)
+            return True
+        except Exception:
+            pass
     try:
         return bool(
             target.evaluate(
@@ -960,8 +966,13 @@ def click_meituan_all_stores_option(target) -> bool:
                     const style = getComputedStyle(el);
                     return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
                   };
+                  const normalize = (value) => String(value || '').replace(/\\s+/g, '').trim();
+                  const isAllStores = (value) => {
+                    const text = normalize(value);
+                    return text === '全部门店' || /^全部门店（共\\d+家）$/.test(text) || /^全部门店\\(共\\d+家\\)$/.test(text);
+                  };
                   const option = Array.from(document.querySelectorAll('li,div,span,[role="button"],button'))
-                    .find((el) => visible(el) && (el.innerText || el.textContent || el.getAttribute('title') || '').replace(/\\s+/g, '').trim() === '全部门店（共9家）');
+                    .find((el) => visible(el) && isAllStores(el.innerText || el.textContent || el.getAttribute('title')));
                   if (!option) return false;
                   option.scrollIntoView({ block: 'center', inline: 'center' });
                   for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
