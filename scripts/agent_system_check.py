@@ -44,15 +44,21 @@ def load_agent_token() -> str:
     token = os.environ.get("AGENT_INBOX_TOKEN", "").strip()
     if token:
         return token
-    private_json = ROOT / "config" / "agent_private.json"
-    if private_json.exists():
-        value = str(read_json(private_json).get("agent_inbox_token") or "").strip()
-        if value:
-            return value
-    env_file = Path.home() / ".xiong-agent-env"
-    for line in read_text(env_file).splitlines():
-        if line.startswith("AGENT_INBOX_TOKEN="):
-            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    for path in [Path.home() / ".xiong-agent-env", ROOT / "config" / "ops_notify.json", ROOT / "config" / "agent_private.json"]:
+        try:
+            if path.suffix == ".json":
+                value = str(read_json(path).get("agent_inbox_token") or "").strip()
+                if value:
+                    return value
+                continue
+            for raw in read_text(path).splitlines():
+                line = raw.strip()
+                if line.startswith("export "):
+                    line = line[len("export ") :].strip()
+                if line.startswith("AGENT_INBOX_TOKEN="):
+                    return line.split("=", 1)[1].strip().strip("'\"")
+        except Exception:
+            continue
     return ""
 
 
