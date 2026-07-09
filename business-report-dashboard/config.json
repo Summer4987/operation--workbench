@@ -7,7 +7,8 @@
     "丽泽",
     "双井",
     "光谷",
-    "五一广场"
+    "五一广场",
+    "望京"
   ],
   "store_aliases": [
     {
@@ -51,6 +52,11 @@
       "aliases": ["五一广场店"]
     },
     {
+      "platform": "饿了么",
+      "short_name": "望京",
+      "aliases": ["望京店"]
+    },
+    {
       "platform": "美团",
       "short_name": "安贞",
       "aliases": ["安贞店"]
@@ -89,6 +95,11 @@
       "platform": "美团",
       "short_name": "五一广场",
       "aliases": ["五一广场店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "望京",
+      "aliases": ["望京店"]
     }
   ],
   "eleme": {

@@ -99,6 +99,18 @@ def test_meituan_realtime_dom_row_handles_zero_middle_metrics():
     assert record["income"] == 0
 
 
+def test_new_wangjing_store_maps_from_platform_rows():
+    record = build_dom_record(
+        "4 熊小小牛排饭POKEBEAR（望京店） 128.60 340.10 44.00 520.30 20.00 410.20 5 13 25.72 31.55",
+        "美团",
+    )
+
+    assert record is not None
+    assert record["store"] == "望京"
+    assert record["orders"] == 5
+    assert record["income"] == 128.6
+
+
 def test_closed_store_rule_forces_realtime_zero():
     record = build_dom_record(
         "9 熊小小牛排饭POKEBEAR（五一广场店） 0.00 383.42 0.00 764.30 0.00 498.20 0 12 0.00 41.52",

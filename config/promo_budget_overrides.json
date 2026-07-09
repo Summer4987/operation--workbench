@@ -168,6 +168,20 @@
         "weekendDinnerBudget": 120
       }
     },
+    "望京店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150,
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
+      },
+      "美团": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150,
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
+      }
+    },
     "银泰城店": {
       "饿了么": {
         "lunchBudget": 100,

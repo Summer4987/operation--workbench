@@ -42,6 +42,7 @@ TARGET_STORES = {
     "双井": ["双井", "双井店"],
     "五一广场": ["五一广场", "五一广场店"],
     "光谷": ["光谷", "光谷店"],
+    "望京": ["望京", "望京店"],
 }
 
 STORE_NAME_KEYS = [
@@ -1008,9 +1009,9 @@ def click_meituan_all_stores(page) -> None:
     if single_store:
         raise RuntimeError(
             f"美团当前停留在单店上下文：{single_store.group(1)}，"
-            "未能自动切回全部门店，无法采集 8 家门店。"
+            f"未能自动切回全部门店，无法采集 {len(TARGET_STORES)} 家门店。"
         )
-    raise RuntimeError("美团未能自动切回全部门店，无法采集 8 家门店。")
+    raise RuntimeError(f"美团未能自动切回全部门店，无法采集 {len(TARGET_STORES)} 家门店。")
 
 
 def click_meituan_realtime_and_scroll(page) -> None:
@@ -1079,7 +1080,7 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
         if single_store and ("今日实时数据" in body or "营业收入" in body or "订单量" in body):
             raise RuntimeError(
                 f"美团当前停留在单店上下文：{single_store.group(1)}，"
-                "未进入连锁/全部门店实时排行，无法采集 8 家门店。"
+                f"未进入连锁/全部门店实时排行，无法采集 {len(TARGET_STORES)} 家门店。"
             )
     return result
 

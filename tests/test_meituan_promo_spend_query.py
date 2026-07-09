@@ -122,6 +122,18 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertIn("第3档口", aliases)
         self.assertIn("吉祥美食城", aliases)
 
+    def test_task_store_aliases_include_wangjing(self) -> None:
+        aliases = self.query.task_store_aliases(
+            {
+                "keyword": "望京",
+                "store": "熊小小牛排饭POKEBEAR（望京店）",
+                "sourceStore": "望京店",
+            }
+        )
+
+        self.assertIn("望京", aliases)
+        self.assertIn("望京店", aliases)
+
     def test_select_headquarters_store_accepts_current_single_store_ad_page(self) -> None:
         page = types.SimpleNamespace(
             url="https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId=32022526",
