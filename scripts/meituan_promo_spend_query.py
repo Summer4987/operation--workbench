@@ -573,6 +573,15 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
     return record
 
 
+def should_retry_query(record: dict[str, Any]) -> bool:
+    if record.get("ok"):
+        return False
+    message = str(record.get("error") or "")
+    if any(token in message for token in ("Target page, context or browser has been closed", "点击门店")):
+        return True
+    return str(record.get("failure_type") or "") in {"dianjin_entry_missing", "timeout"}
+
+
 def task_budget(task: dict[str, Any]) -> float | None:
     for key in ("targetBudget", "budget", "currentBudget"):
         value = task.get(key)
@@ -624,7 +633,18 @@ def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: b
             for task in tasks:
                 if not quiet:
                     print(f"读取美团推广消耗：{task.get('keyword') or task.get('store')}", flush=True)
-                results.append(query_task(task, helpers, playwright, contexts, launched_contexts, base_url, direct_accounts))
+                record = query_task(task, helpers, playwright, contexts, launched_contexts, base_url, direct_accounts)
+                if should_retry_query(record):
+                    if not quiet:
+                        print(f"重试美团推广消耗：{task.get('keyword') or task.get('store')}", flush=True)
+                    time.sleep(3)
+                    retry_record = query_task(task, helpers, playwright, contexts, launched_contexts, base_url, direct_accounts)
+                    retry_record["retry_after"] = {
+                        "failure_type": record.get("failure_type") or "",
+                        "error": compact_error_message(str(record.get("error") or "")),
+                    }
+                    record = retry_record
+                results.append(record)
         finally:
             for context in launched_contexts:
                 try:

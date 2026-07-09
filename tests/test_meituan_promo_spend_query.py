@@ -227,6 +227,15 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(record["budget_percent"], 75)
         self.assertEqual(record["budget_source"], "configured")
 
+    def test_should_retry_transient_browser_and_entry_failures(self) -> None:
+        self.assertTrue(
+            self.query.should_retry_query(
+                {"ok": False, "error": "Page.evaluate: Target page, context or browser has been closed"}
+            )
+        )
+        self.assertTrue(self.query.should_retry_query({"ok": False, "failure_type": "dianjin_entry_missing"}))
+        self.assertFalse(self.query.should_retry_query({"ok": False, "failure_type": "auth_block"}))
+
     def test_format_human_compacts_playwright_call_log(self) -> None:
         text = self.query.format_human(
             [
