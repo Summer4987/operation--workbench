@@ -131,6 +131,8 @@ def page_text(page) -> str:
 
 def classify_failure(message: str) -> str:
     body = str(message or "")
+    if "请输入0-0元" in body or "0-0元" in body or ("预算已耗尽" in body and "输入金额过高" in body):
+        return "platform_budget_locked"
     if any(token in body for token in ("未登录", "登录", "验证码", "安全验证", "UNAUTHORIZED")):
         return "auth_block"
     if any(token in body for token in ("未能打开点金推广内层页面", "没有可见的点金推广入口", "进入点金推广后没有预算区域")):
@@ -640,6 +642,14 @@ def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str
         if final_budget is not None and abs(final_budget - target) <= 0.01:
             close_budget_modal(page)
             return final_budget, "确定按钮禁用，页面预算已是目标值"
+        body = page_text(page)
+        compact = body.replace(" ", "")
+        if "预算已耗尽" in compact and ("请输入0-0元" in compact or "输入金额过高" in compact):
+            close_budget_modal(page)
+            raise RuntimeError(
+                f"平台预算锁定：预算已耗尽，预算弹窗限制请输入0-0元，无法自动设置目标预算 {target:g}；"
+                f"当前页面预算={final_budget}"
+            )
         raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
     click_message = click_confirm_button(page, confirm_button)
     time.sleep(6)
@@ -731,6 +741,9 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     except Exception as exc:
         record["error"] = str(exc)
         record["failure_type"] = classify_failure(str(exc))
+        if record["failure_type"] == "platform_budget_locked":
+            record["skipped"] = True
+            record["message"] = "平台预算已耗尽且限制 0-0 元，本次自动预算跳过，需人工复核平台状态。"
         if page is not None:
             record["evidence"] = save_failure_evidence(page, task, record["failure_type"])
     finally:
@@ -751,7 +764,7 @@ def execute_task_with_store_retries(context, base_url: str, task: dict, *, commi
         last_record = record
         if record.get("ok"):
             return record
-        if record.get("failure_type") in {"auth_block", "store_mapping", "page_structure_changed"}:
+        if record.get("failure_type") in {"auth_block", "store_mapping", "page_structure_changed", "platform_budget_locked"}:
             return record
         print(f"门店级重试：{task.get('keyword')} 第 {attempt}/{attempts} 次失败：{record.get('error')}", flush=True)
         time.sleep(5)
@@ -1020,9 +1033,13 @@ def main() -> int:
 
     write_run_log(output, period, args.period, args.mode, results, partial=False, preflight=args.preflight)
     ok_count = sum(1 for item in results if item.get("ok"))
-    fail_count = len(results) - ok_count
+    skipped_count = sum(1 for item in results if item.get("skipped"))
+    fail_count = sum(1 for item in results if not item.get("ok") and not item.get("skipped"))
     print(f"美团预算执行日志：{output}")
-    print(f"任务数：{len(results)}，成功：{ok_count}，失败：{fail_count}")
+    if skipped_count:
+        print(f"任务数：{len(results)}，成功：{ok_count}，跳过：{skipped_count}，失败：{fail_count}")
+    else:
+        print(f"任务数：{len(results)}，成功：{ok_count}，失败：{fail_count}")
     return 0 if fail_count == 0 else 1
 
 

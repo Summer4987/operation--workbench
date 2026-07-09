@@ -234,6 +234,29 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIn("强制点击确定", message)
         self.assertEqual(locator.click_kwargs[-1].get("force"), True)
 
+    def test_classify_platform_budget_locked_zero_range(self) -> None:
+        self.assertEqual(
+            self.module.classify_failure("平台预算锁定：预算已耗尽，预算弹窗限制请输入0-0元"),
+            "platform_budget_locked",
+        )
+
+    def test_confirm_budget_reports_platform_locked_zero_range(self) -> None:
+        page = FakeConfirmPage()
+        disabled = FakeLocator(enabled=False)
+
+        with mock.patch.object(self.module, "confirm_button_locator", return_value=disabled):
+            with mock.patch.object(self.module, "budget_input_locator", return_value=FakeInput()):
+                with mock.patch.object(self.module, "trigger_form_dirty"):
+                    with mock.patch.object(self.module, "read_budget", return_value=150.0):
+                        with mock.patch.object(
+                            self.module,
+                            "page_text",
+                            return_value="预算已耗尽 每日预算 输入金额过高，请输入0-0元 取消 确定",
+                        ):
+                            with mock.patch.object(self.module, "close_budget_modal"):
+                                with self.assertRaisesRegex(RuntimeError, "平台预算锁定"):
+                                    self.module.confirm_budget_with_recovery(page, 70.0)
+
 
 if __name__ == "__main__":
     unittest.main()
