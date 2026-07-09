@@ -1163,6 +1163,8 @@ def _agent_mobile_page_html() -> str:
       <button type="button" data-command="任务正常吗">任务状态</button>
       <button type="button" data-command="今天哪里失败">今日失败</button>
       <button type="button" data-command="哪些任务可以补跑">可补跑</button>
+      <button type="button" data-command="系统自检">系统自检</button>
+      <button type="button" data-command="验收望京同步">验收望京</button>
       <button type="button" data-command="巡检美团实时消耗">一键查余量</button>
       <button type="button" data-command="刷新状态">刷新状态</button>
     </section>

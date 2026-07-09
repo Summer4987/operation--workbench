@@ -70,6 +70,12 @@ class AgentCommandTests(unittest.TestCase):
         self.assertEqual(payload["intent"], "meituan_spend_inspection")
         self.assertIn("只读巡检", payload["answer"])
 
+    def test_system_check_routes_to_self_check(self) -> None:
+        self.assertEqual(agent_command.classify_intent("系统自检"), "system_check")
+
+    def test_feature_acceptance_routes_to_acceptance(self) -> None:
+        self.assertEqual(agent_command.classify_intent("验收望京同步"), "feature_acceptance")
+
     def test_meituan_spend_inspection_execute_runs_query_script(self) -> None:
         original_run_command = agent_command.run_command
         original_playwright_python = agent_command.PLAYWRIGHT_PYTHON

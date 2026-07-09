@@ -50,6 +50,20 @@ class AgentInboxTests(unittest.TestCase):
         self.assertEqual(policy["intent"], "meituan_spend_inspection")
         self.assertTrue(policy["execute"])
 
+    def test_system_check_policy_enqueues(self) -> None:
+        policy = agent_inbox.command_policy("系统自检")
+
+        self.assertTrue(policy["enqueue"])
+        self.assertEqual(policy["intent"], "system_check")
+        self.assertTrue(policy["execute"])
+
+    def test_feature_acceptance_policy_enqueues(self) -> None:
+        policy = agent_inbox.command_policy("验收望京同步")
+
+        self.assertTrue(policy["enqueue"])
+        self.assertEqual(policy["intent"], "feature_acceptance")
+        self.assertTrue(policy["execute"])
+
     def test_inbox_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "inbox.json"
@@ -244,7 +258,7 @@ class AgentInboxTests(unittest.TestCase):
     def test_mobile_agent_page_keeps_chat_area_clickable(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
 
-        self.assertIn("grid-template-rows: auto auto auto minmax(0, 1fr) auto auto", text)
+        self.assertIn("grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto", text)
         self.assertIn("height: 100dvh", text)
         self.assertIn("function loadStoredMessages()", text)
         self.assertIn("localStorage.removeItem(\"xiongAgentMessages\")", text)
@@ -256,6 +270,12 @@ class AgentInboxTests(unittest.TestCase):
 
         self.assertIn('data-command="巡检美团实时消耗"', text)
         self.assertIn("一键查余量", text)
+
+    def test_mobile_agent_page_has_self_check_buttons(self) -> None:
+        text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
+
+        self.assertIn('data-command="系统自检"', text)
+        self.assertIn('data-command="验收望京同步"', text)
 
     def test_mobile_agent_page_omits_budget_preview_button(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")

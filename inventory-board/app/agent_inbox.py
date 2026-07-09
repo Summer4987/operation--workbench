@@ -145,6 +145,10 @@ def command_policy(text: str) -> dict[str, Any]:
     lower = clean.lower()
     if any(word in clean for word in ("订货", "下单", "采购", "快驴")) or any(word in lower for word in ("order", "purchase")):
         return {"enqueue": False, "intent": "blocked_ordering", "execute": False, "reason": "ordering-blocked"}
+    if any(word in clean for word in ("系统自检", "自检", "健康检查", "检查系统")):
+        return {"enqueue": True, "intent": "system_check", "execute": True, "reason": "system-check"}
+    if any(word in clean for word in ("验收", "同步了吗", "接入了吗", "同步没", "接入没", "功能检查")):
+        return {"enqueue": True, "intent": "feature_acceptance", "execute": True, "reason": "feature-acceptance"}
     if any(word in clean for word in ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")):
         return {"enqueue": True, "intent": "budget_commit", "execute": True, "reason": "explicit-budget-confirmation"}
     if ("美团" in clean or "meituan" in lower) and any(word in clean for word in ("消耗", "花费", "实时消耗", "消耗量", "余量", "剩余", "巡检")):
