@@ -52,10 +52,11 @@ class AgentTaskNotifierTests(unittest.TestCase):
             {"name": "示例任务", "rerun": {"suggested": True, "auto_allowed": False, "reason": "只报告。"}},
         )
 
-        self.assertIn("示例任务出问题了。", message)
-        self.assertIn("问题在这里：页面结构变化", message)
+        self.assertIn("结论：示例任务未通过，需要处理。", message)
+        self.assertIn("功能验收：示例任务：失败", message)
+        self.assertIn("问题：页面结构变化", message)
         self.assertIn("证据 /tmp/example.log", message)
-        self.assertIn("我不会自动补跑，原因：只报告。", message)
+        self.assertIn("处理建议：不自动补跑，原因：只报告。", message)
         self.assertNotIn("任务 ID：", message)
         self.assertNotIn("ID task.example", message)
         self.assertNotIn("[失败]", message)
@@ -414,7 +415,8 @@ class AgentTaskNotifierTests(unittest.TestCase):
                 self.notifier.load_policy_rows = original_loader
 
             self.assertEqual(payload["notification_count"], 1)
-            self.assertIn("实时单量和营业额采集已经完成", payload["notifications"][0]["message"])
+            self.assertIn("结论：实时单量和营业额采集通过，功能已完成。", payload["notifications"][0]["message"])
+            self.assertIn("功能验收：实时单量和营业额采集：成功", payload["notifications"][0]["message"])
 
     def test_notify_skips_unknown_unconfigured_tasks_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

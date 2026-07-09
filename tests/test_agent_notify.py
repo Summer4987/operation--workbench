@@ -26,8 +26,9 @@ class AgentNotifyTests(unittest.TestCase):
         )
 
         self.assertIn("熊小小运营 Agent", message)
-        self.assertIn("事项：预算预览完成", message)
-        self.assertIn("说明：没有真实提交预算。", message)
+        self.assertIn("结论：预算预览完成：已完成。", message)
+        self.assertIn("功能验收：预算预览完成：正常", message)
+        self.assertIn("依据：没有真实提交预算。", message)
         self.assertIn("时间：2026-07-04 10:00:00", message)
 
     def test_build_message_hides_long_urls(self) -> None:

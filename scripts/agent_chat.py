@@ -144,6 +144,32 @@ def task_reason(row: dict[str, Any]) -> str:
     return compact_reason(row.get("failure_reason") or row.get("message") or row.get("human_action"), fallback="")
 
 
+def report_conclusion(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
+    total = int(summary.get("total") or len(rows))
+    completed = int(summary.get("completed") or 0)
+    failed = int(summary.get("failed") or 0)
+    attention = int(summary.get("attention") or 0) + int(summary.get("missing") or 0)
+    running = int(summary.get("running") or 0)
+    if failed:
+        return f"结论：不完全正常，有 {failed} 个失败项；成功 {completed}/{total}，需核实 {attention}，运行中 {running}。"
+    if attention or running:
+        return f"结论：核心任务没有失败，但有 {attention + running} 项需要核实；成功 {completed}/{total}。"
+    return f"结论：当前任务正常；成功 {completed}/{total}，没有失败或待核实项。"
+
+
+def feature_status_line(index: int, row: dict[str, Any]) -> str:
+    name = str(row.get("name") or row.get("id") or "未命名功能")
+    status = task_state_text(row)
+    action = task_action_text(row)
+    reason = task_reason(row)
+    parts = [f"{index}. {name}：{status}"]
+    if reason:
+        parts.append(f"依据：{reason}")
+    if action != "不用补跑" or str(row.get("status") or "") != "completed":
+        parts.append(f"处理：{action}")
+    return "。".join(parts)
+
+
 def format_task_line(index: int, row: dict[str, Any]) -> str:
     name = str(row.get("name") or row.get("id") or "未命名任务")
     line = f"{index}. {name}：{task_state_text(row)}"
@@ -173,17 +199,19 @@ def build_numbered_task_report(monitor: dict[str, Any], *, problem_only: bool = 
         return "当前没有读到任务明细，请先刷新 Agent 状态。"
 
     unresolved = failed + attention + missing + running
-    title = "今天需要处理的任务：" if problem_only else "今天自动化任务状态："
+    title = "今天需要处理的功能：" if problem_only else "自动化功能验收报告："
     lines = [
         title,
-        f"总览：成功 {completed}/{total}，失败 {failed}，需核实 {attention + missing}，运行中 {running}。",
+        report_conclusion(summary, monitor_tasks(monitor)),
+        "功能验收状态：",
     ]
     for index, row in enumerate(rows[:20], start=1):
-        lines.append(format_task_line(index, row))
+        lines.append(feature_status_line(index, row))
     if len(rows) > 20:
         lines.append(f"另外还有 {len(rows) - 20} 项没有展开。")
 
     allowed, manual = rerun_candidates(monitor)
+    lines.append("处理建议：")
     if allowed:
         names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in allowed[:6])
         lines.append(f"可自动处理：{names}。你说“执行补跑”时，我只跑这些低风险项。")

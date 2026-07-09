@@ -37,8 +37,7 @@ BUDGET_RERUN_KEYWORDS = ("重跑", "补跑", "重新", "设置", "初始化")
 BUDGET_CONFIRM_KEYWORDS = ("确认执行预算重跑", "确认重跑预算设置", "确认真实提交预算", "确认提交预算")
 MEITUAN_SPEND_KEYWORDS = ("美团", "meituan")
 SPEND_INSPECTION_KEYWORDS = ("消耗", "花费", "推广花费", "实时消耗", "消耗量", "余量", "剩余", "巡检")
-SYSTEM_CHECK_KEYWORDS = ("系统自检", "自检", "健康检查", "检查系统")
-ACCEPTANCE_KEYWORDS = ("验收", "同步了吗", "接入了吗", "同步没", "接入没", "功能检查")
+SYSTEM_CHECK_KEYWORDS = ("系统自检", "自检", "健康检查", "检查系统", "功能验收状态")
 
 
 def now_text() -> str:
@@ -96,8 +95,6 @@ def classify_intent(text: str) -> str:
         return "blocked_ordering"
     if command_contains(clean, SYSTEM_CHECK_KEYWORDS):
         return "system_check"
-    if command_contains(clean, ACCEPTANCE_KEYWORDS):
-        return "feature_acceptance"
     if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
         return "budget_commit"
     if command_contains(clean, MEITUAN_SPEND_KEYWORDS) and command_contains(clean, SPEND_INSPECTION_KEYWORDS):
@@ -136,8 +133,6 @@ def classify_intent_with_llm(text: str, *, use_llm: bool = True) -> tuple[str, d
         return "blocked_ordering", {"used": False, "fallback": "hard-ordering-block"}
     if command_contains(clean, SYSTEM_CHECK_KEYWORDS):
         return "system_check", {"used": False, "fallback": "hard-system-check"}
-    if command_contains(clean, ACCEPTANCE_KEYWORDS):
-        return "feature_acceptance", {"used": False, "fallback": "hard-feature-acceptance"}
     if command_contains(clean, BUDGET_CONFIRM_KEYWORDS):
         return "budget_commit", {"used": False, "fallback": "hard-budget-confirmation"}
     if command_contains(clean, MEITUAN_SPEND_KEYWORDS) and command_contains(clean, SPEND_INSPECTION_KEYWORDS):
@@ -219,14 +214,6 @@ def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[st
         action = run_command(command, timeout=180)
         actions.append(action)
         answer = action["output_tail"].strip() or f"系统自检没有返回内容，退出码 {action['returncode']}。"
-    elif intent == "feature_acceptance":
-        store = "望京" if "望京" in text else ""
-        command = [sys.executable or "python3", "scripts/agent_system_check.py", "--mode", "feature"]
-        if store:
-            command.extend(["--store", store])
-        action = run_command(command, timeout=180)
-        actions.append(action)
-        answer = action["output_tail"].strip() or f"功能验收没有返回内容，退出码 {action['returncode']}。"
     elif intent == "execute_non_ordering":
         if not execute:
             answer = "这是非订货执行请求。为防误触发，请在 Mac mini 上加 `--execute` 执行；不加时我只做意图识别。"

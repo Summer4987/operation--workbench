@@ -89,7 +89,9 @@ class AgentChatTests(unittest.TestCase):
             },
         )
 
-        self.assertIn("今天需要处理的任务", answer)
+        self.assertIn("今天需要处理的功能", answer)
+        self.assertIn("结论：不完全正常", answer)
+        self.assertIn("功能验收状态", answer)
         self.assertIn("1. 上午运营一键采集总状态：失败", answer)
         self.assertIn("直营美团日报失败", answer)
         self.assertIn("2. Chrome/登录环境检查：需核实", answer)
@@ -103,7 +105,8 @@ class AgentChatTests(unittest.TestCase):
             },
         )
 
-        self.assertIn("今天需要处理的任务", answer)
+        self.assertIn("今天需要处理的功能", answer)
+        self.assertIn("结论：核心任务没有失败", answer)
         self.assertIn("1. Chrome/登录环境检查：需核实", answer)
 
     def test_status_answer_is_numbered_task_board(self) -> None:
@@ -123,10 +126,13 @@ class AgentChatTests(unittest.TestCase):
             },
         )
 
-        self.assertIn("今天自动化任务状态", answer)
+        self.assertIn("自动化功能验收报告", answer)
+        self.assertIn("结论：不完全正常", answer)
+        self.assertIn("功能验收状态", answer)
         self.assertIn("1. 直营店日报采集：失败", answer)
         self.assertIn("2. 推广余额巡检：成功", answer)
         self.assertIn("3. 总看板云端发布：需核实", answer)
+        self.assertIn("处理建议", answer)
         self.assertIn("可自动处理：总看板云端发布", answer)
 
     def test_answer_question_uses_latest_files(self) -> None:

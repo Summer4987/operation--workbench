@@ -57,14 +57,23 @@ def build_message(
     generated_at: str | None = None,
 ) -> str:
     label = STATUS_LABELS.get(status, status or "通知")
+    conclusion = {
+        "success": "已完成。",
+        "failed": "未完成，需要处理。",
+        "warning": "部分通过，需要核实。",
+        "blocked": "已拦截，没有执行。",
+        "preview": "只做预览，没有执行生产动作。",
+        "info": "已记录。",
+    }.get(status, "已更新。")
     lines = [
         f"【熊小小运营 Agent｜{label}】",
-        f"事项：{compact(title, limit=120)}",
+        f"结论：{compact(title, limit=120)}：{conclusion}",
+        f"功能验收：{compact(title, limit=120)}：{label}",
     ]
     if detail:
-        lines.append(f"说明：{compact(detail)}")
+        lines.append(f"依据：{compact(detail)}")
     if action:
-        lines.append(f"建议：{compact(action, limit=260)}")
+        lines.append(f"处理建议：{compact(action, limit=260)}")
     lines.append(f"来源：{compact(source, limit=80)}")
     lines.append(f"时间：{generated_at or now_text()}")
     return "\n".join(lines)

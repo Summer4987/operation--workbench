@@ -95,15 +95,6 @@ def http_text(url: str, timeout: int = 8) -> tuple[bool, str]:
         return False, str(exc)
 
 
-def cloud_contains_check(name: str, url: str, store: str) -> dict[str, Any]:
-    ok, body = http_text(url)
-    if ok and store in body:
-        return item(name, True, "云端可访问且含门店")
-    if ok and ("业务中心登录" in body or "需要登录" in body or "<title>熊小小业务中心登录</title>" in body):
-        return item(name, False, "云端需要登录，公开 HTTP 无法直接验内容；以发布校验和服务端文件为准", severity="should")
-    return item(name, False, f"云端未确认：{body[:120]}", severity="should")
-
-
 def cloud_reachable_check(name: str, url: str) -> dict[str, Any]:
     ok, body = http_text(url)
     if ok and len(body) > 20:
@@ -124,48 +115,46 @@ def contains_json_row(payload: dict[str, Any], store: str) -> bool:
     return needle in json.dumps(payload, ensure_ascii=False)
 
 
-def feature_acceptance(store: str, *, cloud_base: str, agent_base: str, token: str) -> dict[str, Any]:
-    store = store.strip() or "望京"
+def feature_status_checks(*, agent_base: str, token: str) -> list[dict[str, Any]]:
     realtime = read_json(ROOT / "outputs" / "realtime_order_income" / "latest.json")
     daily = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json")
     preview = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json")
     balance = read_json(ROOT / "store-inspection" / "latest.json")
     spend = read_json(ROOT / "outputs" / "meituan_promo_spend" / "latest.json")
+    agent_mobile = read_json(ROOT / "outputs" / "agent_mobile" / "latest.json")
 
     checks: list[dict[str, Any]] = []
-    realtime_hits = [row for row in realtime.get("items", []) if isinstance(row, dict) and row.get("store") == store]
-    checks.append(item("加盟店实时采集", bool(realtime_hits), f"{len(realtime_hits)} 条平台记录；平台门店数 {(realtime.get('summary') or {}).get('platform_store_count', '-')}"))
+    realtime_summary = realtime.get("summary") if isinstance(realtime.get("summary"), dict) else {}
+    realtime_ok = int(realtime_summary.get("missing_count") or 0) == 0 and int(realtime_summary.get("platform_store_count") or 0) > 0
+    checks.append(item("功能验收：加盟店实时采集", realtime_ok, f"平台门店 {realtime_summary.get('platform_store_count', 0)}；缺失 {realtime_summary.get('missing_count', 0)}"))
 
     daily_stores = [row.get("store") for row in daily.get("store_summary", []) if isinstance(row, dict)]
-    checks.append(item("加盟商日报看板", store in daily_stores, f"当前日报门店 {len(daily_stores)} 家；{'已包含' if store in daily_stores else '未包含'}{store}"))
+    checks.append(item("功能验收：加盟商日报看板", bool(daily_stores), f"日报门店 {len(daily_stores)} 家；日期 {daily.get('latest_date') or daily.get('report_date') or '-'}"))
 
     preview_keys = ["eleme_lunch", "eleme_dinner", "meituan_lunch", "meituan_dinner"]
-    preview_hits = {
-        key: any(store in json.dumps(row, ensure_ascii=False) for row in preview.get(key, []) if isinstance(row, dict))
-        for key in preview_keys
-    }
-    checks.append(item("推广预算设置", all(preview_hits.values()), "；".join(f"{key}={'OK' if ok else 'MISS'}" for key, ok in preview_hits.items())))
+    preview_hits = {key: bool(preview.get(key)) for key in preview_keys}
+    checks.append(item("功能验收：推广预算设置", all(preview_hits.values()), "；".join(f"{key}={'OK' if ok else 'MISS'}" for key, ok in preview_hits.items())))
 
-    checks.append(item("推广余额巡检", contains_json_row(balance, store), "余额巡检 latest " + ("已包含门店" if contains_json_row(balance, store) else "未包含门店")))
-    checks.append(item("美团消耗/余量巡检", contains_json_row(spend, store), "美团消耗 latest " + ("已包含门店" if contains_json_row(spend, store) else "未包含门店"), severity="should"))
+    balance_summary = balance.get("summary") if isinstance(balance.get("summary"), dict) else {}
+    balance_ok = bool(balance) and not bool(balance_summary.get("source_is_stale"))
+    checks.append(item("功能验收：推广余额巡检", balance_ok, f"门店 {balance_summary.get('store_count', 0)}；预警 {balance_summary.get('warning_count', balance_summary.get('low_balance_count', 0))}"))
 
-    cloud_checks = [
-        ("云端实时 latest", f"{cloud_base}/outputs/realtime_order_income/latest.json"),
-        ("云端预算预览", f"{cloud_base}/outputs/promo_budget_preview/latest.json"),
-        ("云端加盟日报", f"{cloud_base}/business-report-dashboard/data/latest.json"),
-        ("云端余额巡检", f"{cloud_base}/store-inspection/latest.json"),
-        ("云端工作台数据", f"{cloud_base}/workbench-data.js"),
-    ]
-    for name, url in cloud_checks:
-        checks.append(cloud_contains_check(name, url, store))
+    spend_summary = spend.get("summary") if isinstance(spend.get("summary"), dict) else {}
+    spend_total = int(spend_summary.get("total_store_count") or spend_summary.get("store_count") or len(spend.get("items") or []))
+    spend_read = int(spend_summary.get("read_store_count") or spend_summary.get("read_count") or spend_total)
+    checks.append(item("功能验收：美团消耗/余量巡检", bool(spend) and (not spend_total or spend_read >= spend_total), f"已读 {spend_read}/{spend_total or '-'} 家", severity="should"))
 
+    mobile_summary = agent_mobile.get("summary") if isinstance(agent_mobile.get("summary"), dict) else {}
+    checks.append(item("功能验收：Agent 手机入口", bool(agent_mobile), f"入口数据 {agent_mobile.get('generated_at') or '-'}；失败 {mobile_summary.get('agent_failed', 0)}"))
     if token:
         agent_ok, agent_body = http_text(f"{agent_base}/agent/api/status?token={token}&limit=1")
-        checks.append(item("Agent 手机入口 API", agent_ok and store in agent_body, "Agent API 已返回门店" if agent_ok and store in agent_body else f"Agent API 未确认：{agent_body[:120]}"))
+        checks.append(item("功能验收：Agent 队列/API", agent_ok and "summary" in agent_body, "API 正常" if agent_ok and "summary" in agent_body else f"Agent API 未确认：{agent_body[:120]}"))
     else:
-        checks.append(item("Agent 手机入口 API", False, "未配置 AGENT_INBOX_TOKEN，跳过 API 内容校验", severity="should"))
+        checks.append(item("功能验收：Agent 队列/API", False, "未配置 AGENT_INBOX_TOKEN，跳过 API 内容校验", severity="should"))
 
-    return build_result("feature_acceptance", checks, store=store)
+    notify_state = ROOT / "outputs" / "agent_task_notifications" / "state.json"
+    checks.append(item("功能验收：主动通知", notify_state.exists(), str(notify_state.relative_to(ROOT)) if notify_state.exists() else "尚未写入通知去重状态", severity="should"))
+    return checks
 
 
 def system_check(*, cloud_base: str, agent_base: str, token: str) -> dict[str, Any]:
@@ -183,6 +172,8 @@ def system_check(*, cloud_base: str, agent_base: str, token: str) -> dict[str, A
         ("Agent 手机入口产物", ROOT / "outputs" / "agent_mobile" / "latest.json"),
     ]:
         checks.append(item(label, path.exists(), str(path.relative_to(ROOT)) if path.exists() else "文件不存在"))
+
+    checks.extend(feature_status_checks(agent_base=agent_base, token=token))
 
     plist_dir = Path.home() / "Library" / "LaunchAgents"
     launchd_names = ["com.summer.operation.realtime-order-income.plist", "com.summer.operation.morning.plist"]
@@ -206,14 +197,13 @@ def system_check(*, cloud_base: str, agent_base: str, token: str) -> dict[str, A
     return build_result("system_check", checks)
 
 
-def build_result(kind: str, checks: list[dict[str, Any]], *, store: str = "") -> dict[str, Any]:
+def build_result(kind: str, checks: list[dict[str, Any]]) -> dict[str, Any]:
     failed = [row for row in checks if not row.get("ok") and row.get("severity") == "must"]
     warnings = [row for row in checks if not row.get("ok") and row.get("severity") != "must"]
     status = "ok" if not failed and not warnings else "warning" if not failed else "failed"
     return {
         "generated_at": now_text(),
         "kind": kind,
-        "store": store,
         "status": status,
         "summary": {
             "total": len(checks),
@@ -222,17 +212,30 @@ def build_result(kind: str, checks: list[dict[str, Any]], *, store: str = "") ->
             "warnings": len(warnings),
         },
         "checks": checks,
-        "message": format_message(kind, status, checks, store=store),
+        "message": format_message(kind, status, checks),
     }
 
 
-def format_message(kind: str, status: str, checks: list[dict[str, Any]], *, store: str = "") -> str:
-    title = "系统自检" if kind == "system_check" else f"{store} 功能验收"
+def format_message(kind: str, status: str, checks: list[dict[str, Any]]) -> str:
+    title = "系统自检"
     status_text = {"ok": "通过", "warning": "部分通过", "failed": "未通过"}.get(status, status)
-    lines = [f"{title}：{status_text}。"]
-    for index, row in enumerate(checks, start=1):
+    failed = [row for row in checks if not row.get("ok") and row.get("severity") == "must"]
+    warnings = [row for row in checks if not row.get("ok") and row.get("severity") != "must"]
+    conclusion = "所有核心功能可用" if not failed else f"{len(failed)} 个核心项未通过"
+    if warnings and not failed:
+        conclusion = f"核心功能可用，{len(warnings)} 个提示项需关注"
+    lines = [f"{title}：{status_text}。", f"结论：{conclusion}。", "功能验收状态："]
+    feature_rows = [row for row in checks if str(row.get("name") or "").startswith("功能验收：")]
+    other_rows = [row for row in checks if row not in feature_rows]
+    for index, row in enumerate(feature_rows, start=1):
         mark = "OK" if row.get("ok") else "MISS"
-        lines.append(f"{index}. {mark} {row.get('name')}：{row.get('detail')}")
+        name = str(row.get("name") or "").replace("功能验收：", "")
+        lines.append(f"{index}. {mark} {name}：{row.get('detail')}")
+    if other_rows:
+        lines.append("系统依赖：")
+        for index, row in enumerate(other_rows, start=1):
+            mark = "OK" if row.get("ok") else "MISS"
+            lines.append(f"{index}. {mark} {row.get('name')}：{row.get('detail')}")
     return "\n".join(lines)
 
 
@@ -241,20 +244,15 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agent 系统自检和功能验收。")
-    parser.add_argument("--mode", choices=["system", "feature"], default="system")
-    parser.add_argument("--store", default="望京")
+    parser = argparse.ArgumentParser(description="Agent 系统自检和长期功能验收。")
+    parser.add_argument("--mode", choices=["system"], default="system")
     parser.add_argument("--cloud-base", default=os.environ.get("OPERATION_CLOUD_PUBLIC_URL", DEFAULT_CLOUD_BASE).rstrip("/"))
     parser.add_argument("--agent-base", default=os.environ.get("AGENT_PUBLIC_BASE_URL", DEFAULT_AGENT_BASE).rstrip("/"))
     parser.add_argument("--token", default=load_agent_token())
     parser.add_argument("--output", default=str(LATEST_PATH))
     args = parser.parse_args()
 
-    payload = (
-        feature_acceptance(args.store, cloud_base=args.cloud_base, agent_base=args.agent_base, token=args.token)
-        if args.mode == "feature"
-        else system_check(cloud_base=args.cloud_base, agent_base=args.agent_base, token=args.token)
-    )
+    payload = system_check(cloud_base=args.cloud_base, agent_base=args.agent_base, token=args.token)
     write_json(Path(args.output).expanduser(), payload)
     print(payload["message"])
     return 0 if payload["status"] != "failed" else 1

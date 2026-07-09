@@ -226,7 +226,7 @@ def compact_message(message: str) -> str:
 
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> str:
     status = str(task.get("status") or "")
-    status_intro = STATUS_INTROS.get(status, "有新状态")
+    status_label = STATUS_LABELS.get(status, status or "未知")
     name = row.get("name") or task_id
     updated_at = task.get("finished_at") or task.get("updated_at") or ""
     step = task.get("step") or ""
@@ -235,14 +235,29 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
     failure_type = task.get("failure_type") or ""
     rerun = row.get("rerun") or {}
 
-    lines = [f"{name}{status_intro}。"]
+    if status == "success":
+        conclusion = "通过，功能已完成。"
+    elif status == "failed":
+        conclusion = "未通过，需要处理。"
+    elif status in {"warning", "missing"}:
+        conclusion = "部分通过，需要核实。"
+    elif status == "skipped":
+        conclusion = "已跳过，需要确认是否符合预期。"
+    else:
+        conclusion = "状态已更新。"
+
+    lines = [
+        f"【熊小小运营 Agent｜{status_label}】",
+        f"结论：{name}{conclusion}",
+        f"功能验收：{name}：{status_label}",
+    ]
     if message:
         if status == "success":
-            lines.append(f"结果：{message}")
+            lines.append(f"依据：{message}")
         elif status == "failed":
-            lines.append(f"问题在这里：{message}")
+            lines.append(f"问题：{message}")
         elif status in {"warning", "missing"}:
-            lines.append(f"需要关注的是：{message}")
+            lines.append(f"需核实：{message}")
         else:
             lines.append(f"说明：{message}")
     if failure_type and status == "failed":
@@ -251,25 +266,25 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
     if status == "failed":
         if rerun.get("suggested") and rerun.get("auto_allowed"):
             command = " ".join(str(part) for part in rerun.get("command") or [])
-            lines.append(f"我可以先准备 dry-run 补跑计划：{command}")
+            lines.append(f"处理建议：可自动补跑；命令 {command}")
         elif rerun.get("suggested"):
             reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
-            lines.append(f"我不会自动补跑，原因：{reason}")
+            lines.append(f"处理建议：不自动补跑，原因：{reason}")
         else:
-            lines.append("我建议先看日志，再决定要不要人工补跑。")
+            lines.append("处理建议：先看日志，再决定要不要人工补跑。")
     elif status in {"warning", "missing"}:
         if rerun.get("suggested") and rerun.get("auto_allowed"):
             command = " ".join(str(part) for part in rerun.get("command") or [])
-            lines.append(f"如果要处理，我可以先做 dry-run 补跑计划：{command}")
+            lines.append(f"处理建议：可先做 dry-run 补跑计划；命令 {command}")
         elif rerun.get("suggested"):
             reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
-            lines.append(f"我不会自动处理，原因：{reason}")
+            lines.append(f"处理建议：不自动处理，原因：{reason}")
         else:
-            lines.append("我建议先看日志，再决定是否处理。")
+            lines.append("处理建议：先看日志，再决定是否处理。")
     elif status == "success":
-        lines.append("我这边先记为完成。")
+        lines.append("处理建议：无需处理。")
     elif status == "skipped":
-        lines.append("如果这不是你预期的跳过，我再帮你查原因。")
+        lines.append("处理建议：如果这不是预期跳过，再查原因。")
 
     details = []
     if updated_at:
@@ -280,7 +295,7 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
         details.append(f"证据 {log_path}")
     if details:
         lines.append("细节：" + "；".join(details))
-    return compact_message(" ".join(lines))
+    return "\n".join(compact_message(line) for line in lines if compact_message(line))
 
 
 def notify(args: argparse.Namespace) -> dict[str, Any]:
