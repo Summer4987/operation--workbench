@@ -208,6 +208,22 @@ class AgentInboxTests(unittest.TestCase):
         self.assertEqual(notice_status, "warning")
         self.assertIn("预警", action)
 
+    def test_worker_sends_start_notice_for_meituan_inspection(self) -> None:
+        notices = []
+        original_notify = agent_inbox_worker.agent_notify.notify_message
+        try:
+            agent_inbox_worker.agent_notify.notify_message = lambda message, dry_run=False: notices.append(message) or (True, "sent")
+            result = agent_inbox_worker.notify_task_started(
+                {"id": "abcdef123456", "text": "巡检美团实时消耗", "intent": "meituan_spend_inspection"}
+            )
+
+            self.assertIsNotNone(result)
+            self.assertTrue(result["delivered"])
+            self.assertIn("已开始读取美团推广实时消耗", notices[0])
+            self.assertIn("10-15 分钟", notices[0])
+        finally:
+            agent_inbox_worker.agent_notify.notify_message = original_notify
+
     def test_nginx_exposes_inbox_without_auth_request(self) -> None:
         text = (ROOT / "inventory-board" / "deploy" / "nginx.conf").read_text(encoding="utf-8")
         block = text.split("location /agent-wecom/inbox/", 1)[1].split("location", 1)[0]

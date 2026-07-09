@@ -121,6 +121,25 @@ def infer_business_notice(status: str, command_payload: dict[str, Any], answer: 
     return "success", "队列任务已完成。"
 
 
+def notify_task_started(task: dict[str, Any]) -> dict[str, Any] | None:
+    intent = str(task.get("intent") or "")
+    if intent != "meituan_spend_inspection":
+        return None
+    message = agent_notify.build_message(
+        title=f"企微队列 {str(task.get('id') or '')[:8]}：{task.get('text') or 'Agent 命令'}",
+        status="info",
+        detail="已开始读取美团推广实时消耗。美团后台逐店加载较慢，通常需要 10-15 分钟；完成后会再发结果。",
+        action="本次为只读巡检，不会修改预算、出价或投放开关。",
+        source="agent_inbox_worker:meituan_spend_inspection",
+    )
+    delivered, delivery_output = agent_notify.notify_message(message, dry_run=False)
+    return {
+        "delivered": delivered,
+        "delivery_output": delivery_output,
+        "message": message,
+    }
+
+
 def notify_task_completion(task: dict[str, Any], status: str, result: dict[str, Any]) -> dict[str, Any]:
     command_payload = result.get("command_payload") if isinstance(result.get("command_payload"), dict) else {}
     answer = str(command_payload.get("answer") or result.get("output_tail") or "").strip()
@@ -158,12 +177,15 @@ def process_once(base_url: str, token: str, limit: int) -> dict[str, Any]:
             continue
         text = str(claimed.get("text") or "")
         execute = bool(claimed.get("execute"))
+        start_notice = notify_task_started(claimed)
         try:
             result = run_agent_command(text, execute=execute)
             status = "success" if result["returncode"] == 0 else "failed"
         except Exception as exc:
             result = {"returncode": 1, "output_tail": f"{type(exc).__name__}: {exc}"}
             status = "failed"
+        if start_notice is not None:
+            result["start_notification"] = start_notice
         result["queue_notification"] = notify_task_completion(claimed, status, result)
         request_json(
             base_url,

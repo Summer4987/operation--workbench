@@ -263,7 +263,7 @@ def load_meituan_tasks(period: str) -> list[dict[str, Any]]:
     payload = read_json(PREVIEW_PATH)
     if not payload:
         raise RuntimeError("没有找到推广预算预览文件，先运行推广预算预览或上午运营采集。")
-    keys = ["meituan_lunch", "meituan_dinner"] if period == "all" else [f"meituan_{period}"]
+    keys = meituan_task_keys(period)
     tasks: list[dict[str, Any]] = []
     seen: set[str] = set()
     for key in keys:
@@ -289,6 +289,13 @@ def load_meituan_tasks(period: str) -> list[dict[str, Any]]:
                     break
         hydrated.append(item)
     return hydrated
+
+
+def meituan_task_keys(period: str, *, hour: int | None = None) -> list[str]:
+    if period != "all":
+        return [f"meituan_{period}"]
+    current_hour = datetime.now().hour if hour is None else hour
+    return ["meituan_dinner", "meituan_lunch"] if current_hour >= 15 else ["meituan_lunch", "meituan_dinner"]
 
 
 def require_helpers() -> dict[str, Any]:
@@ -502,9 +509,12 @@ def open_headquarters_promo_page(page, task: dict[str, Any], helpers: dict[str, 
 
 def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contexts: dict[str, Any], launched_contexts: list[Any], base_url: str, direct_accounts: dict[str, dict[str, Any]]) -> dict[str, Any]:
     keyword = task.get("keyword") or task.get("sourceStore") or task.get("store") or "未命名门店"
+    display_name = task_display_name(task)
     record: dict[str, Any] = {
         "platform": "美团",
         "store": task.get("store") or "",
+        "sourceStore": task.get("sourceStore") or "",
+        "displayName": display_name,
         "keyword": keyword,
         "wmPoiId": task.get("wmPoiId") or task.get("wm_poi_id") or "",
         "directMeituanAccountId": task.get("directMeituanAccountId") or "",
@@ -580,6 +590,23 @@ def should_retry_query(record: dict[str, Any]) -> bool:
     if any(token in message for token in ("Target page, context or browser has been closed", "点击门店")):
         return True
     return str(record.get("failure_type") or "") in {"dianjin_entry_missing", "timeout"}
+
+
+def task_display_name(task: dict[str, Any]) -> str:
+    source_store = normalize_space(str(task.get("sourceStore") or ""))
+    if task.get("directMeituanAccountId") and source_store:
+        return source_store
+    return normalize_space(str(task.get("keyword") or task.get("sourceStore") or task.get("store") or "未命名门店"))
+
+
+def item_display_name(item: dict[str, Any]) -> str:
+    return (
+        normalize_space(str(item.get("displayName") or ""))
+        or normalize_space(str(item.get("sourceStore") or ""))
+        or normalize_space(str(item.get("keyword") or ""))
+        or normalize_space(str(item.get("store") or ""))
+        or "未命名门店"
+    )
 
 
 def task_budget(task: dict[str, Any]) -> float | None:
@@ -715,7 +742,7 @@ def compact_error_message(message: str) -> str:
 
 
 def format_item_line(index: int, item: dict[str, Any]) -> str:
-    keyword = item.get("keyword") or item.get("store") or "未命名门店"
+    keyword = item_display_name(item)
     level, reason = inspect_level(item)
     if not item.get("ok"):
         return f"{index}. {keyword}：{level}。原因：{reason}"

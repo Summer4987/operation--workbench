@@ -199,6 +199,31 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertNotIn("昨日", text)
         self.assertIn("2. 万象城：未核实。原因：登录失效", text)
 
+    def test_format_human_uses_source_store_for_direct_account(self) -> None:
+        text = self.query.format_human(
+            [
+                {
+                    "keyword": "雅宝",
+                    "sourceStore": "朝阳门店",
+                    "displayName": "朝阳门店",
+                    "directMeituanAccountId": "direct_chaoyangmen",
+                    "ok": True,
+                    "today_spend": 200.01,
+                    "budget": 200,
+                    "remaining_budget": 0,
+                    "budget_percent": 100,
+                    "source": "budget_exhausted",
+                },
+            ]
+        )
+
+        self.assertIn("1. 朝阳门店：异常", text)
+        self.assertNotIn("1. 雅宝", text)
+
+    def test_all_period_prefers_current_meal_budget_keys(self) -> None:
+        self.assertEqual(self.query.meituan_task_keys("all", hour=19), ["meituan_dinner", "meituan_lunch"])
+        self.assertEqual(self.query.meituan_task_keys("all", hour=10), ["meituan_lunch", "meituan_dinner"])
+
     def test_format_human_reports_budget_warning(self) -> None:
         text = self.query.format_human(
             [
