@@ -434,7 +434,6 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
       ...sourceStores
         .slice()
         .sort((a, b) => realtimeStoreIncome(b) - realtimeStoreIncome(a))
-        .slice(0, 8)
         .map((item) => ({ ...item, kind: "store" })),
     ],
     (item) => {
