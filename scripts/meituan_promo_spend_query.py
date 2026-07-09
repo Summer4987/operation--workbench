@@ -323,10 +323,11 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
     current_page = normalize_space(visible_page_text(page))
     current_url = page.url or ""
     task_wm_id = str(task.get("wmPoiId") or task.get("wm_poi_id") or "").strip()
+    current_url_matches_task = bool(task_wm_id and f"wmPoiId={task_wm_id}" in current_url)
+    current_text_matches_task = any(alias in current_page for alias in aliases)
     if (
         "waimaieapp.meituan.com/ad/v1" in current_url
-        and (not task_wm_id or f"wmPoiId={task_wm_id}" in current_url)
-        and any(alias in current_page for alias in aliases)
+        and (current_url_matches_task or (not task_wm_id and current_text_matches_task))
         and ("推广预算" in current_page or "推广首页" in current_page)
     ):
         return next((alias for alias in aliases if alias in current_page), aliases[0])

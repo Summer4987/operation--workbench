@@ -130,7 +130,7 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         with mock.patch.object(
             self.query,
             "visible_page_text",
-            return_value="熊小小牛排饭POKEBEAR（保利中心店） 推广首页 推广预算 已消耗0% 80 元",
+            return_value="推广首页 推广预算 已消耗0% 80 元",
         ):
             selected = self.query.select_headquarters_store(
                 page,
