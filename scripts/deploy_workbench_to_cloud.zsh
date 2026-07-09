@@ -129,7 +129,7 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/outputs/realtime_order_income'"
   rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/outputs/realtime_order_income/" "$SERVER:$REMOTE_DIR/outputs/realtime_order_income/"
 elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/outputs/agent_mobile' '$REMOTE_DIR/outputs/realtime_order_income'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/outputs/agent_mobile' '$REMOTE_DIR/outputs/realtime_order_income' '$REMOTE_DIR/outputs/promo_budget_preview'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/index.html" "$STAGE_DIR/agent.html" \
@@ -145,6 +145,10 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     "$SERVER:$REMOTE_DIR/outputs/realtime_order_income/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest-data.js" \
+    "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/data/realtime-history.json" \
     "$SERVER:$REMOTE_DIR/data/"
   rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
@@ -155,9 +159,9 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct_unified_daily.csv" "$STAGE_DIR/business-report-dashboard/data/direct_unified_reviews.csv" \
     "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
-  echo "已按 data-only 模式发布，更新工作台数据、Agent 手机入口、实时明细、实时历史、直营日报数据和直营日报独立看板。"
+  echo "已按 data-only 模式发布，更新工作台数据、Agent 手机入口、实时明细、预算预览、实时历史、直营日报数据和直营日报独立看板。"
 else
-  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection' '$REMOTE_DIR/outputs/agent_mobile' '$REMOTE_DIR/outputs/realtime_order_income'"
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection' '$REMOTE_DIR/outputs/agent_mobile' '$REMOTE_DIR/outputs/realtime_order_income' '$REMOTE_DIR/outputs/promo_budget_preview'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/index.html" "$STAGE_DIR/agent.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" \
@@ -170,6 +174,10 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/outputs/realtime_order_income/latest.json" \
     "$SERVER:$REMOTE_DIR/outputs/realtime_order_income/"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest-data.js" \
+    "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/data/realtime-history.json" \
@@ -194,7 +202,7 @@ else
   else
     echo "提示：本地没有余额巡检 latest.json/latest-data.js，跳过余额巡检静态数据发布。"
   fi
-  echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、实时明细、加盟/直营日报和余额巡检数据。"
+  echo "已按 ui-data 模式发布，更新首页 UI、工作台数据、实时明细、预算预览、加盟/直营日报和余额巡检数据。"
 fi
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
@@ -218,6 +226,7 @@ if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "agent.html" "$STAGE_DIR/agent.html"
   verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "outputs/realtime_order_income/latest.json" "$STAGE_DIR/outputs/realtime_order_income/latest.json"
+  verify_remote_file "outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest.json"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
   verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"
 else
@@ -225,6 +234,7 @@ else
   verify_remote_file "agent.html" "$STAGE_DIR/agent.html"
   verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "outputs/realtime_order_income/latest.json" "$STAGE_DIR/outputs/realtime_order_income/latest.json"
+  verify_remote_file "outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest.json"
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
   verify_remote_file "workbench.js" "$STAGE_DIR/workbench.js"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
