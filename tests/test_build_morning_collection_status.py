@@ -283,6 +283,66 @@ class BuildMorningCollectionStatusTests(unittest.TestCase):
         self.assertEqual(step["name"], "直营美团日报")
         self.assertIn("历史记录未保存该子步骤输出", step["message"])
 
+    def test_successful_repair_closes_previous_failed_step(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_runs = root / "outputs" / "task_runs" / "latest.json"
+            task_runs.parent.mkdir(parents=True)
+            task_runs.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "success",
+                                "message": "上午运营一键采集失败项已修复：五一广场美团午餐预算已单项补正为70元。",
+                                "step": "美团午餐预算单项修复",
+                                "returncode": 0,
+                                "updated_at": "2026-07-09 09:42:58",
+                            }
+                        },
+                        "events": [
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "running",
+                                "message": "上午运营一键采集开始。",
+                                "step": "初始化",
+                                "created_at": "2026-07-09 08:00:00",
+                            },
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "failed",
+                                "message": "美团午餐预算真实提交失败，退出码 1。",
+                                "step": "美团午餐预算",
+                                "returncode": 1,
+                                "created_at": "2026-07-09 08:31:18",
+                            },
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "success",
+                                "message": "五一广场美团午餐预算已单项补正为70元。",
+                                "step": "美团午餐预算单项修复",
+                                "returncode": 0,
+                                "created_at": "2026-07-09 09:42:58",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            original = morning_module.TASK_RUNS_PATH
+            try:
+                morning_module.TASK_RUNS_PATH = task_runs
+                payload = morning_module.build_payload()
+            finally:
+                morning_module.TASK_RUNS_PATH = original
+
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["summary"]["failed_count"], 0)
+        self.assertEqual(len(payload["resolved_failed_steps"]), 1)
+        self.assertIn("失败项已修复", payload["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

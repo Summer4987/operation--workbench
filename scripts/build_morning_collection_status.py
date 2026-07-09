@@ -419,6 +419,12 @@ def build_payload() -> dict[str, Any]:
         success_steps = [step for step in steps if step.get("status") == "success"]
         steps = [*success_steps, *fallback_steps]
     failed_steps = [step for step in steps if step["status"] == "failed"]
+    resolved_failed_steps: list[dict[str, Any]] = []
+    task_message = str(task.get("message") or "")
+    task_step = str(task.get("step") or "")
+    if task.get("status") == "success" and ("失败项已修复" in task_message or "单项修复" in task_step):
+        resolved_failed_steps = failed_steps
+        failed_steps = []
     recovery_actions = [
         {
             "step": step["name"],
@@ -442,7 +448,10 @@ def build_payload() -> dict[str, Any]:
         message = "尚未找到上午运营一键采集运行记录。"
     elif task.get("status") == "success" and completed_steps:
         status = "success"
-        message = f"上午运营一键采集完成，{len(completed_steps)} 个子步骤有完成记录。"
+        if resolved_failed_steps:
+            message = f"上午运营一键采集失败项已修复，{len(resolved_failed_steps)} 个历史失败子步骤已关闭。"
+        else:
+            message = f"上午运营一键采集完成，{len(completed_steps)} 个子步骤有完成记录。"
     elif task.get("status") == "success":
         status = "partial"
         message = "上午运营一键采集总状态为成功，但没有子步骤完成记录，不能判定早间任务完整完成。"
@@ -467,6 +476,7 @@ def build_payload() -> dict[str, Any]:
         },
         "steps": steps,
         "failed_steps": failed_steps,
+        "resolved_failed_steps": resolved_failed_steps,
         "recovery_actions": recovery_actions,
         "repair_guides": repair_guides,
         "repair_templates": repair_templates(),
