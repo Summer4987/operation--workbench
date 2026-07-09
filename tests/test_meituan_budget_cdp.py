@@ -134,6 +134,14 @@ class FakeConfirmPage:
     def __init__(self) -> None:
         self.frame = FakeConfirmFrame()
         self.frames = [self.frame]
+        self.reloaded = False
+        self.goto_url = ""
+
+    def reload(self, **_kwargs) -> None:
+        self.reloaded = True
+
+    def goto(self, url: str, **_kwargs) -> None:
+        self.goto_url = url
 
 
 class MeituanBudgetCdpTests(unittest.TestCase):
@@ -256,6 +264,26 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                             with mock.patch.object(self.module, "close_budget_modal"):
                                 with self.assertRaisesRegex(RuntimeError, "平台预算锁定"):
                                     self.module.confirm_budget_with_recovery(page, 70.0)
+
+    def test_confirm_budget_verifies_committed_budget_after_reload(self) -> None:
+        page = FakeConfirmPage()
+
+        with mock.patch.object(self.module, "confirm_button_locator", return_value=page.frame.confirm):
+            with mock.patch.object(self.module, "confirm_button_enabled", return_value=True):
+                with mock.patch.object(self.module, "close_budget_modal"):
+                    with mock.patch.object(self.module, "enter_dianjin_with_recovery") as enter:
+                        with mock.patch.object(self.module, "wait_setting_ready"):
+                            with mock.patch.object(self.module, "wait_budget", return_value=120.0):
+                                final_budget, message = self.module.confirm_budget_with_recovery(
+                                    page,
+                                    200.0,
+                                    "https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId=5650880",
+                                )
+
+        self.assertTrue(page.reloaded)
+        enter.assert_called_once()
+        self.assertEqual(final_budget, 120.0)
+        self.assertIn("刷新后读回确认", message)
 
 
 if __name__ == "__main__":

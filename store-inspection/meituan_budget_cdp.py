@@ -627,7 +627,22 @@ def click_confirm_button(page, locator) -> str:
                 raise RuntimeError(f"确定按钮点击失败：{first_exc}；DOM 兜底失败：{dom_exc}") from dom_exc
 
 
-def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str]:
+def read_committed_budget_after_save(page, target_url: str) -> float | None:
+    try:
+        close_budget_modal(page)
+    except Exception:
+        pass
+    try:
+        page.reload(wait_until="domcontentloaded", timeout=30000)
+    except Exception:
+        page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+    time.sleep(5)
+    enter_dianjin_with_recovery(page, target_url)
+    wait_setting_ready(page)
+    return wait_budget(page)
+
+
+def confirm_budget_with_recovery(page, target: float, target_url: str = "") -> tuple[float | None, str]:
     confirm_button = confirm_button_locator(page)
     if confirm_button is None:
         raise RuntimeError("预算弹窗没有确定按钮")
@@ -652,7 +667,10 @@ def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str
             )
         raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
     click_message = click_confirm_button(page, confirm_button)
-    time.sleep(6)
+    time.sleep(3)
+    if target_url:
+        final_budget = read_committed_budget_after_save(page, target_url)
+        return final_budget, f"已保存并刷新后读回确认，{click_message}"
     final_budget = read_budget(page)
     return final_budget, f"已保存并读回确认，{click_message}"
 
@@ -732,7 +750,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             wait_setting_ready(page)
             open_budget_modal(page)
         record["beforeInput"], record["afterInput"], record["inputAttempts"] = fill_budget_with_recovery(page, target)
-        final_budget, message = confirm_budget_with_recovery(page, target)
+        final_budget, message = confirm_budget_with_recovery(page, target, target_url)
         record["afterBudget"] = final_budget
         if final_budget is None or abs(final_budget - target) > 0.01:
             raise RuntimeError(f"保存后预算={final_budget}，目标={target}")
