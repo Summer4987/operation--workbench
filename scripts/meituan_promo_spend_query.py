@@ -715,7 +715,7 @@ def inspect_level(item: dict[str, Any]) -> tuple[str, str]:
     percent = item.get("budget_percent")
     source = str(item.get("source") or "")
     if source == "budget_exhausted" or (percent is not None and float(percent) >= 100):
-        return "异常", "预算已耗尽"
+        return "已耗尽", "预算已耗尽"
     if percent is not None and float(percent) >= 90:
         return "预警", f"已消耗预算 {float(percent):.0f}%"
     if item.get("today_spend") in (0, 0.0):
@@ -766,7 +766,7 @@ def format_human(items: list[dict[str, Any]]) -> str:
     total = sum(float(item.get("today_spend") or 0) for item in ok_items if item.get("today_spend") is not None)
     budget_total = sum(float(item.get("budget") or 0) for item in ok_items if item.get("budget") is not None)
     remaining_total = sum(float(item.get("remaining_budget") or 0) for item in ok_items if item.get("remaining_budget") is not None)
-    level_counts = {"正常": 0, "预警": 0, "异常": 0, "未核实": 0}
+    level_counts = {"正常": 0, "预警": 0, "已耗尽": 0, "未核实": 0}
     for item in items:
         level, _ = inspect_level(item)
         level_counts[level] = level_counts.get(level, 0) + 1
@@ -776,15 +776,15 @@ def format_human(items: list[dict[str, Any]]) -> str:
             f"总览：已读到 {len(ok_items)}/{len(items)} 家，今日消耗 {money(total)} 元，"
             f"当前预算 {money(budget_total)} 元，剩余 {money(remaining_total)} 元；"
             f"正常 {level_counts.get('正常', 0)}，预警 {level_counts.get('预警', 0)}，"
-            f"异常 {level_counts.get('异常', 0)}，未核实 {level_counts.get('未核实', 0)}。"
+            f"已耗尽 {level_counts.get('已耗尽', 0)}，未核实 {level_counts.get('未核实', 0)}。"
         ),
     ]
     for index, item in enumerate(items, start=1):
         lines.append(format_item_line(index, item))
-    if level_counts.get("异常") or level_counts.get("预警") or level_counts.get("未核实"):
-        lines.append("建议：先人工复核预警/异常门店；本巡检只读，不会修改预算、出价或投放开关。")
+    if level_counts.get("已耗尽") or level_counts.get("预警") or level_counts.get("未核实"):
+        lines.append("建议：先人工复核已耗尽/预警/未核实门店；本巡检只读，不会修改预算、出价或投放开关。")
     else:
-        lines.append("建议：当前只读巡检未发现明显异常；不需要自动修复。")
+        lines.append("建议：当前只读巡检未发现预算耗尽、预警或未核实门店；不需要自动修复。")
     return "\n".join(lines)
 
 

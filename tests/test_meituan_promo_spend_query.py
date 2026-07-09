@@ -217,7 +217,8 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
             ]
         )
 
-        self.assertIn("1. 朝阳门店：异常", text)
+        self.assertIn("已耗尽 1", text)
+        self.assertIn("1. 朝阳门店：已耗尽", text)
         self.assertNotIn("1. 雅宝", text)
 
     def test_all_period_prefers_current_meal_budget_keys(self) -> None:
