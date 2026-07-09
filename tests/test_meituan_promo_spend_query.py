@@ -122,6 +122,23 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertIn("第3档口", aliases)
         self.assertIn("吉祥美食城", aliases)
 
+    def test_select_headquarters_store_accepts_current_single_store_ad_page(self) -> None:
+        page = types.SimpleNamespace(
+            url="https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId=32022526",
+        )
+
+        with mock.patch.object(
+            self.query,
+            "visible_page_text",
+            return_value="熊小小牛排饭POKEBEAR（保利中心店） 推广首页 推广预算 已消耗0% 80 元",
+        ):
+            selected = self.query.select_headquarters_store(
+                page,
+                {"keyword": "保利中心", "store": "熊小小牛排饭POKEBEAR（保利中心店）", "wmPoiId": "32022526"},
+            )
+
+        self.assertEqual(selected, "保利中心")
+
     def test_direct_query_uses_base_url_when_wm_poi_id_is_absent(self) -> None:
         page = types.SimpleNamespace(
             url="https://e.waimai.meituan.com/",

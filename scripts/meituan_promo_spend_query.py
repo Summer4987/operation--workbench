@@ -51,6 +51,13 @@ def normalize_space(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def visible_page_text(page, timeout: int = 3000) -> str:
+    try:
+        return page.locator("body").inner_text(timeout=timeout)
+    except Exception:
+        return ""
+
+
 def task_store_aliases(task: dict[str, Any]) -> list[str]:
     values = [
         normalize_space(str(task.get(key) or ""))
@@ -313,6 +320,17 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
     if not aliases:
         raise RuntimeError("总部账号缺少可匹配的分门店关键词。")
 
+    current_page = normalize_space(visible_page_text(page))
+    current_url = page.url or ""
+    task_wm_id = str(task.get("wmPoiId") or task.get("wm_poi_id") or "").strip()
+    if (
+        "waimaieapp.meituan.com/ad/v1" in current_url
+        and (not task_wm_id or f"wmPoiId={task_wm_id}" in current_url)
+        and any(alias in current_page for alias in aliases)
+        and ("推广预算" in current_page or "推广首页" in current_page)
+    ):
+        return next((alias for alias in aliases if alias in current_page), aliases[0])
+
     current = ""
     try:
         current = normalize_space(page.locator(".current-poi_31GHxd").first.inner_text(timeout=3000))
@@ -441,6 +459,8 @@ def open_headquarters_promo_page(page, task: dict[str, Any], helpers: dict[str, 
     selected = select_headquarters_store(page, task)
     dismiss_common_modals(page)
     text = helpers["page_text"](page)
+    if "waimaieapp.meituan.com/ad/v1" in (page.url or "") and ("推广预算" in text or "推广首页" in text):
+        return selected
     if "门店推广" not in text:
         time.sleep(4)
         dismiss_common_modals(page)
