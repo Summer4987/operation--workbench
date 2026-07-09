@@ -236,6 +236,7 @@ def agent_mobile_status(request: Request, limit: int = 20):
     return {
         "generated_at": int(time.time()),
         "summary": agent_inbox.task_summary(),
+        "realtime": _agent_realtime_summary(),
         "items": [_public_agent_task(item) for item in agent_inbox.recent_tasks(limit=limit)],
     }
 
@@ -878,6 +879,60 @@ def _public_agent_task(item: dict) -> dict[str, object]:
     }
 
 
+def _operation_workbench_root() -> Path:
+    configured = os.environ.get("OPERATION_WORKBENCH_DIR") or os.environ.get("OPERATION_CLOUD_REMOTE_DIR")
+    if configured:
+        return Path(configured)
+    cloud_root = Path("/var/www/html/operation-workbench")
+    if cloud_root.exists():
+        return cloud_root
+    return BASE_DIR.parent
+
+
+def _read_json_file(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _agent_realtime_summary() -> dict[str, object]:
+    payload = _read_json_file(_operation_workbench_root() / "outputs" / "realtime_order_income" / "latest.json")
+    if not payload:
+        return {"status": "missing", "message": "暂未发布实时采集明细。", "stores": []}
+    stores = []
+    for item in payload.get("stores") or []:
+        if not isinstance(item, dict):
+            continue
+        platforms = item.get("platforms") if isinstance(item.get("platforms"), dict) else {}
+        stores.append(
+            {
+                "store": str(item.get("store") or ""),
+                "orders": int(float(item.get("orders") or 0)),
+                "income": round(float(item.get("income") or 0), 2),
+                "platforms": {
+                    str(platform): {
+                        "orders": int(float(detail.get("orders") or 0)),
+                        "income": round(float(detail.get("income") or 0), 2),
+                    }
+                    for platform, detail in platforms.items()
+                    if isinstance(detail, dict)
+                },
+            }
+        )
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    return {
+        "status": str(payload.get("status") or ""),
+        "generated_at": str(payload.get("generated_at") or ""),
+        "store_count": int(summary.get("store_count") or len(stores)),
+        "platform_store_count": int(summary.get("platform_store_count") or 0),
+        "total_orders": int(float(summary.get("total_orders") or 0)),
+        "total_income": round(float(summary.get("total_income") or 0), 2),
+        "stores": stores,
+    }
+
+
 def _agent_queue_answer(item: dict) -> str:
     intent = str(item.get("intent") or "")
     labels = {
@@ -926,7 +981,7 @@ def _agent_mobile_page_html() -> str:
       height: 100vh;
       height: 100dvh;
       display: grid;
-      grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
       max-width: 880px;
       margin: 0 auto;
       background: var(--panel);
@@ -1008,6 +1063,37 @@ def _agent_mobile_page_html() -> str:
       flex-direction: column;
       gap: 12px;
     }
+    .realtime {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 16px;
+      background: #fff;
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .realtime-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+    }
+    .realtime-stores {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .realtime-store {
+      min-width: 112px;
+      border: 1px solid #e1e6ef;
+      border-radius: 8px;
+      padding: 8px 9px;
+      background: #fbfcfe;
+      display: grid;
+      gap: 4px;
+    }
+    .realtime-store strong { font-size: 13px; }
+    .realtime-store span { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .msg {
       max-width: 88%;
       border-radius: 12px;
@@ -1080,6 +1166,7 @@ def _agent_mobile_page_html() -> str:
       <button type="button" data-command="巡检美团实时消耗">一键查余量</button>
       <button type="button" data-command="刷新状态">刷新状态</button>
     </section>
+    <section class="realtime" id="realtime"></section>
     <section class="messages" id="messages"></section>
     <section class="tasks" id="tasks"></section>
     <form class="composer" id="composer">
@@ -1117,6 +1204,7 @@ def _agent_mobile_page_html() -> str:
       saveToken: document.getElementById("saveToken"),
       messages: document.getElementById("messages"),
       tasks: document.getElementById("tasks"),
+      realtime: document.getElementById("realtime"),
       text: document.getElementById("text"),
       composer: document.getElementById("composer"),
       summary: document.getElementById("summary"),
@@ -1177,11 +1265,33 @@ def _agent_mobile_page_html() -> str:
         els.connection.textContent = "已连接";
         const summary = payload.summary || {};
         els.summary.textContent = `待处理 ${summary.pending || 0}，运行中 ${summary.running || 0}，成功 ${summary.success || 0}，失败 ${summary.failed || 0}，已取消 ${summary.canceled || 0}`;
+        renderRealtime(payload.realtime || {});
         renderTasks(payload.items || []);
       } catch (error) {
         els.connection.textContent = "连接失败";
         els.summary.textContent = error.message === "missing-token" ? "请先输入 token" : error.message;
       }
+    }
+    function renderRealtime(realtime) {
+      const stores = Array.isArray(realtime.stores) ? realtime.stores : [];
+      if (!stores.length) {
+        els.realtime.innerHTML = `<div class="realtime-head"><strong>加盟店实时采集</strong><span>${escapeHtml(realtime.message || "暂无明细")}</span></div>`;
+        return;
+      }
+      const cards = stores.map(store => `
+        <div class="realtime-store">
+          <strong>${escapeHtml(store.store)}</strong>
+          <span>${Number(store.orders || 0)} 单</span>
+          <span>${Number(store.income || 0).toFixed(2)} 元</span>
+        </div>
+      `).join("");
+      els.realtime.innerHTML = `
+        <div class="realtime-head">
+          <strong>加盟店实时采集</strong>
+          <span>${escapeHtml(realtime.generated_at || "")} · ${Number(realtime.platform_store_count || 0)} 个平台门店</span>
+        </div>
+        <div class="realtime-stores">${cards}</div>
+      `;
     }
     function renderTasks(items) {
       els.tasks.innerHTML = items.map(item => {
