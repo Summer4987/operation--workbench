@@ -370,7 +370,7 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
             continue
         if any(alias in text for alias in aliases):
             item.click(timeout=8000)
-            for _ in range(12):
+            for _ in range(18):
                 time.sleep(1)
                 try:
                     current = normalize_space(page.locator(".current-poi_31GHxd").first.inner_text(timeout=3000))
@@ -378,7 +378,10 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
                     current = ""
                 if current and any(alias in current for alias in aliases):
                     return current
-            return text
+                body = normalize_space(visible_page_text(page, timeout=3000))
+                if any(alias in body for alias in aliases):
+                    return text
+            raise RuntimeError(f"点击门店 {text} 后，页面没有确认切换到目标门店。")
     raise RuntimeError(
         "总部账号门店下拉里没有匹配项："
         + " / ".join(aliases)
@@ -461,7 +464,22 @@ def open_headquarters_promo_page(page, task: dict[str, Any], helpers: dict[str, 
         page.goto(HEADQUARTERS_HOME_URL, wait_until="domcontentloaded", timeout=45_000)
         time.sleep(4)
     dismiss_common_modals(page)
-    selected = select_headquarters_store(page, task)
+    selected = ""
+    last_select_error = None
+    for attempt in range(2):
+        try:
+            selected = select_headquarters_store(page, task)
+            last_select_error = None
+            break
+        except Exception as exc:
+            last_select_error = exc
+            if attempt != 0 or "没有确认切换到目标门店" not in str(exc):
+                raise
+            page.goto(HEADQUARTERS_HOME_URL, wait_until="domcontentloaded", timeout=45_000)
+            time.sleep(4)
+            dismiss_common_modals(page)
+    if last_select_error is not None:
+        raise last_select_error
     dismiss_common_modals(page)
     text = helpers["page_text"](page)
     if "waimaieapp.meituan.com/ad/v1" in (page.url or "") and ("推广预算" in text or "推广首页" in text):
