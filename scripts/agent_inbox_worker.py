@@ -128,7 +128,7 @@ def notify_task_started(task: dict[str, Any]) -> dict[str, Any] | None:
     message = agent_notify.build_message(
         title=f"企微队列 {str(task.get('id') or '')[:8]}：{task.get('text') or 'Agent 命令'}",
         status="info",
-        detail="已开始读取美团推广实时消耗。美团后台逐店加载较慢，通常需要 10-15 分钟；完成后会再发结果。",
+        detail="已开始读取美团推广实时消耗。美团后台逐店加载仍会比较慢，通常约 3-6 分钟；完成后会再发结果。",
         action="本次为只读巡检，不会修改预算、出价或投放开关。",
         source="agent_inbox_worker:meituan_spend_inspection",
     )

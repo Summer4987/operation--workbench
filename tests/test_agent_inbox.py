@@ -220,7 +220,7 @@ class AgentInboxTests(unittest.TestCase):
             self.assertIsNotNone(result)
             self.assertTrue(result["delivered"])
             self.assertIn("已开始读取美团推广实时消耗", notices[0])
-            self.assertIn("10-15 分钟", notices[0])
+            self.assertIn("3-6 分钟", notices[0])
         finally:
             agent_inbox_worker.agent_notify.notify_message = original_notify
 
