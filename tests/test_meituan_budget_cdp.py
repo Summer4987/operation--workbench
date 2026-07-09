@@ -251,7 +251,7 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                         with mock.patch.object(
                             self.module,
                             "page_text",
-                            return_value="预算已耗尽 每日预算 输入金额过高，请输入0-0元 取消 确定",
+                            return_value="每日预算 输入金额过高，请输入0-0元 取消 确定",
                         ):
                             with mock.patch.object(self.module, "close_budget_modal"):
                                 with self.assertRaisesRegex(RuntimeError, "平台预算锁定"):

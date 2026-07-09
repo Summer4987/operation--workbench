@@ -644,10 +644,10 @@ def confirm_budget_with_recovery(page, target: float) -> tuple[float | None, str
             return final_budget, "确定按钮禁用，页面预算已是目标值"
         body = page_text(page)
         compact = body.replace(" ", "")
-        if "预算已耗尽" in compact and ("请输入0-0元" in compact or "输入金额过高" in compact):
+        if "请输入0-0元" in compact or ("输入金额过高" in compact and "0-0元" in compact):
             close_budget_modal(page)
             raise RuntimeError(
-                f"平台预算锁定：预算已耗尽，预算弹窗限制请输入0-0元，无法自动设置目标预算 {target:g}；"
+                f"平台预算锁定：预算弹窗限制请输入0-0元，无法自动设置目标预算 {target:g}；"
                 f"当前页面预算={final_budget}"
             )
         raise RuntimeError(f"确定按钮禁用，且页面预算={final_budget}，目标={target}")
