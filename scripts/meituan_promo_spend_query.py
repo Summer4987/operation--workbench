@@ -259,6 +259,10 @@ def load_recent_wm_ids() -> dict[str, str]:
     return mapping
 
 
+def is_meituan_ad_url(value: str) -> bool:
+    return "waimaieapp.meituan.com/ad/v1" in str(value or "") and "token=" in str(value or "")
+
+
 def load_meituan_tasks(period: str) -> list[dict[str, Any]]:
     payload = read_json(PREVIEW_PATH)
     if not payload:
@@ -546,9 +550,20 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             time.sleep(4)
         else:
             page, created_page = headquarters_page_for_context(context)
-            selected_store = open_headquarters_promo_page(page, task, helpers)
-            target_url = page.url
-            record["selected_store"] = selected_store
+            try:
+                wm_id = helpers["wm_poi_id"](task)
+            except RuntimeError:
+                wm_id = ""
+            if wm_id and is_meituan_ad_url(base_url):
+                target_url = helpers["url_for_store"](base_url, wm_id)
+                record["wmPoiId"] = wm_id
+                page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
+                time.sleep(2)
+                record["selected_store"] = task_display_name(task)
+            else:
+                selected_store = open_headquarters_promo_page(page, task, helpers)
+                target_url = page.url
+                record["selected_store"] = selected_store
         raise_if_meituan_verify_page(page)
         helpers["enter_dianjin_with_recovery"](page, target_url)
         helpers["wait_setting_ready"](page, timeout_seconds=20)

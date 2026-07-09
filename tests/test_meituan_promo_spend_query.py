@@ -186,6 +186,42 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         )
         helpers["url_for_store"].assert_not_called()
 
+    def test_headquarters_query_uses_direct_ad_url_when_wm_poi_id_exists(self) -> None:
+        page = types.SimpleNamespace(
+            url="https://e.waimai.meituan.com/",
+            goto=mock.Mock(),
+            close=mock.Mock(),
+        )
+        context = types.SimpleNamespace(pages=[page])
+        helpers = {
+            "context_for_task": mock.Mock(return_value=context),
+            "wm_poi_id": mock.Mock(return_value="32346101"),
+            "url_for_store": mock.Mock(return_value="https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32346101"),
+            "enter_dianjin_with_recovery": mock.Mock(),
+            "wait_setting_ready": mock.Mock(return_value={}),
+            "page_text": mock.Mock(return_value="推广实况\n推广花费\n79.01元\n推广设置\n推广预算\n已消耗99%\n80\n元\n"),
+            "classify_failure": mock.Mock(return_value="execution_failed"),
+            "save_failure_evidence": mock.Mock(),
+        }
+
+        result = self.query.query_task(
+            {"keyword": "川湘府", "store": "熊小小牛排饭POKEBEAR(第5号档口川湘府美食城店)", "wmPoiId": "32346101"},
+            helpers,
+            playwright=None,
+            contexts={},
+            launched_contexts=[],
+            base_url="https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32022526",
+            direct_accounts={},
+        )
+
+        self.assertTrue(result["ok"])
+        page.goto.assert_called_once_with(
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32346101",
+            wait_until="domcontentloaded",
+            timeout=45_000,
+        )
+        self.assertEqual(result["selected_store"], "川湘府")
+
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(
             [
