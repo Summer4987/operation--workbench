@@ -331,6 +331,10 @@ def select_headquarters_store(page, task: dict[str, Any]) -> str:
         and ("推广预算" in current_page or "推广首页" in current_page)
     ):
         return next((alias for alias in aliases if alias in current_page), aliases[0])
+    if "waimaieapp.meituan.com/ad/v1" in current_url and not current_url_matches_task:
+        page.goto(HEADQUARTERS_HOME_URL, wait_until="domcontentloaded", timeout=45_000)
+        time.sleep(4)
+        dismiss_common_modals(page)
 
     current = ""
     try:
@@ -658,6 +662,8 @@ def compact_error_message(message: str) -> str:
     text = normalize_space(message)
     if "安全验证" in text or "verify.meituan.com" in text:
         return "美团触发安全验证，需要先在 Mac mini 完成验证后重试"
+    if "没有找到“全部门店”选择器" in text or "没有找到\"全部门店\"选择器" in text:
+        return "总部账号门店选择器未出现，未能切换门店"
     if "backdrop" in text or "intercepts pointer events" in text:
         return "页面弹出遮罩层挡住门店选择器，未能切换门店"
     if "缺少 Playwright" in text or "No module named 'playwright'" in text:
@@ -665,6 +671,8 @@ def compact_error_message(message: str) -> str:
     if "没有解析到推广花费" in text:
         return "页面已打开，但没有解析到推广花费"
     first = text.split("Call log:", 1)[0].strip()
+    first = re.sub(r"https?://\S+", "[链接已省略]", first)
+    first = re.sub(r"当前URL[:：]\s*\[链接已省略\]", "当前页面链接已省略", first)
     return (first or text)[:180]
 
 

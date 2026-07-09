@@ -188,6 +188,26 @@ class AgentInboxTests(unittest.TestCase):
                 agent_inbox_worker.LAST_COMMAND_PATH = original_latest
                 agent_inbox_worker.subprocess.run = original_run
 
+    def test_worker_marks_partial_meituan_inspection_as_warning_notice(self) -> None:
+        notice_status, action = agent_inbox_worker.infer_business_notice(
+            "success",
+            {"intent": "meituan_spend_inspection"},
+            "美团推广实时消耗巡检：总览：已读到 4/13 家，今日消耗 110.77 元，当前预算 380 元；正常 4，预警 0，异常 0，未核实 9。",
+        )
+
+        self.assertEqual(notice_status, "warning")
+        self.assertIn("未核实", action)
+
+    def test_worker_marks_meituan_warning_count_as_warning_notice(self) -> None:
+        notice_status, action = agent_inbox_worker.infer_business_notice(
+            "success",
+            {"intent": "meituan_spend_inspection"},
+            "美团推广实时消耗巡检：总览：已读到 13/13 家，今日消耗 0 元；正常 12，预警 1，异常 0，未核实 0。",
+        )
+
+        self.assertEqual(notice_status, "warning")
+        self.assertIn("预警", action)
+
     def test_nginx_exposes_inbox_without_auth_request(self) -> None:
         text = (ROOT / "inventory-board" / "deploy" / "nginx.conf").read_text(encoding="utf-8")
         block = text.split("location /agent-wecom/inbox/", 1)[1].split("location", 1)[0]

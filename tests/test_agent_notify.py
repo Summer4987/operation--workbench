@@ -30,6 +30,18 @@ class AgentNotifyTests(unittest.TestCase):
         self.assertIn("说明：没有真实提交预算。", message)
         self.assertIn("时间：2026-07-04 10:00:00", message)
 
+    def test_build_message_hides_long_urls(self) -> None:
+        message = agent_notify.build_message(
+            title="巡检美团实时消耗",
+            status="warning",
+            detail="未核实。当前URL：https://waimaieapp.meituan.com/ad/v1/rpc?token=secret&wmPoiId=32022526",
+            generated_at="2026-07-09 10:00:00",
+        )
+
+        self.assertIn("当前页面链接已省略", message)
+        self.assertNotIn("https://", message)
+        self.assertNotIn("token=secret", message)
+
     def test_command_payload_blocked_ordering_becomes_blocked_notice(self) -> None:
         payload = agent_command.handle_command("订货补跑", execute=True)
         status, message = agent_notify.message_from_command_payload(payload)

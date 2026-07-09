@@ -12,6 +12,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import re
 
 from atomic_io import atomic_write_text
 import agent_notify
@@ -96,19 +97,35 @@ def run_agent_command(text: str, execute: bool) -> dict[str, Any]:
     }
 
 
+def infer_business_notice(status: str, command_payload: dict[str, Any], answer: str) -> tuple[str, str]:
+    if command_payload.get("blocked"):
+        return "blocked", "这个动作已被安全规则挡住；订货/下单/采购仍不参与。"
+    if status != "success":
+        return "failed", "请到 Mac mini 查看 agent_inbox_worker 和对应命令日志。"
+
+    intent = str(command_payload.get("intent") or "")
+    text = str(answer or "")
+    read_match = re.search(r"已读到\s*(\d+)\s*/\s*(\d+)\s*家", text)
+    unread = False
+    if read_match:
+        unread = int(read_match.group(1)) < int(read_match.group(2))
+    counters = {}
+    for label in ("异常", "未核实", "预警"):
+        match = re.search(rf"{label}\s*(\d+)", text)
+        if match:
+            counters[label] = int(match.group(1))
+    if unread or counters.get("异常", 0) > 0 or counters.get("未核实", 0) > 0:
+        return "warning", "巡检未完全通过；优先处理未核实/异常门店，长链接已在通知中省略。"
+    if intent == "meituan_spend_inspection" and counters.get("预警", 0) > 0:
+        return "warning", "巡检读数完成，但存在预警门店；请确认是否本应投放或预算接近耗尽。"
+    return "success", "队列任务已完成。"
+
+
 def notify_task_completion(task: dict[str, Any], status: str, result: dict[str, Any]) -> dict[str, Any]:
     command_payload = result.get("command_payload") if isinstance(result.get("command_payload"), dict) else {}
     answer = str(command_payload.get("answer") or result.get("output_tail") or "").strip()
     intent = str(command_payload.get("intent") or task.get("intent") or "unknown")
-    if command_payload.get("blocked"):
-        notice_status = "blocked"
-        action = "这个动作已被安全规则挡住；订货/下单/采购仍不参与。"
-    elif status == "success":
-        notice_status = "success"
-        action = "队列任务已完成。"
-    else:
-        notice_status = "failed"
-        action = "请到 Mac mini 查看 agent_inbox_worker 和对应命令日志。"
+    notice_status, action = infer_business_notice(status, command_payload, answer)
     message = agent_notify.build_message(
         title=f"企微队列 {str(task.get('id') or '')[:8]}：{task.get('text') or 'Agent 命令'}",
         status=notice_status,

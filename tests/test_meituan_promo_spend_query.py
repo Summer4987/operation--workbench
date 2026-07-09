@@ -139,6 +139,16 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
 
         self.assertEqual(selected, "保利中心")
 
+    def test_compact_error_message_hides_selector_url_noise(self) -> None:
+        reason = self.query.compact_error_message(
+            "总部账号页面没有找到“全部门店”选择器。 当前URL："
+            "https://waimaieapp.meituan.com/ad/v1/rpc?_source=PC&token=secret&wmPoiId=32022526"
+        )
+
+        self.assertEqual(reason, "总部账号门店选择器未出现，未能切换门店")
+        self.assertNotIn("https://", reason)
+        self.assertNotIn("token=", reason)
+
     def test_direct_query_uses_base_url_when_wm_poi_id_is_absent(self) -> None:
         page = types.SimpleNamespace(
             url="https://e.waimai.meituan.com/",

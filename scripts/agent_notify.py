@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import socket
 import sys
 from datetime import datetime
@@ -39,6 +40,8 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def compact(text: str, *, limit: int = 900) -> str:
     value = " ".join(str(text or "").split())
+    value = re.sub(r"https?://\S+", "[链接已省略]", value)
+    value = re.sub(r"当前URL[:：]\s*\[链接已省略\]", "当前页面链接已省略", value)
     if len(value) <= limit:
         return value
     return value[: limit - 1] + "…"
