@@ -36,9 +36,13 @@ class FakePage:
     def __init__(self, url: str, frame_urls: list[str] | None = None) -> None:
         self.url = url
         self.frames = [FakeFrame(url) for url in (frame_urls or [])]
+        self.closed = False
 
     def goto(self, url: str, **_kwargs) -> None:
         self.url = url
+
+    def close(self) -> None:
+        self.closed = True
 
 
 class FakeContext:
@@ -242,10 +246,55 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIn("强制点击确定", message)
         self.assertEqual(locator.click_kwargs[-1].get("force"), True)
 
+    def test_read_today_spend_reads_realtime_promo_spend(self) -> None:
+        page = FakeConfirmPage()
+
+        with mock.patch.object(
+            self.module,
+            "page_text",
+            return_value="实时数据\n推广花费\n110.91元\n昨日120元\n历史数据\n推广花费\n793.43元",
+        ):
+            self.assertEqual(self.module.read_today_spend(page), 110.91)
+
+    def test_execute_task_skips_lowering_budget_when_spend_exceeds_target(self) -> None:
+        context = FakeContext([])
+        task = {
+            "store": "熊小小牛排饭POKEBEAR（保利中心店）",
+            "keyword": "保利中心",
+            "wmPoiId": "32022526",
+            "targetBudget": 100,
+        }
+
+        with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+            with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
+                with mock.patch.object(self.module, "wait_budget", return_value=120.0):
+                    with mock.patch.object(self.module, "read_budget", return_value=120.0):
+                        with mock.patch.object(self.module, "read_today_spend", return_value=110.91):
+                            with mock.patch.object(self.module, "open_budget_modal") as open_modal:
+                                result = self.module.execute_task(
+                                    context,
+                                    "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123",
+                                    task,
+                                    commit=True,
+                                )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["failure_type"], "spent_exceeds_target")
+        self.assertEqual(result["afterBudget"], 120.0)
+        self.assertIn("今日已消耗110.91元", result["message"])
+        open_modal.assert_not_called()
+
     def test_classify_platform_budget_locked_zero_range(self) -> None:
         self.assertEqual(
             self.module.classify_failure("平台预算锁定：预算已耗尽，预算弹窗限制请输入0-0元"),
             "platform_budget_locked",
+        )
+
+    def test_classify_spent_exceeds_target(self) -> None:
+        self.assertEqual(
+            self.module.classify_failure("今日已消耗110.91元，超过目标预算100元；平台不允许下调到目标值"),
+            "spent_exceeds_target",
         )
 
     def test_confirm_budget_reports_platform_locked_zero_range(self) -> None:

@@ -132,6 +132,8 @@ def page_text(page) -> str:
 
 def classify_failure(message: str) -> str:
     body = str(message or "")
+    if "今日已消耗" in body and "超过目标预算" in body:
+        return "spent_exceeds_target"
     if "请输入0-0元" in body or "0-0元" in body or ("预算已耗尽" in body and "输入金额过高" in body):
         return "platform_budget_locked"
     if any(token in body for token in ("未登录", "登录", "验证码", "安全验证", "UNAUTHORIZED")):
@@ -195,6 +197,32 @@ def read_budget(page) -> float | None:
         if match:
             return float(match.group(1))
     return None
+
+
+def parse_money(value: str) -> float | None:
+    text = str(value or "").replace(",", "").strip()
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def read_today_spend(page) -> float | None:
+    text = page_text(page)
+    match = re.search(r"推广花费\s*([0-9][0-9,.]*(?:\.\d+)?)\s*元", text, re.S)
+    if match:
+        return parse_money(match.group(1))
+    return None
+
+
+def spent_exceeds_target_message(spend: float, target: float, current_budget: float | None) -> str:
+    budget_text = f"{current_budget:g}元" if current_budget is not None else "当前页面预算"
+    return f"今日已消耗{spend:g}元，超过目标预算{target:g}元；平台不允许下调到目标值，保留{budget_text}。"
+
+
+def spent_exceeds_target(page, target: float) -> tuple[bool, float | None]:
+    spend = read_today_spend(page)
+    return bool(spend is not None and spend > target), spend
 
 
 def wait_budget(page, *, timeout_seconds: int = 15) -> float | None:
@@ -742,6 +770,15 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             record["ok"] = True
             record["message"] = "页面预算已是目标值，无需重复保存"
             return record
+        spend_blocked, today_spend = spent_exceeds_target(page, target)
+        if spend_blocked:
+            record["todaySpend"] = today_spend
+            record["afterBudget"] = record["beforeBudget"]
+            record["ok"] = True
+            record["skipped"] = True
+            record["failure_type"] = "spent_exceeds_target"
+            record["message"] = spent_exceeds_target_message(float(today_spend), target, record["beforeBudget"])
+            return record
         try:
             open_budget_modal(page)
         except RuntimeError:
@@ -754,6 +791,14 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         final_budget, message = confirm_budget_with_recovery(page, target, target_url)
         record["afterBudget"] = final_budget
         if final_budget is None or abs(final_budget - target) > 0.01:
+            spend_blocked, today_spend = spent_exceeds_target(page, target)
+            if spend_blocked:
+                record["todaySpend"] = today_spend
+                record["ok"] = True
+                record["skipped"] = True
+                record["failure_type"] = "spent_exceeds_target"
+                record["message"] = spent_exceeds_target_message(float(today_spend), target, final_budget)
+                return record
             raise RuntimeError(f"保存后预算={final_budget}，目标={target}")
         record["ok"] = True
         record["message"] = message
