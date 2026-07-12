@@ -399,6 +399,25 @@ def compact_log_tail(value: str, *, limit: int = 360) -> str:
     return text[-limit:]
 
 
+def task_success_resolves_failed_steps(task: dict[str, Any], failed_steps: list[dict[str, Any]]) -> bool:
+    if task.get("status") != "success" or not failed_steps:
+        return False
+    task_message = str(task.get("message") or "")
+    task_step = str(task.get("step") or "")
+    if "失败项已修复" in task_message or "单项修复" in task_step:
+        return True
+    task_time = parse_time(str(task.get("updated_at") or task.get("finished_at") or ""))
+    if not task_time:
+        return False
+    failed_times = [
+        parse_time(str(step.get("updated_at") or ""))
+        for step in failed_steps
+        if step.get("updated_at")
+    ]
+    failed_times = [value for value in failed_times if value is not None]
+    return bool(failed_times and all(task_time >= failed_time for failed_time in failed_times))
+
+
 def build_payload() -> dict[str, Any]:
     run_state = read_json(TASK_RUNS_PATH, {"tasks": {}, "events": []})
     all_events = [event for event in run_state.get("events", []) if event.get("task_id") == TASK_ID]
@@ -420,9 +439,7 @@ def build_payload() -> dict[str, Any]:
         steps = [*success_steps, *fallback_steps]
     failed_steps = [step for step in steps if step["status"] == "failed"]
     resolved_failed_steps: list[dict[str, Any]] = []
-    task_message = str(task.get("message") or "")
-    task_step = str(task.get("step") or "")
-    if task.get("status") == "success" and ("失败项已修复" in task_message or "单项修复" in task_step):
+    if task_success_resolves_failed_steps(task, failed_steps):
         resolved_failed_steps = failed_steps
         failed_steps = []
     recovery_actions = [
@@ -446,7 +463,7 @@ def build_payload() -> dict[str, Any]:
     elif not all_events:
         status = "missing_run"
         message = "尚未找到上午运营一键采集运行记录。"
-    elif task.get("status") == "success" and completed_steps:
+    elif task.get("status") == "success" and (completed_steps or resolved_failed_steps):
         status = "success"
         if resolved_failed_steps:
             message = f"上午运营一键采集失败项已修复，{len(resolved_failed_steps)} 个历史失败子步骤已关闭。"

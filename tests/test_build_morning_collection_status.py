@@ -343,6 +343,58 @@ class BuildMorningCollectionStatusTests(unittest.TestCase):
         self.assertEqual(len(payload["resolved_failed_steps"]), 1)
         self.assertIn("失败项已修复", payload["message"])
 
+    def test_later_success_record_closes_previous_failed_step_without_magic_words(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task_runs = root / "outputs" / "task_runs" / "latest.json"
+            task_runs.parent.mkdir(parents=True)
+            task_runs.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "success",
+                                "message": "已补跑 2026-07-11 门店日报：饿了么 14 行数据正常。",
+                                "step": "门店日报补跑",
+                                "returncode": 0,
+                                "updated_at": "2026-07-12 15:55:00",
+                            }
+                        },
+                        "events": [
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "running",
+                                "message": "上午运营一键采集开始。",
+                                "step": "初始化",
+                                "created_at": "2026-07-12 08:00:00",
+                            },
+                            {
+                                "task_id": "ops.morning_collection",
+                                "status": "failed",
+                                "message": "门店日报采集并发布失败，退出码 1。",
+                                "step": "门店日报采集并发布",
+                                "returncode": 1,
+                                "created_at": "2026-07-12 08:30:25",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            original = morning_module.TASK_RUNS_PATH
+            try:
+                morning_module.TASK_RUNS_PATH = task_runs
+                payload = morning_module.build_payload()
+            finally:
+                morning_module.TASK_RUNS_PATH = original
+
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["summary"]["failed_count"], 0)
+        self.assertEqual(len(payload["resolved_failed_steps"]), 1)
+        self.assertEqual(payload["resolved_failed_steps"][0]["name"], "门店日报采集并发布")
+
 
 if __name__ == "__main__":
     unittest.main()
