@@ -17,6 +17,8 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 TEMPLATE_FILENAMES = ("熊小小牛排饭订单模板.xlsx", "熊小小排饭订单模板.xlsx")
 LOCAL_TEMPLATE_DIR = Path("/Users/summer/Desktop/库存管理/出入库模板")
 PROJECT_TEMPLATE_DIR = BASE_DIR / "data" / "templates"
+SERVER_DATA_DIR = Path(os.environ.get("INVENTORY_DATA_DIR", "/opt/inventory-board/data"))
+SERVER_TEMPLATE_DIR = SERVER_DATA_DIR / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
@@ -36,6 +38,8 @@ def _template_candidates() -> list[Path]:
         [
             PROJECT_TEMPLATE_DIR / TEMPLATE_FILENAMES[0],
             PROJECT_TEMPLATE_DIR / TEMPLATE_FILENAMES[1],
+            SERVER_TEMPLATE_DIR / TEMPLATE_FILENAMES[0],
+            SERVER_TEMPLATE_DIR / TEMPLATE_FILENAMES[1],
             LOCAL_TEMPLATE_DIR / TEMPLATE_FILENAMES[0],
             LOCAL_TEMPLATE_DIR / TEMPLATE_FILENAMES[1],
         ]

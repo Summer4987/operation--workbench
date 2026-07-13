@@ -176,6 +176,14 @@ def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypa
     assert rows["CWXXX0004"]["balance"] == 50
 
 
+def test_order_template_candidates_include_server_data_dir(monkeypatch):
+    load_inventory_module()
+    order_generator = sys.modules["inventory_board_auth_gate_for_tests.order_generator"]
+
+    assert order_generator.SERVER_TEMPLATE_DIR / "熊小小牛排饭订单模板.xlsx" in order_generator._template_candidates()
+    assert order_generator.SERVER_TEMPLATE_DIR / "熊小小排饭订单模板.xlsx" in order_generator._template_candidates()
+
+
 def test_daily_order_submit_accepts_chengdu_session_cookie_for_owner(monkeypatch):
     daily_module = load_daily_order_module()
     inventory_module = load_inventory_module()
@@ -507,7 +515,10 @@ def test_daily_order_history_filters_to_authenticated_store(tmp_path, monkeypatc
             "quantity": 6.0,
         }
     ]
-    assert items[0]["download_url"] == "http://testserver/order-file/DO-TEST.xlsx?token=xiongxiaoxiao-order"
+    assert (
+        items[0]["download_url"]
+        == "http://testserver/order-file/%E9%93%B6%E6%B3%B0%E5%9F%8E%E6%97%A5%E9%85%8D.xlsx?token=xiongxiaoxiao-order"
+    )
 
 
 def test_chengdu_catalog_returns_authenticated_store(monkeypatch):

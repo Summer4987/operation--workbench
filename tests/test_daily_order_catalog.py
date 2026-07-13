@@ -116,6 +116,16 @@ def test_daily_order_submit_page_has_order_history_panel():
     assert "下载 Excel" in html
 
 
+def test_daily_order_submit_page_shows_submit_message():
+    html = (Path(__file__).resolve().parents[1] / "inventory-board" / "static" / "order-submit.html").read_text(
+        encoding="utf-8"
+    )
+    message_rule = html.split(".message {", 1)[1].split("}", 1)[0]
+
+    assert "display: block" in message_rule
+    assert "display: none" not in message_rule
+
+
 def test_admin_pages_bust_static_cache_for_sam_delivery_channel():
     root = Path(__file__).resolve().parents[1]
     for filename in ("admin.html", "beijing-admin.html"):
