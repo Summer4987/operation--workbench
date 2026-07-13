@@ -184,6 +184,34 @@ def inventory_summary() -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def inventory_warning_items(skus: list[str] | set[str] | tuple[str, ...]) -> list[dict]:
+    clean_skus = sorted({str(sku).strip() for sku in skus if str(sku).strip()})
+    if not clean_skus:
+        return []
+    placeholders = ",".join("?" for _ in clean_skus)
+    with connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                p.sku,
+                p.name,
+                p.spec,
+                p.unit,
+                p.warehouse,
+                p.warning_threshold,
+                COALESCE(SUM(m.signed_quantity), 0) AS balance
+            FROM products p
+            LEFT JOIN movements m ON m.sku = p.sku
+            WHERE p.sku IN ({placeholders})
+            GROUP BY p.sku
+            HAVING balance <= p.warning_threshold
+            ORDER BY balance ASC, p.sku
+            """,
+            clean_skus,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def recent_imports(limit: int = 20) -> list[dict]:
     with connect() as conn:
         rows = conn.execute(

@@ -29,6 +29,7 @@ from .db import (
     delivery_months,
     finish_import,
     inventory_flow_summary,
+    inventory_warning_items,
     init_db,
     inventory_summary,
     now_iso,
@@ -446,6 +447,10 @@ async def import_file(movement_type: str = Form(...), file: UploadFile = File(..
             inserted += 1
         finish_import(conn, import_id, status="success", line_count=inserted)
 
+    _notify_inventory_warning_for_skus(
+        {line.sku for line in lines},
+        source="库存入库导入" if movement_type == "inbound" else "库存出库导入",
+    )
     return {"status": "success", "line_count": inserted}
 
 
@@ -459,6 +464,7 @@ async def update_warning(sku: str, payload: dict):
         raise HTTPException(status_code=400, detail="预警值不能小于 0")
     if not set_warning_threshold(sku, threshold):
         raise HTTPException(status_code=404, detail="没有找到这个商品")
+    _notify_inventory_warning_for_skus({sku}, source="库存预警值调整")
     return {"status": "success"}
 
 
@@ -1926,6 +1932,10 @@ def _record_generated_outbound(result: dict, filename: str) -> None:
             )
             inserted += 1
         finish_import(conn, import_id, status="success", line_count=inserted)
+    _notify_inventory_warning_for_skus(
+        {str(item.get("sku") or "").strip() for item in result.get("items") or []},
+        source="熊小小日配订货出库",
+    )
 
 
 def _notify_order_submit(result: dict, filename: str, download_url: str = "") -> None:
@@ -1964,6 +1974,121 @@ def _notify_order_submit(result: dict, filename: str, download_url: str = "") ->
         url_request.urlopen(req, timeout=6).read()
     except Exception:
         pass
+
+
+def _notify_inventory_warning_for_skus(skus: set[str], source: str) -> None:
+    warning_items = inventory_warning_items(skus)
+    if not warning_items:
+        return
+    text = _inventory_warning_message(warning_items, source)
+    notify_type = _inventory_warning_notify_type()
+    if notify_type == "hermes":
+        _notify_inventory_warning_with_hermes(text)
+        return
+    webhook = _inventory_warning_webhook()
+    if not webhook:
+        _write_inventory_warning_log("skipped", text)
+        return
+    if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
+        body = {"msgtype": "text", "text": {"content": text}}
+    else:
+        body = {"msg_type": "text", "content": {"text": text}}
+    payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = url_request.Request(webhook, data=payload, method="POST", headers={"Content-Type": "application/json"})
+    try:
+        url_request.urlopen(req, timeout=6).read()
+        _write_inventory_warning_log("sent", text)
+    except Exception as exc:
+        _write_inventory_warning_log("failed", f"{type(exc).__name__}: {exc}\n\n{text}")
+
+
+def _inventory_warning_message(items: list[dict], source: str) -> str:
+    title = "【熊小小仓库库存预警】"
+    lines = [title, f"来源：{source}", f"触发 SKU：{len(items)} 个"]
+    for item in items[:12]:
+        name = str(item.get("name") or item.get("sku") or "").replace("熊小小牛排饭-", "")
+        balance = _format_quantity(item.get("balance"))
+        threshold = _format_quantity(item.get("warning_threshold"))
+        unit = str(item.get("unit") or "")
+        warehouse = str(item.get("warehouse") or "")
+        suffix = f"｜{warehouse}" if warehouse else ""
+        lines.append(f"- {name}（{item.get('sku')}）：库存 {balance}{unit}，预警值 {threshold}{unit}{suffix}")
+    if len(items) > 12:
+        lines.append(f"... 还有 {len(items) - 12} 个 SKU，请打开仓库管理查看。")
+    return "\n".join(lines)
+
+
+def _inventory_warning_webhook() -> str:
+    direct = os.environ.get("INVENTORY_WARNING_NOTIFY_WEBHOOK", "").strip()
+    if direct:
+        return direct
+    for key in ("ORDER_NOTIFY_WEBHOOK", "OPS_NOTIFY_WEBHOOK"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+    config_path = Path(os.environ.get("OPS_NOTIFY_CONFIG", str(BASE_DIR.parent / "config" / "ops_notify.json"))).expanduser()
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    except Exception:
+        config = {}
+    return str(config.get("webhook") or "").strip()
+
+
+def _inventory_warning_notify_type() -> str:
+    for key in ("INVENTORY_WARNING_NOTIFY_TYPE", "ORDER_NOTIFY_TYPE", "OPS_NOTIFY_TYPE"):
+        value = os.environ.get(key, "").strip().lower()
+        if value:
+            return value
+    config_path = Path(os.environ.get("OPS_NOTIFY_CONFIG", str(BASE_DIR.parent / "config" / "ops_notify.json"))).expanduser()
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    except Exception:
+        config = {}
+    return str(config.get("type") or "wecom").strip().lower()
+
+
+def _write_inventory_warning_log(status: str, text: str) -> None:
+    log_dir = Path(os.environ.get("INVENTORY_WARNING_NOTIFY_LOG_DIR", str(BASE_DIR / "data" / "notify_logs"))).expanduser()
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = now_iso().replace(":", "").replace("+", "_")
+        (log_dir / f"inventory-warning-{status}-{timestamp}.log").write_text(text + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _notify_inventory_warning_with_hermes(text: str) -> None:
+    if os.environ.get("INVENTORY_WARNING_NOTIFY_DRY_RUN", "").strip().lower() in {"1", "true", "yes", "on"}:
+        _write_inventory_warning_log("dry-run", text)
+        return
+
+    hermes_bin = Path(os.environ.get("ORDER_HERMES_BIN", "~/.local/bin/hermes")).expanduser()
+    target = os.environ.get("INVENTORY_WARNING_HERMES_TARGET", os.environ.get("ORDER_HERMES_TARGET", "")).strip()
+    if not target:
+        _write_inventory_warning_log("failed", "INVENTORY_WARNING_HERMES_TARGET 和 ORDER_HERMES_TARGET 均为空，已跳过库存预警发送")
+        return
+    try:
+        completed = subprocess.run(
+            [str(hermes_bin), "send", "--to", target, text],
+            check=False,
+            cwd=str(BASE_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=90,
+        )
+    except Exception as exc:
+        _write_inventory_warning_log("failed", f"{type(exc).__name__}: {exc}\n\n{text}")
+        return
+
+    status = "sent" if completed.returncode == 0 else "failed"
+    output = (completed.stdout or "").strip()
+    _write_inventory_warning_log(status, f"target={target}\nreturncode={completed.returncode}\noutput={output}\n\n{text}")
+
+
+def _format_quantity(value) -> str:
+    number = _to_float(value)
+    return str(int(number)) if number.is_integer() else f"{number:.2f}".rstrip("0").rstrip(".")
 
 
 def _notify_order_submit_with_hermes(result: dict, filename: str, download_url: str = "") -> None:

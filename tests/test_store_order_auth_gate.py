@@ -366,6 +366,86 @@ def test_daily_order_submit_hermes_uses_configured_group_target(monkeypatch):
     assert "MEDIA:/tmp/order.xlsx" in calls[0][0][4]
 
 
+def test_inventory_warning_uses_store_notify_group_webhook(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
+    monkeypatch.setattr(db_module, "DB_PATH", tmp_path / "inventory.sqlite3")
+    module.init_db()
+    monkeypatch.setenv("ORDER_NOTIFY_WEBHOOK", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test")
+    monkeypatch.setenv("ORDER_NOTIFY_TYPE", "wecom")
+    monkeypatch.setenv("INVENTORY_WARNING_NOTIFY_LOG_DIR", str(tmp_path / "logs"))
+
+    with module.connect() as conn:
+        module.upsert_product(conn, sku="SKU-LOW", name="熊小小牛排饭-低库存商品", unit="件", warehouse="冷冻")
+        conn.execute("UPDATE products SET warning_threshold = 5 WHERE sku = 'SKU-LOW'")
+        import_id = module.create_import(
+            conn,
+            file_hash="warning-stock",
+            filename="低库存测试.xlsx",
+            movement_type="outbound",
+            source="manual_upload",
+        )
+        conn.execute(
+            """
+            INSERT INTO movements (
+                import_file_id, row_key, movement_type, sku, name, spec, unit, warehouse, address, store_name,
+                quantity, signed_quantity, document_date, source_row, created_at
+            )
+            VALUES (?, 'warning-row', 'outbound', 'SKU-LOW', '熊小小牛排饭-低库存商品', '', '件', '冷冻', '', '',
+                    2, -2, '2026-07-13', 1, '2026-07-13T12:00:00+08:00')
+            """,
+            (import_id,),
+        )
+        module.finish_import(conn, import_id, status="success", line_count=1)
+
+    calls = []
+
+    class FakeResponse:
+        def read(self):
+            return b"ok"
+
+    def fake_urlopen(req, timeout):
+        calls.append((req, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(module.url_request, "urlopen", fake_urlopen)
+
+    module._notify_inventory_warning_for_skus({"SKU-LOW"}, source="测试出库")
+
+    assert len(calls) == 1
+    request, timeout = calls[0]
+    assert timeout == 6
+    assert request.full_url == "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test"
+    payload = json.loads(request.data.decode("utf-8"))
+    assert payload["msgtype"] == "text"
+    assert "【熊小小仓库库存预警】" in payload["text"]["content"]
+    assert "低库存商品（SKU-LOW）：库存 -2件，预警值 5件｜冷冻" in payload["text"]["content"]
+
+
+def test_inventory_warning_hermes_uses_order_group_target(monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv("ORDER_NOTIFY_TYPE", "hermes")
+    monkeypatch.setenv("ORDER_HERMES_BIN", "/usr/local/bin/hermes")
+    monkeypatch.setenv("ORDER_HERMES_TARGET", "熊小小门店通知群")
+
+    calls = []
+
+    class Completed:
+        returncode = 0
+        stdout = "ok"
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return Completed()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(module, "_write_inventory_warning_log", lambda status, text: None)
+
+    module._notify_inventory_warning_with_hermes("库存预警测试")
+
+    assert calls[0][0] == ["/usr/local/bin/hermes", "send", "--to", "熊小小门店通知群", "库存预警测试"]
+
+
 def test_daily_order_history_filters_to_authenticated_store(tmp_path, monkeypatch):
     module = load_inventory_module()
     db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
