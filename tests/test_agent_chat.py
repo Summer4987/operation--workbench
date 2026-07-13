@@ -135,6 +135,60 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("处理建议", answer)
         self.assertIn("可自动处理：总看板云端发布", answer)
 
+    def test_today_status_uses_task_runs_and_does_not_surface_yesterday_failure_as_today(self) -> None:
+        today = agent_chat.today_text()
+        answer = agent_chat.build_status_answer(
+            {"summary": {"success": 5, "failed": 0, "skipped": 0}},
+            {"summary": {"completed": 13, "failed": 0, "attention": 1}},
+            {
+                "tasks": {
+                    "ops.morning_collection": {
+                        "status": "success",
+                        "updated_at": f"{today} 08:26:33",
+                        "step": "汇总",
+                        "message": "上午运营一键采集完成。",
+                    },
+                    "growth.promo_budget": {
+                        "status": "failed",
+                        "updated_at": "2026-07-12 16:56:39",
+                        "step": "晚餐预算汇总",
+                        "message": "昨天饿了么捕获失败。",
+                    },
+                }
+            },
+            "任务状态",
+        )
+
+        self.assertIn("今天任务状态", answer)
+        self.assertIn("上午运营一键采集：成功", answer)
+        self.assertIn("下午/晚餐推广预算设置：今日未运行", answer)
+        self.assertIn("最近一次 2026-07-12 16:56 是失败", answer)
+        self.assertNotIn("结论：有 1 个今日失败项", answer)
+
+    def test_yesterday_problem_question_reports_yesterday_failure_details(self) -> None:
+        yesterday = (agent_chat.datetime.now() - agent_chat.timedelta(days=1)).strftime("%Y-%m-%d")
+        answer = agent_chat.build_problem_answer_for_date(
+            {"stages": []},
+            {"summary": {"completed": 13, "failed": 0, "attention": 1}},
+            {
+                "tasks": {
+                    "growth.promo_budget": {
+                        "status": "failed",
+                        "updated_at": f"{yesterday} 16:56:39",
+                        "step": "晚餐预算汇总",
+                        "message": "饿了么预算捕获失败。",
+                        "log_path": "outputs/current_budget/logs/current_budget_晚餐.log",
+                    }
+                }
+            },
+            "昨天任务失败原因",
+        )
+
+        self.assertIn("失败明细", answer)
+        self.assertIn("下午/晚餐推广预算设置：失败", answer)
+        self.assertIn("饿了么预算捕获失败", answer)
+        self.assertIn("outputs/current_budget/logs/current_budget_晚餐.log", answer)
+
     def test_answer_question_uses_latest_files(self) -> None:
         original_root = agent_chat.ROOT
         original_pipeline_path = agent_chat.PIPELINE_PATH

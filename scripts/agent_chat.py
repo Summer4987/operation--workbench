@@ -6,7 +6,7 @@ import json
 import socket
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +25,28 @@ TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 DIRECT_DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "direct_unified_daily.csv"
 OUTPUT_DIR = ROOT / "outputs" / "agent_chat"
 
+TRACKED_TASKS = [
+    ("ops.morning_collection", "上午运营一键采集", "上午主流程"),
+    ("ops.realtime_order_income", "加盟店实时数据采集", "实时采集"),
+    ("growth.promo_budget", "下午/晚餐推广预算设置", "推广预算"),
+    ("agents.daily_automation_guard", "Agent 守护巡检", "Agent"),
+]
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def today_text() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def date_for_question(question: str) -> str:
+    if "昨天" in question:
+        return (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    if "前天" in question:
+        return (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    return today_text()
 
 
 def read_json(path: Path, fallback: Any) -> Any:
@@ -65,6 +84,120 @@ def compact_reason(value: Any, fallback: str = "没有写明原因") -> str:
     if not text:
         return fallback
     return text.replace("\n", " ")[:180].rstrip("。.")
+
+
+def date_part(value: Any) -> str:
+    return str(value or "").strip()[:10]
+
+
+def time_part(value: Any) -> str:
+    text = str(value or "").strip()
+    return text[11:16] if len(text) >= 16 else text
+
+
+def task_run_details(task: dict[str, Any]) -> str:
+    message = compact_reason(task.get("message"), fallback="")
+    extra = task.get("extra") if isinstance(task.get("extra"), dict) else {}
+    details_text = str(extra.get("failure_details") or "").strip()
+    if details_text:
+        try:
+            details = json.loads(details_text)
+        except Exception:
+            details = []
+        if isinstance(details, list) and details:
+            first = next((item for item in details if isinstance(item, dict)), {})
+            if first:
+                name = str(first.get("name") or first.get("step") or "").strip()
+                tail = compact_reason(first.get("output_tail"), fallback="")
+                detail_message = compact_reason(first.get("message"), fallback="")
+                pieces = [part for part in (name, detail_message, tail) if part]
+                if pieces:
+                    return "；".join(pieces)[:260]
+    return message
+
+
+def task_status_label(status: str) -> str:
+    return {
+        "success": "成功",
+        "failed": "失败",
+        "running": "运行中",
+        "skipped": "跳过",
+    }.get(status, status or "未记录")
+
+
+def tracked_task_line(index: int, task_id: str, name: str, section: str, task: dict[str, Any], target_date: str) -> str:
+    if not task:
+        return f"{index}. {name}：今日未记录。分组：{section}。"
+    updated = str(task.get("updated_at") or task.get("finished_at") or "")
+    status = str(task.get("status") or "")
+    run_date = date_part(updated)
+    when = time_part(updated)
+    step = str(task.get("step") or "")
+    detail = task_run_details(task)
+    if run_date == target_date:
+        line = f"{index}. {name}：{task_status_label(status)}"
+        if when:
+            line += f"（{when}）"
+        if step:
+            line += f"，步骤：{step}"
+        if status != "success" and detail:
+            line += f"。原因：{detail}"
+        elif detail:
+            line += f"。说明：{detail}"
+        return line
+    stale_text = "今日未运行"
+    if target_date != today_text():
+        stale_text = f"{target_date} 未记录"
+    line = f"{index}. {name}：{stale_text}"
+    if run_date:
+        line += f"；最近一次 {run_date} {when} 是{task_status_label(status)}"
+    if status != "success" and detail:
+        line += f"。最近原因：{detail}"
+    elif detail:
+        line += f"。最近说明：{detail}"
+    return line
+
+
+def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, Any], question: str) -> str:
+    target_date = date_for_question(question)
+    tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
+    today_rows = []
+    today_failed = 0
+    today_success = 0
+    today_running = 0
+    today_missing = 0
+    for index, (task_id, name, section) in enumerate(TRACKED_TASKS, start=1):
+        task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
+        if task and date_part(task.get("updated_at") or task.get("finished_at")) == target_date:
+            status = str(task.get("status") or "")
+            today_success += 1 if status == "success" else 0
+            today_failed += 1 if status == "failed" else 0
+            today_running += 1 if status == "running" else 0
+        else:
+            today_missing += 1
+        today_rows.append(tracked_task_line(index, task_id, name, section, task, target_date))
+
+    title_date = "今天" if target_date == today_text() else target_date
+    lines = [f"{title_date}任务状态："]
+    if today_failed:
+        lines.append(f"结论：有 {today_failed} 个今日失败项；今日成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+    elif today_running:
+        lines.append(f"结论：没有今日失败项，有 {today_running} 项运行中；今日成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+    else:
+        lines.append(f"结论：没有今日失败项；今日成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+    lines.extend(today_rows)
+
+    if target_date == today_text() and today_missing:
+        lines.append("说明：未运行不等于失败，下午/晚餐预算、晚间实时采集等任务未到时间时会显示未运行。")
+
+    monitor_summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
+    if monitor_summary:
+        lines.append(
+            "透明化报告："
+            f"完成 {monitor_summary.get('completed', 0)}，失败 {monitor_summary.get('failed', 0)}，"
+            f"需核实 {monitor_summary.get('attention', 0)}。"
+        )
+    return "\n".join(lines)
 
 
 def skipped_execution_agents(pipeline: dict[str, Any]) -> list[dict[str, Any]]:
@@ -234,7 +367,9 @@ def build_numbered_task_report(monitor: dict[str, Any], *, problem_only: bool = 
     return "\n".join(lines)
 
 
-def build_status_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> str:
+def build_status_answer(pipeline: dict[str, Any], monitor: dict[str, Any], task_runs: dict[str, Any] | None = None, question: str = "") -> str:
+    if isinstance(task_runs, dict) and task_runs.get("tasks"):
+        return build_daily_task_runs_report(task_runs, monitor, question)
     if monitor_tasks(monitor):
         return build_numbered_task_report(monitor)
     summary = pipeline.get("summary") if isinstance(pipeline.get("summary"), dict) else {}
@@ -292,6 +427,35 @@ def build_problem_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> s
     extra_failures = "" if len(failures) <= 5 else f" 另外还有 {len(failures) - 5} 个失败项。"
     verify_text = f"另有 {len(checks)} 项需核实，但不算失败。" if checks else "没有其它需核实项。"
     return f"今天真正失败 {len(failures)} 项：" + "；".join(parts) + f"。{extra_failures}{verify_text}"
+
+
+def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, Any], task_runs: dict[str, Any], question: str) -> str:
+    target_date = date_for_question(question)
+    tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
+    failed = []
+    for task_id, name, _section in TRACKED_TASKS:
+        task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
+        if task and date_part(task.get("updated_at") or task.get("finished_at")) == target_date and task.get("status") == "failed":
+            failed.append((name, task))
+    if failed:
+        title_date = "今天" if target_date == today_text() else target_date
+        lines = [f"{title_date}失败明细："]
+        for index, (name, task) in enumerate(failed, start=1):
+            updated = str(task.get("updated_at") or task.get("finished_at") or "")
+            detail = task_run_details(task)
+            evidence = task.get("log_path") or ""
+            line = f"{index}. {name}：失败（{time_part(updated)}）"
+            if task.get("step"):
+                line += f"，步骤：{task.get('step')}"
+            if detail:
+                line += f"。原因：{detail}"
+            if evidence:
+                line += f"。证据：{evidence}"
+            lines.append(line)
+        return "\n".join(lines)
+    if "昨天" in question or "今天" in question:
+        return build_daily_task_runs_report(task_runs, monitor, question)
+    return build_problem_answer(pipeline, monitor)
 
 
 def build_rerun_answer(monitor: dict[str, Any]) -> str:
@@ -537,13 +701,13 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
         answer = build_rerun_answer(monitor)
     elif any(keyword in normalized for keyword in ("问题", "失败", "异常", "坏", "报错")):
         intent = "problems"
-        answer = build_problem_answer(pipeline, monitor)
+        answer = build_problem_answer_for_date(pipeline, monitor, task_runs if isinstance(task_runs, dict) else {}, normalized)
     elif "help" in lower or "怎么问" in normalized or "帮助" in normalized:
         intent = "help"
         answer = "你可以问：今天哪里有问题、哪些任务能补跑、刚刚跳过的执行 Agent 是谁、现在 agent 状态怎么样。"
     else:
         intent = "status"
-        answer = build_status_answer(pipeline, monitor)
+        answer = build_status_answer(pipeline, monitor, task_runs if isinstance(task_runs, dict) else {}, normalized)
 
     factual_intents = {"status", "problems", "rerun", "execution_agent", "business_data"}
     effective_use_llm = bool(use_llm and intent not in factual_intents)
