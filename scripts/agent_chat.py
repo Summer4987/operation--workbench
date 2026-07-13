@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import socket
 import subprocess
@@ -21,6 +22,7 @@ PIPELINE_ID = "daily_automation_guard"
 PIPELINE_PATH = ROOT / "outputs" / "agent_pipeline" / PIPELINE_ID / "latest.json"
 MONITOR_PATH = ROOT / "outputs" / "agent_task_monitor" / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
+DIRECT_DAILY_PATH = ROOT / "business-report-dashboard" / "data" / "direct_unified_daily.csv"
 OUTPUT_DIR = ROOT / "outputs" / "agent_chat"
 
 
@@ -34,6 +36,14 @@ def read_json(path: Path, fallback: Any) -> Any:
         return payload if payload is not None else fallback
     except Exception:
         return fallback
+
+
+def read_csv_rows(path: Path) -> list[dict[str, str]]:
+    try:
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            return list(csv.DictReader(handle))
+    except Exception:
+        return []
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -342,6 +352,88 @@ def build_execution_answer(pipeline: dict[str, Any]) -> str:
     return "刚刚跳过的是 " + "；".join(details) + "。"
 
 
+def normalized_store_name(value: str) -> str:
+    text = str(value or "").strip()
+    aliases = {
+        "朝阳门": "朝阳门店",
+        "雅宝": "朝阳门店",
+        "银泰城": "银泰城店",
+        "万象城": "万象城店",
+        "金融城": "金融城店",
+        "保利中心": "保利中心店",
+    }
+    for key, name in aliases.items():
+        if key in text:
+            return name
+    return text
+
+
+def platform_terms(question: str) -> list[str]:
+    platforms = []
+    if "美团" in question:
+        platforms.append("美团")
+    if "饿了么" in question or "饿了" in question:
+        platforms.append("饿了么")
+    return platforms
+
+
+def is_business_data_question(question: str) -> bool:
+    if not any(token in question for token in ("店", "朝阳门", "雅宝", "银泰", "万象", "金融城", "保利")):
+        return False
+    return any(token in question for token in ("数据", "数据页", "日报", "恢复", "有没有", "有吗", "订单", "营业额", "美团", "饿了么"))
+
+
+def format_number(value: str) -> str:
+    try:
+        number = float(str(value or "0"))
+    except ValueError:
+        return str(value or "0")
+    if abs(number - round(number)) < 0.001:
+        return str(int(round(number)))
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def direct_daily_answer(question: str) -> str:
+    rows = read_csv_rows(DIRECT_DAILY_PATH)
+    if not rows:
+        return "我没读到直营日报数据文件，暂时不能判断门店数据页是否恢复。"
+    store = normalized_store_name(question)
+    if not store or store == question:
+        store = next((name for name in ["朝阳门店", "银泰城店", "万象城店", "金融城店", "保利中心店"] if name[:2] in question or name in question), "")
+    if not store:
+        return "你问的是门店数据，但我没识别出具体门店。可以直接说“朝阳门店美团数据恢复了吗”。"
+
+    latest = max(str(row.get("date") or "") for row in rows if row.get("date"))
+    store_rows = [row for row in rows if row.get("date") == latest and row.get("store") == store]
+    wanted_platforms = platform_terms(question) or ["美团", "饿了么"]
+    matched = [row for row in store_rows if row.get("platform") in wanted_platforms]
+    if not matched:
+        have = "、".join(row.get("platform", "") for row in store_rows) or "没有任何平台"
+        return f"没有恢复完整。{store} 最新直营日报日期是 {latest or '未知'}，当前只读到：{have}；没有读到 {'、'.join(wanted_platforms)}。"
+
+    lines = [f"{store}数据页：已恢复。" if len(matched) == len(wanted_platforms) else f"{store}数据页：部分恢复。"]
+    lines.append(f"最新日期：{latest}。")
+    for row in matched:
+        lines.append(
+            f"{row.get('platform')}：{format_number(row.get('orders', '0'))} 单，营业收入 {format_number(row.get('income', '0'))}。"
+        )
+    missing = [platform for platform in wanted_platforms if platform not in {row.get("platform") for row in matched}]
+    if missing:
+        lines.append("未读到：" + "、".join(missing) + "。")
+    raw_names = [row.get("store_raw") for row in matched if row.get("store_raw") and row.get("store_raw") != store]
+    if raw_names:
+        lines.append(f"平台原始门店名：{raw_names[0]}；系统已归并为 {store}。")
+    return "\n".join(lines)
+
+
+def looks_like_rerun_request(question: str) -> bool:
+    if any(token in question for token in ("补跑", "重跑", "重新跑", "执行补跑", "执行重跑")):
+        return True
+    if "恢复" in question and any(token in question for token in ("执行", "开始", "处理", "修复")):
+        return True
+    return False
+
+
 def compact_task_rows(rows: Any, *, limit: int = 8) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         return []
@@ -434,10 +526,13 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
     normalized = question.strip() or "现在怎么样？"
     lower = normalized.lower()
 
-    if any(keyword in normalized for keyword in ("执行", "跳过", "4号", "4 号")):
+    if is_business_data_question(normalized):
+        intent = "business_data"
+        answer = direct_daily_answer(normalized)
+    elif any(keyword in normalized for keyword in ("执行", "跳过", "4号", "4 号")):
         intent = "execution_agent"
         answer = build_execution_answer(pipeline)
-    elif any(keyword in normalized for keyword in ("补跑", "重跑", "恢复")):
+    elif looks_like_rerun_request(normalized):
         intent = "rerun"
         answer = build_rerun_answer(monitor)
     elif any(keyword in normalized for keyword in ("问题", "失败", "异常", "坏", "报错")):
@@ -450,7 +545,7 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
         intent = "status"
         answer = build_status_answer(pipeline, monitor)
 
-    factual_intents = {"status", "problems", "rerun", "execution_agent"}
+    factual_intents = {"status", "problems", "rerun", "execution_agent", "business_data"}
     effective_use_llm = bool(use_llm and intent not in factual_intents)
     final_answer, llm_record = maybe_improve_answer(
         question=normalized,
@@ -484,6 +579,7 @@ def answer_question(question: str, *, refreshed: dict[str, Any] | None = None, u
             "pipeline": str(PIPELINE_PATH.relative_to(ROOT)),
             "monitor": str(MONITOR_PATH.relative_to(ROOT)),
             "task_runs": str(TASK_RUNS_PATH.relative_to(ROOT)),
+            "direct_daily": str(DIRECT_DAILY_PATH.relative_to(ROOT)),
         },
         "refresh": refreshed or {"ran": False},
         "task_runs_generated_at": task_runs.get("generated_at") if isinstance(task_runs, dict) else "",

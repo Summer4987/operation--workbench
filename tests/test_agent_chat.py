@@ -140,25 +140,30 @@ class AgentChatTests(unittest.TestCase):
         original_pipeline_path = agent_chat.PIPELINE_PATH
         original_monitor_path = agent_chat.MONITOR_PATH
         original_task_runs_path = agent_chat.TASK_RUNS_PATH
+        original_direct_daily_path = agent_chat.DIRECT_DAILY_PATH
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 root = Path(temp_dir)
                 pipeline_path = root / "outputs" / "agent_pipeline" / "daily_automation_guard" / "latest.json"
                 monitor_path = root / "outputs" / "agent_task_monitor" / "latest.json"
                 task_runs_path = root / "outputs" / "task_runs" / "latest.json"
+                direct_daily_path = root / "business-report-dashboard" / "data" / "direct_unified_daily.csv"
                 pipeline_path.parent.mkdir(parents=True)
                 monitor_path.parent.mkdir(parents=True)
                 task_runs_path.parent.mkdir(parents=True)
+                direct_daily_path.parent.mkdir(parents=True)
                 pipeline_path.write_text(
                     '{"generated_at":"2026-07-03 10:00:00","summary":{"success":5,"failed":0,"skipped":1},"stages":[{"id":"execute","agent":"execution","name":"执行 Agent","status":"skipped","message":"默认禁用"}]}',
                     encoding="utf-8",
                 )
                 monitor_path.write_text('{"summary":{"completed":1,"failed":0,"attention":0},"tasks":[]}', encoding="utf-8")
                 task_runs_path.write_text('{"generated_at":"2026-07-03 10:00:01","tasks":{}}', encoding="utf-8")
+                direct_daily_path.write_text("date,platform,store,orders,income,store_raw\n", encoding="utf-8")
                 agent_chat.ROOT = root
                 agent_chat.PIPELINE_PATH = pipeline_path
                 agent_chat.MONITOR_PATH = monitor_path
                 agent_chat.TASK_RUNS_PATH = task_runs_path
+                agent_chat.DIRECT_DAILY_PATH = direct_daily_path
 
                 payload = agent_chat.answer_question("现在 agent 状态怎么样？", use_llm=False)
 
@@ -170,6 +175,58 @@ class AgentChatTests(unittest.TestCase):
             agent_chat.PIPELINE_PATH = original_pipeline_path
             agent_chat.MONITOR_PATH = original_monitor_path
             agent_chat.TASK_RUNS_PATH = original_task_runs_path
+            agent_chat.DIRECT_DAILY_PATH = original_direct_daily_path
+
+    def test_restore_question_about_store_uses_business_data_not_rerun(self) -> None:
+        original_root = agent_chat.ROOT
+        original_pipeline_path = agent_chat.PIPELINE_PATH
+        original_monitor_path = agent_chat.MONITOR_PATH
+        original_task_runs_path = agent_chat.TASK_RUNS_PATH
+        original_direct_daily_path = agent_chat.DIRECT_DAILY_PATH
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                pipeline_path = root / "outputs" / "agent_pipeline" / "daily_automation_guard" / "latest.json"
+                monitor_path = root / "outputs" / "agent_task_monitor" / "latest.json"
+                task_runs_path = root / "outputs" / "task_runs" / "latest.json"
+                direct_daily_path = root / "business-report-dashboard" / "data" / "direct_unified_daily.csv"
+                pipeline_path.parent.mkdir(parents=True)
+                monitor_path.parent.mkdir(parents=True)
+                task_runs_path.parent.mkdir(parents=True)
+                direct_daily_path.parent.mkdir(parents=True)
+                pipeline_path.write_text('{"summary":{"success":5,"failed":0,"skipped":0},"stages":[]}', encoding="utf-8")
+                monitor_path.write_text('{"summary":{"completed":1,"failed":0,"attention":0},"tasks":[]}', encoding="utf-8")
+                task_runs_path.write_text('{"generated_at":"2026-07-13 08:00:00","tasks":{}}', encoding="utf-8")
+                direct_daily_path.write_text(
+                    "\n".join(
+                        [
+                            "date,platform,store,orders,income,store_raw",
+                            "2026-07-12,美团,朝阳门店,68,2237.79,熊小小牛排饭POKEEBEAR（第B2档口雅宝食堂美食城店）",
+                            "2026-07-12,饿了么,朝阳门店,57,1623.81,熊小小牛排饭POKEBEAR(朝阳门店)",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                agent_chat.ROOT = root
+                agent_chat.PIPELINE_PATH = pipeline_path
+                agent_chat.MONITOR_PATH = monitor_path
+                agent_chat.TASK_RUNS_PATH = task_runs_path
+                agent_chat.DIRECT_DAILY_PATH = direct_daily_path
+
+                payload = agent_chat.answer_question("朝阳门店的美团数据页恢复了吗？", use_llm=False)
+
+                self.assertEqual(payload["intent"], "business_data")
+                self.assertIn("朝阳门店数据页：已恢复", payload["answer"])
+                self.assertIn("美团：68 单", payload["answer"])
+                self.assertIn("2237.79", payload["answer"])
+                self.assertNotIn("补跑计划", payload["answer"])
+        finally:
+            agent_chat.ROOT = original_root
+            agent_chat.PIPELINE_PATH = original_pipeline_path
+            agent_chat.MONITOR_PATH = original_monitor_path
+            agent_chat.TASK_RUNS_PATH = original_task_runs_path
+            agent_chat.DIRECT_DAILY_PATH = original_direct_daily_path
 
     def test_answer_question_can_use_llm_generated_answer(self) -> None:
         original_generate_answer = agent_chat.agent_llm.generate_answer
