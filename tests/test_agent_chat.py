@@ -173,13 +173,29 @@ class AgentChatTests(unittest.TestCase):
             {
                 "tasks": {
                     "growth.promo_budget": {
+                        "status": "success",
+                        "updated_at": f"{agent_chat.today_text()} 08:00:00",
+                        "step": "今日收尾",
+                        "message": "今天已经成功。",
+                    }
+                },
+                "events": [
+                    {
+                        "task_id": "growth.promo_budget",
                         "status": "failed",
-                        "updated_at": f"{yesterday} 16:56:39",
+                        "created_at": f"{yesterday} 16:56:39",
                         "step": "晚餐预算汇总",
                         "message": "饿了么预算捕获失败。",
                         "log_path": "outputs/current_budget/logs/current_budget_晚餐.log",
-                    }
-                }
+                    },
+                    {
+                        "task_id": "growth.promo_budget",
+                        "status": "success",
+                        "created_at": f"{yesterday} 17:20:00",
+                        "step": "晚餐预算补跑",
+                        "message": "晚餐预算补跑完成。",
+                    },
+                ],
             },
             "昨天任务失败原因",
         )
@@ -188,6 +204,7 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("下午/晚餐推广预算设置：失败", answer)
         self.assertIn("饿了么预算捕获失败", answer)
         self.assertIn("outputs/current_budget/logs/current_budget_晚餐.log", answer)
+        self.assertIn("后来被补跑或收尾修复", answer)
 
     def test_answer_question_uses_latest_files(self) -> None:
         original_root = agent_chat.ROOT

@@ -116,6 +116,12 @@ def task_run_details(task: dict[str, Any]) -> str:
     return message
 
 
+def event_details(event: dict[str, Any]) -> str:
+    message = compact_reason(event.get("message"), fallback="")
+    tail = compact_reason((event.get("extra") or {}).get("output_tail") if isinstance(event.get("extra"), dict) else "", fallback="")
+    return tail or message
+
+
 def task_status_label(status: str) -> str:
     return {
         "success": "成功",
@@ -158,6 +164,36 @@ def tracked_task_line(index: int, task_id: str, name: str, section: str, task: d
     return line
 
 
+def latest_task_event_on_date(task_runs: dict[str, Any], task_id: str, target_date: str) -> dict[str, Any]:
+    events = task_runs.get("events") if isinstance(task_runs.get("events"), list) else []
+    matches = [
+        event
+        for event in events
+        if isinstance(event, dict)
+        and event.get("task_id") == task_id
+        and date_part(event.get("created_at")) == target_date
+        and str(event.get("status") or "") in {"success", "failed", "running", "skipped"}
+    ]
+    return matches[-1] if matches else {}
+
+
+def task_from_event(event: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
+    if not event:
+        return fallback
+    return {
+        **fallback,
+        "task_id": event.get("task_id") or fallback.get("task_id"),
+        "status": event.get("status"),
+        "message": event.get("message") or fallback.get("message"),
+        "step": event.get("step") or fallback.get("step"),
+        "log_path": event.get("log_path") or fallback.get("log_path"),
+        "returncode": event.get("returncode"),
+        "failure_type": event.get("failure_type") or fallback.get("failure_type"),
+        "updated_at": event.get("created_at") or fallback.get("updated_at"),
+        "finished_at": event.get("created_at") or fallback.get("finished_at"),
+    }
+
+
 def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, Any], question: str) -> str:
     target_date = date_for_question(question)
     tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
@@ -167,7 +203,8 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
     today_running = 0
     today_missing = 0
     for index, (task_id, name, section) in enumerate(TRACKED_TASKS, start=1):
-        task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
+        latest_task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
+        task = task_from_event(latest_task_event_on_date(task_runs, task_id, target_date), latest_task)
         if task and date_part(task.get("updated_at") or task.get("finished_at")) == target_date:
             status = str(task.get("status") or "")
             today_success += 1 if status == "success" else 0
@@ -179,12 +216,13 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
 
     title_date = "今天" if target_date == today_text() else target_date
     lines = [f"{title_date}任务状态："]
+    failure_word = "今日" if target_date == today_text() else "当天"
     if today_failed:
-        lines.append(f"结论：有 {today_failed} 个今日失败项；今日成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+        lines.append(f"结论：有 {today_failed} 个{failure_word}失败项；成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
     elif today_running:
-        lines.append(f"结论：没有今日失败项，有 {today_running} 项运行中；今日成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+        lines.append(f"结论：没有{failure_word}失败项，有 {today_running} 项运行中；成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
     else:
-        lines.append(f"结论：没有今日失败项；今日成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+        lines.append(f"结论：没有{failure_word}失败项；成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
     lines.extend(today_rows)
 
     if target_date == today_text() and today_missing:
@@ -432,7 +470,17 @@ def build_problem_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> s
 def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, Any], task_runs: dict[str, Any], question: str) -> str:
     target_date = date_for_question(question)
     tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
+    events = task_runs.get("events") if isinstance(task_runs.get("events"), list) else []
     failed = []
+    task_names = {task_id: name for task_id, name, _section in TRACKED_TASKS}
+    for event in events:
+        if not isinstance(event, dict) or event.get("status") != "failed":
+            continue
+        if date_part(event.get("created_at")) != target_date:
+            continue
+        task_id = str(event.get("task_id") or "")
+        name = task_names.get(task_id, task_id or str(event.get("step") or "未知任务"))
+        failed.append((name, task_from_event(event, tasks.get(task_id, {}) if isinstance(tasks.get(task_id), dict) else {})))
     for task_id, name, _section in TRACKED_TASKS:
         task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
         if task and date_part(task.get("updated_at") or task.get("finished_at")) == target_date and task.get("status") == "failed":
@@ -440,7 +488,15 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
     if failed:
         title_date = "今天" if target_date == today_text() else target_date
         lines = [f"{title_date}失败明细："]
-        for index, (name, task) in enumerate(failed, start=1):
+        seen = set()
+        unique_failed = []
+        for name, task in failed:
+            key = (name, task.get("updated_at"), task.get("step"), task.get("message"))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_failed.append((name, task))
+        for index, (name, task) in enumerate(unique_failed, start=1):
             updated = str(task.get("updated_at") or task.get("finished_at") or "")
             detail = task_run_details(task)
             evidence = task.get("log_path") or ""
@@ -452,6 +508,16 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
             if evidence:
                 line += f"。证据：{evidence}"
             lines.append(line)
+        repaired = [
+            event
+            for event in events
+            if isinstance(event, dict)
+            and date_part(event.get("created_at")) == target_date
+            and event.get("status") == "success"
+            and str(event.get("task_id") or "") in {str(task.get("task_id") or "") for _name, task in unique_failed}
+        ]
+        if repaired:
+            lines.append("后续状态：当天已有后续成功记录，说明失败项后来被补跑或收尾修复过。")
         return "\n".join(lines)
     if "昨天" in question or "今天" in question:
         return build_daily_task_runs_report(task_runs, monitor, question)
