@@ -116,6 +116,8 @@ def message_from_command_payload(payload: dict[str, Any]) -> tuple[str, str]:
 def notify_message(message: str, *, dry_run: bool) -> tuple[bool, str]:
     if dry_run:
         return True, "dry-run"
+    if hasattr(ops_notify, "notify_with_result"):
+        return ops_notify.notify_with_result(message)
     ok = ops_notify.notify(message)
     return ok, "sent" if ok else "send-failed"
 

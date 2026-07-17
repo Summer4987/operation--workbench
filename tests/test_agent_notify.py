@@ -75,13 +75,18 @@ class AgentNotifyTests(unittest.TestCase):
             self.assertEqual(payload["delivery_output"], "dry-run")
             self.assertTrue(output.exists())
 
-    def test_send_command_notification_uses_ops_notify_when_not_dry_run(self) -> None:
+    def test_send_command_notification_uses_ops_notify_result_when_not_dry_run(self) -> None:
         payload = agent_command.handle_command("重跑预算设置", execute=False)
-        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(agent_notify.ops_notify, "notify", return_value=True) as mocked:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            agent_notify.ops_notify,
+            "notify_with_result",
+            return_value=(True, "wecom errcode=0 errmsg=ok"),
+        ) as mocked:
             output = Path(temp_dir) / "latest.json"
             record = agent_notify.send_command_notification(payload, dry_run=False, output=output)
 
             self.assertTrue(record["delivered"])
+            self.assertEqual(record["delivery_output"], "wecom errcode=0 errmsg=ok")
             mocked.assert_called_once()
             self.assertTrue(output.exists())
 
