@@ -374,8 +374,8 @@ def open_headquarters_budget_page(context, task: dict):
     created_page = page is None
     if page is None:
         page = context.new_page()
-        page.goto("https://e.waimai.meituan.com/", wait_until="domcontentloaded", timeout=30000)
-        time.sleep(5)
+    page.goto("https://e.waimai.meituan.com/", wait_until="domcontentloaded", timeout=30000)
+    time.sleep(5)
     selected = select_headquarters_store(page, task)
     dismiss_common_modals(page)
     for _ in range(20):
