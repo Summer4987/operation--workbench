@@ -176,6 +176,11 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertEqual(self.module.recent_promo_url_from_context(context), budget)
 
+    def test_recent_promo_url_accepts_new_jump_authorize_budget_route(self) -> None:
+        budget = "https://waimaieapp.meituan.com/ad/v1/rpc?jumpAuthorize=true#/subapp/isomor_cpc/pages/index/index"
+
+        self.assertTrue(self.module.is_budget_promo_url(budget))
+
     def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
         account = {
             "id": "direct_test",
@@ -280,16 +285,16 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         ):
             with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
                 with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
-                with mock.patch.object(self.module, "wait_budget", return_value=120.0):
-                    with mock.patch.object(self.module, "read_budget", return_value=120.0):
-                        with mock.patch.object(self.module, "read_today_spend", return_value=110.91):
-                            with mock.patch.object(self.module, "open_budget_modal") as open_modal:
-                                result = self.module.execute_task(
-                                    context,
-                                    "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123",
-                                    task,
-                                    commit=True,
-                                )
+                    with mock.patch.object(self.module, "wait_budget", return_value=120.0):
+                        with mock.patch.object(self.module, "read_budget", return_value=120.0):
+                            with mock.patch.object(self.module, "read_today_spend", return_value=110.91):
+                                with mock.patch.object(self.module, "open_budget_modal") as open_modal:
+                                    result = self.module.execute_task(
+                                        context,
+                                        "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123",
+                                        task,
+                                        commit=True,
+                                    )
 
         self.assertTrue(result["ok"])
         self.assertTrue(result["skipped"])

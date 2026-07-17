@@ -982,12 +982,7 @@ def recent_promo_url_from_context(context) -> str | None:
         candidates = [page.url]
         candidates.extend(frame.url for frame in page.frames)
         for candidate in candidates:
-            if (
-                "waimaieapp.meituan.com/ad/v1/rpc" in candidate
-                and "token=" in candidate
-                and "acctId=" in candidate
-                and "isomor_recharge" not in candidate
-            ):
+            if is_budget_promo_url(candidate):
                 return candidate
     return None
 
@@ -996,14 +991,15 @@ def recent_promo_url_from_page(page) -> str | None:
     candidates = [page.url]
     candidates.extend(frame.url for frame in page.frames)
     for candidate in candidates:
-        if (
-            "waimaieapp.meituan.com/ad/v1/rpc" in candidate
-            and "token=" in candidate
-            and "acctId=" in candidate
-            and "isomor_recharge" not in candidate
-        ):
+        if is_budget_promo_url(candidate):
             return candidate
     return None
+
+
+def is_budget_promo_url(candidate: str) -> bool:
+    if "waimaieapp.meituan.com/ad/v1/rpc" not in candidate or "isomor_recharge" in candidate:
+        return False
+    return "isomor_cpc" in candidate or ("token=" in candidate and "acctId=" in candidate)
 
 
 def configured_meituan_promo_url() -> str | None:
