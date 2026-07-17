@@ -378,14 +378,19 @@ def open_headquarters_budget_page(context, task: dict):
         time.sleep(5)
     selected = select_headquarters_store(page, task)
     dismiss_common_modals(page)
+    for _ in range(20):
+        if "门店推广" in page_text(page):
+            break
+        time.sleep(0.5)
     if "门店推广" not in page_text(page):
-        time.sleep(3)
+        raise RuntimeError(f"总部账号已切到分门店 {selected}，但页面没有出现门店推广入口")
     if not click_visible_text(page, "门店推广"):
         raise RuntimeError(f"总部账号已切到分门店 {selected}，但点击门店推广失败")
-    for _ in range(30):
+    for _ in range(40):
         time.sleep(0.5)
         promo_url = recent_promo_url_from_page(page)
-        if promo_url:
+        text = page_text(page)
+        if promo_url and "推广设置" in text and ("推广预算" in text or "每日预算" in text):
             return page, created_page, promo_url
     raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广预算页没有加载")
 
