@@ -161,8 +161,15 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
 
 
 def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
-    if ops_notify.notify(message):
+    if hasattr(ops_notify, "notify_with_result"):
+        delivered, output = ops_notify.notify_with_result(message)
+        if delivered:
+            return True, f"ops_notify: {output}"
+        ops_output = f"ops_notify failed: {output}"
+    elif ops_notify.notify(message):
         return True, "ops_notify"
+    else:
+        ops_output = "ops_notify failed"
     result = subprocess.run(
         [hermes_bin, "send", "--to", target, message],
         cwd=str(ROOT),
@@ -173,7 +180,8 @@ def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
         timeout=45,
     )
     output = (result.stdout or "").strip()
-    return result.returncode == 0, output
+    joined_output = " | ".join(part for part in [ops_output, output] if part)
+    return result.returncode == 0, joined_output
 
 
 def cooldown_delay_seconds(output: str, *, minimum: int = MIN_COOLDOWN_SECONDS) -> int:

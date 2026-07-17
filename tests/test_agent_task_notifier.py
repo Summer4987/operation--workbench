@@ -238,18 +238,44 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
     def test_send_weixin_prefers_ops_notify(self) -> None:
-        original_notify = self.notifier.ops_notify.notify
+        original_notify_with_result = self.notifier.ops_notify.notify_with_result
         try:
             calls: list[str] = []
-            self.notifier.ops_notify.notify = lambda message: calls.append(message) or True
+            self.notifier.ops_notify.notify_with_result = lambda message: (calls.append(message) and False) or (
+                True,
+                "wecom errcode=0 errmsg=ok",
+            )
 
             delivered, output = self.notifier.send_weixin("测试消息", "weixin", "missing-hermes")
         finally:
-            self.notifier.ops_notify.notify = original_notify
+            self.notifier.ops_notify.notify_with_result = original_notify_with_result
 
         self.assertTrue(delivered)
-        self.assertEqual(output, "ops_notify")
+        self.assertEqual(output, "ops_notify: wecom errcode=0 errmsg=ok")
         self.assertEqual(calls, ["测试消息"])
+
+    def test_send_weixin_reports_ops_notify_failure(self) -> None:
+        original_notify_with_result = self.notifier.ops_notify.notify_with_result
+        original_run = self.notifier.subprocess.run
+        try:
+            self.notifier.ops_notify.notify_with_result = lambda message: (
+                False,
+                "wecom errcode=93000 errmsg=invalid webhook",
+            )
+
+            class Result:
+                returncode = 1
+                stdout = "hermes not configured"
+
+            self.notifier.subprocess.run = lambda *args, **kwargs: Result()
+            delivered, output = self.notifier.send_weixin("测试消息", "weixin", "missing-hermes")
+        finally:
+            self.notifier.ops_notify.notify_with_result = original_notify_with_result
+            self.notifier.subprocess.run = original_run
+
+        self.assertFalse(delivered)
+        self.assertIn("wecom errcode=93000", output)
+        self.assertIn("hermes not configured", output)
 
     def test_notify_backs_off_when_weixin_cooldown_is_active(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

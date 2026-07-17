@@ -23,14 +23,23 @@ def load_config() -> dict:
 
 
 def notify(text: str) -> bool:
+    delivered, _output = notify_with_result(text)
+    return delivered
+
+
+def notify_with_result(text: str) -> tuple[bool, str]:
     config = load_config()
     webhook = os.environ.get("OPS_NOTIFY_WEBHOOK") or config.get("webhook") or ""
     webhook = str(webhook).strip()
     if not webhook:
         if legacy_fallback_enabled(config):
-            return notify_via_workbuddy(text, config) or notify_via_hermes(text, config)
+            if notify_via_workbuddy(text, config):
+                return True, "legacy-workbuddy"
+            if notify_via_hermes(text, config):
+                return True, "legacy-hermes"
+            return False, "legacy fallback failed"
         print(LEGACY_NOTICE, file=sys.stderr)
-        return False
+        return False, LEGACY_NOTICE
 
     notify_type = str(os.environ.get("OPS_NOTIFY_TYPE") or config.get("type") or "wecom").strip().lower()
     if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
@@ -41,11 +50,39 @@ def notify(text: str) -> bool:
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = url_request.Request(webhook, data=payload, method="POST", headers={"Content-Type": "application/json"})
     try:
-        url_request.urlopen(req, timeout=8).read()
-        return True
+        response_body = url_request.urlopen(req, timeout=8).read()
     except Exception as exc:
         print(f"通知发送失败：{exc}", file=sys.stderr)
-        return False
+        return False, f"request failed: {exc}"
+
+    delivered, output = parse_webhook_response(response_body, notify_type)
+    if not delivered:
+        print(f"通知发送失败：{output}", file=sys.stderr)
+    return delivered, output
+
+
+def parse_webhook_response(response_body: bytes, notify_type: str) -> tuple[bool, str]:
+    text = response_body.decode("utf-8", errors="replace").strip()
+    if not text:
+        return False, "empty webhook response"
+    try:
+        payload = json.loads(text)
+    except Exception:
+        return False, f"non-json webhook response: {text[:200]}"
+
+    notify_type = str(notify_type or "").strip().lower()
+    if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
+        errcode = payload.get("errcode")
+        errmsg = payload.get("errmsg") or payload.get("msg") or ""
+        if str(errcode) == "0":
+            return True, f"wecom errcode=0 errmsg={errmsg or 'ok'}"
+        return False, f"wecom errcode={errcode} errmsg={errmsg or 'unknown'}"
+
+    code = payload.get("code", payload.get("StatusCode"))
+    msg = payload.get("msg") or payload.get("message") or payload.get("StatusMessage") or ""
+    if code in (0, "0", None):
+        return True, f"webhook accepted{': ' + str(msg) if msg else ''}"
+    return False, f"webhook code={code} message={msg or 'unknown'}"
 
 
 def legacy_fallback_enabled(config: dict) -> bool:
