@@ -169,6 +169,13 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             current_url,
         )
 
+    def test_recent_promo_url_ignores_recharge_page(self) -> None:
+        recharge = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123#/subapp/isomor_recharge/pages/index/index"
+        budget = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123#/subapp/isomor_cpc/pages/index/index"
+        context = FakeContext([FakePage(budget), FakePage(recharge)])
+
+        self.assertEqual(self.module.recent_promo_url_from_context(context), budget)
+
     def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
         account = {
             "id": "direct_test",
@@ -265,8 +272,14 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             "targetBudget": 100,
         }
 
-        with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
-            with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
+        headquarters_page = context.new_page()
+        with mock.patch.object(
+            self.module,
+            "open_headquarters_budget_page",
+            return_value=(headquarters_page, True, "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123"),
+        ):
+            with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+                with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
                 with mock.patch.object(self.module, "wait_budget", return_value=120.0):
                     with mock.patch.object(self.module, "read_budget", return_value=120.0):
                         with mock.patch.object(self.module, "read_today_spend", return_value=110.91):

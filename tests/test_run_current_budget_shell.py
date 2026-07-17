@@ -9,6 +9,7 @@ DEPLOY_SCRIPT = ROOT / "scripts" / "deploy_workbench_to_cloud.zsh"
 MORNING_SCRIPT = ROOT / "morning-ops" / "run_morning_ops.py"
 LOGIN_PREFLIGHT_SCRIPT = ROOT / "scripts" / "check_platform_login_preflight.py"
 OPS_NOTIFY_SCRIPT = ROOT / "scripts" / "ops_notify.py"
+TAKEOVER_SCRIPT = ROOT / "scripts" / "macmini_takeover_clean_checkout.zsh"
 
 
 def test_current_budget_does_not_read_step_rc_after_fi():
@@ -100,3 +101,10 @@ def test_ops_notify_marks_legacy_channels_unused_by_default():
     assert "[hermes_bin, \"send\", \"--to\", target, text]" in text
     assert "[workbuddy_bin, \"send\", \"--to\", target, text]" in text
     assert ".hermes\" / \"hermes-agent\" / \"venv\" / \"bin\" / \"hermes" in text
+
+
+def test_macmini_takeover_defaults_outside_documents():
+    text = TAKEOVER_SCRIPT.read_text(encoding="utf-8")
+
+    assert "$HOME/Library/Application Support/xiong-operation/production" in text
+    assert 'CLEAN_DIR="${MACMINI_TAKEOVER_DIR:-$HOME/Documents/' not in text

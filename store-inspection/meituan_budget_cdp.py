@@ -295,6 +295,101 @@ def click_visible_text(page, label: str) -> bool:
     return False
 
 
+def dismiss_common_modals(page) -> None:
+    for label in ("稍后处理", "我知道了", "知道了"):
+        try:
+            locator = page.get_by_text(label)
+            for index in range(min(locator.count(), 4)):
+                item = locator.nth(index)
+                try:
+                    if item.is_visible():
+                        item.click(timeout=3000)
+                        time.sleep(0.5)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+
+
+def task_store_aliases(task: dict) -> list[str]:
+    aliases: list[str] = []
+    for key in ("keyword", "store", "sourceStore"):
+        value = str(task.get(key) or "").strip()
+        if value:
+            aliases.append(value)
+    joined = " ".join(aliases)
+    for suffix in ("店", "门店", "档口", "美食城"):
+        for value in list(aliases):
+            trimmed = value.replace(suffix, "").strip()
+            if len(trimmed) >= 2:
+                aliases.append(trimmed)
+    for keyword in WM_POI_IDS:
+        if keyword in joined:
+            aliases.append(keyword)
+    return list(dict.fromkeys(alias for alias in aliases if alias))
+
+
+def select_headquarters_store(page, task: dict) -> str:
+    aliases = task_store_aliases(task)
+    if not aliases:
+        raise RuntimeError("总部美团账号缺少可匹配的分门店关键词")
+    dismiss_common_modals(page)
+    selector = page.locator(".current-poi_31GHxd").first
+    if selector.count() == 0:
+        raise RuntimeError("总部美团页面没有找到“全部门店”选择器")
+    current = ""
+    try:
+        current = selector.inner_text(timeout=3000).strip()
+    except Exception:
+        pass
+    if current and any(alias in current for alias in aliases):
+        return current
+    selector.click(timeout=8000)
+    items = page.locator(".roo-popup.bottom li")
+    for _ in range(20):
+        if items.count() > 0:
+            break
+        time.sleep(0.5)
+    available: list[str] = []
+    for index in range(items.count()):
+        item = items.nth(index)
+        text = item.inner_text(timeout=3000).strip()
+        available.append(text)
+        if "全部门店" not in text and any(alias in text for alias in aliases):
+            item.click(timeout=8000)
+            for _ in range(20):
+                time.sleep(0.5)
+                try:
+                    current = selector.inner_text(timeout=3000).strip()
+                except Exception:
+                    current = ""
+                if current and any(alias in current for alias in aliases):
+                    return current
+            raise RuntimeError(f"点击门店 {text} 后，页面没有确认切换到目标门店")
+    raise RuntimeError("总部美团门店下拉里没有匹配项：" + " / ".join(aliases) + "；可选：" + "；".join(available[:12]))
+
+
+def open_headquarters_budget_page(context, task: dict):
+    page = next((item for item in context.pages if item.url.startswith("https://e.waimai.meituan.com/")), None)
+    created_page = page is None
+    if page is None:
+        page = context.new_page()
+        page.goto("https://e.waimai.meituan.com/", wait_until="domcontentloaded", timeout=30000)
+        time.sleep(5)
+    selected = select_headquarters_store(page, task)
+    dismiss_common_modals(page)
+    if "门店推广" not in page_text(page):
+        time.sleep(3)
+    if not click_visible_text(page, "门店推广"):
+        raise RuntimeError(f"总部账号已切到分门店 {selected}，但点击门店推广失败")
+    for _ in range(30):
+        time.sleep(0.5)
+        promo_url = recent_promo_url_from_page(page)
+        if promo_url:
+            return page, created_page, promo_url
+    raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广预算页没有加载")
+
+
 def enter_dianjin(page) -> None:
     text = page_text(page)
     if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
@@ -714,9 +809,11 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         wm_id = wm_poi_id_from_url(base_url)
         if not wm_id:
             wm_id = ""
-    target_url = url_for_store(base_url, wm_id) if wm_id else base_url
     page = None
     created_page = False
+    if not task.get("directMeituanAccountId"):
+        page, created_page, base_url = open_headquarters_budget_page(context, task)
+    target_url = url_for_store(base_url, wm_id) if wm_id else base_url
     if wm_id:
         for candidate in context.pages:
             urls = [candidate.url, *(frame.url for frame in candidate.frames)]
@@ -889,6 +986,7 @@ def recent_promo_url_from_context(context) -> str | None:
                 "waimaieapp.meituan.com/ad/v1/rpc" in candidate
                 and "token=" in candidate
                 and "acctId=" in candidate
+                and "isomor_recharge" not in candidate
             ):
                 return candidate
     return None
@@ -902,6 +1000,7 @@ def recent_promo_url_from_page(page) -> str | None:
             "waimaieapp.meituan.com/ad/v1/rpc" in candidate
             and "token=" in candidate
             and "acctId=" in candidate
+            and "isomor_recharge" not in candidate
         ):
             return candidate
     return None

@@ -6,7 +6,7 @@ cd "$SOURCE_ROOT"
 
 REMOTE="${MACMINI_DEPLOY_REMOTE:-origin}"
 BRANCH="${MACMINI_DEPLOY_BRANCH:-main}"
-CLEAN_DIR="${MACMINI_TAKEOVER_DIR:-$HOME/Documents/operation-workbench-clean}"
+CLEAN_DIR="${MACMINI_TAKEOVER_DIR:-$HOME/Library/Application Support/xiong-operation/production}"
 REMOTE_URL="${MACMINI_TAKEOVER_REMOTE_URL:-}"
 SHOW_TASK=1
 
@@ -17,7 +17,7 @@ usage() {
 选项：
   --remote NAME        Git 远端名，默认 origin
   --branch NAME        Git 分支名，默认 main
-  --clean-dir PATH     干净交接仓库目录，默认 ~/Documents/operation-workbench-clean
+  --clean-dir PATH     干净交接仓库目录，默认 ~/Library/Application Support/xiong-operation/production
   --remote-url URL     首次 clone 使用的 Git 地址，默认读取当前仓库 remote
   --no-show-task       只准备仓库，不打印 docs/MACMINI_NEXT_TASK.md
 EOF
