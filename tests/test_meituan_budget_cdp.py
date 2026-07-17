@@ -181,6 +181,13 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertTrue(self.module.is_budget_promo_url(budget))
 
+    def test_authenticated_budget_url_skips_newer_outer_route(self) -> None:
+        authenticated = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123#/subapp/isomor_cpc/pages/index/index"
+        outer = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc?jumpAuthorize=true#/subapp/isomor_cpc/pages/index/index"
+        context = FakeContext([FakePage(authenticated), FakePage(outer)])
+
+        self.assertEqual(self.module.recent_authenticated_budget_url_from_context(context), authenticated)
+
     def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
         account = {
             "id": "direct_test",

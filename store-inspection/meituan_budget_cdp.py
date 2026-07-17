@@ -821,8 +821,8 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     page = None
     created_page = False
     if not task.get("directMeituanAccountId"):
-        authenticated_budget_url = recent_promo_url_from_context(context)
-        if authenticated_budget_url and "token=" in authenticated_budget_url and "acctId=" in authenticated_budget_url:
+        authenticated_budget_url = recent_authenticated_budget_url_from_context(context)
+        if authenticated_budget_url:
             base_url = authenticated_budget_url
         else:
             page, created_page, base_url = open_headquarters_budget_page(context, task)
@@ -997,6 +997,16 @@ def recent_promo_url_from_context(context) -> str | None:
         candidates.extend(frame.url for frame in page.frames)
         for candidate in candidates:
             if is_budget_promo_url(candidate):
+                return candidate
+    return None
+
+
+def recent_authenticated_budget_url_from_context(context) -> str | None:
+    for page in reversed(context.pages):
+        candidates = [page.url]
+        candidates.extend(frame.url for frame in page.frames)
+        for candidate in candidates:
+            if is_budget_promo_url(candidate) and "token=" in candidate and "acctId=" in candidate:
                 return candidate
     return None
 
