@@ -386,12 +386,16 @@ def open_headquarters_budget_page(context, task: dict):
         raise RuntimeError(f"总部账号已切到分门店 {selected}，但页面没有出现门店推广入口")
     if not click_visible_text(page, "门店推广"):
         raise RuntimeError(f"总部账号已切到分门店 {selected}，但点击门店推广失败")
+    expected_wm_id = wm_poi_id(task)
     for _ in range(40):
         time.sleep(0.5)
-        promo_url = recent_promo_url_from_page(page)
-        text = page_text(page)
-        if promo_url and "推广设置" in text and ("推广预算" in text or "每日预算" in text):
-            return page, created_page, promo_url
+        for candidate in reversed(context.pages):
+            promo_url = recent_promo_url_from_page(candidate)
+            if not promo_url or f"wmPoiId={expected_wm_id}" not in promo_url:
+                continue
+            text = page_text(candidate)
+            if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
+                return candidate, candidate is not page, promo_url
     raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广预算页没有加载")
 
 
