@@ -188,6 +188,11 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertEqual(self.module.recent_authenticated_budget_url_from_context(context), authenticated)
 
+    def test_promo_landing_accepts_new_outer_index_route(self) -> None:
+        landing = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc?jumpAuthorize=true#/index"
+
+        self.assertEqual(self.module.recent_promo_landing_url_from_page(FakePage(landing)), landing)
+
     def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
         account = {
             "id": "direct_test",

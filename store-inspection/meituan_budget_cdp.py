@@ -391,11 +391,11 @@ def open_headquarters_budget_page(context, task: dict):
         time.sleep(0.5)
         for candidate in reversed(context.pages):
             promo_url = recent_promo_url_from_page(candidate)
-            if not promo_url or f"wmPoiId={expected_wm_id}" not in promo_url:
-                continue
-            text = page_text(candidate)
-            if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
+            if promo_url and f"wmPoiId={expected_wm_id}" in promo_url:
                 return candidate, candidate is not page, promo_url
+        landing_url = recent_promo_landing_url_from_page(page)
+        if landing_url:
+            return page, created_page, landing_url
     raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广预算页没有加载")
 
 
@@ -1016,6 +1016,15 @@ def recent_promo_url_from_page(page) -> str | None:
     candidates.extend(frame.url for frame in page.frames)
     for candidate in candidates:
         if is_budget_promo_url(candidate):
+            return candidate
+    return None
+
+
+def recent_promo_landing_url_from_page(page) -> str | None:
+    candidates = [page.url]
+    candidates.extend(frame.url for frame in page.frames)
+    for candidate in candidates:
+        if "waimaieapp.meituan.com/ad/v1/rpc" in candidate and "isomor_recharge" not in candidate:
             return candidate
     return None
 
