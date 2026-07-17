@@ -821,7 +821,12 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     page = None
     created_page = False
     if not task.get("directMeituanAccountId"):
-        page, created_page, base_url = open_headquarters_budget_page(context, task)
+        authenticated_budget_url = recent_promo_url_from_context(context)
+        if authenticated_budget_url and "token=" in authenticated_budget_url and "acctId=" in authenticated_budget_url:
+            base_url = authenticated_budget_url
+        else:
+            page, created_page, base_url = open_headquarters_budget_page(context, task)
+            created_page = False
     target_url = url_for_store(base_url, wm_id) if wm_id else base_url
     if wm_id:
         for candidate in context.pages:

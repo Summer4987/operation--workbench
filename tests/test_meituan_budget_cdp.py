@@ -303,6 +303,26 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIn("今日已消耗110.91元", result["message"])
         open_modal.assert_not_called()
 
+    def test_authenticated_budget_page_skips_headquarters_menu(self) -> None:
+        budget_url = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=32022526#/subapp/isomor_cpc/pages/index/index"
+        context = FakeContext([FakePage(budget_url)])
+        task = {
+            "store": "保利中心店",
+            "keyword": "保利中心",
+            "wmPoiId": "32022526",
+            "targetBudget": 100,
+        }
+
+        with mock.patch.object(self.module, "open_headquarters_budget_page") as open_menu:
+            with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+                with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
+                    with mock.patch.object(self.module, "wait_budget", return_value=100.0):
+                        with mock.patch.object(self.module, "read_budget", return_value=100.0):
+                            result = self.module.execute_task(context, budget_url, task, commit=True)
+
+        self.assertTrue(result["ok"])
+        open_menu.assert_not_called()
+
     def test_classify_platform_budget_locked_zero_range(self) -> None:
         self.assertEqual(
             self.module.classify_failure("平台预算锁定：预算已耗尽，预算弹窗限制请输入0-0元"),
