@@ -9,6 +9,15 @@ SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
 SECRETS_FILE="$HOME/Library/Application Support/xiong-operation/secrets.env"
 mkdir -p "$LAUNCH_DIR" "$LAUNCHD_LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
 
+# The production runtime is isolated from the Git checkout. Keep the local,
+# untracked notification credentials available there so scheduled jobs can
+# deliver their results after every reinstall or runtime refresh.
+if [ -r "$SOURCE_ROOT/config/ops_notify.json" ]; then
+  mkdir -p "$ROOT/config"
+  /bin/cp "$SOURCE_ROOT/config/ops_notify.json" "$ROOT/config/ops_notify.json"
+  /bin/chmod 600 "$ROOT/config/ops_notify.json"
+fi
+
 chmod u+rwX,go+rX "$SOURCE_ROOT/morning-ops/上午运营一键采集.command" \
   "$SOURCE_ROOT/morning-ops/我已处理验证码继续.command" \
   "$SOURCE_ROOT/morning-ops/run_morning_ops_if_10am.command" \
