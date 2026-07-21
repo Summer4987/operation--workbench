@@ -163,7 +163,38 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("上午运营一键采集：成功", answer)
         self.assertIn("下午/晚餐推广预算设置：今日未运行", answer)
         self.assertIn("最近一次 2026-07-12 16:56 是失败", answer)
+        self.assertNotIn("昨天饿了么捕获失败", answer)
         self.assertNotIn("结论：有 1 个今日失败项", answer)
+
+    def test_today_status_marks_monitor_failures_as_historical_when_no_today_failure(self) -> None:
+        today = agent_chat.today_text()
+        answer = agent_chat.build_status_answer(
+            {"summary": {"success": 5, "failed": 0, "skipped": 0}},
+            {"summary": {"completed": 13, "failed": 1, "attention": 0}},
+            {
+                "generated_at": f"{today} 10:00:00",
+                "tasks": {
+                    "agents.daily_automation_guard": {
+                        "status": "success",
+                        "updated_at": f"{today} 10:00:00",
+                        "step": "agent pipeline",
+                        "message": "守护完成。",
+                    },
+                    "growth.promo_budget": {
+                        "status": "failed",
+                        "updated_at": "2026-07-16 16:48:11",
+                        "step": "晚餐预算汇总",
+                        "message": "历史预算失败。",
+                    },
+                },
+            },
+            "今天任务状态",
+        )
+
+        self.assertIn("结论：没有今日失败项", answer)
+        self.assertIn("仍保留历史未处理项，失败 1", answer)
+        self.assertIn("这不等于今天新增失败", answer)
+        self.assertNotIn("历史预算失败", answer)
 
     def test_today_status_warns_when_task_runs_file_is_stale(self) -> None:
         answer = agent_chat.build_status_answer(

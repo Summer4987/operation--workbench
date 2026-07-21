@@ -223,7 +223,8 @@ def task_from_event(event: dict[str, Any], fallback: dict[str, Any]) -> dict[str
 
 def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, Any], question: str) -> str:
     target_date = date_for_question(question)
-    stale_for_target = target_date == today_text() and is_task_runs_stale_for_date(task_runs, target_date)
+    is_today_report = target_date == today_text()
+    stale_for_target = is_today_report and is_task_runs_stale_for_date(task_runs, target_date)
     tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
     today_rows = []
     today_failed = 0
@@ -248,7 +249,7 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
                 section,
                 task,
                 target_date,
-                include_stale_reason=not stale_for_target,
+                include_stale_reason=not is_today_report,
             )
         )
 
@@ -270,11 +271,20 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
 
     monitor_summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
     if monitor_summary:
-        lines.append(
-            "透明化报告："
-            f"完成 {monitor_summary.get('completed', 0)}，失败 {monitor_summary.get('failed', 0)}，"
-            f"需核实 {monitor_summary.get('attention', 0)}。"
-        )
+        monitor_failed = int(monitor_summary.get("failed") or 0)
+        monitor_attention = int(monitor_summary.get("attention") or 0)
+        if is_today_report and not today_failed and (monitor_failed or monitor_attention):
+            lines.append(
+                "透明化报告："
+                f"仍保留历史未处理项，失败 {monitor_failed}，需核实 {monitor_attention}；"
+                "这不等于今天新增失败。"
+            )
+        else:
+            lines.append(
+                "透明化报告："
+                f"完成 {monitor_summary.get('completed', 0)}，失败 {monitor_failed}，"
+                f"需核实 {monitor_attention}。"
+            )
     return "\n".join(lines)
 
 
