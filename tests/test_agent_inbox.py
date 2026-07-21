@@ -251,12 +251,23 @@ class AgentInboxTests(unittest.TestCase):
     def test_mobile_agent_page_keeps_chat_area_clickable(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
 
+        self.assertIn("AGENT_PAGE_VERSION", text)
+        self.assertIn("xiongAgentPageVersion", text)
+        self.assertIn("seedMobileAnswer(payload.mobile || {})", text)
         self.assertIn("grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto", text)
         self.assertIn("height: 100dvh", text)
         self.assertIn("function loadStoredMessages()", text)
         self.assertIn("localStorage.removeItem(\"xiongAgentMessages\")", text)
         self.assertIn("min-height: 0", text)
         self.assertIn('canceled:"已取消"', text)
+
+    def test_mobile_agent_api_returns_mobile_status_and_recent_queue_only(self) -> None:
+        text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
+
+        self.assertIn('"mobile": _agent_mobile_status_payload()', text)
+        self.assertIn("AGENT_RECENT_TASK_MAX_AGE_SECONDS", text)
+        self.assertIn("_agent_recent_visible_tasks", text)
+        self.assertIn('"queue_summary": agent_inbox.task_summary()', text)
 
     def test_mobile_agent_page_has_meituan_remaining_button(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")

@@ -58,6 +58,8 @@ TEMPLATE_DIR = BASE_DIR / "data" / "templates"
 PROMO_BUDGET_PATH = BASE_DIR / "data" / "promo_budget_overrides.json"
 PUBLIC_ORDER_MIN_TOTAL_QUANTITY = 5
 ORDER_FILE_DOWNLOAD_TTL_SECONDS = 7 * 24 * 60 * 60
+AGENT_STATUS_PATH = Path(os.environ.get("AGENT_STATUS_PATH", "/var/www/html/operation-workbench/outputs/agent_mobile/latest.json"))
+AGENT_RECENT_TASK_MAX_AGE_SECONDS = 24 * 60 * 60
 
 app = FastAPI(title="Inventory Board")
 app.add_middleware(
@@ -234,11 +236,14 @@ def agent_mobile_page():
 @app.get("/agent/api/status")
 def agent_mobile_status(request: Request, limit: int = 20):
     _require_agent_inbox_token(request)
+    items = _agent_recent_visible_tasks(limit=limit)
     return {
         "generated_at": int(time.time()),
-        "summary": agent_inbox.task_summary(),
+        "summary": _agent_task_summary(items),
+        "queue_summary": agent_inbox.task_summary(),
+        "mobile": _agent_mobile_status_payload(),
         "realtime": _agent_realtime_summary(),
-        "items": [_public_agent_task(item) for item in agent_inbox.recent_tasks(limit=limit)],
+        "items": [_public_agent_task(item) for item in items],
     }
 
 
@@ -903,6 +908,46 @@ def _read_json_file(path: Path) -> dict:
         return {}
 
 
+def _agent_mobile_status_payload() -> dict[str, object]:
+    payload = _read_json_file(AGENT_STATUS_PATH)
+    if not payload:
+        return {
+            "generated_at": "",
+            "summary": {},
+            "data_freshness": {"task_runs_stale": True, "warning": "暂未读到 Agent 手机入口数据。"},
+            "answers": [],
+        }
+    return {
+        "generated_at": str(payload.get("generated_at") or ""),
+        "summary": payload.get("summary") if isinstance(payload.get("summary"), dict) else {},
+        "data_freshness": payload.get("data_freshness") if isinstance(payload.get("data_freshness"), dict) else {},
+        "answers": payload.get("answers") if isinstance(payload.get("answers"), list) else [],
+    }
+
+
+def _agent_recent_visible_tasks(limit: int = 20) -> list[dict]:
+    cutoff = int(time.time()) - AGENT_RECENT_TASK_MAX_AGE_SECONDS
+    visible = []
+    for item in agent_inbox.recent_tasks(limit=50):
+        updated_at = int(item.get("updated_at") or item.get("created_at") or 0)
+        status = str(item.get("status") or "")
+        if updated_at >= cutoff or status in {"pending", "running"}:
+            visible.append(item)
+    return visible[: max(1, min(int(limit or 20), 50))]
+
+
+def _agent_task_summary(items: list[dict]) -> dict[str, int]:
+    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0, "canceled": 0, "total": 0}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        counts["total"] += 1
+        status = str(item.get("status") or "")
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+
 def _agent_realtime_summary() -> dict[str, object]:
     payload = _read_json_file(_operation_workbench_root() / "outputs" / "realtime_order_income" / "latest.json")
     if not payload:
@@ -1182,6 +1227,7 @@ def _agent_mobile_page_html() -> str:
     </form>
   </main>
   <script>
+    const AGENT_PAGE_VERSION = "20260721-date-scoped-status";
     const tokenFromUrl = new URLSearchParams(location.search).get("token") || "";
     function loadStoredValue(key, fallback = "") {
       try {
@@ -1192,6 +1238,12 @@ def _agent_mobile_page_html() -> str:
     }
     function loadStoredMessages() {
       try {
+        const version = localStorage.getItem("xiongAgentPageVersion") || "";
+        if (version !== AGENT_PAGE_VERSION) {
+          localStorage.setItem("xiongAgentPageVersion", AGENT_PAGE_VERSION);
+          localStorage.removeItem("xiongAgentMessages");
+          return [];
+        }
         const value = localStorage.getItem("xiongAgentMessages") || "[]";
         const messages = JSON.parse(value);
         return Array.isArray(messages) ? messages : [];
@@ -1204,6 +1256,7 @@ def _agent_mobile_page_html() -> str:
       token: tokenFromUrl || loadStoredValue("xiongAgentToken"),
       messages: loadStoredMessages(),
       seenAnswers: new Set(),
+      seededMobileAnswer: false,
     };
     const els = {
       tokenBox: document.getElementById("tokenBox"),
@@ -1272,12 +1325,23 @@ def _agent_mobile_page_html() -> str:
         els.connection.textContent = "已连接";
         const summary = payload.summary || {};
         els.summary.textContent = `待处理 ${summary.pending || 0}，运行中 ${summary.running || 0}，成功 ${summary.success || 0}，失败 ${summary.failed || 0}，已取消 ${summary.canceled || 0}`;
+        seedMobileAnswer(payload.mobile || {});
         renderRealtime(payload.realtime || {});
         renderTasks(payload.items || []);
       } catch (error) {
         els.connection.textContent = "连接失败";
         els.summary.textContent = error.message === "missing-token" ? "请先输入 token" : error.message;
       }
+    }
+    function seedMobileAnswer(mobile) {
+      if (state.seededMobileAnswer || state.messages.length > 1) return;
+      const answers = Array.isArray(mobile.answers) ? mobile.answers : [];
+      const problem = answers.find(item => item && item.id === "problems");
+      const status = answers.find(item => item && item.id === "status");
+      const answer = (problem && problem.answer) || (status && status.answer) || "";
+      if (!answer) return;
+      state.seededMobileAnswer = true;
+      addMessage("agent", answer, mobile.generated_at ? `Agent 状态 ${mobile.generated_at}` : "Agent 状态");
     }
     function renderRealtime(realtime) {
       const stores = Array.isArray(realtime.stores) ? realtime.stores : [];
