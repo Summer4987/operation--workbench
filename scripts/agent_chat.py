@@ -577,7 +577,22 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
         if repaired:
             lines.append("后续状态：当天已有后续成功记录，说明失败项后来被补跑或收尾修复过。")
         return "\n".join(lines)
-    if "昨天" in question or "今天" in question:
+    if target_date == today_text() and ("今天" in question or "今日" in question):
+        monitor_summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
+        historical_failed = int(monitor_summary.get("failed") or 0)
+        historical_attention = int(monitor_summary.get("attention") or 0)
+        lines = [
+            "今天失败明细：",
+            "结论：今天没有读到失败项。",
+        ]
+        if historical_failed or historical_attention:
+            lines.append(
+                f"历史未处理：透明化报告仍保留失败 {historical_failed}，需核实 {historical_attention}；"
+                "这不是今天新增失败。"
+            )
+        lines.append("说明：如果你要看历史原因，可以问“最近一次失败是什么原因”或指定日期。")
+        return "\n".join(lines)
+    if "昨天" in question:
         return build_daily_task_runs_report(task_runs, monitor, question)
     return build_problem_answer(pipeline, monitor)
 

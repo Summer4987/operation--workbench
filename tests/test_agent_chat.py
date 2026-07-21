@@ -242,6 +242,37 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("当前不能确认今天是否有失败", answer)
         self.assertNotIn("旧的预算失败", answer)
 
+    def test_today_problem_question_without_today_failures_does_not_list_historical_failures(self) -> None:
+        today = agent_chat.today_text()
+        answer = agent_chat.build_problem_answer_for_date(
+            {"stages": []},
+            {"summary": {"completed": 13, "failed": 1, "attention": 0}},
+            {
+                "generated_at": f"{today} 10:14:28",
+                "tasks": {
+                    "growth.promo_budget": {
+                        "status": "failed",
+                        "updated_at": "2026-07-16 16:48:11",
+                        "step": "晚餐预算汇总",
+                        "message": "历史预算失败。",
+                    },
+                    "agents.daily_automation_guard": {
+                        "status": "success",
+                        "updated_at": f"{today} 10:14:28",
+                        "step": "agent pipeline",
+                        "message": "守护完成。",
+                    },
+                },
+            },
+            "今天哪里有问题",
+        )
+
+        self.assertIn("结论：今天没有读到失败项", answer)
+        self.assertIn("历史未处理", answer)
+        self.assertIn("这不是今天新增失败", answer)
+        self.assertNotIn("下午/晚餐推广预算设置", answer)
+        self.assertNotIn("历史预算失败", answer)
+
     def test_yesterday_problem_question_reports_yesterday_failure_details(self) -> None:
         yesterday = (agent_chat.datetime.now() - agent_chat.timedelta(days=1)).strftime("%Y-%m-%d")
         answer = agent_chat.build_problem_answer_for_date(
