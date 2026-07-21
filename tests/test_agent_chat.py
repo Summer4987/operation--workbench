@@ -165,6 +165,52 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("最近一次 2026-07-12 16:56 是失败", answer)
         self.assertNotIn("结论：有 1 个今日失败项", answer)
 
+    def test_today_status_warns_when_task_runs_file_is_stale(self) -> None:
+        answer = agent_chat.build_status_answer(
+            {"summary": {"success": 5, "failed": 0, "skipped": 0}},
+            {"summary": {"completed": 13, "failed": 1, "attention": 0}},
+            {
+                "generated_at": "2026-07-17 08:15:46",
+                "tasks": {
+                    "ops.morning_collection": {
+                        "status": "failed",
+                        "updated_at": "2026-07-17 08:15:46",
+                        "step": "launchd 包装器",
+                        "message": "旧的上午运营失败",
+                    }
+                },
+            },
+            "今天任务状态",
+        )
+
+        self.assertIn("数据源过期", answer)
+        self.assertIn("不能把里面的旧失败当成今天的问题", answer)
+        self.assertIn("上午运营一键采集：今日未运行", answer)
+        self.assertNotIn("旧的上午运营失败", answer)
+
+    def test_today_problem_question_does_not_report_stale_failure_as_today(self) -> None:
+        answer = agent_chat.build_problem_answer_for_date(
+            {"stages": []},
+            {"summary": {"completed": 13, "failed": 1, "attention": 0}},
+            {
+                "generated_at": "2026-07-17 08:15:46",
+                "tasks": {
+                    "growth.promo_budget": {
+                        "status": "failed",
+                        "updated_at": "2026-07-17 16:48:11",
+                        "step": "晚餐预算汇总",
+                        "message": "旧的预算失败",
+                    }
+                },
+            },
+            "今天哪里失败",
+        )
+
+        self.assertIn("今天失败明细", answer)
+        self.assertIn("数据源过期", answer)
+        self.assertIn("当前不能确认今天是否有失败", answer)
+        self.assertNotIn("旧的预算失败", answer)
+
     def test_yesterday_problem_question_reports_yesterday_failure_details(self) -> None:
         yesterday = (agent_chat.datetime.now() - agent_chat.timedelta(days=1)).strftime("%Y-%m-%d")
         answer = agent_chat.build_problem_answer_for_date(

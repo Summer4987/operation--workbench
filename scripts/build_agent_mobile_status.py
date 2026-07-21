@@ -70,8 +70,11 @@ def build_payload() -> dict[str, Any]:
 
     pipeline = read_json(agent_chat.PIPELINE_PATH, {})
     monitor = read_json(agent_chat.MONITOR_PATH, {})
+    task_runs = read_json(agent_chat.TASK_RUNS_PATH, {})
     pipeline_summary = pipeline.get("summary") if isinstance(pipeline.get("summary"), dict) else {}
     monitor_summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
+    task_runs_generated_at = str(task_runs.get("generated_at") or "") if isinstance(task_runs, dict) else ""
+    task_runs_stale = agent_chat.is_task_runs_stale_for_date(task_runs, agent_chat.today_text()) if isinstance(task_runs, dict) else False
     return {
         "generated_at": now_text(),
         "host": socket.gethostname(),
@@ -84,6 +87,15 @@ def build_payload() -> dict[str, Any]:
             "task_completed": monitor_summary.get("completed", 0),
             "task_failed": monitor_summary.get("failed", 0),
             "task_attention": monitor_summary.get("attention", 0),
+        },
+        "data_freshness": {
+            "task_runs_generated_at": task_runs_generated_at,
+            "task_runs_stale": task_runs_stale,
+            "warning": (
+                "今天的任务账本尚未刷新，页面只应展示数据过期提示，不应把旧失败当成今天问题。"
+                if task_runs_stale
+                else ""
+            ),
         },
         "safety": {
             "mobile_can_execute": False,

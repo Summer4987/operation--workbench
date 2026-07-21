@@ -131,7 +131,34 @@ def task_status_label(status: str) -> str:
     }.get(status, status or "未记录")
 
 
-def tracked_task_line(index: int, task_id: str, name: str, section: str, task: dict[str, Any], target_date: str) -> str:
+def task_runs_generated_date(task_runs: dict[str, Any]) -> str:
+    return date_part(task_runs.get("generated_at")) if isinstance(task_runs, dict) else ""
+
+
+def is_task_runs_stale_for_date(task_runs: dict[str, Any], target_date: str) -> bool:
+    generated_date = task_runs_generated_date(task_runs)
+    return bool(generated_date and generated_date != target_date)
+
+
+def stale_task_runs_notice(task_runs: dict[str, Any], target_date: str) -> str:
+    generated_at = str(task_runs.get("generated_at") or "未知时间") if isinstance(task_runs, dict) else "未知时间"
+    title_date = "今天" if target_date == today_text() else target_date
+    return (
+        f"数据源过期：{title_date}的任务账本还没有刷新。"
+        f"当前 task_runs/latest.json 最后更新时间是 {generated_at}，所以我不能把里面的旧失败当成{title_date}的问题。"
+    )
+
+
+def tracked_task_line(
+    index: int,
+    task_id: str,
+    name: str,
+    section: str,
+    task: dict[str, Any],
+    target_date: str,
+    *,
+    include_stale_reason: bool = True,
+) -> str:
     if not task:
         return f"{index}. {name}：今日未记录。分组：{section}。"
     updated = str(task.get("updated_at") or task.get("finished_at") or "")
@@ -157,9 +184,9 @@ def tracked_task_line(index: int, task_id: str, name: str, section: str, task: d
     line = f"{index}. {name}：{stale_text}"
     if run_date:
         line += f"；最近一次 {run_date} {when} 是{task_status_label(status)}"
-    if status != "success" and detail:
+    if include_stale_reason and status != "success" and detail:
         line += f"。最近原因：{detail}"
-    elif detail:
+    elif include_stale_reason and detail:
         line += f"。最近说明：{detail}"
     return line
 
@@ -196,6 +223,7 @@ def task_from_event(event: dict[str, Any], fallback: dict[str, Any]) -> dict[str
 
 def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, Any], question: str) -> str:
     target_date = date_for_question(question)
+    stale_for_target = target_date == today_text() and is_task_runs_stale_for_date(task_runs, target_date)
     tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
     today_rows = []
     today_failed = 0
@@ -212,10 +240,22 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
             today_running += 1 if status == "running" else 0
         else:
             today_missing += 1
-        today_rows.append(tracked_task_line(index, task_id, name, section, task, target_date))
+        today_rows.append(
+            tracked_task_line(
+                index,
+                task_id,
+                name,
+                section,
+                task,
+                target_date,
+                include_stale_reason=not stale_for_target,
+            )
+        )
 
     title_date = "今天" if target_date == today_text() else target_date
     lines = [f"{title_date}任务状态："]
+    if stale_for_target:
+        lines.append(stale_task_runs_notice(task_runs, target_date))
     failure_word = "今日" if target_date == today_text() else "当天"
     if today_failed:
         lines.append(f"结论：有 {today_failed} 个{failure_word}失败项；成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
@@ -469,6 +509,14 @@ def build_problem_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> s
 
 def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, Any], task_runs: dict[str, Any], question: str) -> str:
     target_date = date_for_question(question)
+    if target_date == today_text() and is_task_runs_stale_for_date(task_runs, target_date):
+        return "\n".join(
+            [
+                "今天失败明细：",
+                stale_task_runs_notice(task_runs, target_date),
+                "结论：当前不能确认今天是否有失败；请先刷新 Agent 状态或等待 Mac mini 生成今天的任务账本。",
+            ]
+        )
     tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
     events = task_runs.get("events") if isinstance(task_runs.get("events"), list) else []
     failed = []

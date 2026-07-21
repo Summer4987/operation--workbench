@@ -21,6 +21,7 @@ class AgentMobileStatusTests(unittest.TestCase):
         self.assertIn("blocked_ordering", {item["intent"] for item in payload["commands"]})
         self.assertEqual(payload["assistant"]["name"], "运营 Agent")
         self.assertIn("今天跑得稳不稳？", {item["text"] for item in payload["commands"]})
+        self.assertIn("task_runs_stale", payload["data_freshness"])
 
     def test_payload_answers_do_not_use_llm_rewrite(self) -> None:
         original_generate_answer = build_agent_mobile_status.agent_chat.agent_llm.generate_answer
