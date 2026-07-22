@@ -47,7 +47,7 @@ NODE = Path("/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependenc
 REPORT_VENV_PYTHON = REPORT_DIR / ".venv" / "bin" / "python"
 REPORT_PYTHON = REPORT_VENV_PYTHON if REPORT_VENV_PYTHON.exists() else Path("/usr/bin/python3")
 TASK_ID = "ops.morning_collection"
-DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS = 900
+DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS = 1800
 
 
 BUDGET_PERIODS = {

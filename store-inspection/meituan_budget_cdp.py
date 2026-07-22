@@ -438,6 +438,8 @@ def enter_dianjin_with_recovery(page, target_url: str) -> None:
 
 
 def open_budget_modal(page) -> None:
+    suppress_click_blocking_overlays(page)
+
     def opened() -> bool:
         for frame in page.frames:
             try:
@@ -520,6 +522,7 @@ def open_budget_modal(page) -> None:
         ".isomor-cpc-fresh-right-wrapper.isomor-cpc-cursor",
         ".isomor-cpc-fresh-budget-line .r2x-text",
     ]:
+        suppress_click_blocking_overlays(page)
         if try_dom_click(selector):
             return
 
@@ -742,6 +745,22 @@ def suppress_click_blocking_overlays(page) -> None:
                                 el.style.pointerEvents = 'none';
                                 if (el.tagName === 'IFRAME') el.style.display = 'none';
                             }
+                        }
+                    }
+                    // Operational-message drawers can cover the budget row even
+                    // though the row remains visible in the DOM. Hide only the
+                    // floating container locally; do not clear the message.
+                    for (const el of document.querySelectorAll('body *')) {
+                        const text = (el.innerText || '').trim();
+                        if (!(text.includes('全部清除') && text.includes('消息已折叠'))) continue;
+                        const rect = el.getBoundingClientRect();
+                        const style = getComputedStyle(el);
+                        const floating = style.position === 'fixed'
+                            || style.position === 'absolute'
+                            || Number(style.zIndex || 0) >= 100;
+                        if (rect.width > 0 && rect.height > 0 && floating) {
+                            el.style.pointerEvents = 'none';
+                            el.style.visibility = 'hidden';
                         }
                     }
                 }"""
