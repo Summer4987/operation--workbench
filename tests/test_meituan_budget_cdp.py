@@ -270,13 +270,26 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIn("强制点击确定", message)
         self.assertEqual(locator.click_kwargs[-1].get("force"), True)
 
+    def test_current_day_spend_ignores_stale_today_card(self) -> None:
+        text = "今日 07-21 17:04 更新，指标解读\n推广花费\n80.01元\n昨日130元"
+
+        self.assertIsNone(self.module.parse_current_day_spend(text, "07-22"))
+
+    def test_current_day_spend_reads_matching_today_card(self) -> None:
+        text = "今日 07-22 10:35 更新，指标解读\n推广花费\n1,280.50元\n昨日130元"
+
+        self.assertEqual(self.module.parse_current_day_spend(text, "07-22"), 1280.5)
+
     def test_read_today_spend_reads_realtime_promo_spend(self) -> None:
         page = FakeConfirmPage()
 
         with mock.patch.object(
             self.module,
             "page_text",
-            return_value="实时数据\n推广花费\n110.91元\n昨日120元\n历史数据\n推广花费\n793.43元",
+            return_value=(
+                f"实时数据\n今日 {self.module.time.strftime('%m-%d')} 10:35 更新\n"
+                "推广花费\n110.91元\n昨日120元\n历史数据\n推广花费\n793.43元"
+            ),
         ):
             self.assertEqual(self.module.read_today_spend(page), 110.91)
 

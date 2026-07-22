@@ -207,12 +207,20 @@ def parse_money(value: str) -> float | None:
         return None
 
 
+def parse_current_day_spend(text: str, today_mmdd: str | None = None) -> float | None:
+    """Read spend only when Meituan's live card is stamped with today's date."""
+    expected_date = today_mmdd or time.strftime("%m-%d")
+    date_match = re.search(r"今日\s+(\d{2}-\d{2})(?:\s+\d{1,2}:\d{2})?\s+更新", text)
+    if not date_match or date_match.group(1) != expected_date:
+        return None
+    spend_match = re.search(r"推广花费\s*([0-9][0-9,.]*(?:\.\d+)?)\s*元", text, re.S)
+    if not spend_match:
+        return None
+    return parse_money(spend_match.group(1))
+
+
 def read_today_spend(page) -> float | None:
-    text = page_text(page)
-    match = re.search(r"推广花费\s*([0-9][0-9,.]*(?:\.\d+)?)\s*元", text, re.S)
-    if match:
-        return parse_money(match.group(1))
-    return None
+    return parse_current_day_spend(page_text(page))
 
 
 def spent_exceeds_target_message(spend: float, target: float, current_budget: float | None) -> str:
