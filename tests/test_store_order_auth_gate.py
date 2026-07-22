@@ -184,6 +184,16 @@ def test_order_template_candidates_include_server_data_dir(monkeypatch):
     assert order_generator.SERVER_TEMPLATE_DIR / "熊小小排饭订单模板.xlsx" in order_generator._template_candidates()
 
 
+def test_financial_city_customer_uses_current_contact_details():
+    load_inventory_module()
+    order_generator = sys.modules["inventory_board_auth_gate_for_tests.order_generator"]
+
+    customer = next(item for item in order_generator._fixed_customers() if item.name == "金融城店")
+
+    assert customer.contact == "唐彩美"
+    assert customer.phone == "13281037620"
+
+
 def test_daily_order_submit_accepts_chengdu_session_cookie_for_owner(monkeypatch):
     daily_module = load_daily_order_module()
     inventory_module = load_inventory_module()
