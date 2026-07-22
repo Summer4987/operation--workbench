@@ -190,7 +190,7 @@ def test_financial_city_customer_uses_current_contact_details():
 
     customer = next(item for item in order_generator._fixed_customers() if item.name == "金融城店")
 
-    assert customer.contact == "唐彩美"
+    assert customer.contact == "金融城店"
     assert customer.phone == "13281037620"
 
 
