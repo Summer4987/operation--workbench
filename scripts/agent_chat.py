@@ -131,6 +131,22 @@ def task_status_label(status: str) -> str:
     }.get(status, status or "未记录")
 
 
+def tracked_task_action(task_id: str, status: str, run_date: str, target_date: str) -> str:
+    if run_date != target_date:
+        return "不算今天失败；先刷新状态或等计划时间运行"
+    if status == "success":
+        return "无需处理"
+    if status == "running":
+        return "等待结束后复核"
+    if status == "failed":
+        if task_id == "ops.realtime_order_income":
+            return "低风险，可自动补跑"
+        if task_id in {"ops.morning_collection", "growth.promo_budget"}:
+            return "高风险，需人工确认，不自动补跑"
+        return "先看日志，再决定是否补跑"
+    return "先确认是否符合预期"
+
+
 def task_runs_generated_date(task_runs: dict[str, Any]) -> str:
     return date_part(task_runs.get("generated_at")) if isinstance(task_runs, dict) else ""
 
@@ -160,7 +176,7 @@ def tracked_task_line(
     include_stale_reason: bool = True,
 ) -> str:
     if not task:
-        return f"{index}. {name}：今日未记录。分组：{section}。"
+        return f"{index}. {name}：今日未记录。分组：{section}。处理：先刷新状态或等计划时间运行。"
     updated = str(task.get("updated_at") or task.get("finished_at") or "")
     status = str(task.get("status") or "")
     run_date = date_part(updated)
@@ -177,6 +193,10 @@ def tracked_task_line(
             line += f"。原因：{detail}"
         elif detail:
             line += f"。说明：{detail}"
+        evidence = task.get("log_path") or ""
+        if status != "success" and evidence:
+            line += f"。证据：{evidence}"
+        line += f"。处理：{tracked_task_action(task_id, status, run_date, target_date)}"
         return line
     stale_text = "今日未运行"
     if target_date != today_text():
@@ -188,6 +208,7 @@ def tracked_task_line(
         line += f"。最近原因：{detail}"
     elif include_stale_reason and detail:
         line += f"。最近说明：{detail}"
+    line += f"。处理：{tracked_task_action(task_id, status, run_date, target_date)}"
     return line
 
 
@@ -254,7 +275,7 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
         )
 
     title_date = "今天" if target_date == today_text() else target_date
-    lines = [f"{title_date}任务状态："]
+    lines = [f"{title_date}任务状态 / 值班报告："]
     if stale_for_target:
         lines.append(stale_task_runs_notice(task_runs, target_date))
     failure_word = "今日" if target_date == today_text() else "当天"
@@ -264,6 +285,7 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
         lines.append(f"结论：没有{failure_word}失败项，有 {today_running} 项运行中；成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
     else:
         lines.append(f"结论：没有{failure_word}失败项；成功 {today_success} 项，未运行/未记录 {today_missing} 项。")
+    lines.append("任务清单：")
     lines.extend(today_rows)
 
     if target_date == today_text() and today_missing:
@@ -279,6 +301,12 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
                 f"仍保留历史未处理项，失败 {monitor_failed}，需核实 {monitor_attention}；"
                 "这不等于今天新增失败。"
             )
+            issue_lines = numbered_monitor_issue_lines(monitor)
+            if issue_lines:
+                lines.append("历史未处理清单：")
+                lines.extend(issue_lines)
+            else:
+                lines.append("历史未处理清单：透明化报告没有展开到具体任务，请刷新 Agent 状态。")
         else:
             lines.append(
                 "透明化报告："
@@ -368,11 +396,44 @@ def task_action_text(row: dict[str, Any]) -> str:
     return "不用补跑"
 
 
+def task_evidence(row: dict[str, Any]) -> str:
+    return str(row.get("evidence") or row.get("log_path") or "").strip()
+
+
 def task_reason(row: dict[str, Any]) -> str:
     status = str(row.get("status") or "")
     if status in {"completed", "skipped"}:
         return ""
     return compact_reason(row.get("failure_reason") or row.get("message") or row.get("human_action"), fallback="")
+
+
+def monitor_issue_rows(monitor: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in monitor_tasks(monitor)
+        if row.get("status") in {"failed", "attention", "missing", "running"}
+    ]
+
+
+def numbered_monitor_issue_lines(monitor: dict[str, Any], *, limit: int = 8) -> list[str]:
+    rows = monitor_issue_rows(monitor)
+    lines: list[str] = []
+    for index, row in enumerate(rows[:limit], start=1):
+        name = str(row.get("name") or row.get("id") or "未命名任务")
+        line = f"{index}. {name}：{task_state_text(row)}"
+        reason = task_reason(row)
+        evidence = task_evidence(row)
+        action = task_action_text(row)
+        if reason:
+            line += f"。原因：{reason}"
+        if evidence:
+            line += f"。证据：{evidence}"
+        if action != "不用补跑" or str(row.get("status") or "") != "completed":
+            line += f"。处理：{action}"
+        lines.append(line)
+    if len(rows) > limit:
+        lines.append(f"另外还有 {len(rows) - limit} 项未展开。")
+    return lines
 
 
 def report_conclusion(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
@@ -520,13 +581,19 @@ def build_problem_answer(pipeline: dict[str, Any], monitor: dict[str, Any]) -> s
 def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, Any], task_runs: dict[str, Any], question: str) -> str:
     target_date = date_for_question(question)
     if target_date == today_text() and is_task_runs_stale_for_date(task_runs, target_date):
-        return "\n".join(
-            [
-                "今天失败明细：",
-                stale_task_runs_notice(task_runs, target_date),
-                "结论：当前不能确认今天是否有失败；请先刷新 Agent 状态或等待 Mac mini 生成今天的任务账本。",
-            ]
-        )
+        lines = [
+            "今天失败明细：",
+            stale_task_runs_notice(task_runs, target_date),
+            "结论：当前不能确认今天是否有新增失败；下面只列历史未处理项。",
+        ]
+        issue_lines = numbered_monitor_issue_lines(monitor)
+        if issue_lines:
+            lines.append("历史未处理清单：")
+            lines.extend(issue_lines)
+        else:
+            lines.append("历史未处理清单：当前没有读到失败或需核实任务。")
+        lines.append("处理建议：先刷新 Agent 状态；刷新后再按编号看今天新增失败。")
+        return "\n".join(lines)
     tasks = task_runs.get("tasks") if isinstance(task_runs.get("tasks"), dict) else {}
     events = task_runs.get("events") if isinstance(task_runs.get("events"), list) else []
     failed = []
@@ -590,6 +657,12 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
                 f"历史未处理：透明化报告仍保留失败 {historical_failed}，需核实 {historical_attention}；"
                 "这不是今天新增失败。"
             )
+            issue_lines = numbered_monitor_issue_lines(monitor)
+            if issue_lines:
+                lines.append("历史未处理清单：")
+                lines.extend(issue_lines)
+            else:
+                lines.append("历史未处理清单：透明化报告没有展开到具体任务，请刷新 Agent 状态。")
         lines.append("说明：如果你要看历史原因，可以问“最近一次失败是什么原因”或指定日期。")
         return "\n".join(lines)
     if "昨天" in question:

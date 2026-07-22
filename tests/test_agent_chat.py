@@ -135,6 +135,34 @@ class AgentChatTests(unittest.TestCase):
         self.assertIn("处理建议", answer)
         self.assertIn("可自动处理：总看板云端发布", answer)
 
+    def test_tracked_task_lines_include_action_for_each_core_task(self) -> None:
+        today = agent_chat.today_text()
+        answer = agent_chat.build_status_answer(
+            {"summary": {"success": 5, "failed": 0, "skipped": 0}},
+            {"summary": {"completed": 1, "failed": 0, "attention": 0}},
+            {
+                "generated_at": f"{today} 10:30:00",
+                "tasks": {
+                    "ops.morning_collection": {
+                        "status": "failed",
+                        "updated_at": f"{today} 08:15:00",
+                        "step": "launchd 包装器",
+                        "message": "上午采集失败。",
+                        "log_path": "morning.log",
+                    }
+                },
+            },
+            "今天任务状态",
+        )
+
+        self.assertIn("值班报告", answer)
+        self.assertIn("任务清单", answer)
+        self.assertIn("1. 上午运营一键采集：失败", answer)
+        self.assertIn("原因：上午采集失败", answer)
+        self.assertIn("证据：morning.log", answer)
+        self.assertIn("处理：高风险，需人工确认，不自动补跑", answer)
+        self.assertIn("2. 加盟店实时数据采集：今日未记录", answer)
+
     def test_today_status_uses_task_runs_and_does_not_surface_yesterday_failure_as_today(self) -> None:
         today = agent_chat.today_text()
         answer = agent_chat.build_status_answer(
@@ -193,6 +221,7 @@ class AgentChatTests(unittest.TestCase):
 
         self.assertIn("结论：没有今日失败项", answer)
         self.assertIn("仍保留历史未处理项，失败 1", answer)
+        self.assertIn("历史未处理清单", answer)
         self.assertIn("这不等于今天新增失败", answer)
         self.assertNotIn("历史预算失败", answer)
 
@@ -222,7 +251,18 @@ class AgentChatTests(unittest.TestCase):
     def test_today_problem_question_does_not_report_stale_failure_as_today(self) -> None:
         answer = agent_chat.build_problem_answer_for_date(
             {"stages": []},
-            {"summary": {"completed": 13, "failed": 1, "attention": 0}},
+            {
+                "summary": {"completed": 13, "failed": 1, "attention": 0},
+                "tasks": [
+                    {
+                        "name": "上午运营一键采集",
+                        "status": "failed",
+                        "failure_reason": "旧的上午失败",
+                        "evidence": "outputs/morning.json",
+                        "rerun": {"suggested": True, "auto_allowed": False},
+                    }
+                ],
+            },
             {
                 "generated_at": "2026-07-17 08:15:46",
                 "tasks": {
@@ -239,7 +279,11 @@ class AgentChatTests(unittest.TestCase):
 
         self.assertIn("今天失败明细", answer)
         self.assertIn("数据源过期", answer)
-        self.assertIn("当前不能确认今天是否有失败", answer)
+        self.assertIn("当前不能确认今天是否有新增失败", answer)
+        self.assertIn("历史未处理清单", answer)
+        self.assertIn("1. 上午运营一键采集：失败", answer)
+        self.assertIn("证据：outputs/morning.json", answer)
+        self.assertIn("处理：需人工确认，不自动补跑", answer)
         self.assertNotIn("旧的预算失败", answer)
 
     def test_today_problem_question_without_today_failures_does_not_list_historical_failures(self) -> None:
@@ -269,6 +313,7 @@ class AgentChatTests(unittest.TestCase):
 
         self.assertIn("结论：今天没有读到失败项", answer)
         self.assertIn("历史未处理", answer)
+        self.assertIn("历史未处理清单", answer)
         self.assertIn("这不是今天新增失败", answer)
         self.assertNotIn("下午/晚餐推广预算设置", answer)
         self.assertNotIn("历史预算失败", answer)
