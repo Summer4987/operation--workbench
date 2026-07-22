@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -83,7 +84,12 @@ def compact_reason(value: Any, fallback: str = "没有写明原因") -> str:
     text = str(value or "").strip()
     if not text:
         return fallback
-    return text.replace("\n", " ")[:180].rstrip("。.")
+    text = text.replace("\n", " ")
+    if "\\x" in text:
+        text = re.sub(r"关键日志[:：][^。；]*", "关键日志已省略", text)
+        text = re.sub(r"(?:\\x[0-9a-fA-F]{2})+", "", text)
+    text = " ".join(text.split())
+    return text[:180].rstrip("。.")
 
 
 def date_part(value: Any) -> str:

@@ -14,6 +14,13 @@ from scripts import agent_chat  # noqa: E402
 
 
 class AgentChatTests(unittest.TestCase):
+    def test_compact_reason_removes_escaped_byte_noise(self) -> None:
+        reason = agent_chat.compact_reason("美团预算失败。关键日志：f\\xbc\\x9a\\xe6\\xb2\\xa1\\xe6\\x9c\\x89\\n后续内容")
+
+        self.assertIn("美团预算失败", reason)
+        self.assertIn("关键日志已省略", reason)
+        self.assertNotIn("\\x", reason)
+
     def test_execution_question_names_skipped_agent(self) -> None:
         answer = agent_chat.build_execution_answer(
             {
