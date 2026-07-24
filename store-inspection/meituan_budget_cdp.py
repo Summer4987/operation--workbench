@@ -31,6 +31,7 @@ MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 INPUT_RETRY_ATTEMPTS = int(os.environ.get("MEITUAN_BUDGET_INPUT_RETRY_ATTEMPTS", "3"))
 STORE_RETRY_ATTEMPTS = int(os.environ.get("MEITUAN_BUDGET_STORE_RETRY_ATTEMPTS", "2"))
+PROMO_ENTRY_LOAD_TIMEOUT_SECONDS = int(os.environ.get("MEITUAN_PROMO_ENTRY_LOAD_TIMEOUT_SECONDS", "90"))
 
 WM_POI_IDS = {
     "第3档口": "30703865",
@@ -408,7 +409,15 @@ def open_headquarters_budget_page(context, task: dict):
 
 
 def enter_dianjin(page) -> None:
-    text = page_text(page)
+    text = ""
+    # The headquarters promo iframe can remain blank while its parent shell
+    # completes the login handshake. Reloading during that window restarts the
+    # handshake and turns a slow load into a persistent white page.
+    for _ in range(PROMO_ENTRY_LOAD_TIMEOUT_SECONDS):
+        text = page_text(page)
+        if "点金推广" in text or ("推广设置" in text and ("推广预算" in text or "每日预算" in text)):
+            break
+        time.sleep(1)
     if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
         return
     if not click_visible_text(page, "点金推广"):
