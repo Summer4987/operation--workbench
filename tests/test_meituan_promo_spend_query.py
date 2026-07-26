@@ -255,6 +255,8 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
             wait_until="domcontentloaded",
             timeout=45_000,
         )
+        helpers["enter_dianjin_with_recovery"].assert_not_called()
+        helpers["wait_setting_ready"].assert_called_once_with(page, timeout_seconds=25)
         self.assertEqual(result["selected_store"], "川湘府")
 
     def test_format_human_reports_failures_plainly(self) -> None:

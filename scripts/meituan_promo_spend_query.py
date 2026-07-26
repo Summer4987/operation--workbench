@@ -566,6 +566,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
         record["configured_budget"] = configured_budget
     page = None
     created_page = False
+    direct_dianjin_target = False
     try:
         context = helpers["context_for_task"](playwright, contexts, launched_contexts, task, direct_accounts)
         if task.get("directMeituanAccountId"):
@@ -577,6 +578,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             except RuntimeError:
                 wm_id = ""
             target_url = dianjin_url_for_store(task_base_url, wm_id, helpers) if wm_id else task_base_url
+            direct_dianjin_target = DIANJIN_SUBAPP_FRAGMENT in target_url
             record["wmPoiId"] = wm_id
             page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
             time.sleep(4)
@@ -588,6 +590,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
                 wm_id = ""
             if wm_id and is_meituan_ad_url(base_url):
                 target_url = dianjin_url_for_store(base_url, wm_id, helpers)
+                direct_dianjin_target = DIANJIN_SUBAPP_FRAGMENT in target_url
                 record["wmPoiId"] = wm_id
                 page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
                 time.sleep(4)
@@ -597,8 +600,11 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
                 target_url = page.url
                 record["selected_store"] = selected_store
         raise_if_meituan_verify_page(page)
-        helpers["enter_dianjin_with_recovery"](page, target_url)
-        helpers["wait_setting_ready"](page, timeout_seconds=20)
+        if direct_dianjin_target:
+            helpers["wait_setting_ready"](page, timeout_seconds=25)
+        else:
+            helpers["enter_dianjin_with_recovery"](page, target_url)
+            helpers["wait_setting_ready"](page, timeout_seconds=20)
         text = helpers["page_text"](page)
         snapshot = parse_spend_snapshot(text)
         record.update(snapshot)
