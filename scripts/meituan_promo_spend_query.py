@@ -819,7 +819,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(payload["message"])
-    return 0 if payload["status"] in {"ok", "partial"} else 1
+    return 0 if payload["status"] == "ok" else 2 if payload["status"] == "partial" else 1
 
 
 if __name__ == "__main__":

@@ -324,6 +324,24 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertIn("1. 第3档口：未核实。原因：页面弹出遮罩层挡住门店选择器", text)
         self.assertNotIn("Call log", text)
 
+    def test_main_returns_nonzero_for_partial_coverage(self) -> None:
+        with mock.patch.object(
+            self.query,
+            "build_payload",
+            return_value={"status": "partial", "message": "美团推广实时消耗巡检：总览：已读到 4/13 家"},
+        ):
+            with mock.patch.object(self.query, "write_latest"):
+                self.assertEqual(self.query.main(["--quiet"]), 2)
+
+    def test_main_returns_zero_only_for_full_coverage(self) -> None:
+        with mock.patch.object(
+            self.query,
+            "build_payload",
+            return_value={"status": "ok", "message": "美团推广实时消耗巡检：总览：已读到 13/13 家"},
+        ):
+            with mock.patch.object(self.query, "write_latest"):
+                self.assertEqual(self.query.main(["--quiet"]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
