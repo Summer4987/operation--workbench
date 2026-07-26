@@ -361,10 +361,102 @@ class AgentChatTests(unittest.TestCase):
         )
 
         self.assertIn("失败明细", answer)
-        self.assertIn("下午/晚餐推广预算设置：失败", answer)
+        self.assertIn("当前没有", answer)
+        self.assertIn("曾失败后已恢复 1 项", answer)
+        self.assertIn("下午/晚餐推广预算设置：曾失败", answer)
         self.assertIn("饿了么预算捕获失败", answer)
         self.assertIn("outputs/current_budget/logs/current_budget_晚餐.log", answer)
-        self.assertIn("后来被补跑或收尾修复", answer)
+        self.assertIn("恢复：后续已有成功记录", answer)
+
+    def test_today_problem_question_separates_recovered_failures_from_active_failures(self) -> None:
+        today = agent_chat.today_text()
+        answer = agent_chat.build_problem_answer_for_date(
+            {"stages": []},
+            {"summary": {"completed": 13, "failed": 0, "attention": 0}},
+            {
+                "generated_at": f"{today} 08:40:00",
+                "tasks": {
+                    "ops.morning_collection": {
+                        "status": "success",
+                        "updated_at": f"{today} 08:28:00",
+                        "step": "汇总",
+                        "message": "上午运营一键采集完成。",
+                    }
+                },
+                "events": [
+                    {
+                        "task_id": "ops.morning_collection",
+                        "status": "failed",
+                        "created_at": f"{today} 08:10:00",
+                        "step": "巡检证据上传云端",
+                        "message": "巡检证据上传云端失败。",
+                        "log_path": "logs/today.log",
+                    },
+                    {
+                        "task_id": "ops.morning_collection",
+                        "status": "success",
+                        "created_at": f"{today} 08:28:00",
+                        "step": "汇总",
+                        "message": "上午运营一键采集完成。",
+                    },
+                ],
+            },
+            "今天哪里失败",
+        )
+
+        self.assertIn("结论：当前没有今日未恢复失败", answer)
+        self.assertIn("今日曾失败后已恢复 1 项", answer)
+        self.assertIn("已恢复记录", answer)
+        self.assertIn("上午运营一键采集：曾失败（08:10）", answer)
+        self.assertIn("恢复：后续已有成功记录（08:28，汇总）", answer)
+        self.assertNotIn("当前失败清单", answer)
+
+    def test_today_problem_question_lists_active_failures_before_recovered_failures(self) -> None:
+        today = agent_chat.today_text()
+        answer = agent_chat.build_problem_answer_for_date(
+            {"stages": []},
+            {"summary": {"completed": 13, "failed": 0, "attention": 0}},
+            {
+                "generated_at": f"{today} 17:10:00",
+                "tasks": {
+                    "ops.morning_collection": {
+                        "status": "success",
+                        "updated_at": f"{today} 08:28:00",
+                        "step": "汇总",
+                        "message": "上午运营一键采集完成。",
+                    },
+                    "growth.promo_budget": {
+                        "status": "failed",
+                        "updated_at": f"{today} 16:58:00",
+                        "step": "晚餐预算汇总",
+                        "message": "美团预算提交失败。",
+                    },
+                },
+                "events": [
+                    {
+                        "task_id": "ops.morning_collection",
+                        "status": "failed",
+                        "created_at": f"{today} 08:10:00",
+                        "step": "巡检证据上传云端",
+                        "message": "巡检证据上传云端失败。",
+                    },
+                    {
+                        "task_id": "ops.morning_collection",
+                        "status": "success",
+                        "created_at": f"{today} 08:28:00",
+                        "step": "汇总",
+                        "message": "上午运营一键采集完成。",
+                    },
+                ],
+            },
+            "今天哪里失败",
+        )
+
+        self.assertIn("结论：当前仍有 1 个今日失败项", answer)
+        self.assertIn("当前失败清单", answer)
+        self.assertIn("下午/晚餐推广预算设置：失败（16:58）", answer)
+        self.assertIn("已恢复记录", answer)
+        self.assertIn("上午运营一键采集：曾失败（08:10）", answer)
 
     def test_answer_question_uses_latest_files(self) -> None:
         original_root = agent_chat.ROOT

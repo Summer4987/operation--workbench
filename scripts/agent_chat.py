@@ -101,6 +101,10 @@ def time_part(value: Any) -> str:
     return text[11:16] if len(text) >= 16 else text
 
 
+def comparable_time(value: Any) -> str:
+    return str(value or "").strip()
+
+
 def task_run_details(task: dict[str, Any]) -> str:
     message = compact_reason(task.get("message"), fallback="")
     extra = task.get("extra") if isinstance(task.get("extra"), dict) else {}
@@ -308,11 +312,12 @@ def build_daily_task_runs_report(task_runs: dict[str, Any], monitor: dict[str, A
                 "这不等于今天新增失败。"
             )
             issue_lines = numbered_monitor_issue_lines(monitor)
+            issue_label = "历史未处理清单" if monitor_failed else "需核实清单"
             if issue_lines:
-                lines.append("历史未处理清单：")
+                lines.append(f"{issue_label}：")
                 lines.extend(issue_lines)
             else:
-                lines.append("历史未处理清单：透明化报告没有展开到具体任务，请刷新 Agent 状态。")
+                lines.append(f"{issue_label}：透明化报告没有展开到具体任务，请刷新 Agent 状态。")
         else:
             lines.append(
                 "透明化报告："
@@ -618,7 +623,6 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
             failed.append((name, task))
     if failed:
         title_date = "今天" if target_date == today_text() else target_date
-        lines = [f"{title_date}失败明细："]
         seen = set()
         unique_failed = []
         for name, task in failed:
@@ -627,7 +631,50 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
                 continue
             seen.add(key)
             unique_failed.append((name, task))
-        for index, (name, task) in enumerate(unique_failed, start=1):
+
+        success_events = [
+            event
+            for event in events
+            if isinstance(event, dict)
+            and date_part(event.get("created_at")) == target_date
+            and event.get("status") == "success"
+        ]
+        active_failed = []
+        recovered_failed = []
+        for name, task in unique_failed:
+            task_id = str(task.get("task_id") or "")
+            failed_at = comparable_time(task.get("updated_at") or task.get("finished_at"))
+            later_success = next(
+                (
+                    event
+                    for event in success_events
+                    if str(event.get("task_id") or "") == task_id
+                    and comparable_time(event.get("created_at")) >= failed_at
+                ),
+                None,
+            )
+            latest_task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
+            latest_at = comparable_time(latest_task.get("updated_at") or latest_task.get("finished_at"))
+            latest_success = (
+                bool(latest_task)
+                and latest_task.get("status") == "success"
+                and date_part(latest_at) == target_date
+                and latest_at >= failed_at
+            )
+            if later_success or latest_success:
+                recovered_failed.append((name, task, later_success or latest_task))
+            else:
+                active_failed.append((name, task))
+
+        lines = [f"{title_date}失败明细："]
+        date_scope = "今日" if target_date == today_text() else f"{target_date} 当天"
+        if active_failed:
+            lines.append(f"结论：当前仍有 {len(active_failed)} 个{date_scope}失败项。")
+            lines.append("当前失败清单：")
+        else:
+            lines.append(f"结论：当前没有{date_scope}未恢复失败；{date_scope}曾失败后已恢复 {len(recovered_failed)} 项。")
+
+        for index, (name, task) in enumerate(active_failed, start=1):
             updated = str(task.get("updated_at") or task.get("finished_at") or "")
             detail = task_run_details(task)
             evidence = task.get("log_path") or ""
@@ -639,16 +686,30 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
             if evidence:
                 line += f"。证据：{evidence}"
             lines.append(line)
-        repaired = [
-            event
-            for event in events
-            if isinstance(event, dict)
-            and date_part(event.get("created_at")) == target_date
-            and event.get("status") == "success"
-            and str(event.get("task_id") or "") in {str(task.get("task_id") or "") for _name, task in unique_failed}
-        ]
-        if repaired:
-            lines.append("后续状态：当天已有后续成功记录，说明失败项后来被补跑或收尾修复过。")
+
+        if recovered_failed:
+            lines.append("已恢复记录：")
+            for index, (name, task, recovery) in enumerate(recovered_failed, start=1):
+                updated = str(task.get("updated_at") or task.get("finished_at") or "")
+                detail = task_run_details(task)
+                evidence = task.get("log_path") or ""
+                recovery_at = str(recovery.get("created_at") or recovery.get("updated_at") or recovery.get("finished_at") or "")
+                recovery_step = str(recovery.get("step") or "").strip()
+                recovery_text = f"后续已有成功记录（{time_part(recovery_at)}"
+                if recovery_step:
+                    recovery_text += f"，{recovery_step}"
+                recovery_text += "），所以不算当前失败"
+                line = f"{index}. {name}：曾失败（{time_part(updated)}）"
+                if task.get("step"):
+                    line += f"，步骤：{task.get('step')}"
+                if detail:
+                    line += f"。原因：{detail}"
+                if evidence:
+                    line += f"。证据：{evidence}"
+                line += f"。恢复：{recovery_text}"
+                lines.append(line)
+        if recovered_failed and not active_failed:
+            lines.append("处理建议：无需按失败处理；如需复盘，再查看对应证据日志。")
         return "\n".join(lines)
     if target_date == today_text() and ("今天" in question or "今日" in question):
         monitor_summary = monitor.get("summary") if isinstance(monitor.get("summary"), dict) else {}
@@ -664,11 +725,12 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
                 "这不是今天新增失败。"
             )
             issue_lines = numbered_monitor_issue_lines(monitor)
+            issue_label = "历史未处理清单" if historical_failed else "需核实清单"
             if issue_lines:
-                lines.append("历史未处理清单：")
+                lines.append(f"{issue_label}：")
                 lines.extend(issue_lines)
             else:
-                lines.append("历史未处理清单：透明化报告没有展开到具体任务，请刷新 Agent 状态。")
+                lines.append(f"{issue_label}：透明化报告没有展开到具体任务，请刷新 Agent 状态。")
         lines.append("说明：如果你要看历史原因，可以问“最近一次失败是什么原因”或指定日期。")
         return "\n".join(lines)
     if "昨天" in question:
