@@ -395,6 +395,13 @@ class AgentChatTests(unittest.TestCase):
                     {
                         "task_id": "ops.morning_collection",
                         "status": "success",
+                        "created_at": f"{today} 08:11:00",
+                        "step": "同步云端预算配置",
+                        "message": "云端预算同步完成。",
+                    },
+                    {
+                        "task_id": "ops.morning_collection",
+                        "status": "success",
                         "created_at": f"{today} 08:28:00",
                         "step": "汇总",
                         "message": "上午运营一键采集完成。",

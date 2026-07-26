@@ -644,15 +644,13 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
         for name, task in unique_failed:
             task_id = str(task.get("task_id") or "")
             failed_at = comparable_time(task.get("updated_at") or task.get("finished_at"))
-            later_success = next(
-                (
-                    event
-                    for event in success_events
-                    if str(event.get("task_id") or "") == task_id
-                    and comparable_time(event.get("created_at")) >= failed_at
-                ),
-                None,
-            )
+            later_success_events = [
+                event
+                for event in success_events
+                if str(event.get("task_id") or "") == task_id
+                and comparable_time(event.get("created_at")) >= failed_at
+            ]
+            later_success = later_success_events[-1] if later_success_events else None
             latest_task = tasks.get(task_id) if isinstance(tasks.get(task_id), dict) else {}
             latest_at = comparable_time(latest_task.get("updated_at") or latest_task.get("finished_at"))
             latest_success = (
@@ -662,7 +660,9 @@ def build_problem_answer_for_date(pipeline: dict[str, Any], monitor: dict[str, A
                 and latest_at >= failed_at
             )
             if later_success or latest_success:
-                recovered_failed.append((name, task, later_success or latest_task))
+                later_success_at = comparable_time((later_success or {}).get("created_at"))
+                recovery = latest_task if latest_success and latest_at >= later_success_at else later_success
+                recovered_failed.append((name, task, recovery))
             else:
                 active_failed.append((name, task))
 
