@@ -94,7 +94,7 @@ def recent_tasks(limit: int = 20, path: Path | None = None) -> list[dict[str, An
 
 def task_summary(path: Path | None = None) -> dict[str, int]:
     payload = read_inbox(path)
-    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0, "canceled": 0, "total": 0}
+    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0, "canceled": 0, "recovered": 0, "total": 0}
     for item in payload.get("items", []):
         if not isinstance(item, dict):
             continue
@@ -125,14 +125,24 @@ def claim_task(task_id: str, *, worker: str, path: Path | None = None) -> dict[s
 def complete_task(task_id: str, *, status: str, result: dict[str, Any], path: Path | None = None) -> dict[str, Any] | None:
     payload = read_inbox(path)
     updated = None
+    normalized_status = status if status in {"success", "failed", "canceled"} else "failed"
     for item in payload.get("items", []):
         if not isinstance(item, dict) or item.get("id") != task_id:
             continue
-        item["status"] = status if status in {"success", "failed", "canceled"} else "failed"
+        item["status"] = normalized_status
         item["updated_at"] = now_ts()
         item["result"] = result if isinstance(result, dict) else {}
         updated = item
         break
+    if updated and normalized_status == "success":
+        intent = str(updated.get("intent") or "")
+        for item in payload.get("items", []):
+            if not isinstance(item, dict) or item is updated:
+                continue
+            if item.get("status") == "failed" and str(item.get("intent") or "") == intent:
+                item["status"] = "recovered"
+                item["recovered_by"] = updated.get("id")
+                item["recovered_at"] = updated.get("updated_at")
     if updated:
         write_inbox(payload, path)
     return updated

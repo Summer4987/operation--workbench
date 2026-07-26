@@ -86,6 +86,34 @@ class AgentInboxTests(unittest.TestCase):
             self.assertEqual(updated["status"], "canceled")
             self.assertEqual(summary["canceled"], 1)
 
+    def test_success_recovers_older_failed_same_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "inbox.json"
+            failed = agent_inbox.append_task(
+                text="巡检美团实时消耗",
+                intent="meituan_spend_inspection",
+                execute=True,
+                source="test",
+                path=path,
+            )
+            agent_inbox.complete_task(failed["id"], status="failed", result={"returncode": 1}, path=path)
+            success = agent_inbox.append_task(
+                text="巡检美团实时消耗",
+                intent="meituan_spend_inspection",
+                execute=True,
+                source="test",
+                path=path,
+            )
+            agent_inbox.complete_task(success["id"], status="success", result={"returncode": 0}, path=path)
+
+            summary = agent_inbox.task_summary(path=path)
+            recent = agent_inbox.recent_tasks(limit=2, path=path)
+
+            self.assertEqual(summary["failed"], 0)
+            self.assertEqual(summary["recovered"], 1)
+            self.assertEqual(recent[1]["status"], "recovered")
+            self.assertEqual(recent[1]["recovered_by"], success["id"])
+
     def test_recent_tasks_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "inbox.json"
