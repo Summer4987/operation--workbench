@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-ROOT="${OPERATION_CENTER_ROOT:-/Users/summer/Documents/operation-workbench-clean}"
+ROOT="${OPERATION_CENTER_ROOT:-/Users/summer/Library/Application Support/xiong-operation/production}"
 LABEL="com.summer.operation.agent-inbox-worker"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 SCRIPT_DIR="$HOME/Library/Scripts/xiong-operation"
