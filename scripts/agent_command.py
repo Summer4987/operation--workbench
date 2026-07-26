@@ -265,7 +265,7 @@ def handle_command(text: str, *, execute: bool, use_llm: bool = True) -> dict[st
     elif intent == "status":
         answer = chat_answer("现在 agent 状态怎么样？")
     elif intent == "help":
-        answer = "你可以说：今天哪里有问题、刷新状态、巡检美团消耗、执行非订货恢复、发布手机入口、哪些任务可以补跑。订货/下单/采购会被拦截。"
+        answer = "你可以说：今天哪里有问题、巡检美团消耗、执行非订货恢复、发布手机入口、哪些任务可以补跑。订货/下单/采购会被拦截。"
     else:
         answer = chat_answer(text)
 

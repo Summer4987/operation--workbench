@@ -275,10 +275,11 @@ class AgentInboxTests(unittest.TestCase):
         self.assertIn('data-command="巡检美团实时消耗"', text)
         self.assertIn("一键查余量", text)
 
-    def test_mobile_agent_page_has_self_check_button_without_one_off_acceptance(self) -> None:
+    def test_mobile_agent_page_omits_maintenance_buttons_without_one_off_acceptance(self) -> None:
         text = (ROOT / "inventory-board" / "app" / "main.py").read_text(encoding="utf-8")
 
-        self.assertIn('data-command="系统自检"', text)
+        self.assertNotIn('data-command="系统自检"', text)
+        self.assertNotIn('data-command="刷新状态"', text)
         self.assertNotIn('data-command="验收望京同步"', text)
         self.assertNotIn("验收望京", text)
 
