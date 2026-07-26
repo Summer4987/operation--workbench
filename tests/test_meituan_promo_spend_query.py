@@ -105,6 +105,29 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(snapshot["today_spend"], 20.4)
         self.assertEqual(snapshot["source"], "budget_percent")
 
+    def test_dianjin_url_for_store_rewrites_nested_meituan_shell_url(self) -> None:
+        base_url = (
+            "https://e.waimai.meituan.com/#"
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=111#/index"
+        )
+
+        target = self.query.dianjin_url_for_store(base_url, "30703865")
+
+        self.assertIn("token=abc", target)
+        self.assertIn("wmPoiId=30703865", target)
+        self.assertIn("#/subapp/isomor_cpc/pages/index/index", target)
+        self.assertNotIn("wmPoiId=111#/index", target)
+
+    def test_dianjin_url_for_store_rewrites_plain_meituan_ad_url(self) -> None:
+        base_url = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=111#/index"
+
+        target = self.query.dianjin_url_for_store(base_url, "32346101")
+
+        self.assertEqual(
+            target,
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32346101#/subapp/isomor_cpc/pages/index/index",
+        )
+
     def test_task_store_aliases_expand_short_brand_names(self) -> None:
         aliases = self.query.task_store_aliases(
             {
@@ -228,7 +251,7 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         page.goto.assert_called_once_with(
-            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32346101",
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32346101#/subapp/isomor_cpc/pages/index/index",
             wait_until="domcontentloaded",
             timeout=45_000,
         )

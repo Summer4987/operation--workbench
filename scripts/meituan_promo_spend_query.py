@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,7 @@ MEITUAN_BUDGET_LOG_DIR = ROOT / "outputs" / "meituan_budget_automation"
 OUTPUT_DIR = ROOT / "outputs" / "meituan_promo_spend"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 HEADQUARTERS_HOME_URL = "https://e.waimai.meituan.com/"
+DIANJIN_SUBAPP_FRAGMENT = "/subapp/isomor_cpc/pages/index/index"
 STORE_ALIASES = {
     "第3档口": ["第3档口", "吉祥美食城"],
     "川湘府": ["川湘府", "第5号档口"],
@@ -262,6 +264,35 @@ def load_recent_wm_ids() -> dict[str, str]:
 
 def is_meituan_ad_url(value: str) -> bool:
     return "waimaieapp.meituan.com/ad/v1" in str(value or "") and "token=" in str(value or "")
+
+
+def dianjin_url_for_store(base_url: str, wm_id: str, helpers: dict[str, Any] | None = None) -> str:
+    """Build a store-specific Meituan Dianjin subapp URL from a recent promo URL."""
+    if helpers and "url_for_store" in helpers:
+        store_url = helpers["url_for_store"](base_url, wm_id)
+    else:
+        store_url = replace_wm_poi_id(base_url, wm_id)
+    outer = urlsplit(store_url)
+    if "waimaieapp.meituan.com/ad/v1" in outer.fragment:
+        inner = urlsplit(outer.fragment)
+        inner_url = urlunsplit((inner.scheme, inner.netloc, inner.path, inner.query, DIANJIN_SUBAPP_FRAGMENT))
+        return urlunsplit((outer.scheme, outer.netloc, outer.path, outer.query, inner_url))
+    if "waimaieapp.meituan.com/ad/v1" in outer.netloc + outer.path:
+        return urlunsplit((outer.scheme, outer.netloc, outer.path, outer.query, DIANJIN_SUBAPP_FRAGMENT))
+    return store_url
+
+
+def replace_wm_poi_id(raw_url: str, wm_id: str) -> str:
+    parts = urlsplit(raw_url)
+    if "waimaieapp.meituan.com" in parts.fragment:
+        inner = urlsplit(parts.fragment)
+        query = dict(parse_qsl(inner.query, keep_blank_values=True))
+        query["wmPoiId"] = wm_id
+        inner_url = urlunsplit((inner.scheme, inner.netloc, inner.path, urlencode(query), inner.fragment))
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, inner_url))
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["wmPoiId"] = wm_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 def load_meituan_tasks(period: str) -> list[dict[str, Any]]:
@@ -545,7 +576,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
                 wm_id = helpers["wm_poi_id"](task)
             except RuntimeError:
                 wm_id = ""
-            target_url = helpers["url_for_store"](task_base_url, wm_id) if wm_id else task_base_url
+            target_url = dianjin_url_for_store(task_base_url, wm_id, helpers) if wm_id else task_base_url
             record["wmPoiId"] = wm_id
             page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
             time.sleep(4)
@@ -556,10 +587,10 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             except RuntimeError:
                 wm_id = ""
             if wm_id and is_meituan_ad_url(base_url):
-                target_url = helpers["url_for_store"](base_url, wm_id)
+                target_url = dianjin_url_for_store(base_url, wm_id, helpers)
                 record["wmPoiId"] = wm_id
                 page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
-                time.sleep(2)
+                time.sleep(4)
                 record["selected_store"] = task_display_name(task)
             else:
                 selected_store = open_headquarters_promo_page(page, task, helpers)
