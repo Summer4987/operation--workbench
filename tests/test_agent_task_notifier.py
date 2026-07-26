@@ -237,6 +237,95 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertNotIn("\n", sent_messages[0])
             self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
+    def test_notify_includes_fresh_low_balance_alert(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            balance_path = tmp_path / "promo_balance_status.json"
+            runs_path.write_text(json.dumps({"tasks": {}}, ensure_ascii=False), encoding="utf-8")
+            balance_path.write_text(
+                json.dumps(
+                    {
+                        "status": "warning",
+                        "source_generated_at": "2026-07-26 08:10:00",
+                        "summary": {"low_balance_count": 2, "source_is_stale": False},
+                        "low_balance_items": [
+                            {
+                                "platform": "美团",
+                                "store_name": "丽泽门店",
+                                "balance": 184.58,
+                                "threshold": 200,
+                            },
+                            {
+                                "platform": "饿了么",
+                                "store_name": "望京店",
+                                "balance": 47.68,
+                                "threshold": 200,
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": True,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                },
+            )()
+            original_loader = self.notifier.load_promo_balance_alert_tasks
+            try:
+                self.notifier.load_promo_balance_alert_tasks = lambda: original_loader(balance_path)
+
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_promo_balance_alert_tasks = original_loader
+
+            self.assertEqual(payload["notification_count"], 1)
+            notice = payload["notifications"][0]
+            self.assertEqual(notice["task_id"], "growth.promo_balance.low_balance")
+            self.assertEqual(notice["status"], "warning")
+            self.assertIn("推广余额低余额预警部分通过，需要核实", notice["message"])
+            self.assertIn("余额巡检发现 2 个低余额门店", notice["message"])
+            self.assertIn("1. 美团 丽泽门店：余额 184.58 元", notice["message"])
+            self.assertIn("2. 饿了么 望京店：余额 47.68 元", notice["message"])
+            self.assertIn("先充值低余额门店", notice["message"])
+
+    def test_notify_skips_stale_low_balance_alert(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            balance_path = tmp_path / "promo_balance_status.json"
+            balance_path.write_text(
+                json.dumps(
+                    {
+                        "status": "stale",
+                        "source_generated_at": "2026-07-26 08:10:00",
+                        "summary": {"low_balance_count": 2, "source_is_stale": True},
+                        "low_balance_items": [
+                            {"platform": "美团", "store_name": "丽泽门店", "balance": 184.58, "threshold": 200}
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            tasks = self.notifier.load_promo_balance_alert_tasks(balance_path)
+
+            self.assertEqual(tasks, {})
+
     def test_send_weixin_prefers_ops_notify(self) -> None:
         original_notify_with_result = self.notifier.ops_notify.notify_with_result
         try:

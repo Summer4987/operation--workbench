@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 DEFAULT_STATE_PATH = ROOT / "outputs" / "agent_task_notifications" / "state.json"
 DEFAULT_LOG_PATH = ROOT / "outputs" / "agent_task_notifications" / "latest.log"
+DEFAULT_PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 DEFAULT_TARGET = "weixin"
 MAX_BATCH_MESSAGE_CHARS = 3600
 MIN_COOLDOWN_SECONDS = 180
@@ -70,6 +71,16 @@ DIRECT_TASK_ROWS = {
             "suggested": True,
             "auto_allowed": False,
             "reason": "会真实提交推广预算，只报告不自动补跑。",
+        },
+    },
+    "growth.promo_balance.low_balance": {
+        "id": "growth.promo_balance.low_balance",
+        "name": "推广余额低余额预警",
+        "risk": "medium",
+        "rerun": {
+            "suggested": False,
+            "auto_allowed": False,
+            "reason": "余额充值需要人工处理，Agent 只负责提醒。",
         },
     },
 }
@@ -158,6 +169,57 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
             },
         }
     return issue_tasks
+
+
+def format_money(value: Any) -> str:
+    try:
+        return f"{float(value):.2f}".rstrip("0").rstrip(".")
+    except (TypeError, ValueError):
+        return str(value or "未知")
+
+
+def low_balance_notice_text(items: list[dict[str, Any]], source_generated_at: str) -> str:
+    lines = [
+        f"余额巡检发现 {len(items)} 个低余额门店。",
+        f"采集时间：{source_generated_at or '未知'}。",
+        "低余额清单：",
+    ]
+    for index, item in enumerate(items[:8], start=1):
+        platform = str(item.get("platform") or "")
+        store_name = str(item.get("store_name") or item.get("store") or "")
+        balance = format_money(item.get("balance"))
+        threshold = format_money(item.get("threshold"))
+        lines.append(f"{index}. {platform} {store_name}：余额 {balance} 元，低于阈值 {threshold} 元。")
+    if len(items) > 8:
+        lines.append(f"另外还有 {len(items) - 8} 个低余额门店。")
+    lines.append("处理建议：先充值低余额门店，再执行预算或出价自动化。")
+    return "\n".join(lines)
+
+
+def load_promo_balance_alert_tasks(path: Path = DEFAULT_PROMO_BALANCE_STATUS_PATH) -> dict[str, dict[str, Any]]:
+    payload = read_json(path, {})
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    if payload.get("status") != "warning" or summary.get("source_is_stale"):
+        return {}
+    items = payload.get("low_balance_items") if isinstance(payload.get("low_balance_items"), list) else []
+    if not items:
+        return {}
+    source_generated_at = str(payload.get("source_generated_at") or payload.get("generated_at") or "")
+    return {
+        "growth.promo_balance.low_balance": {
+            "status": "warning",
+            "message": low_balance_notice_text(items, source_generated_at),
+            "step": "推广余额巡检",
+            "log_path": "outputs/promo_balance_status/latest.json",
+            "failure_type": "low_balance",
+            "updated_at": source_generated_at,
+            "finished_at": source_generated_at,
+            "extra": {
+                "low_balance_count": len(items),
+                "source_generated_at": source_generated_at,
+            },
+        }
+    }
 
 
 def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
@@ -324,6 +386,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         if mapped_task_id and mapped_task_id in tasks:
             continue
         task_candidates[task_id] = task
+    task_candidates.update(load_promo_balance_alert_tasks())
     notifications = []
     pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
