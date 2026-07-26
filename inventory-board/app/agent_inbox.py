@@ -36,6 +36,7 @@ def read_inbox(path: Path | None = None) -> dict[str, Any]:
         payload = json.loads(target.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             payload.setdefault("items", [])
+            mark_recovered_failures(payload)
             return payload
     except Exception:
         pass
@@ -48,6 +49,22 @@ def write_inbox(payload: dict[str, Any], path: Path | None = None) -> None:
     tmp = target.with_suffix(target.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     tmp.replace(target)
+
+
+def mark_recovered_failures(payload: dict[str, Any]) -> None:
+    latest_success_by_intent: dict[str, dict[str, Any]] = {}
+    for item in reversed([row for row in payload.get("items", []) if isinstance(row, dict)]):
+        intent = str(item.get("intent") or "")
+        if not intent:
+            continue
+        if item.get("status") == "success":
+            latest_success_by_intent.setdefault(intent, item)
+        elif item.get("status") == "failed" and intent in latest_success_by_intent:
+            success = latest_success_by_intent[intent]
+            if int(success.get("updated_at") or 0) >= int(item.get("updated_at") or item.get("created_at") or 0):
+                item["status"] = "recovered"
+                item["recovered_by"] = success.get("id")
+                item["recovered_at"] = success.get("updated_at")
 
 
 def append_task(

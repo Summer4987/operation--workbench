@@ -114,6 +114,25 @@ class AgentInboxTests(unittest.TestCase):
             self.assertEqual(recent[1]["status"], "recovered")
             self.assertEqual(recent[1]["recovered_by"], success["id"])
 
+    def test_read_summary_recovers_superseded_historical_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "inbox.json"
+            path.write_text(
+                '{"version":1,"items":['
+                '{"id":"old","updated_at":10,"status":"failed","intent":"meituan_spend_inspection"},'
+                '{"id":"new","updated_at":20,"status":"success","intent":"meituan_spend_inspection"}'
+                ']}',
+                encoding="utf-8",
+            )
+
+            summary = agent_inbox.task_summary(path=path)
+            recent = agent_inbox.recent_tasks(limit=2, path=path)
+
+            self.assertEqual(summary["failed"], 0)
+            self.assertEqual(summary["recovered"], 1)
+            self.assertEqual(recent[1]["status"], "recovered")
+            self.assertEqual(recent[1]["recovered_by"], "new")
+
     def test_recent_tasks_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "inbox.json"
