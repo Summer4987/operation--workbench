@@ -24,6 +24,7 @@ class FloorPlanDesignerTests(unittest.TestCase):
             "电磁炉",
             "水池",
             "四门冰箱",
+            "柱子",
         ):
             with self.subTest(model=model):
                 self.assertIn(f'name: "{model}"', script)

@@ -13,7 +13,8 @@
     { name: "烤炉", width: 120, height: 80, color: "#b06036", abbr: "炉" },
     { name: "电磁炉", width: 60, height: 60, color: "#4c5564", abbr: "磁" },
     { name: "水池", width: 100, height: 60, color: "#2580a7", abbr: "池" },
-    { name: "四门冰箱", width: 120, height: 75, color: "#47728a", abbr: "冰" }
+    { name: "四门冰箱", width: 120, height: 75, color: "#47728a", abbr: "冰" },
+    { name: "柱子", width: 40, height: 40, color: "#5b6470", abbr: "柱" }
   ];
 
   const $ = (id) => document.getElementById(id);
