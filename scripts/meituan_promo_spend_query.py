@@ -768,7 +768,7 @@ def task_budget(task: dict[str, Any]) -> float | None:
 
 
 def apply_budget_fields(record: dict[str, Any], configured_budget: float | None) -> None:
-    if record.get("budget") is None and configured_budget is not None:
+    if (record.get("budget") in (None, 0, 0.0, "")) and configured_budget is not None:
         record["budget"] = configured_budget
         record["budget_source"] = "configured"
     spend = record.get("today_spend")

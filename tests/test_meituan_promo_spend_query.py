@@ -397,6 +397,16 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(record["budget_percent"], 75)
         self.assertEqual(record["budget_source"], "configured")
 
+    def test_apply_budget_fields_replaces_zero_page_budget_with_configured_budget(self) -> None:
+        record = {"today_spend": 200, "budget": 0, "budget_percent": 0, "budget_source": "page"}
+
+        self.query.apply_budget_fields(record, 200)
+
+        self.assertEqual(record["budget"], 200)
+        self.assertEqual(record["remaining_budget"], 0)
+        self.assertEqual(record["budget_percent"], 100)
+        self.assertEqual(record["budget_source"], "configured")
+
     def test_should_retry_transient_browser_and_entry_failures(self) -> None:
         self.assertTrue(
             self.query.should_retry_query(
