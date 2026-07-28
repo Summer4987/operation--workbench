@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -765,19 +766,145 @@ def apply_budget_fields(record: dict[str, Any], configured_budget: float | None)
     record["budget_percent"] = round(spend_value / budget_value * 100, 1)
 
 
-def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: bool = False) -> dict[str, Any]:
-    helpers = require_helpers()
-    tasks = load_meituan_tasks(period)
-    if stores:
-        needles = [normalize_space(item).lower() for item in stores]
-        tasks = [
-            task for task in tasks
-            if any(needle in normalize_space(" ".join(str(task.get(key, "")) for key in ("keyword", "store", "sourceStore"))).lower() for needle in needles)
+def filter_tasks(tasks: list[dict[str, Any]], stores: list[str]) -> list[dict[str, Any]]:
+    if not stores:
+        return tasks
+    needles = [normalize_space(item).lower() for item in stores]
+    filtered = [
+        task for task in tasks
+        if any(needle in normalize_space(" ".join(str(task.get(key, "")) for key in ("keyword", "store", "sourceStore"))).lower() for needle in needles)
+    ]
+    if not filtered:
+        raise RuntimeError("没有匹配到指定美团门店：" + "、".join(stores))
+    return filtered
+
+
+def split_evenly(items: list[dict[str, Any]], workers: int) -> list[list[dict[str, Any]]]:
+    buckets = [[] for _ in range(max(1, workers))]
+    for index, item in enumerate(items):
+        buckets[index % len(buckets)].append(item)
+    return [bucket for bucket in buckets if bucket]
+
+
+def task_filter_name(task: dict[str, Any]) -> str:
+    return (
+        normalize_space(str(task.get("keyword") or ""))
+        or normalize_space(str(task.get("sourceStore") or ""))
+        or normalize_space(str(task.get("store") or ""))
+    )
+
+
+def merge_payloads(period: str, payloads: list[dict[str, Any]], ordered_tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    item_by_name: dict[str, dict[str, Any]] = {}
+    for payload in payloads:
+        for item in payload.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            for key in (item_display_name(item), str(item.get("keyword") or ""), str(item.get("sourceStore") or ""), str(item.get("store") or "")):
+                name = normalize_space(key)
+                if name:
+                    item_by_name[name] = item
+    results: list[dict[str, Any]] = []
+    for task in ordered_tasks:
+        names = [task_display_name(task), task_filter_name(task), str(task.get("store") or ""), str(task.get("sourceStore") or "")]
+        item = next((item_by_name.get(normalize_space(name)) for name in names if normalize_space(name) in item_by_name), None)
+        if item is not None:
+            results.append(item)
+    if len(results) < sum(len(payload.get("items") or []) for payload in payloads):
+        seen = {id(item) for item in results}
+        for payload in payloads:
+            for item in payload.get("items") or []:
+                if isinstance(item, dict) and id(item) not in seen:
+                    results.append(item)
+                    seen.add(id(item))
+    return payload_from_results(period, results)
+
+
+def build_payload_parallel(period: str, tasks: list[dict[str, Any]], workers: int, *, quiet: bool = False) -> dict[str, Any]:
+    payloads: list[dict[str, Any]] = []
+    script = Path(__file__).resolve()
+    processes: list[tuple[str, subprocess.Popen[str]]] = []
+    for chunk in split_evenly(tasks, workers):
+        store_filter = ",".join(name for task in chunk if (name := task_filter_name(task)))
+        if not store_filter:
+            continue
+        command = [
+            sys.executable or "python3",
+            str(script),
+            "--period",
+            period,
+            "--stores",
+            store_filter,
+            "--workers",
+            "1",
+            "--json",
+            "--quiet",
+            "--no-write-latest",
         ]
-        if not tasks:
-            raise RuntimeError("没有匹配到指定美团门店：" + "、".join(stores))
+        processes.append(
+            (
+                store_filter,
+                subprocess.Popen(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT),
+            )
+        )
+    for store_filter, process in processes:
+        try:
+            stdout, _ = process.communicate(timeout=900)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, _ = process.communicate()
+            payloads.append(
+                {
+                    "items": [
+                        {
+                            "keyword": store_filter,
+                            "displayName": store_filter,
+                            "ok": False,
+                            "error": "子进程超时：" + (stdout or "")[-600:],
+                        }
+                    ]
+                }
+            )
+            continue
+        if process.returncode not in {0, 2}:
+            payloads.append(
+                {
+                    "items": [
+                        {
+                            "keyword": store_filter,
+                            "displayName": store_filter,
+                            "ok": False,
+                            "error": (stdout or f"子进程退出码 {process.returncode}")[-1000:],
+                        }
+                    ]
+                }
+            )
+            continue
+        try:
+            payloads.append(json.loads(stdout))
+        except json.JSONDecodeError:
+            payloads.append(
+                {
+                    "items": [
+                        {
+                            "keyword": store_filter,
+                            "displayName": store_filter,
+                            "ok": False,
+                            "error": "子进程没有返回可解析 JSON：" + (stdout or "")[-600:],
+                        }
+                    ]
+                }
+            )
+    return merge_payloads(period, payloads, tasks)
+
+
+def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: bool = False, workers: int = 1) -> dict[str, Any]:
+    helpers = require_helpers()
+    tasks = filter_tasks(load_meituan_tasks(period), stores)
     if limit is not None:
         tasks = tasks[:limit]
+    if workers > 1 and len(tasks) > 1:
+        return build_payload_parallel(period, tasks, workers, quiet=quiet)
 
     direct_accounts = helpers["load_direct_meituan_accounts"]()
     base_url = helpers["recent_meituan_promo_url"]() or HEADQUARTERS_HOME_URL
@@ -809,9 +936,14 @@ def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: b
                 except Exception:
                     pass
 
+    return payload_from_results(period, results)
+
+
+def payload_from_results(period: str, results: list[dict[str, Any]]) -> dict[str, Any]:
     ok_items = [item for item in results if item.get("ok")]
     failed_items = [item for item in results if not item.get("ok")]
     total = sum(float(item.get("today_spend") or 0) for item in ok_items if item.get("today_spend") is not None)
+    elapsed = sum(float(item.get("elapsed_seconds") or 0) for item in results)
     return {
         "generated_at": now_text(),
         "status": "ok" if ok_items and not failed_items else "partial" if ok_items else "failed",
@@ -821,6 +953,7 @@ def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: b
             "success_count": len(ok_items),
             "failed_count": len(failed_items),
             "today_spend_total": round(total, 2),
+            "elapsed_seconds_total": round(elapsed, 2),
         },
         "items": results,
         "message": format_human(results),
@@ -923,12 +1056,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--period", choices=["lunch", "dinner", "all"], default="lunch", help="读取哪组美团门店配置；默认午餐门店。")
     parser.add_argument("--stores", default="", help="只查指定门店/关键词，逗号分隔。")
     parser.add_argument("--limit", type=int, default=0, help="调试用：最多读取多少家；0 表示不限制。")
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("MEITUAN_SPEND_WORKERS", "3")), help="并发读取 worker 数；1 表示串行。")
+    parser.add_argument("--no-write-latest", action="store_true", help="子进程使用：不写 latest.json。")
     parser.add_argument("--json", action="store_true", help="输出 JSON。")
     parser.add_argument("--quiet", action="store_true", help="只输出最终结果，不输出逐店进度。")
     args = parser.parse_args(argv)
     stores = [item.strip() for item in args.stores.split(",") if item.strip()]
-    payload = build_payload(args.period, stores, args.limit or None, quiet=args.quiet)
-    write_latest(payload)
+    payload = build_payload(args.period, stores, args.limit or None, quiet=args.quiet, workers=max(1, args.workers))
+    if not args.no_write_latest:
+        write_latest(payload)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
