@@ -217,7 +217,7 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         page.goto.assert_called_once_with(
             "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/pc",
             wait_until="domcontentloaded",
-            timeout=45_000,
+            timeout=30_000,
         )
         helpers["url_for_store"].assert_not_called()
 
@@ -239,25 +239,52 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
             "save_failure_evidence": mock.Mock(),
         }
 
-        result = self.query.query_task(
-            {"keyword": "川湘府", "store": "熊小小牛排饭POKEBEAR(第5号档口川湘府美食城店)", "wmPoiId": "32346101"},
-            helpers,
-            playwright=None,
-            contexts={},
-            launched_contexts=[],
-            base_url="https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32022526",
-            direct_accounts={},
-        )
+        with mock.patch.object(
+            self.query,
+            "wait_parseable_spend_snapshot",
+            return_value=(
+                {"today_spend": 79.01, "budget": 80, "budget_percent": 98.76, "source": "realtime"},
+                "推广实况\n推广花费\n79.01元\n推广设置\n推广预算\n已消耗99%\n80\n元\n",
+            ),
+        ) as wait_fast:
+            result = self.query.query_task(
+                {"keyword": "川湘府", "store": "熊小小牛排饭POKEBEAR(第5号档口川湘府美食城店)", "wmPoiId": "32346101"},
+                helpers,
+                playwright=None,
+                contexts={},
+                launched_contexts=[],
+                base_url="https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32022526",
+                direct_accounts={},
+            )
 
         self.assertTrue(result["ok"])
         page.goto.assert_called_once_with(
             "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=32346101#/subapp/isomor_cpc/pages/index/index",
             wait_until="domcontentloaded",
-            timeout=45_000,
+            timeout=30_000,
         )
         helpers["enter_dianjin_with_recovery"].assert_not_called()
-        helpers["wait_setting_ready"].assert_called_once_with(page, timeout_seconds=25)
+        helpers["wait_setting_ready"].assert_not_called()
+        wait_fast.assert_called_once()
         self.assertEqual(result["selected_store"], "川湘府")
+
+    def test_wait_parseable_spend_snapshot_returns_as_soon_as_current_data_is_visible(self) -> None:
+        class FakeLocator:
+            def inner_text(self, timeout=0):
+                return "推广实况\n推广花费\n66.50元\n推广设置\n每日预算\n已消耗 55% 120 元"
+
+        class FakeFrame:
+            def locator(self, selector):
+                return FakeLocator()
+
+        page = types.SimpleNamespace(frames=[FakeFrame()], url="https://waimaieapp.meituan.com/ad/v1/rpc")
+
+        snapshot, text = self.query.wait_parseable_spend_snapshot(page, configured_budget=120, timeout_seconds=0.1)
+
+        self.assertEqual(snapshot["today_spend"], 66.5)
+        self.assertEqual(snapshot["budget"], 120)
+        self.assertEqual(snapshot["remaining_budget"], 53.5)
+        self.assertIn("推广花费", text)
 
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(

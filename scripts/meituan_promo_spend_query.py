@@ -61,6 +61,43 @@ def visible_page_text(page, timeout: int = 3000) -> str:
         return ""
 
 
+def fast_page_text(page, timeout: int = 2500) -> str:
+    texts: list[str] = []
+    for frame in page.frames:
+        try:
+            text = frame.locator("body").inner_text(timeout=timeout)
+        except Exception:
+            continue
+        if text:
+            texts.append(text)
+    return "\n".join(texts)
+
+
+def wait_parseable_spend_snapshot(
+    page,
+    *,
+    configured_budget: float | None = None,
+    timeout_seconds: float = 14,
+    interval_seconds: float = 1.0,
+) -> tuple[dict[str, Any], str]:
+    deadline = time.monotonic() + timeout_seconds
+    last_text = ""
+    last_snapshot: dict[str, Any] = {}
+    while True:
+        raise_if_meituan_verify_page(page)
+        text = fast_page_text(page)
+        if text:
+            last_text = text
+            snapshot = parse_spend_snapshot(text)
+            apply_budget_fields(snapshot, configured_budget)
+            last_snapshot = snapshot
+            if snapshot.get("today_spend") is not None or snapshot.get("seven_day_spend") is not None:
+                return snapshot, text
+        if time.monotonic() >= deadline:
+            return last_snapshot or parse_spend_snapshot(last_text), last_text
+        time.sleep(interval_seconds)
+
+
 def task_store_aliases(task: dict[str, Any]) -> list[str]:
     values = [
         normalize_space(str(task.get(key) or ""))
@@ -561,6 +598,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
         "updated_at_hint": "",
         "source": "",
     }
+    started_at = time.monotonic()
     configured_budget = task_budget(task)
     if configured_budget is not None:
         record["configured_budget"] = configured_budget
@@ -580,8 +618,8 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             target_url = dianjin_url_for_store(task_base_url, wm_id, helpers) if wm_id else task_base_url
             direct_dianjin_target = DIANJIN_SUBAPP_FRAGMENT in target_url
             record["wmPoiId"] = wm_id
-            page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
-            time.sleep(4)
+            page.goto(target_url, wait_until="domcontentloaded", timeout=30_000)
+            time.sleep(1.5)
         else:
             page, created_page = headquarters_page_for_context(context)
             try:
@@ -592,8 +630,8 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
                 target_url = dianjin_url_for_store(base_url, wm_id, helpers)
                 direct_dianjin_target = DIANJIN_SUBAPP_FRAGMENT in target_url
                 record["wmPoiId"] = wm_id
-                page.goto(target_url, wait_until="domcontentloaded", timeout=45_000)
-                time.sleep(4)
+                page.goto(target_url, wait_until="domcontentloaded", timeout=30_000)
+                time.sleep(1.5)
                 record["selected_store"] = task_display_name(task)
             else:
                 selected_store = open_headquarters_promo_page(page, task, helpers)
@@ -601,12 +639,16 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
                 record["selected_store"] = selected_store
         raise_if_meituan_verify_page(page)
         if direct_dianjin_target:
-            helpers["wait_setting_ready"](page, timeout_seconds=25)
+            snapshot, text = wait_parseable_spend_snapshot(page, configured_budget=configured_budget, timeout_seconds=14)
+            if snapshot.get("today_spend") is None and snapshot.get("seven_day_spend") is None:
+                helpers["wait_setting_ready"](page, timeout_seconds=8)
+                text = helpers["page_text"](page)
+                snapshot = parse_spend_snapshot(text)
         else:
             helpers["enter_dianjin_with_recovery"](page, target_url)
             helpers["wait_setting_ready"](page, timeout_seconds=20)
-        text = helpers["page_text"](page)
-        snapshot = parse_spend_snapshot(text)
+            text = helpers["page_text"](page)
+            snapshot = parse_spend_snapshot(text)
         record.update(snapshot)
         apply_budget_fields(record, configured_budget)
         record["ok"] = record.get("today_spend") is not None or record.get("seven_day_spend") is not None
@@ -628,6 +670,7 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
             except Exception:
                 pass
     finally:
+        record["elapsed_seconds"] = round(time.monotonic() - started_at, 2)
         if created_page and page is not None:
             try:
                 page.close()
