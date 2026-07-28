@@ -172,6 +172,11 @@ label > span,
   padding-right: 30px;
   appearance: auto;
 }
+.unit-input input:disabled {
+  color: #667085;
+  background: #f2f4f7;
+  cursor: not-allowed;
+}
 .unit-input input:focus, .full-field input:focus, .full-field select:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(22, 124, 101, .11);
@@ -248,6 +253,47 @@ label > span,
 .model-button small { display: block; margin-top: 3px; color: #98a2b3; font-size: 10px; }
 .model-button b { color: var(--brand); font-size: 16px; }
 .library-tip { margin-top: 12px; color: #7b8491; font-size: 10px; line-height: 1.5; }
+
+.door-model-card {
+  grid-template-columns: 30px minmax(54px, 1fr) 72px 28px;
+  cursor: default;
+}
+.door-model-card:hover { transform: none; }
+.door-width-control { position: relative; }
+.door-width-control input {
+  width: 100%;
+  height: 30px;
+  padding: 5px 24px 5px 7px;
+  border: 1px solid #d7dde5;
+  border-radius: 6px;
+  outline: none;
+  font-size: 11px;
+  font-weight: 750;
+}
+.door-width-control input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(22, 124, 101, .11);
+}
+.door-width-control em {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #98a2b3;
+  font-size: 9px;
+  font-style: normal;
+}
+.door-model-card > button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #fff;
+  background: var(--brand);
+  border: 0;
+  border-radius: 6px;
+  font-size: 17px;
+  font-weight: 800;
+}
 
 .canvas-panel {
   min-width: 0;
@@ -388,6 +434,8 @@ label > span,
 .full-field input { padding-right: 10px; }
 
 .rotation-field { display: block; }
+.door-swing-field { display: block; }
+.door-swing-field[hidden] { display: none; }
 .rotation-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -495,6 +543,46 @@ label > span,
   pointer-events: none;
 }
 
+.equipment-item .door-hitbox {
+  fill: rgba(180, 120, 60, .035);
+  stroke: none;
+}
+.equipment-item .door-opening,
+.equipment-item .door-leaf {
+  fill: none;
+  stroke: #7a4c22;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.equipment-item .door-opening {
+  stroke-dasharray: 5 4;
+  opacity: .75;
+}
+.equipment-item .door-swing-arc {
+  fill: none;
+  stroke: #a87337;
+  stroke-width: 1.6;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.equipment-item .door-hinge {
+  fill: #7a4c22;
+  pointer-events: none;
+}
+.equipment-item .door-label {
+  fill: #7a4c22;
+  font-size: 10px;
+  font-weight: 850;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -535,6 +623,7 @@ label > span,
   .panel-section { padding: 14px; }
   .model-list { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .model-button { grid-template-columns: 27px 1fr; }
+  .door-model-card { grid-column: 1 / -1; grid-template-columns: 27px minmax(48px, 1fr) 68px 28px; }
   .model-button b { display: none; }
   .canvas-panel { height: 72vh; min-height: 560px; }
   .canvas-toolbar { align-items: flex-start; flex-wrap: wrap; }

@@ -14,7 +14,8 @@
     { name: "电磁炉", width: 60, height: 60, color: "#4c5564", abbr: "磁" },
     { name: "水池", width: 100, height: 60, color: "#2580a7", abbr: "池" },
     { name: "四门冰箱", width: 120, height: 75, color: "#47728a", abbr: "冰" },
-    { name: "柱子", width: 40, height: 40, color: "#5b6470", abbr: "柱" }
+    { name: "柱子", width: 40, height: 40, color: "#5b6470", abbr: "柱" },
+    { name: "门", width: 90, height: 90, color: "#a87337", abbr: "门", kind: "door" }
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -61,9 +62,13 @@
     selectedName: $("selectedNameInput"),
     selectedWidth: $("selectedWidthInput"),
     selectedHeight: $("selectedHeightInput"),
+    selectedWidthLabel: $("selectedWidthLabel"),
+    selectedHeightLabel: $("selectedHeightLabel"),
     selectedX: $("selectedXInput"),
     selectedY: $("selectedYInput"),
     selectedRotation: $("selectedRotationInput"),
+    doorSwingField: $("doorSwingField"),
+    selectedDoorSwing: $("selectedDoorSwingInput"),
     selectedColor: $("selectedColorInput"),
     rotateLeft: $("rotateLeftButton"),
     resetRotation: $("resetRotationButton"),
@@ -308,7 +313,9 @@
         items: saved.items.map((item) => ({
           ...item,
           id: String(item.id),
-          rotation: normalizeRotation(item.rotation)
+          rotation: normalizeRotation(item.rotation),
+          kind: item.kind === "door" ? "door" : "equipment",
+          swing: item.swing === "left" ? "left" : "right"
         }))
       };
       return true;
@@ -344,12 +351,31 @@
   function renderModels() {
     els.modelList.innerHTML = "";
     MODELS.forEach((model) => {
+      if (model.kind === "door") {
+        const card = document.createElement("div");
+        card.className = "model-button door-model-card";
+        card.innerHTML = `
+          <span class="model-swatch" style="background:${model.color}">${model.abbr}</span>
+          <span><strong>${model.name}</strong><small>门洞宽度</small></span>
+          <div class="door-width-control">
+            <input type="number" min="40" max="300" step="1" value="${model.width}" aria-label="门洞宽度 cm" />
+            <em>cm</em>
+          </div>
+          <button type="button" aria-label="添加门">＋</button>
+        `;
+        const widthInput = card.querySelector("input");
+        card.querySelector("button").addEventListener("click", () => {
+          addItem(model, numeric(widthInput, model.width, 40, 300));
+        });
+        els.modelList.appendChild(card);
+        return;
+      }
       const button = document.createElement("button");
       button.type = "button";
       button.className = "model-button";
       button.innerHTML = `
         <span class="model-swatch" style="background:${model.color}">${model.abbr}</span>
-        <span><strong>${model.name}</strong><small>常用 ${model.width} × ${model.height} cm</small></span>
+        <span><strong>${model.name}</strong><small>${model.kind === "door" ? `常用门洞 ${model.width} cm` : `常用 ${model.width} × ${model.height} cm`}</small></span>
         <b aria-hidden="true">＋</b>
       `;
       button.addEventListener("click", () => addItem(model));
@@ -392,9 +418,11 @@
     }
   }
 
-  function addItem(model) {
-    const width = numeric(els.itemWidth, model.width, 10, 3000);
-    const height = numeric(els.itemHeight, model.height, 10, 3000);
+  function addItem(model, widthOverride = null) {
+    const width = widthOverride ?? numeric(els.itemWidth, model.width, 10, 3000);
+    const height = model.kind === "door"
+      ? width
+      : numeric(els.itemHeight, model.height, 10, 3000);
     const geometry = roomGeometry();
     if (width > geometry.width || height > geometry.height) {
       showToast("设备尺寸大于门店轮廓，请先调整尺寸");
@@ -409,7 +437,9 @@
       x: snap(state.gridSize * 4 + offset),
       y: snap(state.gridSize * 4 + offset),
       rotation: 0,
-      color: model.color
+      color: model.color,
+      kind: model.kind || "equipment",
+      swing: "right"
     };
     const position = findValidPosition(item, item.x, item.y);
     if (!position) {
@@ -422,7 +452,9 @@
     state.selectedId = item.id;
     recordHistory();
     render();
-    showToast(`已添加${model.name} ${item.width}×${item.height} cm`);
+    showToast(model.kind === "door"
+      ? `已添加 ${item.width} cm 门洞`
+      : `已添加${model.name} ${item.width}×${item.height} cm`);
   }
 
   function drawDimension(start, end, label) {
@@ -508,22 +540,54 @@
         "data-id": item.id,
         transform: `translate(${item.x} ${item.y}) rotate(${item.rotation || 0} ${item.width / 2} ${item.height / 2})`
       });
-      const box = svgEl("rect", {
-        x: 0, y: 0, width: item.width, height: item.height,
-        rx: Math.min(8, item.width / 8, item.height / 8),
-        fill: item.color, class: "item-box"
-      });
-      const name = svgEl("text", {
-        x: item.width / 2, y: item.height / 2 - 4,
-        class: "item-name"
-      });
-      name.textContent = item.name;
-      const size = svgEl("text", {
-        x: item.width / 2, y: item.height / 2 + 12,
-        class: "item-size"
-      });
-      size.textContent = `${item.width} × ${item.height} cm`;
-      group.append(box, name, size);
+      if (item.kind === "door") {
+        const hingeOnLeft = item.swing !== "left";
+        const hingeX = hingeOnLeft ? 0 : item.width;
+        const farX = hingeOnLeft ? item.width : 0;
+        const hitbox = svgEl("rect", {
+          x: 0, y: 0, width: item.width, height: item.height,
+          class: "door-hitbox"
+        });
+        const opening = svgEl("line", {
+          x1: hingeX, y1: item.height, x2: farX, y2: item.height,
+          class: "door-opening"
+        });
+        const leaf = svgEl("line", {
+          x1: hingeX, y1: item.height, x2: hingeX, y2: 0,
+          class: "door-leaf"
+        });
+        const arc = svgEl("path", {
+          d: hingeOnLeft
+            ? `M 0 0 A ${item.width} ${item.height} 0 0 1 ${item.width} ${item.height}`
+            : `M ${item.width} 0 A ${item.width} ${item.height} 0 0 0 0 ${item.height}`,
+          class: "door-swing-arc"
+        });
+        const hinge = svgEl("circle", {
+          cx: hingeX, cy: item.height, r: 4, class: "door-hinge"
+        });
+        const label = svgEl("text", {
+          x: item.width / 2, y: item.height - 8, class: "door-label"
+        });
+        label.textContent = `门 ${item.width} cm`;
+        group.append(hitbox, opening, leaf, arc, hinge, label);
+      } else {
+        const box = svgEl("rect", {
+          x: 0, y: 0, width: item.width, height: item.height,
+          rx: Math.min(8, item.width / 8, item.height / 8),
+          fill: item.color, class: "item-box"
+        });
+        const name = svgEl("text", {
+          x: item.width / 2, y: item.height / 2 - 4,
+          class: "item-name"
+        });
+        name.textContent = item.name;
+        const size = svgEl("text", {
+          x: item.width / 2, y: item.height / 2 + 12,
+          class: "item-size"
+        });
+        size.textContent = `${item.width} × ${item.height} cm`;
+        group.append(box, name, size);
+      }
       if (selected) {
         group.appendChild(svgEl("rect", {
           x: -5, y: -5, width: item.width + 10, height: item.height + 10,
@@ -563,9 +627,15 @@
     els.rotate.disabled = !hasSelection;
     els.delete.disabled = !hasSelection;
     if (!item) return;
+    const isDoor = item.kind === "door";
     els.selectedName.value = item.name;
     els.selectedWidth.value = item.width;
     els.selectedHeight.value = item.height;
+    els.selectedWidthLabel.textContent = isDoor ? "门洞宽度 W" : "宽度 W";
+    els.selectedHeightLabel.textContent = isDoor ? "开启范围 D" : "深度 D";
+    els.selectedHeight.disabled = isDoor;
+    els.doorSwingField.hidden = !isDoor;
+    els.selectedDoorSwing.value = item.swing === "left" ? "left" : "right";
     els.selectedX.value = item.x;
     els.selectedY.value = item.y;
     els.selectedRotation.value = normalizeRotation(item.rotation);
@@ -645,7 +715,9 @@
     if (!item) return;
     const geometry = roomGeometry();
     const nextWidth = numeric(els.selectedWidth, item.width, 10, Math.min(3000, geometry.width));
-    const nextHeight = numeric(els.selectedHeight, item.height, 10, Math.min(3000, geometry.height));
+    const nextHeight = item.kind === "door"
+      ? nextWidth
+      : numeric(els.selectedHeight, item.height, 10, Math.min(3000, geometry.height));
     const nextX = clamp(numeric(els.selectedX, item.x, 0, geometry.width), 0, geometry.width - nextWidth);
     const nextY = clamp(numeric(els.selectedY, item.y, 0, geometry.height), 0, geometry.height - nextHeight);
     const nextRotation = normalizeRotation(numeric(els.selectedRotation, item.rotation || 0, -359, 359));
@@ -661,6 +733,7 @@
     item.y = nextY;
     item.rotation = nextRotation;
     item.color = els.selectedColor.value;
+    item.swing = item.kind === "door" && els.selectedDoorSwing.value === "left" ? "left" : "right";
     recordHistory();
     render();
     showToast("设备属性已更新");
@@ -828,6 +901,12 @@
       .item-box{stroke:rgba(17,24,39,.54);stroke-width:1.4}
       .item-name{fill:#fff;font:850 13px sans-serif;text-anchor:middle}
       .item-size{fill:rgba(255,255,255,.9);font:650 9px sans-serif;text-anchor:middle}
+      .door-hitbox{fill:rgba(180,120,60,.035)}
+      .door-opening,.door-leaf{fill:none;stroke:#7a4c22;stroke-width:3}
+      .door-opening{stroke-dasharray:5 4;opacity:.75}
+      .door-swing-arc{fill:none;stroke:#a87337;stroke-width:1.6;stroke-dasharray:5 4}
+      .door-hinge{fill:#7a4c22}
+      .door-label{fill:#7a4c22;font:850 10px sans-serif;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:4px}
     `;
     clone.insertBefore(style, clone.firstChild);
     const source = new XMLSerializer().serializeToString(clone);
@@ -922,6 +1001,9 @@
     });
     els.gridSize.addEventListener("change", updateGridSize);
     els.propertyForm.addEventListener("submit", applyProperties);
+    els.selectedWidth.addEventListener("input", () => {
+      if (selectedItem()?.kind === "door") els.selectedHeight.value = els.selectedWidth.value;
+    });
     els.undo.addEventListener("click", undo);
     els.redo.addEventListener("click", redo);
     els.duplicate.addEventListener("click", duplicateSelected);

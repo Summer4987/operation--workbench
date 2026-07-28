@@ -92,27 +92,27 @@
             <div class="section-title">
               <span>02</span>
               <div>
-                <h2>设备模型库</h2>
-                <p>先填尺寸，再点设备加入</p>
+                <h2>设备与构件模型库</h2>
+                <p>先填尺寸，再点模型加入</p>
               </div>
             </div>
             <div class="field-grid compact">
               <label>
-                <span>设备宽度</span>
+                <span>模型宽度</span>
                 <div class="unit-input">
                   <input id="itemWidthInput" type="number" min="10" max="3000" step="10" value="120" inputmode="decimal" />
                   <em>cm</em>
                 </div>
               </label>
               <label>
-                <span>设备深度</span>
+                <span>模型深度</span>
                 <div class="unit-input">
                   <input id="itemHeightInput" type="number" min="10" max="3000" step="10" value="60" inputmode="decimal" />
                   <em>cm</em>
                 </div>
               </label>
             </div>
-            <div class="model-list" id="modelList" aria-label="设备模型库"></div>
+            <div class="model-list" id="modelList" aria-label="设备与构件模型库"></div>
             <p class="library-tip">提示：添加后可在画布拖动，尺寸会自动吸附到网格。</p>
           </section>
         </aside>
@@ -195,15 +195,15 @@
                 <input id="selectedNameInput" type="text" maxlength="24" />
               </label>
               <div class="field-grid">
-                <label>
-                  <span>宽度 W</span>
+                <label id="selectedWidthField">
+                  <span id="selectedWidthLabel">宽度 W</span>
                   <div class="unit-input">
                     <input id="selectedWidthInput" type="number" min="10" max="3000" step="1" />
                     <em>cm</em>
                   </div>
                 </label>
-                <label>
-                  <span>深度 D</span>
+                <label id="selectedHeightField">
+                  <span id="selectedHeightLabel">深度 D</span>
                   <div class="unit-input">
                     <input id="selectedHeightInput" type="number" min="10" max="3000" step="1" />
                     <em>cm</em>
@@ -236,6 +236,13 @@
                 <button id="resetRotationButton" type="button">归正 0°</button>
                 <button id="rotateRightButton" type="button">＋5°</button>
               </div>
+              <label class="full-field door-swing-field" id="doorSwingField" hidden>
+                <span>开门方向</span>
+                <select id="selectedDoorSwingInput">
+                  <option value="right">合页在左 · 向右开启</option>
+                  <option value="left">合页在右 · 向左开启</option>
+                </select>
+              </label>
               <label class="color-field">
                 <span>标识颜色</span>
                 <input id="selectedColorInput" type="color" value="#3b82f6" />

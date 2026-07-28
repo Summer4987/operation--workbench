@@ -25,6 +25,7 @@ class FloorPlanDesignerTests(unittest.TestCase):
             "水池",
             "四门冰箱",
             "柱子",
+            "门",
         ):
             with self.subTest(model=model):
                 self.assertIn(f'name: "{model}"', script)
@@ -43,6 +44,7 @@ class FloorPlanDesignerTests(unittest.TestCase):
             "itemWidthInput",
             "itemHeightInput",
             "selectedRotationInput",
+            "selectedDoorSwingInput",
             "rotateLeftButton",
             "rotateRightButton",
             "planCanvas",
