@@ -1050,6 +1050,52 @@ def format_item_line(index: int, item: dict[str, Any]) -> str:
     return "，".join(parts) + "。"
 
 
+def compact_store_name(value: str, *, width: int = 6) -> str:
+    text = normalize_space(value)
+    return text if len(text) <= width else text[: max(1, width - 1)] + "…"
+
+
+def table_cell(value: Any, width: int, *, align: str = "left") -> str:
+    text = normalize_space(str(value if value is not None else ""))
+    if len(text) > width:
+        text = text[: max(1, width - 1)] + "…"
+    pad = width - len(text)
+    if align == "right":
+        return " " * pad + text
+    return text + " " * pad
+
+
+def format_item_table(items: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "```",
+        "门店   状态   消耗   预算   剩余   用量  更新时间/原因",
+        "----   ----   ----   ----   ----   ----  ------------",
+    ]
+    for item in items:
+        level, reason = inspect_level(item)
+        store = compact_store_name(item_display_name(item), width=5)
+        spend = money(item.get("today_spend")) if item.get("ok") else "-"
+        budget = money(item.get("budget")) if item.get("ok") and item.get("budget") is not None else "-"
+        remaining = money(item.get("remaining_budget")) if item.get("ok") and item.get("remaining_budget") is not None else "-"
+        percent = f"{float(item.get('budget_percent')):.0f}%" if item.get("ok") and item.get("budget_percent") is not None else "-"
+        note = item.get("updated_at_hint") or reason or "-"
+        lines.append(
+            " ".join(
+                [
+                    table_cell(store, 5),
+                    table_cell(level, 4),
+                    table_cell(spend, 6, align="right"),
+                    table_cell(budget, 6, align="right"),
+                    table_cell(remaining, 6, align="right"),
+                    table_cell(percent, 5, align="right"),
+                    normalize_space(str(note)),
+                ]
+            )
+        )
+    lines.append("```")
+    return lines
+
+
 def format_human(items: list[dict[str, Any]]) -> str:
     ok_items = [item for item in items if item.get("ok")]
     total = sum(float(item.get("today_spend") or 0) for item in ok_items if item.get("today_spend") is not None)
@@ -1068,8 +1114,7 @@ def format_human(items: list[dict[str, Any]]) -> str:
             f"已耗尽 {level_counts.get('已耗尽', 0)}，未核实 {level_counts.get('未核实', 0)}。"
         ),
     ]
-    for index, item in enumerate(items, start=1):
-        lines.append(format_item_line(index, item))
+    lines.extend(format_item_table(items))
     if level_counts.get("已耗尽") or level_counts.get("预警") or level_counts.get("未核实"):
         lines.append("建议：先人工复核已耗尽/预警/未核实门店；本巡检只读，不会修改预算、出价或投放开关。")
     else:

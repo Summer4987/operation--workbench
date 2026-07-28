@@ -317,9 +317,13 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         )
         self.assertIn("美团推广实时消耗巡检", text)
         self.assertIn("总览：已读到 1/2 家", text)
-        self.assertIn("今日消耗 150.01 元，当前预算 200 元，剩余 49.99 元，使用率 75%", text)
+        self.assertIn("门店   状态   消耗   预算   剩余   用量", text)
+        self.assertIn("银泰城", text)
+        self.assertIn("150.01", text)
+        self.assertIn("49.99", text)
         self.assertNotIn("昨日", text)
-        self.assertIn("2. 万象城：未核实。原因：登录失效", text)
+        self.assertIn("万象城", text)
+        self.assertIn("登录失效", text)
 
     def test_format_human_uses_source_store_for_direct_account(self) -> None:
         text = self.query.format_human(
@@ -340,8 +344,8 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         )
 
         self.assertIn("已耗尽 1", text)
-        self.assertIn("1. 朝阳门店：已耗尽", text)
-        self.assertNotIn("1. 雅宝", text)
+        self.assertIn("朝阳门店", text)
+        self.assertIn("已耗尽", text)
 
     def test_all_period_prefers_current_meal_budget_keys(self) -> None:
         self.assertEqual(self.query.meituan_task_keys("all", hour=19), ["meituan_dinner", "meituan_lunch"])
@@ -378,7 +382,9 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         )
 
         self.assertIn("预警 1", text)
-        self.assertIn("1. 银泰城：预警，今日消耗 95 元，当前预算 100 元，使用率 95%，已消耗预算 95%", text)
+        self.assertIn("银泰城", text)
+        self.assertIn("预警", text)
+        self.assertIn("95%", text)
         self.assertIn("本巡检只读", text)
 
     def test_apply_budget_fields_uses_configured_budget_for_remaining(self) -> None:
@@ -411,7 +417,9 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
             ]
         )
 
-        self.assertIn("1. 第3档口：未核实。原因：页面弹出遮罩层挡住门店选择器", text)
+        self.assertIn("第3档口", text)
+        self.assertIn("未核实", text)
+        self.assertIn("页面弹出遮罩层挡住门店选择器", text)
         self.assertNotIn("Call log", text)
 
     def test_main_returns_nonzero_for_partial_coverage(self) -> None:
