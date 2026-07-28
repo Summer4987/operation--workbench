@@ -569,6 +569,10 @@ a {
   background: #fff;
 }
 
+.floor-plan-tool-frame {
+  min-height: 860px;
+}
+
 .tool-status-grid {
   margin-top: 0;
 }

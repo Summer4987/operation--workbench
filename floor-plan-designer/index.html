@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111827" />
+    <title>门店平面图设计工具</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="designer-shell">
+      <header class="topbar">
+        <div class="title-wrap">
+          <span class="app-mark" aria-hidden="true">尺</span>
+          <div>
+            <h1>门店平面图</h1>
+            <p>按实际厘米尺寸，快速摆放门店设备</p>
+          </div>
+        </div>
+        <div class="top-actions" aria-label="文件操作">
+          <span class="save-state" id="saveState">已自动保存</span>
+          <button class="ghost-button" id="newPlanButton" type="button">新建</button>
+          <button class="ghost-button" id="exportButton" type="button">导出图片</button>
+          <button class="primary-button" id="printButton" type="button">打印 / PDF</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="library-panel">
+          <section class="panel-section">
+            <div class="section-title">
+              <span>01</span>
+              <div>
+                <h2>门店轮廓</h2>
+                <p>输入内墙实际尺寸（cm）</p>
+              </div>
+            </div>
+            <div class="field-grid">
+              <label>
+                <span>横向宽度</span>
+                <div class="unit-input">
+                  <input id="roomWidthInput" type="number" min="100" max="10000" step="10" value="800" inputmode="decimal" />
+                  <em>cm</em>
+                </div>
+              </label>
+              <label>
+                <span>纵向长度</span>
+                <div class="unit-input">
+                  <input id="roomHeightInput" type="number" min="100" max="10000" step="10" value="600" inputmode="decimal" />
+                  <em>cm</em>
+                </div>
+              </label>
+            </div>
+            <button class="wide-button" id="updateRoomButton" type="button">生成 / 更新轮廓</button>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-title">
+              <span>02</span>
+              <div>
+                <h2>设备模型库</h2>
+                <p>先填尺寸，再点设备加入</p>
+              </div>
+            </div>
+            <div class="field-grid compact">
+              <label>
+                <span>设备宽度</span>
+                <div class="unit-input">
+                  <input id="itemWidthInput" type="number" min="10" max="3000" step="10" value="120" inputmode="decimal" />
+                  <em>cm</em>
+                </div>
+              </label>
+              <label>
+                <span>设备深度</span>
+                <div class="unit-input">
+                  <input id="itemHeightInput" type="number" min="10" max="3000" step="10" value="60" inputmode="decimal" />
+                  <em>cm</em>
+                </div>
+              </label>
+            </div>
+            <div class="model-list" id="modelList" aria-label="设备模型库"></div>
+            <p class="library-tip">提示：添加后可在画布拖动，尺寸会自动吸附到网格。</p>
+          </section>
+        </aside>
+
+        <section class="canvas-panel">
+          <div class="canvas-toolbar">
+            <div class="history-actions">
+              <button id="undoButton" type="button" title="撤销（⌘/Ctrl+Z）" aria-label="撤销">↶</button>
+              <button id="redoButton" type="button" title="恢复（⌘/Ctrl+Shift+Z）" aria-label="恢复">↷</button>
+              <span class="toolbar-divider"></span>
+              <button id="duplicateButton" type="button" title="复制选中设备（⌘/Ctrl+D）">复制</button>
+              <button id="rotateButton" type="button" title="旋转选中设备（R）">旋转 90°</button>
+              <button id="deleteButton" class="danger-text" type="button" title="删除选中设备（Delete）">删除</button>
+            </div>
+            <div class="view-actions">
+              <label class="grid-control">
+                <span>每格</span>
+                <input id="gridSizeInput" type="number" min="1" max="500" step="1" value="10" inputmode="decimal" />
+                <em>cm</em>
+              </label>
+              <button id="zoomOutButton" type="button" aria-label="缩小">−</button>
+              <strong id="zoomLabel">100%</strong>
+              <button id="zoomInButton" type="button" aria-label="放大">＋</button>
+              <button id="fitButton" type="button">适应画布</button>
+            </div>
+          </div>
+
+          <div class="canvas-viewport" id="canvasViewport">
+            <div class="empty-hint" id="emptyHint">
+              <strong>先设置门店尺寸</strong>
+              <span>左侧输入长宽后生成轮廓，再从模型库添加设备</span>
+            </div>
+            <svg id="planCanvas" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="门店平面图编辑画布">
+              <defs>
+                <pattern id="minorGrid" patternUnits="userSpaceOnUse">
+                  <path id="minorGridPath" fill="none" stroke="#e7ebf0" stroke-width="1" vector-effect="non-scaling-stroke"></path>
+                </pattern>
+                <pattern id="majorGrid" patternUnits="userSpaceOnUse">
+                  <rect id="majorGridMinorFill" fill="url(#minorGrid)"></rect>
+                  <path id="majorGridPath" fill="none" stroke="#cdd5df" stroke-width="1.2" vector-effect="non-scaling-stroke"></path>
+                </pattern>
+                <filter id="itemShadow" x="-20%" y="-20%" width="140%" height="150%">
+                  <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#0f172a" flood-opacity=".12" />
+                </filter>
+              </defs>
+              <g id="scene">
+                <rect id="gridBackground" fill="url(#majorGrid)"></rect>
+                <g id="roomLayer"></g>
+                <g id="itemLayer"></g>
+              </g>
+            </svg>
+          </div>
+          <footer class="canvas-status">
+            <span><i class="status-dot"></i>按实际比例绘制</span>
+            <span id="itemCountLabel">0 个设备</span>
+            <span>拖动设备 · 单击空白取消选择</span>
+          </footer>
+        </section>
+
+        <aside class="property-panel">
+          <section class="property-card">
+            <div class="section-title small">
+              <span>03</span>
+              <div>
+                <h2>精确属性</h2>
+                <p id="selectionHint">请选择画布中的设备</p>
+              </div>
+            </div>
+            <div class="no-selection" id="noSelection">
+              <div class="selection-icon" aria-hidden="true"></div>
+              <strong>尚未选择设备</strong>
+              <p>点击画布中的方块，可精确修改名称、尺寸和位置。</p>
+            </div>
+            <form id="propertyForm" class="property-form" hidden>
+              <label class="full-field">
+                <span>设备名称</span>
+                <input id="selectedNameInput" type="text" maxlength="24" />
+              </label>
+              <div class="field-grid">
+                <label>
+                  <span>宽度 W</span>
+                  <div class="unit-input">
+                    <input id="selectedWidthInput" type="number" min="10" max="3000" step="1" />
+                    <em>cm</em>
+                  </div>
+                </label>
+                <label>
+                  <span>深度 D</span>
+                  <div class="unit-input">
+                    <input id="selectedHeightInput" type="number" min="10" max="3000" step="1" />
+                    <em>cm</em>
+                  </div>
+                </label>
+                <label>
+                  <span>距左墙 X</span>
+                  <div class="unit-input">
+                    <input id="selectedXInput" type="number" min="0" step="1" />
+                    <em>cm</em>
+                  </div>
+                </label>
+                <label>
+                  <span>距上墙 Y</span>
+                  <div class="unit-input">
+                    <input id="selectedYInput" type="number" min="0" step="1" />
+                    <em>cm</em>
+                  </div>
+                </label>
+              </div>
+              <label class="color-field">
+                <span>标识颜色</span>
+                <input id="selectedColorInput" type="color" value="#3b82f6" />
+              </label>
+              <button class="wide-button" type="submit">应用属性</button>
+            </form>
+          </section>
+
+          <section class="property-card legend-card">
+            <h3>图纸说明</h3>
+            <dl>
+              <div><dt>单位</dt><dd>厘米（cm）</dd></div>
+              <div><dt>网格</dt><dd id="legendGrid">10 cm / 格</dd></div>
+              <div><dt>吸附</dt><dd>已开启</dd></div>
+              <div><dt>保存</dt><dd>当前浏览器自动保存</dd></div>
+            </dl>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>

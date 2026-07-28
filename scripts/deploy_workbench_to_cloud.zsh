@@ -78,6 +78,7 @@ copy_if_exists(root / "PROJECT_TREE.md", stage / "PROJECT_TREE.md")
 copy_tree_if_exists(root / "business-report-dashboard" / "dashboard", stage / "business-report-dashboard" / "dashboard")
 copy_tree_if_exists(root / "business-report-dashboard" / "direct-dashboard", stage / "business-report-dashboard" / "direct-dashboard")
 copy_tree_if_exists(root / "franchise-contract-generator", stage / "franchise-contract-generator")
+copy_tree_if_exists(root / "floor-plan-designer", stage / "floor-plan-designer")
 for name in ("latest.json", "unified_daily.csv", "unified_reviews.csv", "direct-latest.json", "direct_unified_daily.csv", "direct_unified_reviews.csv"):
     copy_if_exists(root / "business-report-dashboard" / "data" / name, stage / "business-report-dashboard" / "data" / name)
 for name in ("index.html", "meituan-budget.html", "styles.css", "app.js", "latest.json", "latest-data.js", "budget-editor.html"):
@@ -163,6 +164,11 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
     "$STAGE_DIR/franchise-contract-generator/" \
     "$SERVER:$REMOTE_DIR/franchise-contract-generator/"
 
+  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/floor-plan-designer/" \
+    "$SERVER:$REMOTE_DIR/floor-plan-designer/"
+
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/store-inspection/" \
@@ -245,6 +251,10 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/franchise-contract-generator/" \
     "$SERVER:$REMOTE_DIR/franchise-contract-generator/"
+  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/floor-plan-designer/" \
+    "$SERVER:$REMOTE_DIR/floor-plan-designer/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/data/" \
@@ -297,6 +307,9 @@ else
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
   verify_remote_file "franchise-contract-generator/index.html" "$STAGE_DIR/franchise-contract-generator/index.html"
   verify_remote_file "franchise-contract-generator/app.js" "$STAGE_DIR/franchise-contract-generator/app.js"
+  verify_remote_file "floor-plan-designer/index.html" "$STAGE_DIR/floor-plan-designer/index.html"
+  verify_remote_file "floor-plan-designer/styles.css" "$STAGE_DIR/floor-plan-designer/styles.css"
+  verify_remote_file "floor-plan-designer/app.js" "$STAGE_DIR/floor-plan-designer/app.js"
 fi
 
 echo "运营总看板已发布：$PUBLIC_URL"
