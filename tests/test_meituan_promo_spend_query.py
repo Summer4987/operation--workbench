@@ -286,6 +286,28 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(snapshot["remaining_budget"], 53.5)
         self.assertIn("推广花费", text)
 
+    def test_zero_budget_percent_is_not_current_when_configured_budget_exists(self) -> None:
+        snapshot = {
+            "today_spend": 0.0,
+            "budget": 0.0,
+            "budget_percent": 0.0,
+            "source": "budget_percent",
+            "updated_at_hint": "",
+        }
+
+        self.assertFalse(self.query.snapshot_is_current_enough(snapshot, configured_budget=120))
+
+    def test_positive_budget_percent_can_still_be_current_fallback(self) -> None:
+        snapshot = {
+            "today_spend": 66.0,
+            "budget": 120.0,
+            "budget_percent": 55.0,
+            "source": "budget_percent",
+            "updated_at_hint": "",
+        }
+
+        self.assertTrue(self.query.snapshot_is_current_enough(snapshot, configured_budget=120))
+
     def test_format_human_reports_failures_plainly(self) -> None:
         text = self.query.format_human(
             [

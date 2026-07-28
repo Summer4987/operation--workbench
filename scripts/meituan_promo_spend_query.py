@@ -92,7 +92,7 @@ def wait_parseable_spend_snapshot(
             snapshot = parse_spend_snapshot(text)
             apply_budget_fields(snapshot, configured_budget)
             last_snapshot = snapshot
-            if snapshot.get("today_spend") is not None or snapshot.get("seven_day_spend") is not None:
+            if snapshot_is_current_enough(snapshot, configured_budget):
                 return snapshot, text
         if time.monotonic() >= deadline:
             return last_snapshot or parse_spend_snapshot(last_text), last_text
@@ -117,11 +117,26 @@ def read_parseable_spend_snapshot(
             snapshot = parse_spend_snapshot(text)
             apply_budget_fields(snapshot, configured_budget)
             last_snapshot = snapshot
-            if snapshot.get("today_spend") is not None or snapshot.get("seven_day_spend") is not None:
+            if snapshot_is_current_enough(snapshot, configured_budget):
                 return snapshot, text
         if attempt + 1 < attempts:
             time.sleep(interval_seconds)
     return last_snapshot or parse_spend_snapshot(last_text), last_text
+
+
+def snapshot_is_current_enough(snapshot: dict[str, Any], configured_budget: float | None = None) -> bool:
+    if snapshot.get("today_spend") is None and snapshot.get("seven_day_spend") is None:
+        return False
+    source = str(snapshot.get("source") or "")
+    if source.startswith("realtime") or source == "homepage_total":
+        return True
+    page_budget = snapshot.get("budget")
+    if source in {"budget_percent", "budget_exhausted"}:
+        if page_budget not in (None, "") and float(page_budget) > 0:
+            return True
+        if configured_budget not in (None, 0, ""):
+            return False
+    return bool(snapshot.get("updated_at_hint"))
 
 
 def task_store_aliases(task: dict[str, Any]) -> list[str]:
