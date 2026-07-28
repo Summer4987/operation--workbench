@@ -786,6 +786,17 @@ def split_evenly(items: list[dict[str, Any]], workers: int) -> list[list[dict[st
     return [bucket for bucket in buckets if bucket]
 
 
+def split_safe_parallel_groups(items: list[dict[str, Any]], workers: int) -> list[list[dict[str, Any]]]:
+    headquarters = [item for item in items if not item.get("directMeituanAccountId")]
+    direct = [item for item in items if item.get("directMeituanAccountId")]
+    groups: list[list[dict[str, Any]]] = []
+    if headquarters:
+        groups.append(headquarters)
+    direct_workers = max(1, workers - len(groups))
+    groups.extend(split_evenly(direct, direct_workers))
+    return groups
+
+
 def task_filter_name(task: dict[str, Any]) -> str:
     return (
         normalize_space(str(task.get("keyword") or ""))
@@ -824,7 +835,7 @@ def build_payload_parallel(period: str, tasks: list[dict[str, Any]], workers: in
     payloads: list[dict[str, Any]] = []
     script = Path(__file__).resolve()
     processes: list[tuple[str, subprocess.Popen[str]]] = []
-    for chunk in split_evenly(tasks, workers):
+    for chunk in split_safe_parallel_groups(tasks, workers):
         store_filter = ",".join(name for task in chunk if (name := task_filter_name(task)))
         if not store_filter:
             continue
@@ -1056,7 +1067,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--period", choices=["lunch", "dinner", "all"], default="lunch", help="读取哪组美团门店配置；默认午餐门店。")
     parser.add_argument("--stores", default="", help="只查指定门店/关键词，逗号分隔。")
     parser.add_argument("--limit", type=int, default=0, help="调试用：最多读取多少家；0 表示不限制。")
-    parser.add_argument("--workers", type=int, default=int(os.environ.get("MEITUAN_SPEND_WORKERS", "3")), help="并发读取 worker 数；1 表示串行。")
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("MEITUAN_SPEND_WORKERS", "4")), help="并发读取 worker 数；1 表示串行。")
     parser.add_argument("--no-write-latest", action="store_true", help="子进程使用：不写 latest.json。")
     parser.add_argument("--json", action="store_true", help="输出 JSON。")
     parser.add_argument("--quiet", action="store_true", help="只输出最终结果，不输出逐店进度。")

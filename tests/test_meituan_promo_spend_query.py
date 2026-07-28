@@ -325,6 +325,22 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
         self.assertEqual(self.query.meituan_task_keys("all", hour=19), ["meituan_dinner", "meituan_lunch"])
         self.assertEqual(self.query.meituan_task_keys("all", hour=10), ["meituan_lunch", "meituan_dinner"])
 
+    def test_parallel_groups_keep_headquarters_stores_serial(self) -> None:
+        groups = self.query.split_safe_parallel_groups(
+            [
+                {"keyword": "第3档口"},
+                {"keyword": "川湘府"},
+                {"keyword": "万象城", "directMeituanAccountId": "direct_wanxiangcheng"},
+                {"keyword": "金融城", "directMeituanAccountId": "direct_jinrongcheng"},
+                {"keyword": "银泰城", "directMeituanAccountId": "direct_yintaicheng"},
+            ],
+            workers=3,
+        )
+
+        self.assertEqual([item["keyword"] for item in groups[0]], ["第3档口", "川湘府"])
+        self.assertTrue(all(item.get("directMeituanAccountId") for group in groups[1:] for item in group))
+        self.assertEqual(len(groups), 3)
+
     def test_format_human_reports_budget_warning(self) -> None:
         text = self.query.format_human(
             [
