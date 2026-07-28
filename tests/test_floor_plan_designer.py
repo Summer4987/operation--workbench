@@ -32,8 +32,12 @@ class FloorPlanDesignerTests(unittest.TestCase):
         page = (TOOL / "index.html").read_text(encoding="utf-8")
         script = (TOOL / "app.js").read_text(encoding="utf-8")
         for element_id in (
+            "roomTypeInput",
             "roomWidthInput",
             "roomHeightInput",
+            "bottomWidthInput",
+            "rightDepthInput",
+            "roomAlignmentInput",
             "gridSizeInput",
             "itemWidthInput",
             "itemHeightInput",
@@ -42,6 +46,9 @@ class FloorPlanDesignerTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', page)
         self.assertIn("function snap(", script)
+        self.assertIn("function roomGeometry(", script)
+        self.assertIn("function pointInsideRoom(", script)
+        self.assertIn("function itemFits(", script)
         self.assertIn("localStorage.setItem", script)
         self.assertIn("function exportImage(", script)
 
