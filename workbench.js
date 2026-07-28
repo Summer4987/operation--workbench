@@ -1696,10 +1696,12 @@ function renderTools() {
   const contractChecks = contract.checks || [];
   const missing = contract.missing || [];
   const contractSetup = contract.setup || {};
-  text("franchiseContractStatus", contract.status_text || "待模板");
+  const generatorEmbedded = Boolean(document.querySelector('iframe[src="./franchise-contract-generator/index.html"]'));
+  const contractReady = generatorEmbedded || contract.status === "ready";
+  text("franchiseContractStatus", contractReady ? "已接入" : (contract.status_text || "待模板"));
   text("franchiseContractCount", `${requiredFields.length || 0} 项字段`);
-  text("franchiseContractSummary", contract.message || "加盟合同生成器等待合同模板和字段确认。");
-  document.querySelector(".module-contract")?.classList.toggle("alert", contract.status === "waiting_template");
+  text("franchiseContractSummary", contractReady ? "可填写加盟商、门店、收货和签约信息并导出 Word 合同。" : (contract.message || "加盟合同生成器等待合同模板和字段确认。"));
+  document.querySelector(".module-contract")?.classList.toggle("alert", !contractReady && contract.status === "waiting_template");
   rows(
     "franchiseContractRows",
     [
