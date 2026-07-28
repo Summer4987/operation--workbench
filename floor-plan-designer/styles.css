@@ -487,7 +487,7 @@ label > span,
 .legend-card dd { margin: 0; color: #344054; font-weight: 750; text-align: right; }
 
 .room-outline {
-  fill: rgba(255,255,255,.86);
+  fill: rgba(255,255,255,.18);
   stroke: #182230;
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
@@ -504,6 +504,25 @@ label > span,
   text-anchor: middle;
   paint-order: stroke;
   stroke: #f8fafc;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.spacing-guide-group { pointer-events: none; }
+.spacing-guide-line,
+.spacing-guide-tick {
+  stroke: #e05b2d;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+.spacing-guide-line { stroke-dasharray: 5 4; }
+.spacing-guide-text {
+  fill: #b83e18;
+  font-size: 11px;
+  font-weight: 900;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #fff;
   stroke-width: 5px;
   stroke-linejoin: round;
 }

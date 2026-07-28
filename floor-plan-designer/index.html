@@ -151,19 +151,24 @@
                   <polygon id="roomClipPolygon"></polygon>
                 </clipPath>
                 <pattern id="minorGrid" patternUnits="userSpaceOnUse">
-                  <path id="minorGridPath" fill="none" stroke="#e7ebf0" stroke-width="1" vector-effect="non-scaling-stroke"></path>
+                  <path id="minorGridPath" fill="none" stroke="#cfd8e3" stroke-width="1" vector-effect="non-scaling-stroke"></path>
                 </pattern>
                 <pattern id="majorGrid" patternUnits="userSpaceOnUse">
                   <rect id="majorGridMinorFill" fill="url(#minorGrid)"></rect>
-                  <path id="majorGridPath" fill="none" stroke="#cdd5df" stroke-width="1.2" vector-effect="non-scaling-stroke"></path>
+                  <path id="majorGridPath" fill="none" stroke="#aeb9c6" stroke-width="1.4" vector-effect="non-scaling-stroke"></path>
+                </pattern>
+                <pattern id="meterGrid" patternUnits="userSpaceOnUse">
+                  <rect id="meterGridMajorFill" fill="url(#majorGrid)"></rect>
+                  <path id="meterGridPath" fill="none" stroke="#7f8c9d" stroke-width="2" vector-effect="non-scaling-stroke"></path>
                 </pattern>
                 <filter id="itemShadow" x="-20%" y="-20%" width="140%" height="150%">
                   <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#0f172a" flood-opacity=".12" />
                 </filter>
               </defs>
               <g id="scene">
-                <rect id="gridBackground" fill="url(#majorGrid)" clip-path="url(#roomClip)"></rect>
+                <rect id="gridBackground" fill="url(#meterGrid)" clip-path="url(#roomClip)"></rect>
                 <g id="roomLayer"></g>
+                <g id="guideLayer"></g>
                 <g id="itemLayer"></g>
               </g>
             </svg>
@@ -171,7 +176,7 @@
           <footer class="canvas-status">
             <span><i class="status-dot"></i>按实际比例绘制</span>
             <span id="itemCountLabel">0 个设备</span>
-            <span>方向键微移 1 cm · Shift＋方向键按网格移动</span>
+            <span>选中设备显示相邻净距 · 方向键微移 1 cm</span>
           </footer>
         </section>
 
@@ -255,7 +260,7 @@
             <h3>图纸说明</h3>
             <dl>
               <div><dt>单位</dt><dd>厘米（cm）</dd></div>
-              <div><dt>网格</dt><dd id="legendGrid">10 cm / 格</dd></div>
+              <div><dt>网格</dt><dd id="legendGrid">细格 10 cm · 粗线 50/100 cm</dd></div>
               <div><dt>轮廓</dt><dd id="legendShape">标准矩形</dd></div>
               <div><dt>约计面积</dt><dd id="legendArea">48.00 ㎡</dd></div>
               <div><dt>吸附</dt><dd>已开启</dd></div>

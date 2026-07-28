@@ -44,7 +44,11 @@
     majorGrid: $("majorGrid"),
     majorGridPath: $("majorGridPath"),
     majorGridMinorFill: $("majorGridMinorFill"),
+    meterGrid: $("meterGrid"),
+    meterGridPath: $("meterGridPath"),
+    meterGridMajorFill: $("meterGridMajorFill"),
     roomLayer: $("roomLayer"),
+    guideLayer: $("guideLayer"),
     itemLayer: $("itemLayer"),
     emptyHint: $("emptyHint"),
     undo: $("undoButton"),
@@ -119,6 +123,10 @@
 
   function snap(value) {
     return Math.round(value / state.gridSize) * state.gridSize;
+  }
+
+  function gridLegendText() {
+    return `细格 ${state.gridSize} cm · 粗线 ${state.gridSize * 5}/${state.gridSize * 10} cm`;
   }
 
   function roomGeometry() {
@@ -333,7 +341,7 @@
     els.rightDepth.value = state.rightDepth;
     els.roomAlignment.value = state.alignment;
     els.gridSize.value = state.gridSize;
-    els.legendGrid.textContent = `${state.gridSize} cm / 格`;
+    els.legendGrid.textContent = gridLegendText();
     updateRoomTypeFields();
   }
 
@@ -516,6 +524,7 @@
   function renderGrid() {
     const minor = state.gridSize;
     const major = minor * 5;
+    const meter = minor * 10;
     els.minorGrid.setAttribute("width", minor);
     els.minorGrid.setAttribute("height", minor);
     els.minorGridPath.setAttribute("d", `M ${minor} 0 L 0 0 0 ${minor}`);
@@ -524,6 +533,11 @@
     els.majorGridMinorFill.setAttribute("width", major);
     els.majorGridMinorFill.setAttribute("height", major);
     els.majorGridPath.setAttribute("d", `M ${major} 0 L 0 0 0 ${major}`);
+    els.meterGrid.setAttribute("width", meter);
+    els.meterGrid.setAttribute("height", meter);
+    els.meterGridMajorFill.setAttribute("width", meter);
+    els.meterGridMajorFill.setAttribute("height", meter);
+    els.meterGridPath.setAttribute("d", `M ${meter} 0 L 0 0 0 ${meter}`);
     els.gridBackground.setAttribute("x", 0);
     els.gridBackground.setAttribute("y", 0);
     const geometry = roomGeometry();
@@ -599,15 +613,123 @@
     });
   }
 
+  function itemBounds(item) {
+    const corners = itemCorners(item);
+    const xs = corners.map((point) => point.x);
+    const ys = corners.map((point) => point.y);
+    return {
+      left: Math.min(...xs),
+      right: Math.max(...xs),
+      top: Math.min(...ys),
+      bottom: Math.max(...ys)
+    };
+  }
+
+  function rangesOverlap(startA, endA, startB, endB) {
+    return Math.min(endA, endB) - Math.max(startA, startB) > .01;
+  }
+
+  function formatDistance(value) {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+  }
+
+  function drawSpacingGuide(x1, y1, x2, y2, distance, vertical = false) {
+    const group = svgEl("g", { class: "spacing-guide-group" });
+    group.appendChild(svgEl("line", {
+      x1, y1, x2, y2, class: "spacing-guide-line"
+    }));
+    const tick = 6;
+    if (vertical) {
+      group.appendChild(svgEl("line", {
+        x1: x1 - tick, y1, x2: x1 + tick, y2: y1, class: "spacing-guide-tick"
+      }));
+      group.appendChild(svgEl("line", {
+        x1: x2 - tick, y1: y2, x2: x2 + tick, y2, class: "spacing-guide-tick"
+      }));
+    } else {
+      group.appendChild(svgEl("line", {
+        x1, y1: y1 - tick, x2: x1, y2: y1 + tick, class: "spacing-guide-tick"
+      }));
+      group.appendChild(svgEl("line", {
+        x1: x2, y1: y2 - tick, x2, y2: y2 + tick, class: "spacing-guide-tick"
+      }));
+    }
+    const textX = (x1 + x2) / 2;
+    const textY = (y1 + y2) / 2;
+    const text = svgEl("text", {
+      x: vertical ? textX + 12 : textX,
+      y: vertical ? textY + 4 : textY - 8,
+      class: "spacing-guide-text"
+    });
+    text.textContent = `${formatDistance(distance)} cm`;
+    group.appendChild(text);
+    els.guideLayer.appendChild(group);
+  }
+
+  function renderGuides() {
+    els.guideLayer.innerHTML = "";
+    const selected = selectedItem();
+    if (!selected || state.items.length < 2) return;
+    const selectedBounds = itemBounds(selected);
+    const candidates = {
+      left: [],
+      right: [],
+      up: [],
+      down: []
+    };
+    state.items.forEach((item) => {
+      if (item.id === selected.id) return;
+      const bounds = itemBounds(item);
+      if (rangesOverlap(selectedBounds.top, selectedBounds.bottom, bounds.top, bounds.bottom)) {
+        if (bounds.right <= selectedBounds.left) {
+          candidates.left.push({ bounds, gap: selectedBounds.left - bounds.right });
+        }
+        if (bounds.left >= selectedBounds.right) {
+          candidates.right.push({ bounds, gap: bounds.left - selectedBounds.right });
+        }
+      }
+      if (rangesOverlap(selectedBounds.left, selectedBounds.right, bounds.left, bounds.right)) {
+        if (bounds.bottom <= selectedBounds.top) {
+          candidates.up.push({ bounds, gap: selectedBounds.top - bounds.bottom });
+        }
+        if (bounds.top >= selectedBounds.bottom) {
+          candidates.down.push({ bounds, gap: bounds.top - selectedBounds.bottom });
+        }
+      }
+    });
+    Object.values(candidates).forEach((items) => items.sort((a, b) => a.gap - b.gap));
+    if (candidates.left[0]) {
+      const target = candidates.left[0];
+      const y = (Math.max(selectedBounds.top, target.bounds.top) + Math.min(selectedBounds.bottom, target.bounds.bottom)) / 2;
+      drawSpacingGuide(target.bounds.right, y, selectedBounds.left, y, target.gap);
+    }
+    if (candidates.right[0]) {
+      const target = candidates.right[0];
+      const y = (Math.max(selectedBounds.top, target.bounds.top) + Math.min(selectedBounds.bottom, target.bounds.bottom)) / 2;
+      drawSpacingGuide(selectedBounds.right, y, target.bounds.left, y, target.gap);
+    }
+    if (candidates.up[0]) {
+      const target = candidates.up[0];
+      const x = (Math.max(selectedBounds.left, target.bounds.left) + Math.min(selectedBounds.right, target.bounds.right)) / 2;
+      drawSpacingGuide(x, target.bounds.bottom, x, selectedBounds.top, target.gap, true);
+    }
+    if (candidates.down[0]) {
+      const target = candidates.down[0];
+      const x = (Math.max(selectedBounds.left, target.bounds.left) + Math.min(selectedBounds.right, target.bounds.right)) / 2;
+      drawSpacingGuide(x, selectedBounds.bottom, x, target.bounds.top, target.gap, true);
+    }
+  }
+
   function render() {
     const geometry = roomGeometry();
     renderGrid();
     renderRoom();
     renderItems();
+    renderGuides();
     renderProperties();
     els.emptyHint.hidden = true;
     els.itemCount.textContent = `${state.items.length} 个设备`;
-    els.legendGrid.textContent = `${state.gridSize} cm / 格`;
+    els.legendGrid.textContent = gridLegendText();
     els.legendShape.textContent = state.shapeMode === "quadrilateral" ? "上下边不同 / 斜墙" : "标准矩形";
     els.legendArea.textContent = `${(geometry.area / 10000).toFixed(2)} ㎡`;
     els.zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
@@ -698,6 +820,7 @@
       );
     }
     renderProperties();
+    renderGuides();
   }
 
   function endDrag(event) {
@@ -707,6 +830,7 @@
     drag = null;
     if (moved) recordHistory();
     renderItems();
+    renderGuides();
   }
 
   function applyProperties(event) {
@@ -893,9 +1017,10 @@
     clone.setAttribute("height", Math.round(bounds.height * 1.6));
     clone.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
     clone.querySelectorAll(".selection-ring").forEach((node) => node.remove());
+    clone.querySelectorAll(".spacing-guide-group").forEach((node) => node.remove());
     const style = svgEl("style");
     style.textContent = `
-      .room-outline{fill:rgba(255,255,255,.86);stroke:#182230;stroke-width:3}
+      .room-outline{fill:rgba(255,255,255,.18);stroke:#182230;stroke-width:3}
       .dimension-line,.dimension-tick{stroke:#687384;stroke-width:1.2}
       .dimension-text{fill:#344054;font:800 14px sans-serif;text-anchor:middle;paint-order:stroke;stroke:#f8fafc;stroke-width:5px;stroke-linejoin:round}
       .item-box{stroke:rgba(17,24,39,.54);stroke-width:1.4}
