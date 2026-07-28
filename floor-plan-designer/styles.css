@@ -387,6 +387,28 @@ label > span,
 .property-form .wide-button { margin-top: 0; }
 .full-field input { padding-right: 10px; }
 
+.rotation-field { display: block; }
+.rotation-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.rotation-actions button {
+  min-height: 32px;
+  padding: 5px 6px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid #d7dde5;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 750;
+}
+.rotation-actions button:hover {
+  color: var(--brand);
+  border-color: #83baae;
+  background: #f7fcfa;
+}
+
 .color-field {
   display: flex;
   align-items: center;

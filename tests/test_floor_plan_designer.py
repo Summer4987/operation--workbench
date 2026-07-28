@@ -42,6 +42,9 @@ class FloorPlanDesignerTests(unittest.TestCase):
             "gridSizeInput",
             "itemWidthInput",
             "itemHeightInput",
+            "selectedRotationInput",
+            "rotateLeftButton",
+            "rotateRightButton",
             "planCanvas",
             "exportButton",
         ):
@@ -50,6 +53,9 @@ class FloorPlanDesignerTests(unittest.TestCase):
         self.assertIn("function roomGeometry(", script)
         self.assertIn("function pointInsideRoom(", script)
         self.assertIn("function itemFits(", script)
+        self.assertIn("function adjustRotation(", script)
+        self.assertIn("function nudgeSelected(", script)
+        self.assertIn("ArrowUp", script)
         self.assertIn("localStorage.setItem", script)
         self.assertIn("function exportImage(", script)
 

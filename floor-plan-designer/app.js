@@ -63,7 +63,11 @@
     selectedHeight: $("selectedHeightInput"),
     selectedX: $("selectedXInput"),
     selectedY: $("selectedYInput"),
+    selectedRotation: $("selectedRotationInput"),
     selectedColor: $("selectedColorInput"),
+    rotateLeft: $("rotateLeftButton"),
+    resetRotation: $("resetRotationButton"),
+    rotateRight: $("rotateRightButton"),
     itemCount: $("itemCountLabel"),
     legendGrid: $("legendGrid"),
     legendShape: $("legendShape"),
@@ -172,13 +176,41 @@
     return inside;
   }
 
-  function itemFits(item, x = item.x, y = item.y, width = item.width, height = item.height) {
+  function normalizeRotation(value) {
+    const angle = Number(value) || 0;
+    return ((angle % 360) + 360) % 360;
+  }
+
+  function itemCorners(item, x = item.x, y = item.y, width = item.width, height = item.height, rotation = item.rotation || 0) {
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const radians = normalizeRotation(rotation) * Math.PI / 180;
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
     return [
       { x, y },
       { x: x + width, y },
       { x: x + width, y: y + height },
       { x, y: y + height }
-    ].every(pointInsideRoom);
+    ].map((point) => {
+      const dx = point.x - centerX;
+      const dy = point.y - centerY;
+      return {
+        x: centerX + dx * cosine - dy * sine,
+        y: centerY + dx * sine + dy * cosine
+      };
+    });
+  }
+
+  function itemFits(
+    item,
+    x = item.x,
+    y = item.y,
+    width = item.width,
+    height = item.height,
+    rotation = item.rotation || 0
+  ) {
+    return itemCorners(item, x, y, width, height, rotation).every(pointInsideRoom);
   }
 
   function findValidPosition(item, preferredX = item.x, preferredY = item.y) {
@@ -273,7 +305,11 @@
         rightDepth: clamp(Number(saved.rightDepth || saved.roomHeight), 100, 10000),
         alignment: ["left", "center", "right"].includes(saved.alignment) ? saved.alignment : "center",
         gridSize: clamp(Number(saved.gridSize) || 10, 1, 500),
-        items: saved.items.map((item) => ({ ...item, id: String(item.id) }))
+        items: saved.items.map((item) => ({
+          ...item,
+          id: String(item.id),
+          rotation: normalizeRotation(item.rotation)
+        }))
       };
       return true;
     } catch (error) {
@@ -372,6 +408,7 @@
       height,
       x: snap(state.gridSize * 4 + offset),
       y: snap(state.gridSize * 4 + offset),
+      rotation: 0,
       color: model.color
     };
     const position = findValidPosition(item, item.x, item.y);
@@ -469,7 +506,7 @@
       const group = svgEl("g", {
         class: `equipment-item${selected ? " selected" : ""}`,
         "data-id": item.id,
-        transform: `translate(${item.x} ${item.y})`
+        transform: `translate(${item.x} ${item.y}) rotate(${item.rotation || 0} ${item.width / 2} ${item.height / 2})`
       });
       const box = svgEl("rect", {
         x: 0, y: 0, width: item.width, height: item.height,
@@ -531,6 +568,7 @@
     els.selectedHeight.value = item.height;
     els.selectedX.value = item.x;
     els.selectedY.value = item.y;
+    els.selectedRotation.value = normalizeRotation(item.rotation);
     const geometry = roomGeometry();
     els.selectedX.max = Math.max(0, geometry.width - item.width);
     els.selectedY.max = Math.max(0, geometry.height - item.height);
@@ -583,7 +621,12 @@
       item.y = nextY;
     }
     const group = els.itemLayer.querySelector(`[data-id="${CSS.escape(item.id)}"]`);
-    if (group) group.setAttribute("transform", `translate(${item.x} ${item.y})`);
+    if (group) {
+      group.setAttribute(
+        "transform",
+        `translate(${item.x} ${item.y}) rotate(${item.rotation || 0} ${item.width / 2} ${item.height / 2})`
+      );
+    }
     renderProperties();
   }
 
@@ -605,7 +648,8 @@
     const nextHeight = numeric(els.selectedHeight, item.height, 10, Math.min(3000, geometry.height));
     const nextX = clamp(numeric(els.selectedX, item.x, 0, geometry.width), 0, geometry.width - nextWidth);
     const nextY = clamp(numeric(els.selectedY, item.y, 0, geometry.height), 0, geometry.height - nextHeight);
-    if (!itemFits(item, nextX, nextY, nextWidth, nextHeight)) {
+    const nextRotation = normalizeRotation(numeric(els.selectedRotation, item.rotation || 0, -359, 359));
+    if (!itemFits(item, nextX, nextY, nextWidth, nextHeight, nextRotation)) {
       showToast("该位置或尺寸会超出门店轮廓");
       renderProperties();
       return;
@@ -615,6 +659,7 @@
     item.height = nextHeight;
     item.x = nextX;
     item.y = nextY;
+    item.rotation = nextRotation;
     item.color = els.selectedColor.value;
     recordHistory();
     render();
@@ -647,26 +692,44 @@
   function rotateSelected() {
     const item = selectedItem();
     if (!item) return;
-    const nextWidth = item.height;
-    const nextHeight = item.width;
-    const geometry = roomGeometry();
-    if (nextWidth > geometry.width || nextHeight > geometry.height) {
-      showToast("旋转后会超出门店轮廓");
-      return;
-    }
-    const position = findValidPosition(
-      { ...item, width: nextWidth, height: nextHeight },
-      item.x,
-      item.y
-    );
+    const nextRotation = normalizeRotation((item.rotation || 0) + 90);
+    const rotated = { ...item, rotation: nextRotation };
+    const position = findValidPosition(rotated, item.x, item.y);
     if (!position) {
       showToast("旋转后轮廓内没有足够空间");
       return;
     }
-    item.width = nextWidth;
-    item.height = nextHeight;
+    item.rotation = nextRotation;
     item.x = position.x;
     item.y = position.y;
+    recordHistory();
+    render();
+  }
+
+  function adjustRotation(delta, absolute = false) {
+    const item = selectedItem();
+    if (!item) return;
+    const nextRotation = normalizeRotation(absolute ? delta : (item.rotation || 0) + delta);
+    if (!itemFits(item, item.x, item.y, item.width, item.height, nextRotation)) {
+      showToast("该角度会使设备超出门店轮廓");
+      return;
+    }
+    item.rotation = nextRotation;
+    recordHistory();
+    render();
+  }
+
+  function nudgeSelected(deltaX, deltaY) {
+    const item = selectedItem();
+    if (!item) return;
+    const nextX = item.x + deltaX;
+    const nextY = item.y + deltaY;
+    if (!itemFits(item, nextX, nextY)) {
+      showToast("已到门店轮廓边界");
+      return;
+    }
+    item.x = nextX;
+    item.y = nextY;
     recordHistory();
     render();
   }
@@ -805,7 +868,7 @@
 
   function handleKeyboard(event) {
     const tag = event.target.tagName;
-    const editing = tag === "INPUT" || tag === "TEXTAREA";
+    const editing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
     const modifier = event.metaKey || event.ctrlKey;
     if (modifier && event.key.toLowerCase() === "z") {
       event.preventDefault();
@@ -818,12 +881,30 @@
       return;
     }
     if (editing) return;
+    const nudgeStep = event.shiftKey ? state.gridSize : 1;
+    const arrowMoves = {
+      ArrowUp: [0, -nudgeStep],
+      ArrowDown: [0, nudgeStep],
+      ArrowLeft: [-nudgeStep, 0],
+      ArrowRight: [nudgeStep, 0]
+    };
+    if (arrowMoves[event.key]) {
+      event.preventDefault();
+      nudgeSelected(...arrowMoves[event.key]);
+      return;
+    }
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
       deleteSelected();
     } else if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       rotateSelected();
+    } else if (event.key === "[") {
+      event.preventDefault();
+      adjustRotation(event.shiftKey ? -5 : -1);
+    } else if (event.key === "]") {
+      event.preventDefault();
+      adjustRotation(event.shiftKey ? 5 : 1);
     } else if (event.key === "Escape") {
       state.selectedId = null;
       render();
@@ -845,6 +926,9 @@
     els.redo.addEventListener("click", redo);
     els.duplicate.addEventListener("click", duplicateSelected);
     els.rotate.addEventListener("click", rotateSelected);
+    els.rotateLeft.addEventListener("click", () => adjustRotation(-5));
+    els.resetRotation.addEventListener("click", () => adjustRotation(0, true));
+    els.rotateRight.addEventListener("click", () => adjustRotation(5));
     els.delete.addEventListener("click", deleteSelected);
     els.zoomOut.addEventListener("click", () => setZoom(state.zoom - .15));
     els.zoomIn.addEventListener("click", () => setZoom(state.zoom + .15));

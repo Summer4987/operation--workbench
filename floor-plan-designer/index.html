@@ -124,7 +124,7 @@
               <button id="redoButton" type="button" title="恢复（⌘/Ctrl+Shift+Z）" aria-label="恢复">↷</button>
               <span class="toolbar-divider"></span>
               <button id="duplicateButton" type="button" title="复制选中设备（⌘/Ctrl+D）">复制</button>
-              <button id="rotateButton" type="button" title="旋转选中设备（R）">旋转 90°</button>
+              <button id="rotateButton" type="button" title="顺时针旋转 90°（R）">旋转 90°</button>
               <button id="deleteButton" class="danger-text" type="button" title="删除选中设备（Delete）">删除</button>
             </div>
             <div class="view-actions">
@@ -171,7 +171,7 @@
           <footer class="canvas-status">
             <span><i class="status-dot"></i>按实际比例绘制</span>
             <span id="itemCountLabel">0 个设备</span>
-            <span>拖动设备 · 单击空白取消选择</span>
+            <span>方向键微移 1 cm · Shift＋方向键按网格移动</span>
           </footer>
         </section>
 
@@ -223,6 +223,18 @@
                     <em>cm</em>
                   </div>
                 </label>
+              </div>
+              <label class="full-field rotation-field">
+                <span>旋转角度</span>
+                <div class="unit-input">
+                  <input id="selectedRotationInput" type="number" min="-359" max="359" step="1" />
+                  <em>°</em>
+                </div>
+              </label>
+              <div class="rotation-actions" aria-label="旋转角度微调">
+                <button id="rotateLeftButton" type="button">−5°</button>
+                <button id="resetRotationButton" type="button">归正 0°</button>
+                <button id="rotateRightButton" type="button">＋5°</button>
               </div>
               <label class="color-field">
                 <span>标识颜色</span>
