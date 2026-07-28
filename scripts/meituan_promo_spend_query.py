@@ -98,6 +98,31 @@ def wait_parseable_spend_snapshot(
         time.sleep(interval_seconds)
 
 
+def read_parseable_spend_snapshot(
+    page,
+    helpers: dict[str, Any],
+    *,
+    configured_budget: float | None = None,
+    attempts: int = 3,
+    interval_seconds: float = 2.0,
+) -> tuple[dict[str, Any], str]:
+    last_text = ""
+    last_snapshot: dict[str, Any] = {}
+    for attempt in range(max(1, attempts)):
+        raise_if_meituan_verify_page(page)
+        text = helpers["page_text"](page)
+        if text:
+            last_text = text
+            snapshot = parse_spend_snapshot(text)
+            apply_budget_fields(snapshot, configured_budget)
+            last_snapshot = snapshot
+            if snapshot.get("today_spend") is not None or snapshot.get("seven_day_spend") is not None:
+                return snapshot, text
+        if attempt + 1 < attempts:
+            time.sleep(interval_seconds)
+    return last_snapshot or parse_spend_snapshot(last_text), last_text
+
+
 def task_store_aliases(task: dict[str, Any]) -> list[str]:
     values = [
         normalize_space(str(task.get(key) or ""))
@@ -639,11 +664,20 @@ def query_task(task: dict[str, Any], helpers: dict[str, Any], playwright, contex
                 record["selected_store"] = selected_store
         raise_if_meituan_verify_page(page)
         if direct_dianjin_target:
-            snapshot, text = wait_parseable_spend_snapshot(page, configured_budget=configured_budget, timeout_seconds=14)
+            snapshot, text = wait_parseable_spend_snapshot(
+                page,
+                configured_budget=configured_budget,
+                timeout_seconds=4,
+                interval_seconds=0.8,
+            )
             if snapshot.get("today_spend") is None and snapshot.get("seven_day_spend") is None:
-                helpers["wait_setting_ready"](page, timeout_seconds=8)
-                text = helpers["page_text"](page)
-                snapshot = parse_spend_snapshot(text)
+                snapshot, text = read_parseable_spend_snapshot(
+                    page,
+                    helpers,
+                    configured_budget=configured_budget,
+                    attempts=3,
+                    interval_seconds=2,
+                )
         else:
             helpers["enter_dianjin_with_recovery"](page, target_url)
             helpers["wait_setting_ready"](page, timeout_seconds=20)
