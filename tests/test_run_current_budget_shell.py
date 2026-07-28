@@ -72,6 +72,18 @@ def test_data_only_deploy_verifies_direct_latest_from_stage_dir():
     assert 'verify_remote_file "business-report-dashboard/data/direct-latest.json"\n' not in text
 
 
+def test_deploy_rejects_realtime_history_regression_and_verifies_upload():
+    text = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "validate_realtime_history_deploy" in text
+    assert "local_count < remote_count" in text
+    assert "local_latest < remote_latest" in text
+    assert "ALLOW_REALTIME_HISTORY_SHRINK" in text
+    assert text.count(
+        'verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"'
+    ) == 2
+
+
 def test_production_entrypoints_run_login_preflight_before_platform_work():
     budget_text = SCRIPT.read_text(encoding="utf-8")
     morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")

@@ -92,6 +92,52 @@ PY
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo mkdir -p '$REMOTE_DIR' && sudo chown -R \$(whoami):\$(whoami) '$REMOTE_DIR' && chmod -R u+rwX '$REMOTE_DIR'"
 
+validate_realtime_history_deploy() {
+  local local_file="$STAGE_DIR/data/realtime-history.json"
+  local local_metrics local_count local_latest
+  local_metrics="$("$PYTHON" - "$local_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+snapshots = payload.get("snapshots") or []
+if not snapshots:
+    raise SystemExit("待发布实时历史没有快照，拒绝覆盖线上数据。")
+latest = str(snapshots[-1].get("generated_at") or "").replace(" ", "T")
+print(len(snapshots), latest)
+PY
+)"
+  read -r local_count local_latest <<< "$local_metrics"
+
+  ssh "${SSH_OPTS[@]}" "$SERVER" \
+    "python3 - '$REMOTE_DIR/data/realtime-history.json' '$local_count' '$local_latest' '${ALLOW_REALTIME_HISTORY_SHRINK:-0}'" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+remote_path = Path(sys.argv[1])
+local_count = int(sys.argv[2])
+local_latest = sys.argv[3]
+allow_shrink = sys.argv[4] == "1"
+if not remote_path.exists():
+    raise SystemExit(0)
+
+payload = json.loads(remote_path.read_text(encoding="utf-8"))
+snapshots = payload.get("snapshots") or []
+remote_count = len(snapshots)
+remote_latest = str(snapshots[-1].get("generated_at") or "").replace(" ", "T") if snapshots else ""
+if not allow_shrink and (local_count < remote_count or (remote_latest and local_latest < remote_latest)):
+    raise SystemExit(
+        "拒绝用较旧的实时历史覆盖线上数据："
+        f"待发布 count={local_count}, latest={local_latest or '-'}；"
+        f"线上 count={remote_count}, latest={remote_latest or '-'}。"
+    )
+PY
+}
+
+validate_realtime_history_deploy
+
 if [[ "$DEPLOY_MODE" == "full" ]]; then
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
@@ -236,6 +282,7 @@ if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "outputs/realtime_order_income/latest.json" "$STAGE_DIR/outputs/realtime_order_income/latest.json"
   verify_remote_file "outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest.json"
+  verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
   verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"
 else
@@ -244,6 +291,7 @@ else
   verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "outputs/realtime_order_income/latest.json" "$STAGE_DIR/outputs/realtime_order_income/latest.json"
   verify_remote_file "outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest.json"
+  verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
   verify_remote_file "workbench.js" "$STAGE_DIR/workbench.js"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
