@@ -22,16 +22,16 @@ SALES_RECEIPT_REQUIRED = [
 ]
 
 FRANCHISE_REQUIRED_FIELDS = [
-    "加盟商/公司名称",
-    "统一社会信用代码或身份证号",
-    "联系人和联系方式",
-    "加盟门店名称和地址",
-    "加盟期限",
-    "加盟费、保证金和付款方式",
-    "品牌授权范围",
-    "培训和开店支持",
-    "违约、解约和续约条款",
-    "合同模板版本",
+    "加盟商主体类型",
+    "姓名或企业名称",
+    "身份证号或统一社会信用代码",
+    "法定代表人或授权代表",
+    "联系地址、电话和邮箱",
+    "送达联系人、电话和地址",
+    "门店简称和详细地址",
+    "商标使用城市",
+    "收货人、电话和地址",
+    "签约日期与3年合同期限",
 ]
 
 FRANCHISE_TEMPLATE_DIR = ROOT / "franchise-contract-generator"
@@ -105,6 +105,14 @@ def sales_receipt_status() -> dict[str, Any]:
 
 
 def franchise_contract_status() -> dict[str, Any]:
+    generator_files = {
+        "页面": FRANCHISE_TEMPLATE_DIR / "index.html",
+        "样式": FRANCHISE_TEMPLATE_DIR / "styles.css",
+        "脚本": FRANCHISE_TEMPLATE_DIR / "app.js",
+        "品牌授权模板": FRANCHISE_TEMPLATE_DIR / "templates" / "brand-authorization.txt",
+        "服务采购模板": FRANCHISE_TEMPLATE_DIR / "templates" / "service-purchase.txt",
+    }
+    generator_ready = all(path.exists() for path in generator_files.values())
     template_files = sorted(FRANCHISE_TEMPLATE_DIR.glob("*")) if FRANCHISE_TEMPLATE_DIR.exists() else []
     template_files = [
         path
@@ -122,8 +130,8 @@ def franchise_contract_status() -> dict[str, Any]:
     return {
         "id": "franchise_contract",
         "name": "加盟合同生成器",
-        "status": "ready_for_mapping" if has_template else "waiting_template",
-        "status_text": "待字段映射" if has_template else "待模板",
+        "status": "ready" if generator_ready else "ready_for_mapping" if has_template else "waiting_template",
+        "status_text": "已接入" if generator_ready else "待字段映射" if has_template else "待模板",
         "entrypoint": "franchise-contract-generator/",
         "setup": {
             "init_command": "python3 scripts/init_franchise_contract_inbox.py",
@@ -146,8 +154,14 @@ def franchise_contract_status() -> dict[str, Any]:
                 "message": f"{intake_message} 字段清单可参考 {FRANCHISE_FIELD_TEMPLATE_PATH.relative_to(ROOT)}。",
             }
         ],
-        "missing": [] if has_template else ["合同模板文件", "加盟条款字段确认"],
-        "message": "已找到合同模板，下一步做字段映射和生成预览。"
+        "checks": [
+            {"label": label, "path": str(path.relative_to(ROOT)), "exists": path.exists()}
+            for label, path in generator_files.items()
+        ],
+        "missing": [] if generator_ready else [] if has_template else ["合同模板文件", "加盟条款字段确认"],
+        "message": "加盟合同生成器已接入，可填写加盟商、门店、收货和签约信息并导出 Word 合同。"
+        if generator_ready
+        else "已找到合同模板，下一步做字段映射和生成预览。"
         if has_template
         else "加盟合同生成器等待合同模板和关键字段确认。",
     }

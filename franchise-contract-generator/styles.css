@@ -1,0 +1,42 @@
+* { box-sizing: border-box; }
+:root { color-scheme: light; }
+body { margin: 0; color: #172018; background: #eef1eb; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+button, input, select { font: inherit; }
+.contract-app { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 60px; }
+.app-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 24px; }
+.eyebrow { margin: 0 0 8px; color: #5d735d; font-size: 13px; font-weight: 800; letter-spacing: .08em; }
+h1, h2, p { margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; }
+.intro { margin-top: 10px; color: #657067; line-height: 1.7; }
+.ghost-btn { border: 1px solid #c7cec4; border-radius: 9px; padding: 10px 15px; color: #415043; background: #f8faf6; cursor: pointer; font-weight: 700; }
+.form-card, .export-card { margin-bottom: 16px; padding: 24px; border: 1px solid #d9ded6; border-radius: 16px; background: #fff; box-shadow: 0 10px 32px rgba(49, 65, 48, .05); }
+.section-title { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 22px; }
+.section-title > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: #fff; background: #486344; font-size: 12px; font-weight: 900; }
+.section-title h2, .export-card h2 { font-size: 19px; }
+.section-title p, .export-card p { margin-top: 5px; color: #748076; font-size: 13px; line-height: 1.5; }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.field-grid label { min-width: 0; }
+.field-grid label > span { display: block; margin-bottom: 7px; color: #465148; font-size: 13px; font-weight: 800; }
+.field-grid .wide { grid-column: 1 / -1; }
+input, select { width: 100%; min-height: 44px; border: 1px solid #cfd6cc; border-radius: 8px; padding: 10px 12px; color: #182018; background: #fbfcfa; outline: none; }
+input:focus, select:focus { border-color: #547353; box-shadow: 0 0 0 3px rgba(84, 115, 83, .14); }
+input:disabled { color: #697369; background: #f0f2ee; }
+.toggle-row { display: flex; flex-wrap: wrap; gap: 18px; margin: -4px 0 18px; }
+.check { display: flex; gap: 8px; align-items: center; color: #4a584c; font-size: 13px; font-weight: 700; }
+.check input { width: 17px; min-height: 17px; accent-color: #486344; }
+.derived-line { margin-top: 16px; padding: 12px 14px; border-radius: 8px; color: #58655a; background: #f1f4ee; font-size: 13px; }
+.derived-line strong { color: #263628; }
+.export-card { display: flex; justify-content: space-between; gap: 20px; align-items: center; border-color: #bfcbbb; background: #f8faf6; }
+.export-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.export-actions button { min-height: 42px; border: 1px solid #bdc8b9; border-radius: 8px; padding: 0 14px; color: #344435; background: #fff; cursor: pointer; font-weight: 800; }
+.export-actions button.primary { border-color: #405e3e; color: #fff; background: #405e3e; }
+.export-actions button:hover { transform: translateY(-1px); }
+@media (max-width: 760px) {
+  .contract-app { width: min(100% - 20px, 1120px); padding-top: 20px; }
+  .app-head, .export-card { display: block; }
+  .ghost-btn { margin-top: 16px; }
+  .field-grid { grid-template-columns: 1fr; }
+  .field-grid .wide { grid-column: auto; }
+  .export-actions { justify-content: stretch; margin-top: 18px; }
+  .export-actions button { width: 100%; }
+}

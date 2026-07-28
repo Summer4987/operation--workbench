@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>加盟合同生成器</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="contract-app">
+    <header class="app-head">
+      <div>
+        <p class="eyebrow">熊小小 AI 管理系统 · 合同工具</p>
+        <h1>加盟合同生成器</h1>
+        <p class="intro">填写一次加盟商与门店资料，自动生成品牌授权合同、服务合同及采购框架协议。</p>
+      </div>
+      <button class="ghost-btn" id="resetForm" type="button">清空重填</button>
+    </header>
+
+    <form id="contractForm">
+      <section class="form-card">
+        <div class="section-title">
+          <span>01</span>
+          <div><h2>加盟商信息</h2><p>在服务/采购协议中作为甲方，在品牌授权合同中作为乙方。</p></div>
+        </div>
+        <div class="field-grid">
+          <label><span>主体类型</span><select id="partyType"><option value="individual">自然人</option><option value="company">企业</option></select></label>
+          <label><span>姓名或企业名称</span><input id="partyName" required placeholder="例如：张三 / 武汉某某餐饮有限公司"></label>
+          <label><span>身份证号或统一社会信用代码</span><input id="partyId" required autocomplete="off"></label>
+          <label><span>法定代表人 / 授权代表</span><input id="legalRepresentative" placeholder="自然人可与姓名相同"></label>
+          <label class="wide"><span>联系地址</span><input id="partyAddress" required></label>
+          <label><span>联系电话</span><input id="partyPhone" required inputmode="tel"></label>
+          <label><span>电子邮箱</span><input id="partyEmail" required type="email"></label>
+        </div>
+      </section>
+
+      <section class="form-card">
+        <div class="section-title">
+          <span>02</span>
+          <div><h2>门店与授权信息</h2><p>门店名称会自动补全为“熊小小牛排饭POKEBEAR（××店）”。</p></div>
+        </div>
+        <div class="field-grid">
+          <label><span>门店简称</span><input id="storeShortName" required placeholder="例如：万松园店"></label>
+          <label><span>商标使用城市</span><input id="licenseCity" required placeholder="例如：武汉"></label>
+          <label class="wide"><span>门店详细地址</span><input id="storeAddress" required></label>
+        </div>
+        <div class="derived-line">合同门店名称：<strong id="fullStoreName">待填写</strong></div>
+      </section>
+
+      <section class="form-card">
+        <div class="section-title">
+          <span>03</span>
+          <div><h2>送达与收货信息</h2><p>可直接沿用加盟商或门店资料，也可分别填写。</p></div>
+        </div>
+        <div class="toggle-row">
+          <label class="check"><input id="sameNotice" type="checkbox" checked> 送达信息与加盟商信息相同</label>
+          <label class="check"><input id="sameDelivery" type="checkbox" checked> 收货地址与门店地址相同</label>
+        </div>
+        <div class="field-grid">
+          <label><span>送达联系人</span><input id="noticeContact" required></label>
+          <label><span>送达电话</span><input id="noticePhone" required></label>
+          <label class="wide"><span>送达地址</span><input id="noticeAddress" required></label>
+          <label><span>收货人</span><input id="receiverName" required></label>
+          <label><span>收货电话</span><input id="receiverPhone" required></label>
+          <label class="wide"><span>收货地址</span><input id="receiverAddress" required></label>
+        </div>
+      </section>
+
+      <section class="form-card">
+        <div class="section-title">
+          <span>04</span>
+          <div><h2>签约时间</h2><p>合同期限默认3年，结束日期自动计算。</p></div>
+        </div>
+        <div class="field-grid">
+          <label><span>签约 / 生效日期</span><input id="signDate" type="date" required></label>
+          <label><span>合同期限</span><select id="termYears"><option value="3">3年</option></select></label>
+        </div>
+        <div class="derived-line">合同期限：<strong id="termPreview">待计算</strong></div>
+      </section>
+
+      <section class="export-card">
+        <div><h2>生成并导出</h2><p id="readyText">请先完整填写必填信息。</p></div>
+        <div class="export-actions">
+          <button type="button" data-export="brand">导出品牌授权合同</button>
+          <button type="button" data-export="service">导出服务及采购协议</button>
+          <button class="primary" type="button" data-export="bundle">导出整套合同</button>
+        </div>
+      </section>
+    </form>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

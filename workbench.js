@@ -1693,6 +1693,7 @@ function renderTools() {
 
   const requiredFields = contract.required_fields || [];
   const intakeChecklist = contract.intake_checklist || [];
+  const contractChecks = contract.checks || [];
   const missing = contract.missing || [];
   const contractSetup = contract.setup || {};
   text("franchiseContractStatus", contract.status_text || "待模板");
@@ -1705,10 +1706,10 @@ function renderTools() {
       ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、") }] : []),
       { label: "初始化", value: contractSetup.directory_ready && contractSetup.field_template_ready ? "已准备" : "可执行", detail: contractSetup.init_command || "python3 scripts/init_franchise_contract_inbox.py" },
       { label: "字段模板", value: contractSetup.field_template_ready ? "已就绪" : "待生成", detail: contractSetup.field_template_path || "franchise-contract-generator/templates/field_template.csv" },
-      ...intakeChecklist.slice(0, 1).map((item) => ({
-        label: "接收要求",
-        value: item.path || "合同模板",
-        detail: item.message || "",
+      ...(contract.status === "ready" ? contractChecks : intakeChecklist.slice(0, 1)).map((item) => ({
+        label: item.label || "接收要求",
+        value: item.exists === undefined ? (item.path || "合同模板") : (item.exists ? "通过" : "缺失"),
+        detail: item.message || item.path || "",
       })),
       ...requiredFields.slice(0, 6).map((field) => ({ label: "字段", value: field, detail: "生成前确认" })),
     ],
