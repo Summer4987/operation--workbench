@@ -14,6 +14,7 @@
     { name: "电磁炉", width: 60, height: 60, color: "#4c5564", abbr: "磁" },
     { name: "水池", width: 100, height: 60, color: "#2580a7", abbr: "池" },
     { name: "四门冰箱", width: 120, height: 75, color: "#47728a", abbr: "冰" },
+    { name: "保温柜", width: 120, height: 70, color: "#9a6638", abbr: "温" },
     { name: "柱子", width: 40, height: 40, color: "#5b6470", abbr: "柱" },
     { name: "门", width: 90, height: 90, color: "#a87337", abbr: "门", kind: "door" }
   ];

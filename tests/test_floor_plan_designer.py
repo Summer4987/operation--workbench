@@ -24,6 +24,7 @@ class FloorPlanDesignerTests(unittest.TestCase):
             "电磁炉",
             "水池",
             "四门冰箱",
+            "保温柜",
             "柱子",
             "门",
         ):
