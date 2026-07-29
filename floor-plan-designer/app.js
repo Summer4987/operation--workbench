@@ -54,6 +54,8 @@
     emptyHint: $("emptyHint"),
     undo: $("undoButton"),
     redo: $("redoButton"),
+    addText: $("addTextButton"),
+    addArrow: $("addArrowButton"),
     duplicate: $("duplicateButton"),
     rotate: $("rotateButton"),
     delete: $("deleteButton"),
@@ -64,7 +66,11 @@
     selectionHint: $("selectionHint"),
     noSelection: $("noSelection"),
     propertyForm: $("propertyForm"),
+    selectedNameField: $("selectedNameField"),
+    selectedNameLabel: $("selectedNameLabel"),
     selectedName: $("selectedNameInput"),
+    selectedWidthField: $("selectedWidthField"),
+    selectedHeightField: $("selectedHeightField"),
     selectedWidth: $("selectedWidthInput"),
     selectedHeight: $("selectedHeightInput"),
     selectedWidthLabel: $("selectedWidthLabel"),
@@ -72,6 +78,8 @@
     selectedX: $("selectedXInput"),
     selectedY: $("selectedYInput"),
     selectedRotation: $("selectedRotationInput"),
+    selectedTextSizeField: $("selectedTextSizeField"),
+    selectedTextSize: $("selectedTextSizeInput"),
     doorSwingField: $("doorSwingField"),
     selectedDoorSwing: $("selectedDoorSwingInput"),
     selectedColor: $("selectedColorInput"),
@@ -193,6 +201,10 @@
   function normalizeRotation(value) {
     const angle = Number(value) || 0;
     return ((angle % 360) + 360) % 360;
+  }
+
+  function isAnnotation(item) {
+    return item.kind === "text" || item.kind === "arrow";
   }
 
   function itemCorners(item, x = item.x, y = item.y, width = item.width, height = item.height, rotation = item.rotation || 0) {
@@ -319,13 +331,17 @@
         rightDepth: clamp(Number(saved.rightDepth || saved.roomHeight), 100, 10000),
         alignment: ["left", "center", "right"].includes(saved.alignment) ? saved.alignment : "center",
         gridSize: clamp(Number(saved.gridSize) || 10, 1, 500),
-        items: saved.items.map((item) => ({
-          ...item,
-          id: String(item.id),
-          rotation: normalizeRotation(item.rotation),
-          kind: item.kind === "door" ? "door" : "equipment",
-          swing: item.swing === "left" ? "left" : "right"
-        }))
+        items: saved.items.map((item) => {
+          const kind = ["door", "text", "arrow"].includes(item.kind) ? item.kind : "equipment";
+          return {
+            ...item,
+            id: String(item.id),
+            rotation: normalizeRotation(item.rotation),
+            kind,
+            fontSize: kind === "text" ? clamp(Number(item.fontSize) || 22, 8, 80) : undefined,
+            swing: item.swing === "left" ? "left" : "right"
+          };
+        })
       };
       return true;
     } catch (error) {
@@ -466,6 +482,42 @@
       : `已添加${model.name} ${item.width}×${item.height} cm`);
   }
 
+  function addAnnotation(kind) {
+    const isText = kind === "text";
+    const geometry = roomGeometry();
+    const width = Math.min(isText ? 180 : 140, Math.max(30, geometry.width));
+    const height = Math.min(isText ? 44 : 30, Math.max(20, geometry.height));
+    if (width > geometry.width || height > geometry.height) {
+      showToast("当前门店轮廓太小，无法添加标注");
+      return;
+    }
+    const offset = (state.items.length % 7) * state.gridSize * 2;
+    const item = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: isText ? "请输入标注" : "箭头",
+      width,
+      height,
+      x: snap(state.gridSize * 4 + offset),
+      y: snap(state.gridSize * 4 + offset),
+      rotation: 0,
+      color: isText ? "#1f2937" : "#d94a26",
+      kind,
+      fontSize: isText ? 22 : undefined
+    };
+    const position = findValidPosition(item, item.x, item.y);
+    if (!position) {
+      showToast("当前轮廓内没有足够空间放置标注");
+      return;
+    }
+    item.x = position.x;
+    item.y = position.y;
+    state.items.push(item);
+    state.selectedId = item.id;
+    recordHistory();
+    render();
+    showToast(isText ? "已添加文本标注，请在右侧修改内容" : "已添加箭头标注");
+  }
+
   function drawDimension(start, end, label) {
     const geometry = roomGeometry();
     const centroid = geometry.points.reduce(
@@ -585,6 +637,39 @@
         });
         label.textContent = `门 ${item.width} cm`;
         group.append(hitbox, opening, leaf, arc, hinge, label);
+      } else if (item.kind === "text") {
+        const hitbox = svgEl("rect", {
+          x: 0, y: 0, width: item.width, height: item.height,
+          rx: 5, class: "annotation-hitbox"
+        });
+        const text = svgEl("text", {
+          x: item.width / 2,
+          y: item.height / 2,
+          fill: item.color,
+          class: "annotation-text",
+          "font-size": clamp(Number(item.fontSize) || 22, 8, 80)
+        });
+        text.textContent = item.name;
+        group.append(hitbox, text);
+      } else if (item.kind === "arrow") {
+        const midpointY = item.height / 2;
+        const tipX = Math.max(8, item.width - 4);
+        const headLength = clamp(item.width * .18, 8, 22);
+        const headHalfHeight = clamp(item.height * .32, 6, 12);
+        const headBaseX = Math.max(4, tipX - headLength);
+        const hitbox = svgEl("rect", {
+          x: 0, y: 0, width: item.width, height: item.height,
+          rx: 5, class: "annotation-hitbox"
+        });
+        const line = svgEl("line", {
+          x1: 5, y1: midpointY, x2: headBaseX + 1, y2: midpointY,
+          stroke: item.color, class: "annotation-arrow-line"
+        });
+        const head = svgEl("polygon", {
+          points: `${tipX},${midpointY} ${headBaseX},${midpointY - headHalfHeight} ${headBaseX},${midpointY + headHalfHeight}`,
+          fill: item.color, class: "annotation-arrow-head"
+        });
+        group.append(hitbox, line, head);
       } else {
         const box = svgEl("rect", {
           x: 0, y: 0, width: item.width, height: item.height,
@@ -670,7 +755,7 @@
   function renderGuides() {
     els.guideLayer.innerHTML = "";
     const selected = selectedItem();
-    if (!selected || state.items.length < 2) return;
+    if (!selected || isAnnotation(selected) || state.items.length < 2) return;
     const selectedBounds = itemBounds(selected);
     const candidates = {
       left: [],
@@ -679,7 +764,7 @@
       down: []
     };
     state.items.forEach((item) => {
-      if (item.id === selected.id) return;
+      if (item.id === selected.id || isAnnotation(item)) return;
       const bounds = itemBounds(item);
       if (rangesOverlap(selectedBounds.top, selectedBounds.bottom, bounds.top, bounds.bottom)) {
         if (bounds.right <= selectedBounds.left) {
@@ -729,7 +814,9 @@
     renderGuides();
     renderProperties();
     els.emptyHint.hidden = true;
-    els.itemCount.textContent = `${state.items.length} 个设备`;
+    const annotationCount = state.items.filter(isAnnotation).length;
+    const equipmentCount = state.items.length - annotationCount;
+    els.itemCount.textContent = `${equipmentCount} 个设备 · ${annotationCount} 个标注`;
     els.legendGrid.textContent = gridLegendText();
     els.legendShape.textContent = state.shapeMode === "quadrilateral" ? "上下边不同 / 斜墙" : "标准矩形";
     els.legendArea.textContent = `${(geometry.area / 10000).toFixed(2)} ㎡`;
@@ -745,18 +832,32 @@
     const hasSelection = Boolean(item);
     els.noSelection.hidden = hasSelection;
     els.propertyForm.hidden = !hasSelection;
-    els.selectionHint.textContent = hasSelection ? `当前：${item.name}` : "请选择画布中的设备";
+    els.selectionHint.textContent = hasSelection ? `当前：${item.name}` : "请选择画布中的对象";
     els.duplicate.disabled = !hasSelection;
     els.rotate.disabled = !hasSelection;
     els.delete.disabled = !hasSelection;
     if (!item) return;
     const isDoor = item.kind === "door";
+    const isText = item.kind === "text";
+    const isArrow = item.kind === "arrow";
+    els.selectedNameField.hidden = isArrow;
+    els.selectedNameLabel.textContent = isText ? "标注文字" : "设备名称";
     els.selectedName.value = item.name;
     els.selectedWidth.value = item.width;
     els.selectedHeight.value = item.height;
-    els.selectedWidthLabel.textContent = isDoor ? "门洞宽度 W" : "宽度 W";
+    els.selectedWidth.min = isArrow ? 30 : 10;
+    els.selectedWidthLabel.textContent = isDoor
+      ? "门洞宽度 W"
+      : isText
+        ? "文字区域宽度 W"
+        : isArrow
+          ? "箭头长度 L"
+          : "宽度 W";
     els.selectedHeightLabel.textContent = isDoor ? "开启范围 D" : "深度 D";
     els.selectedHeight.disabled = isDoor;
+    els.selectedHeightField.hidden = isText || isArrow;
+    els.selectedTextSizeField.hidden = !isText;
+    els.selectedTextSize.value = isText ? clamp(Number(item.fontSize) || 22, 8, 80) : 22;
     els.doorSwingField.hidden = !isDoor;
     els.selectedDoorSwing.value = item.swing === "left" ? "left" : "right";
     els.selectedX.value = item.x;
@@ -839,10 +940,20 @@
     const item = selectedItem();
     if (!item) return;
     const geometry = roomGeometry();
-    const nextWidth = numeric(els.selectedWidth, item.width, 10, Math.min(3000, geometry.width));
+    const isText = item.kind === "text";
+    const isArrow = item.kind === "arrow";
+    const minimumWidth = isArrow ? 30 : 10;
+    const nextWidth = numeric(els.selectedWidth, item.width, minimumWidth, Math.min(3000, geometry.width));
+    const nextFontSize = isText
+      ? numeric(els.selectedTextSize, item.fontSize || 22, 8, 80)
+      : item.fontSize;
     const nextHeight = item.kind === "door"
       ? nextWidth
-      : numeric(els.selectedHeight, item.height, 10, Math.min(3000, geometry.height));
+      : isText
+        ? clamp(nextFontSize * 2, 24, Math.min(3000, geometry.height))
+        : isArrow
+          ? item.height
+          : numeric(els.selectedHeight, item.height, 10, Math.min(3000, geometry.height));
     const nextX = clamp(numeric(els.selectedX, item.x, 0, geometry.width), 0, geometry.width - nextWidth);
     const nextY = clamp(numeric(els.selectedY, item.y, 0, geometry.height), 0, geometry.height - nextHeight);
     const nextRotation = normalizeRotation(numeric(els.selectedRotation, item.rotation || 0, -359, 359));
@@ -858,10 +969,11 @@
     item.y = nextY;
     item.rotation = nextRotation;
     item.color = els.selectedColor.value;
+    item.fontSize = isText ? nextFontSize : item.fontSize;
     item.swing = item.kind === "door" && els.selectedDoorSwing.value === "left" ? "left" : "right";
     recordHistory();
     render();
-    showToast("设备属性已更新");
+    showToast(isAnnotation(item) ? "标注属性已更新" : "设备属性已更新");
   }
 
   function duplicateSelected() {
@@ -1033,6 +1145,9 @@
       .door-swing-arc{fill:none;stroke:#a87337;stroke-width:1.6;stroke-dasharray:5 4}
       .door-hinge{fill:#7a4c22}
       .door-label{fill:#7a4c22;font:850 10px sans-serif;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:4px}
+      .annotation-hitbox{fill:rgba(255,255,255,.01)}
+      .annotation-text{font-weight:850;text-anchor:middle;dominant-baseline:middle;paint-order:stroke;stroke:rgba(255,255,255,.96);stroke-width:5px;stroke-linejoin:round}
+      .annotation-arrow-line{fill:none;stroke-width:4;stroke-linecap:round}
     `;
     clone.insertBefore(style, clone.firstChild);
     const source = new XMLSerializer().serializeToString(clone);
@@ -1132,6 +1247,8 @@
     });
     els.undo.addEventListener("click", undo);
     els.redo.addEventListener("click", redo);
+    els.addText.addEventListener("click", () => addAnnotation("text"));
+    els.addArrow.addEventListener("click", () => addAnnotation("arrow"));
     els.duplicate.addEventListener("click", duplicateSelected);
     els.rotate.addEventListener("click", rotateSelected);
     els.rotateLeft.addEventListener("click", () => adjustRotation(-5));

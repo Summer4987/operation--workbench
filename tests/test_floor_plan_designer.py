@@ -48,6 +48,9 @@ class FloorPlanDesignerTests(unittest.TestCase):
             "selectedDoorSwingInput",
             "meterGrid",
             "guideLayer",
+            "addTextButton",
+            "addArrowButton",
+            "selectedTextSizeInput",
             "rotateLeftButton",
             "rotateRightButton",
             "planCanvas",
@@ -62,6 +65,9 @@ class FloorPlanDesignerTests(unittest.TestCase):
         self.assertIn("function nudgeSelected(", script)
         self.assertIn("function renderGuides(", script)
         self.assertIn("function drawSpacingGuide(", script)
+        self.assertIn("function addAnnotation(", script)
+        self.assertIn('item.kind === "text"', script)
+        self.assertIn('item.kind === "arrow"', script)
         self.assertIn("ArrowUp", script)
         self.assertIn("localStorage.setItem", script)
         self.assertIn("function exportImage(", script)

@@ -123,9 +123,12 @@
               <button id="undoButton" type="button" title="撤销（⌘/Ctrl+Z）" aria-label="撤销">↶</button>
               <button id="redoButton" type="button" title="恢复（⌘/Ctrl+Shift+Z）" aria-label="恢复">↷</button>
               <span class="toolbar-divider"></span>
-              <button id="duplicateButton" type="button" title="复制选中设备（⌘/Ctrl+D）">复制</button>
+              <button id="addTextButton" class="annotation-button" type="button" title="添加文字标注">＋ 文本</button>
+              <button id="addArrowButton" class="annotation-button" type="button" title="添加箭头标注">＋ 箭头</button>
+              <span class="toolbar-divider"></span>
+              <button id="duplicateButton" type="button" title="复制选中对象（⌘/Ctrl+D）">复制</button>
               <button id="rotateButton" type="button" title="顺时针旋转 90°（R）">旋转 90°</button>
-              <button id="deleteButton" class="danger-text" type="button" title="删除选中设备（Delete）">删除</button>
+              <button id="deleteButton" class="danger-text" type="button" title="删除选中对象（Delete）">删除</button>
             </div>
             <div class="view-actions">
               <label class="grid-control">
@@ -175,8 +178,8 @@
           </div>
           <footer class="canvas-status">
             <span><i class="status-dot"></i>按实际比例绘制</span>
-            <span id="itemCountLabel">0 个设备</span>
-            <span>选中设备显示相邻净距 · 方向键微移 1 cm</span>
+            <span id="itemCountLabel">0 个设备 · 0 个标注</span>
+            <span>选中设备显示相邻净距 · 所有对象均可方向键微移 1 cm</span>
           </footer>
         </section>
 
@@ -186,18 +189,18 @@
               <span>03</span>
               <div>
                 <h2>精确属性</h2>
-                <p id="selectionHint">请选择画布中的设备</p>
+                <p id="selectionHint">请选择画布中的对象</p>
               </div>
             </div>
             <div class="no-selection" id="noSelection">
               <div class="selection-icon" aria-hidden="true"></div>
-              <strong>尚未选择设备</strong>
-              <p>点击画布中的方块，可精确修改名称、尺寸和位置。</p>
+              <strong>尚未选择对象</strong>
+              <p>点击设备或标注，可精确修改内容、尺寸和位置。</p>
             </div>
             <form id="propertyForm" class="property-form" hidden>
-              <label class="full-field">
-                <span>设备名称</span>
-                <input id="selectedNameInput" type="text" maxlength="24" />
+              <label class="full-field" id="selectedNameField">
+                <span id="selectedNameLabel">设备名称</span>
+                <input id="selectedNameInput" type="text" maxlength="80" />
               </label>
               <div class="field-grid">
                 <label id="selectedWidthField">
@@ -229,6 +232,13 @@
                   </div>
                 </label>
               </div>
+              <label class="full-field" id="selectedTextSizeField" hidden>
+                <span>文字字号</span>
+                <div class="unit-input">
+                  <input id="selectedTextSizeInput" type="number" min="8" max="80" step="1" />
+                  <em>号</em>
+                </div>
+              </label>
               <label class="full-field rotation-field">
                 <span>旋转角度</span>
                 <div class="unit-input">

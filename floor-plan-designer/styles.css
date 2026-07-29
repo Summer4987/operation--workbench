@@ -323,6 +323,12 @@ label > span,
 .canvas-toolbar button:hover:not(:disabled) { color: var(--brand); border-color: #83baae; }
 .canvas-toolbar button:disabled { cursor: default; opacity: .38; }
 .canvas-toolbar .danger-text { color: var(--danger); }
+.canvas-toolbar .annotation-button {
+  color: #0f6654;
+  background: #eef9f5;
+  border-color: #a9d5ca;
+}
+.canvas-toolbar .annotation-button:hover:not(:disabled) { background: #e1f4ed; }
 .toolbar-divider { width: 1px; height: 25px; margin: 0 2px; background: var(--line); }
 
 .grid-control {
@@ -601,6 +607,29 @@ label > span,
   stroke-linejoin: round;
   pointer-events: none;
 }
+
+.equipment-item .annotation-hitbox {
+  fill: rgba(255,255,255,.01);
+  stroke: none;
+}
+.equipment-item .annotation-text {
+  font-weight: 850;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(255,255,255,.96);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.equipment-item .annotation-arrow-line {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.equipment-item .annotation-arrow-head { pointer-events: none; }
 
 .toast {
   position: fixed;
