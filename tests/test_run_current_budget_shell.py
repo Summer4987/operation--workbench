@@ -10,6 +10,8 @@ MORNING_SCRIPT = ROOT / "morning-ops" / "run_morning_ops.py"
 LOGIN_PREFLIGHT_SCRIPT = ROOT / "scripts" / "check_platform_login_preflight.py"
 OPS_NOTIFY_SCRIPT = ROOT / "scripts" / "ops_notify.py"
 TAKEOVER_SCRIPT = ROOT / "scripts" / "macmini_takeover_clean_checkout.zsh"
+PROMO_BALANCE_REFRESH_SCRIPT = ROOT / "scripts" / "run_promo_balance_refresh.zsh"
+PROMO_BALANCE_INSTALL_SCRIPT = ROOT / "scripts" / "install_promo_balance_refresh_launchd.zsh"
 
 
 def test_current_budget_does_not_read_step_rc_after_fi():
@@ -126,3 +128,17 @@ def test_macmini_takeover_defaults_outside_documents():
 
     assert "$HOME/Library/Application Support/xiong-operation/production" in text
     assert 'CLEAN_DIR="${MACMINI_TAKEOVER_DIR:-$HOME/Documents/' not in text
+
+
+def test_promo_balance_refresh_collects_builds_and_deploys_data_only():
+    text = PROMO_BALANCE_REFRESH_SCRIPT.read_text(encoding="utf-8")
+    installer = PROMO_BALANCE_INSTALL_SCRIPT.read_text(encoding="utf-8")
+
+    assert "store-inspection/run_all_balances.py" in text
+    assert "scripts/build_promo_balance_status.py" in text
+    assert "scripts/build_task_health.py" in text
+    assert "scripts/build_workbench_data.py" in text
+    assert "OPERATION_CLOUD_DEPLOY_MODE=data-only" in text
+    assert "promo_balance_refresh.lock" in text
+    assert 'for hour in {9..20}' in installer
+    assert "<integer>15</integer>" in installer
