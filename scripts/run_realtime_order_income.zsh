@@ -198,10 +198,16 @@ trap finish_task_state EXIT
   record_task_run "$TASK_ID" running --message "实时单量收入采集开始。" --step "$TASK_STEP" --log-path "$LOG_FILE"
   TASK_STEP="采集平台实时单量"
   record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
-  if run_with_timeout "${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "$PYTHON" "$ROOT/scripts/realtime_order_income.py"; then
+  COLLECT_RC=0
+  run_with_timeout "${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "$PYTHON" "$ROOT/scripts/realtime_order_income.py" || COLLECT_RC=$?
+  if [[ "$COLLECT_RC" -ne 0 && "${REALTIME_COLLECT_RETRY_ATTEMPTS:-1}" -gt 0 ]]; then
+    echo "首次实时采集未通过完整性校验，清理浏览器标签页后自动重试一次。"
+    run_with_timeout "${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "$PYTHON" "$ROOT/scripts/cleanup_chrome_tabs.py" || true
+    sleep "${REALTIME_COLLECT_RETRY_DELAY_SECONDS:-5}"
     COLLECT_RC=0
-  else
-    COLLECT_RC=$?
+    run_with_timeout "${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "$PYTHON" "$ROOT/scripts/realtime_order_income.py" || COLLECT_RC=$?
+  fi
+  if [[ "$COLLECT_RC" -ne 0 ]]; then
     FINAL_RC="$COLLECT_RC"
     failure_message="$(latest_failure_message)"
     record_task_run "$TASK_ID" failed --message "$failure_message" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$COLLECT_RC"

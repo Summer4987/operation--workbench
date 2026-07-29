@@ -46,6 +46,9 @@ def test_realtime_runner_preserves_collect_failure_after_followup_failure():
     assert "恢复平台登录/验证码" in text
     assert "确认已切到连锁/全部门店视图" in text
     assert "恢复美团登录/验证码" not in text
+    assert "REALTIME_COLLECT_RETRY_ATTEMPTS" in text
+    assert "首次实时采集未通过完整性校验" in text
+    assert text.count('"$ROOT/scripts/realtime_order_income.py"') == 2
 
 
 def test_macmini_installer_emits_realtime_runner_rc_handling():
@@ -63,6 +66,9 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
     assert "恢复平台登录/验证码" in text
     assert "确认已切到连锁/全部门店视图" in text
     assert "恢复美团登录/验证码" not in text
+    assert "REALTIME_COLLECT_RETRY_ATTEMPTS" in text
+    assert "首次实时采集未通过完整性校验" in text
+    assert text.count('"\\$ROOT/scripts/realtime_order_income.py"') == 2
 
 
 def test_data_only_deploy_verifies_direct_latest_from_stage_dir():
