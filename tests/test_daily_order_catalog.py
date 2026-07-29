@@ -173,6 +173,20 @@ def test_chengdu_order_catalog_removes_legacy_packaging_bag_sku():
     assert all(item.get("name") != "打包袋" for item in catalog["items"])
 
 
+def test_chengdu_order_catalog_has_taobao_delivery_bags():
+    root = Path(__file__).resolve().parents[1]
+    catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+    by_name = {item["name"]: item for item in catalog["items"]}
+
+    for name in ("自封袋", "塑料袋"):
+        item = by_name[name]
+        assert item["category"] == "耗材"
+        assert item["source"] == "快递到店"
+        assert item["purchase_channel"] == "淘宝"
+        assert item["unit"] == "份"
+        assert (root / "daily-order" / "static" / "images" / f"{item['sku']}.svg").exists()
+
+
 def test_condiment_and_supply_categories_are_grouped_by_delivery_source():
     root = Path(__file__).resolve().parents[1]
     expected = {

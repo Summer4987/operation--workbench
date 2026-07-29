@@ -1,6 +1,6 @@
 {
   "source_file": "日常订货sku.xlsx",
-  "updated_at": "2026-06-21",
+  "updated_at": "2026-07-30",
   "stores": [
     "银泰城店",
     "万象城店",
@@ -724,6 +724,17 @@
       "unit": "份",
       "note": "",
       "image": "/daily-order/static/images/KD-037.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
+      "sku": "KD-066",
+      "source": "快递到店",
+      "category": "耗材",
+      "name": "自封袋",
+      "spec": "",
+      "unit": "份",
+      "note": "",
+      "image": "/daily-order/static/images/KD-066.svg",
       "purchase_channel": "淘宝"
     },
     {

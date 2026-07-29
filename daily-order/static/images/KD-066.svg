@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="自封袋">
+  <rect width="240" height="240" rx="30" fill="#fff"/>
+  <rect x="8" y="8" width="224" height="224" rx="26" fill="#f7fbf3" stroke="#e3ebf3" stroke-width="2"/>
+  <circle cx="196" cy="42" r="18" fill="#4f9d55" opacity=".12"/>
+  <ellipse cx="120" cy="196" rx="62" ry="12" fill="#17202a" opacity=".08"/>
+  <path d="M73 67h94l8 116H65L73 67Z" fill="#fff" fill-opacity=".72" stroke="#2f6f38" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M73 85h96" stroke="#4f9d55" stroke-width="9" stroke-linecap="round"/>
+  <path d="M83 101h74v64H83z" fill="#d9efcf" stroke="#2f6f38" stroke-width="4" stroke-dasharray="8 7"/>
+  <circle cx="159" cy="85" r="7" fill="#2f6f38"/>
+  <path d="M98 133h44" stroke="#4f9d55" stroke-width="8" opacity=".55" stroke-linecap="round"/>
+</svg>

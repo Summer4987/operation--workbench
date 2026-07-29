@@ -101,6 +101,8 @@ def shape_for(item: dict, index: int, main: str, dark: str, pale: str) -> str:
         return cutlery(main, dark, pale)
     if name in {"小塑料碗", "小牛皮纸碗", "汤碗"}:
         return bowl(main, dark, pale, seed=index)
+    if name == "自封袋":
+        return zipper_bag(main, dark, pale)
     if name in {"塑料袋", "打包袋"}:
         return carry_bag(main, dark, pale, seed=index)
     if name in {"餐盒", "酱料盒", "玉米淀粉盒"}:
@@ -297,6 +299,14 @@ def carry_bag(main: str, dark: str, pale: str, seed: int) -> str:
     return f"""<path d="M78 87h84l13 96H65L78 87Z" fill="{pale}" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
   <path d="M94 88c4-26 48-26 52 0" fill="none" stroke="{dark}" stroke-width="7" stroke-linecap="round"/>
   <path d="M84 {127 + seed % 18}h72" stroke="{main}" stroke-width="11" opacity=".55" stroke-linecap="round"/>"""
+
+
+def zipper_bag(main: str, dark: str, pale: str) -> str:
+    return f"""<path d="M73 67h94l8 116H65L73 67Z" fill="#fff" fill-opacity=".72" stroke="{dark}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M73 85h96" stroke="{main}" stroke-width="9" stroke-linecap="round"/>
+  <path d="M83 101h74v64H83z" fill="{pale}" stroke="{dark}" stroke-width="4" stroke-dasharray="8 7"/>
+  <circle cx="159" cy="85" r="7" fill="{dark}"/>
+  <path d="M98 133h44" stroke="{main}" stroke-width="8" opacity=".55" stroke-linecap="round"/>"""
 
 
 def container(main: str, dark: str, pale: str, seed: int) -> str:
