@@ -84,8 +84,9 @@ def test_deploy_rejects_realtime_history_regression_and_verifies_upload():
     text = DEPLOY_SCRIPT.read_text(encoding="utf-8")
 
     assert "validate_realtime_history_deploy" in text
-    assert "local_count < remote_count" in text
     assert "local_latest < remote_latest" in text
+    assert "local_latest == remote_latest and local_count < remote_count" in text
+    assert "history_regressed" in text
     assert "ALLOW_REALTIME_HISTORY_SHRINK" in text
     assert text.count(
         'verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"'

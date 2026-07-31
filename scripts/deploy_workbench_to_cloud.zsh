@@ -128,7 +128,15 @@ payload = json.loads(remote_path.read_text(encoding="utf-8"))
 snapshots = payload.get("snapshots") or []
 remote_count = len(snapshots)
 remote_latest = str(snapshots[-1].get("generated_at") or "").replace(" ", "T") if snapshots else ""
-if not allow_shrink and (local_count < remote_count or (remote_latest and local_latest < remote_latest)):
+history_regressed = bool(
+    remote_latest
+    and (
+        not local_latest
+        or local_latest < remote_latest
+        or (local_latest == remote_latest and local_count < remote_count)
+    )
+)
+if not allow_shrink and history_regressed:
     raise SystemExit(
         "拒绝用较旧的实时历史覆盖线上数据："
         f"待发布 count={local_count}, latest={local_latest or '-'}；"
