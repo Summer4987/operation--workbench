@@ -174,6 +174,10 @@ def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypa
     assert rows["CWXXX0004"]["spec"] == "1000个/袋"
     assert rows["CWXXX0004"]["unit"] == "袋"
     assert rows["CWXXX0004"]["balance"] == 50
+    assert rows["CWXXX0005"]["name"] == "熊小小牛排饭-定制大米"
+    assert rows["CWXXX0005"]["spec"] == "25kg/袋"
+    assert rows["CWXXX0005"]["unit"] == "袋"
+    assert rows["CWXXX0005"]["balance"] == 41
 
 
 def test_order_template_candidates_include_server_data_dir(monkeypatch):

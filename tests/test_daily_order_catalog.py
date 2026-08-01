@@ -12,6 +12,19 @@ def test_chengdu_daily_order_catalog_excludes_frozen_shrimp():
     assert all(item.get("name") != "虾仁" for item in items)
 
 
+def test_chengdu_rice_replaces_legacy_sku_and_uses_inventory_name_for_exports():
+    root = Path(__file__).resolve().parents[1]
+    catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+    rice_items = [item for item in catalog["items"] if item.get("name") == "大米"]
+
+    assert len(rice_items) == 1
+    assert rice_items[0]["sku"] == "CWXXX0005"
+    assert rice_items[0]["spec"] == "25kg/袋"
+    assert rice_items[0]["unit"] == "袋"
+    assert rice_items[0]["output_name"] == "熊小小牛排饭-定制大米"
+    assert all(item.get("sku") != "TC-003" for item in catalog["items"])
+
+
 def test_beijing_daily_order_adds_broccoli_and_spinach_between_potato_and_tomato():
     root = Path(__file__).resolve().parents[1]
     catalog_path = root / "daily-order" / "app" / "catalog-beijing.json"

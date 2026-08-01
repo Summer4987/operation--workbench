@@ -284,6 +284,27 @@ def test_order_lines_can_filter_by_exact_date(tmp_path, monkeypatch):
     assert [row["订单号"] for row in rows] == ["DO-JULY-1"]
 
 
+def test_order_line_exports_use_configured_output_name():
+    module = load_daily_order_module()
+    row = module._order_line_row(
+        {"order_id": "DO-RICE", "submitted_at": "2026-08-01T10:00:00+08:00", "store_name": "银泰城店"},
+        {
+            "sku": "CWXXX0005",
+            "name": "大米",
+            "output_name": "熊小小牛排饭-定制大米",
+            "source": "同城物流配送",
+            "purchase_channel": "大米群",
+            "category": "粮油",
+            "spec": "25kg/袋",
+            "quantity": 2,
+            "unit": "袋",
+            "note": "",
+        },
+    )
+
+    assert row["品名"] == "熊小小牛排饭-定制大米"
+
+
 def test_order_lines_xlsx_endpoint_returns_excel_file(tmp_path, monkeypatch):
     module = load_daily_order_module()
     submission_dir = tmp_path / "submissions"

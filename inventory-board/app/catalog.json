@@ -1,5 +1,13 @@
 [
   {
+    "sku": "CWXXX0005",
+    "name": "熊小小牛排饭-定制大米",
+    "spec": "25kg/袋",
+    "unit": "袋",
+    "warehouse": "成都易代仓",
+    "initial_balance": 41
+  },
+  {
     "sku": "CWXXX0004",
     "name": "打包袋",
     "spec": "1000个/袋",

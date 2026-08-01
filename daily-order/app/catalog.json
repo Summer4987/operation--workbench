@@ -152,11 +152,12 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "TC-003",
+      "sku": "CWXXX0005",
       "source": "同城物流配送",
       "category": "粮油",
       "name": "大米",
-      "spec": "",
+      "output_name": "熊小小牛排饭-定制大米",
+      "spec": "25kg/袋",
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/TC-003.svg",
