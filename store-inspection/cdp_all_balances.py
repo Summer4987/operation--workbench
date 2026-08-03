@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cdp_eleme_balance
 import cdp_meituan_balance
+import cdp_direct_meituan_balance
 from parse_balance_ocr import build_result, write_outputs
 from balance_coverage import DIRECT_ELEME_STORES, aliases_for_direct_store, apply_direct_coverage, item_matches_store
 
@@ -37,6 +38,31 @@ def collect_meituan() -> tuple[list[dict], str]:
     return ok_items, response_url or (base_url.split("?")[0] if base_url else "")
 
 
+def collect_direct_meituan() -> tuple[list[dict], str]:
+    items: list[dict] = []
+    errors: list[str] = []
+    source_url = ""
+    for account in cdp_direct_meituan_balance.enabled_accounts(None):
+        try:
+            account_items, meta = cdp_direct_meituan_balance.collect_account(
+                account,
+                visible=False,
+                wait_seconds=20,
+            )
+            items.extend(account_items)
+            source_url = source_url or str(meta.get("url") or "")
+        except Exception as exc:
+            errors.append(f"{account.get('name') or account.get('id')}：{exc}")
+    failed_items = [item for item in items if item.get("error")]
+    if errors or failed_items:
+        failed_names = [str(item.get("store_name") or "未知门店") for item in failed_items]
+        detail = "；".join([*errors, *(f"{name}：未读取到余额" for name in failed_names)])
+        raise RuntimeError(detail or "直营美团余额采集不完整。")
+    if not items:
+        raise RuntimeError("直营美团账号没有读取到余额。")
+    return items, source_url
+
+
 def is_direct_meituan_item(item: dict) -> bool:
     return any(
         item_matches_store(item, "美团", aliases_for_direct_store("meituan", store))
@@ -60,6 +86,7 @@ def collect_all_balances() -> tuple[dict, bool]:
     for platform_name, collector in [
         ("饿了么", collect_eleme),
         ("美团", collect_meituan),
+        ("美团直营", collect_direct_meituan),
     ]:
         try:
             platform_items, source_url = collector()
@@ -75,7 +102,7 @@ def collect_all_balances() -> tuple[dict, bool]:
             errors.append(f"{platform_name}：{exc}")
             print(f"{platform_name} CDP 失败：{exc}", flush=True)
 
-    data = apply_direct_coverage(build_result(items, THRESHOLD))
+    data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么", "美团"})
     data["source"] = "cdp_all_balances"
     data["source_urls"] = source_urls
     data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
