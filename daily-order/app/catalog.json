@@ -164,22 +164,24 @@
       "purchase_channel": "大米群"
     },
     {
-      "sku": "TC-006",
+      "sku": "CWXXX0007",
       "source": "同城物流配送",
       "category": "粮油",
       "name": "黑米",
-      "spec": "",
+      "output_name": "熊小小牛排饭-黑米",
+      "spec": "24kg/袋",
       "unit": "袋",
       "note": "尽量和大米一起下单",
       "image": "/daily-order/static/images/TC-006.svg",
       "purchase_channel": "大米群"
     },
     {
-      "sku": "TC-007",
+      "sku": "CWXXX0006",
       "source": "同城物流配送",
       "category": "粮油",
       "name": "燕麦米",
-      "spec": "",
+      "output_name": "熊小小牛排饭-燕麦米",
+      "spec": "24kg/袋",
       "unit": "袋",
       "note": "尽量和大米一起下单",
       "image": "/daily-order/static/images/TC-007.svg",
