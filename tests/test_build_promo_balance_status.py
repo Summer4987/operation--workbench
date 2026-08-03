@@ -69,6 +69,29 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
         self.assertEqual(len(status["low_balance_items"]), 1)
         self.assertFalse(status["summary"]["source_is_stale"])
 
+    def test_direct_meituan_low_balance_is_not_filtered(self) -> None:
+        payload = {
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "threshold": 200,
+            "items": [
+                {
+                    "platform": "美团",
+                    "store_name": "朝阳门店",
+                    "balance": 31.89,
+                    "status": "warning",
+                    "source": "Chrome CDP接口读取",
+                }
+            ],
+            "summary": {"store_count": 1, "platform_count": 1, "warning_count": 1},
+        }
+
+        status = self.module.build_status(payload)
+
+        self.assertEqual(status["summary"]["store_count"], 1)
+        self.assertEqual(status["summary"]["low_balance_count"], 1)
+        self.assertEqual(status["low_balance_items"][0]["store_name"], "朝阳门店")
+        self.assertGreater(status["direct_coverage"]["expected_count"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

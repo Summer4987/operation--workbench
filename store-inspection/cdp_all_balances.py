@@ -9,7 +9,13 @@ import cdp_eleme_balance
 import cdp_meituan_balance
 import cdp_direct_meituan_balance
 from parse_balance_ocr import build_result, write_outputs
-from balance_coverage import DIRECT_ELEME_STORES, aliases_for_direct_store, apply_direct_coverage, item_matches_store
+from balance_coverage import (
+    DIRECT_ELEME_STORES,
+    DIRECT_MEITUAN_CHAIN_STORES,
+    aliases_for_direct_store,
+    apply_direct_coverage,
+    item_matches_store,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -67,6 +73,7 @@ def is_direct_meituan_item(item: dict) -> bool:
     return any(
         item_matches_store(item, "美团", aliases_for_direct_store("meituan", store))
         for store in DIRECT_ELEME_STORES
+        if store not in DIRECT_MEITUAN_CHAIN_STORES
     )
 
 
