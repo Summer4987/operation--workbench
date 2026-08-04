@@ -1,12 +1,9 @@
 {
-  "closed_stores": {
-    "五一广场": {
-      "platforms": ["美团"],
-      "reason": "美团全部门店当前共9家，五一广场已不在该账号门店列表，实时订单和营业额按0处理。"
-    },
+  "closed_stores": {},
+  "account_out_platforms": {
     "滨江": {
       "platforms": ["美团"],
-      "reason": "美团全部门店当前共9家，滨江店当前未在该账号门店列表展示，实时订单和营业额按0处理。"
+      "reason": "美团全部门店当前未展示滨江店；如后台已恢复该店，采集到真实行后会自动显示真实美团单量和营业额。"
     }
   },
   "meituan_page_row_validation": {

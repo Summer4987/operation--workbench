@@ -278,37 +278,57 @@ function realtimePlatformMetrics(item) {
       name: "饿了么",
       orders: Number(item.eleme_orders ?? eleme.orders ?? 0),
       income: Number(item.eleme_income ?? eleme.income ?? 0),
+      status: eleme.income_status || "",
+      note: eleme.validation_note || eleme.correction_note || "",
     },
     {
       key: "meituan",
       name: "美团",
       orders: Number(item.meituan_orders ?? meituan.orders ?? 0),
       income: Number(item.meituan_income ?? meituan.income ?? 0),
+      status: meituan.income_status || "",
+      note: meituan.validation_note || meituan.correction_note || "",
     },
   ];
 }
 
+function realtimePlatformVisible(platform) {
+  return platform.orders || platform.income || ["missing", "account_out", "needs_review", "reset"].includes(platform.status);
+}
+
+function realtimePlatformStatusText(platform) {
+  if (platform.status === "account_out") return "未展示";
+  if (platform.status === "missing") return "缺收入";
+  if (platform.status === "needs_review") return "需核实";
+  if (platform.status === "reset") return "待采集";
+  return "";
+}
+
 function realtimeStoreDetail(item) {
   const parts = realtimePlatformMetrics(item)
-    .filter((platform) => platform.orders || platform.income)
-    .map((platform) => `${platform.name} ${num(platform.orders)} 单 / ${yuan(platform.income)}`);
+    .filter(realtimePlatformVisible)
+    .map((platform) => {
+      const statusText = realtimePlatformStatusText(platform);
+      return statusText ? `${platform.name} ${statusText}` : `${platform.name} ${num(platform.orders)} 单 / ${yuan(platform.income)}`;
+    });
   return parts.join(" · ") || "等待平台拆分";
 }
 
 function renderRealtimePlatformRows(item) {
-  const activePlatforms = realtimePlatformMetrics(item).filter((platform) => platform.orders || platform.income);
+  const activePlatforms = realtimePlatformMetrics(item).filter(realtimePlatformVisible);
   if (!activePlatforms.length) return '<div class="platform-empty">等待平台拆分</div>';
   return activePlatforms
-    .map(
-      (platform) => `
+    .map((platform) => {
+      const statusText = realtimePlatformStatusText(platform);
+      return `
         <div class="platform-row platform-${platform.key}">
           <span>${platform.name}</span>
           <div class="platform-figures">
-            <strong>${yuan(platform.income)}</strong>
-            <em>${num(platform.orders)} 单</em>
+            <strong>${statusText || yuan(platform.income)}</strong>
+            <em>${statusText ? escapeHtml(platform.note || "等待平台恢复门店展示") : `${num(platform.orders)} 单`}</em>
           </div>
-        </div>`
-    )
+        </div>`;
+    })
     .join("");
 }
 

@@ -1,4 +1,5 @@
 from scripts.realtime_order_income import (
+    apply_account_out_platform_rules,
     apply_closed_store_rules,
     build_api_record,
     build_dom_record,
@@ -195,6 +196,45 @@ def test_closed_store_rule_adds_missing_platform_zero_record():
             "source": "rule",
             "validation_note": "美团账号已不展示该门店。",
         }
+    ]
+
+
+def test_account_out_platform_rule_adds_missing_only():
+    wuyi = build_dom_record(
+        "9 熊小小牛排饭POKEBEAR（五一广场店） 574.06 542.95 1,110.50 902.00 739.20 602.10 19 12 38.91 4.36",
+        "美团",
+    )
+    normalized = apply_account_out_platform_rules(
+        [wuyi],
+        {
+            "account_out_platforms": {
+                "五一广场": {"platforms": ["美团"], "reason": "不应覆盖真实行"},
+                "滨江": {"platforms": ["美团"], "reason": "美团未展示滨江"},
+            }
+        },
+    )
+    by_key = {(item["platform"], item["store"]): item for item in normalized}
+
+    assert by_key[("美团", "五一广场")]["source"] == "page"
+    assert by_key[("美团", "五一广场")]["orders"] == 19
+    assert by_key[("美团", "五一广场")]["income"] == 574.06
+    assert by_key[("美团", "滨江")]["income_status"] == "account_out"
+    assert by_key[("美团", "滨江")]["validation_note"] == "美团未展示滨江"
+
+
+def test_payload_tracks_account_out_without_income_missing():
+    records = apply_account_out_platform_rules(
+        [],
+        {"account_out_platforms": {"滨江": {"platforms": ["美团"], "reason": "美团未展示滨江"}}},
+    )
+
+    payload = build_payload(records, [])
+
+    assert payload["status"] == "partial"
+    assert payload["summary"]["account_out_count"] == 1
+    assert payload["summary"]["income_missing_count"] == 0
+    assert payload["account_out"] == [
+        {"platform": "美团", "store": "滨江", "source": "account_scope", "reason": "美团未展示滨江"}
     ]
 
 

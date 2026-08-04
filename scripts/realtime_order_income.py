@@ -102,6 +102,7 @@ MEITUAN_API_INCOME_KEYS = [
 
 DEFAULT_RULES = {
     "closed_stores": {},
+    "account_out_platforms": {},
     "meituan_page_row_validation": {
         "min_ticket": 8,
         "max_ticket": 120,
@@ -213,6 +214,8 @@ def load_realtime_rules() -> dict[str, Any]:
         raise RuntimeError(f"实时采集规则配置无法读取：{exc}") from exc
     if isinstance(payload.get("closed_stores"), dict):
         rules["closed_stores"] = payload["closed_stores"]
+    if isinstance(payload.get("account_out_platforms"), dict):
+        rules["account_out_platforms"] = payload["account_out_platforms"]
     if isinstance(payload.get("meituan_page_row_validation"), dict):
         rules["meituan_page_row_validation"].update(payload["meituan_page_row_validation"])
     return rules
@@ -502,6 +505,32 @@ def apply_closed_store_rules(records: list[dict[str, Any]], rules: dict[str, Any
                 }
             )
     return normalized
+
+
+def apply_account_out_platform_rules(records: list[dict[str, Any]], rules: dict[str, Any]) -> list[dict[str, Any]]:
+    account_out_platforms = rules.get("account_out_platforms") or {}
+    normalized = list(records)
+    existing = {(item.get("platform"), item.get("store")) for item in normalized}
+    for store, store_rule in account_out_platforms.items():
+        if store not in TARGET_STORES:
+            continue
+        platforms = set((store_rule or {}).get("platforms") or [])
+        for platform in platforms:
+            if platform not in {"饿了么", "美团"} or (platform, store) in existing:
+                continue
+            normalized.append(
+                {
+                    "platform": platform,
+                    "store": store,
+                    "source_store": store,
+                    "orders": 0,
+                    "income": 0,
+                    "income_status": "account_out",
+                    "source": "account_scope",
+                    "validation_note": store_rule.get("reason") or "当前平台账号未展示该门店，需确认账号/门店权限。",
+                }
+            )
+    return sorted(normalized, key=record_sort_key)
 
 
 def realtime_validation_errors(records: list[dict[str, Any]], rules: dict[str, Any]) -> list[str]:
@@ -1200,11 +1229,21 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
     income_missing = [
         {"platform": item.get("platform"), "store": item.get("store"), "source": item.get("source")}
         for item in items
-        if item.get("income_status", "trusted") != "trusted"
+        if item.get("income_status", "trusted") not in {"trusted", "account_out"}
+    ]
+    account_out = [
+        {
+            "platform": item.get("platform"),
+            "store": item.get("store"),
+            "source": item.get("source"),
+            "reason": item.get("validation_note"),
+        }
+        for item in items
+        if item.get("income_status") == "account_out"
     ]
     payload = {
         "generated_at": now_text(),
-        "status": "ok" if not errors and not missing and not income_missing else "partial",
+        "status": "ok" if not errors and not missing and not income_missing and not account_out else "partial",
         "source_urls": {"饿了么": ELEME_URL, "美团": MEITUAN_URL},
         "target_stores": list(TARGET_STORES),
         "summary": {
@@ -1214,11 +1253,13 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
             "total_income": round(sum(item["income"] for item in by_store.values()), 2),
             "missing_count": len(missing),
             "income_missing_count": len(income_missing),
+            "account_out_count": len(account_out),
         },
         "stores": list(by_store.values()),
         "items": items,
         "missing": missing,
         "income_missing": income_missing,
+        "account_out": account_out,
         "errors": errors,
     }
     return payload
@@ -1309,11 +1350,17 @@ def main() -> int:
     finally:
         disconnect_browser(playwright, browser)
 
-    merged_records = apply_closed_store_rules(merge_records(records), rules)
+    merged_records = apply_account_out_platform_rules(apply_closed_store_rules(merge_records(records), rules), rules)
     if args.platform != "all":
         existing = read_existing_items()
         other_platform = "美团" if args.platform == "eleme" else "饿了么"
-        merged_records = apply_closed_store_rules(merge_records([*merged_records, *[item for item in existing if item.get("platform") == other_platform]]), rules)
+        merged_records = apply_account_out_platform_rules(
+            apply_closed_store_rules(
+                merge_records([*merged_records, *[item for item in existing if item.get("platform") == other_platform]]),
+                rules,
+            ),
+            rules,
+        )
     errors.extend(realtime_validation_errors(merged_records, rules))
     payload = save_payload(merged_records, errors)
     summary = payload["summary"]
