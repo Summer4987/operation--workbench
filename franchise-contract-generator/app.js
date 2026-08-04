@@ -106,18 +106,8 @@ function render() {
   saveDraft();
 }
 
-function wordHtml(title, text) {
-  const safeText = text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
-  <style>@page{size:A4;margin:2.4cm 2.2cm}body{font-family:"SimSun","宋体",serif;font-size:12pt;line-height:1.75;color:#000}h1{text-align:center;font-size:20pt;margin:0 0 24pt}.contract-text{white-space:pre-wrap}.page-break{page-break-before:always}</style>
-  </head><body><h1>${title}</h1><div class="contract-text">${safeText}</div></body></html>`;
-}
-
 function downloadDoc(filename, title, text) {
-  const blob = new Blob(["\ufeff", wordHtml(title, text)], { type: "application/msword;charset=utf-8" });
+  const blob = new Blob(["\ufeff", ContractFormat.wordHtml(title, text)], { type: "application/msword;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = filename;
