@@ -111,6 +111,27 @@ def test_new_wangjing_store_maps_from_platform_rows():
     assert record["income"] == 128.6
 
 
+def test_new_binjiang_store_maps_from_both_platform_rows():
+    meituan = build_dom_record(
+        "4 熊小小牛排饭POKEBEAR（滨江店） 128.60 340.10 44.00 520.30 20.00 410.20 5 13 25.72 31.55",
+        "美团",
+    )
+    eleme = build_api_record(
+        {
+            "shopName": "熊小小牛排饭POKEBEAR（滨江店）",
+            "valid_ord_cnt": 8,
+            "valid_ord_amt": 236.5,
+        },
+        "饿了么",
+        "https://melody.shop.ele.me/proteinStandardQuery/TG3gM96",
+    )
+
+    assert meituan is not None
+    assert meituan["store"] == "滨江"
+    assert eleme is not None
+    assert eleme["store"] == "滨江"
+
+
 def test_closed_store_rule_forces_realtime_zero():
     record = build_dom_record(
         "9 熊小小牛排饭POKEBEAR（五一广场店） 0.00 383.42 0.00 764.30 0.00 498.20 0 12 0.00 41.52",
