@@ -12,45 +12,14 @@ def test_chengdu_daily_order_catalog_excludes_frozen_shrimp():
     assert all(item.get("name") != "虾仁" for item in items)
 
 
-def test_chengdu_rice_replaces_legacy_sku_and_uses_inventory_name_for_exports():
+def test_chengdu_order_catalog_removes_rice_skus():
     root = Path(__file__).resolve().parents[1]
     catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
-    rice_items = [item for item in catalog["items"] if item.get("name") == "大米"]
+    removed_names = {"大米", "黑米", "燕麦米"}
+    removed_skus = {"CWXXX0005", "CWXXX0006", "CWXXX0007", "TC-003", "TC-006", "TC-007"}
 
-    assert len(rice_items) == 1
-    assert rice_items[0]["sku"] == "CWXXX0005"
-    assert rice_items[0]["spec"] == "25kg/袋"
-    assert rice_items[0]["unit"] == "袋"
-    assert rice_items[0]["output_name"] == "熊小小牛排饭-定制大米"
-    assert all(item.get("sku") != "TC-003" for item in catalog["items"])
-
-
-def test_chengdu_mixed_grains_replace_legacy_skus_and_match_inventory_catalog():
-    root = Path(__file__).resolve().parents[1]
-    order_catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
-    inventory_catalog = json.loads(
-        (root / "inventory-board" / "app" / "catalog.json").read_text(encoding="utf-8")
-    )
-    order_by_name = {item["name"]: item for item in order_catalog["items"]}
-    inventory_by_sku = {item["sku"]: item for item in inventory_catalog}
-    expected = {
-        "黑米": ("CWXXX0007", "熊小小牛排饭-黑米"),
-        "燕麦米": ("CWXXX0006", "熊小小牛排饭-燕麦米"),
-    }
-
-    for display_name, (sku, inventory_name) in expected.items():
-        order_item = order_by_name[display_name]
-        inventory_item = inventory_by_sku[sku]
-        assert order_item["sku"] == sku
-        assert order_item["spec"] == "24kg/袋"
-        assert order_item["unit"] == "袋"
-        assert order_item["output_name"] == inventory_name
-        assert inventory_item["name"] == inventory_name
-        assert inventory_item["spec"] == "24kg/袋"
-        assert inventory_item["unit"] == "袋"
-        assert inventory_item["storage_condition"] == "常温"
-
-    assert not {"TC-006", "TC-007"} & {item.get("sku") for item in order_catalog["items"]}
+    assert all(item.get("name") not in removed_names for item in catalog["items"])
+    assert all(item.get("sku") not in removed_skus for item in catalog["items"])
 
 
 def test_beijing_daily_order_adds_broccoli_and_spinach_between_potato_and_tomato():

@@ -152,42 +152,6 @@
       "purchase_channel": "快驴"
     },
     {
-      "sku": "CWXXX0005",
-      "source": "同城物流配送",
-      "category": "粮油",
-      "name": "大米",
-      "output_name": "熊小小牛排饭-定制大米",
-      "spec": "25kg/袋",
-      "unit": "袋",
-      "note": "",
-      "image": "/daily-order/static/images/TC-003.svg",
-      "purchase_channel": "大米群"
-    },
-    {
-      "sku": "CWXXX0007",
-      "source": "同城物流配送",
-      "category": "粮油",
-      "name": "黑米",
-      "output_name": "熊小小牛排饭-黑米",
-      "spec": "24kg/袋",
-      "unit": "袋",
-      "note": "尽量和大米一起下单",
-      "image": "/daily-order/static/images/TC-006.svg",
-      "purchase_channel": "大米群"
-    },
-    {
-      "sku": "CWXXX0006",
-      "source": "同城物流配送",
-      "category": "粮油",
-      "name": "燕麦米",
-      "output_name": "熊小小牛排饭-燕麦米",
-      "spec": "24kg/袋",
-      "unit": "袋",
-      "note": "尽量和大米一起下单",
-      "image": "/daily-order/static/images/TC-007.svg",
-      "purchase_channel": "大米群"
-    },
-    {
       "sku": "CD-DRINK-001",
       "source": "山姆配送（3日内）",
       "category": "饮品",
