@@ -1066,14 +1066,55 @@ def click_meituan_realtime_and_scroll(page) -> None:
     if not meituan_realtime_active(page):
         diagnostics = meituan_realtime_switch_diagnostics(page)
         raise RuntimeError(f"美团页面未确认切换到今日实时：{diagnostics}")
-    for _ in range(8):
-        for target in [page, *page.frames]:
-            try:
-                target.evaluate("() => window.scrollBy(0, Math.max(700, window.innerHeight * 0.85))")
-            except Exception:
-                pass
+
+
+def scroll_meituan_realtime_table(page) -> None:
+    for target in [page, *page.frames]:
+        try:
+            target.evaluate(
+                """
+                () => {
+                  const scrollables = Array.from(document.querySelectorAll('*')).filter((el) => {
+                    const style = window.getComputedStyle(el);
+                    return /(auto|scroll)/.test(style.overflowY || '') && el.scrollHeight > el.clientHeight + 80;
+                  });
+                  for (const el of scrollables) {
+                    el.scrollTop = Math.min(el.scrollHeight, el.scrollTop + Math.max(700, el.clientHeight * 0.85));
+                  }
+                  window.scrollBy(0, Math.max(700, window.innerHeight * 0.85));
+                }
+                """
+            )
+        except Exception:
+            pass
+    try:
         page.mouse.wheel(0, 900)
+    except Exception:
+        pass
+
+
+def parse_meituan_dom_across_scroll(page, steps: int = 8) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for target in [page, *page.frames]:
+        try:
+            target.evaluate(
+                """
+                () => {
+                  for (const el of Array.from(document.querySelectorAll('*'))) {
+                    if (el.scrollHeight > el.clientHeight + 80) el.scrollTop = 0;
+                  }
+                  window.scrollTo(0, 0);
+                }
+                """
+            )
+        except Exception:
+            pass
+    for _ in range(steps + 1):
+        for target in [page, *page.frames]:
+            records.extend(parse_dom_records(target, "美团"))
+        scroll_meituan_realtime_table(page)
         page.wait_for_timeout(900)
+    return merge_records(records)
 
 
 def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
@@ -1091,8 +1132,7 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
             raise RuntimeError("美团登录态失效：当前打开的是登录/验证码页面")
         click_meituan_all_stores(page)
         click_meituan_realtime_and_scroll(page)
-        for target in [page, *page.frames]:
-            dom_records.extend(parse_dom_records(target, "美团"))
+        dom_records.extend(parse_meituan_dom_across_scroll(page))
     finally:
         try:
             page.remove_listener("response", handler)

@@ -7,6 +7,7 @@ from scripts.realtime_order_income import (
     meituan_realtime_active,
     meituan_realtime_switch_diagnostics,
     merge_records,
+    parse_meituan_dom_across_scroll,
     page_requires_login,
     realtime_validation_errors,
 )
@@ -245,6 +246,44 @@ class FakeTarget:
 
 class FakePage(FakeTarget):
     frames = []
+
+
+class FakeMouse:
+    def wheel(self, _x: int, _y: int) -> None:
+        return None
+
+
+class FakeScrollingPage:
+    frames = []
+
+    def __init__(self):
+        self.scrolls = 0
+        self.mouse = FakeMouse()
+
+    def evaluate(self, _script: str, *args):
+        if args:
+            rows = [
+                "1 熊小小牛排饭POKEBEAR（第3档口吉祥美食城店） 553.18 1,337.28 1,022.20 2,496.00 715.20 1,695.50 17 43 42.07 1.89"
+            ]
+            if self.scrolls > 0:
+                rows = [
+                    "10 熊小小牛排饭POKEBEAR(滨江店) 325.60 325.60 572.20 572.20 403.30 403.30 10 10 40.33 40.33"
+                ]
+            return rows
+        if "scrollTop +" in _script or "window.scrollBy" in _script:
+            self.scrolls += 1
+        return None
+
+    def wait_for_timeout(self, _milliseconds: int) -> None:
+        return None
+
+
+def test_meituan_dom_collection_accumulates_virtual_scroll_rows():
+    page = FakeScrollingPage()
+
+    records = parse_meituan_dom_across_scroll(page, steps=1)
+
+    assert {record["store"] for record in records} == {"中关村", "滨江"}
 
 
 def test_meituan_login_page_is_detected_before_realtime_switch():
