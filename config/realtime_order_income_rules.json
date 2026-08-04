@@ -1,5 +1,10 @@
 {
-  "closed_stores": {},
+  "closed_stores": {
+    "五一广场": {
+      "platforms": ["美团"],
+      "reason": "美团全部门店当前共9家，五一广场已不在该账号门店列表，实时订单和营业额按0处理。"
+    }
+  },
   "meituan_page_row_validation": {
     "min_ticket": 8,
     "max_ticket": 120

@@ -349,8 +349,15 @@ def infer_meituan_realtime_row(text: str) -> tuple[float | None, float | None, s
     if source_name and source_name in text:
         tail = text.split(source_name, 1)[1]
     cleaned = tail.replace(",", "")
-    numbers = [to_number(item) for item in re.findall(r"-?\d+(?:\.\d+)?", cleaned)]
+    number_tokens = re.findall(r"-?\d+(?:\.\d+)?", cleaned)
+    numbers = [to_number(item) for item in number_tokens]
     numbers = [item for item in numbers if item is not None]
+    order_index = next(
+        (index for index, token in enumerate(number_tokens) if index >= 5 and re.fullmatch(r"-?\d+", token)),
+        None,
+    )
+    if numbers and order_index is not None:
+        return numbers[order_index], numbers[0], source_name
     if len(numbers) >= 7:
         return numbers[6], numbers[0], source_name
     orders, income = infer_from_row_text(tail)
@@ -476,6 +483,24 @@ def apply_closed_store_rules(records: list[dict[str, Any]], rules: dict[str, Any
             item["income_status"] = "trusted"
             item["validation_note"] = store_rule.get("reason") or "门店配置为闭店，实时订单和营业额强制为 0。"
         normalized.append(item)
+    existing = {(item.get("platform"), item.get("store")) for item in normalized}
+    for store, store_rule in closed_stores.items():
+        platforms = set((store_rule or {}).get("platforms") or ["饿了么", "美团"])
+        for platform in platforms:
+            if (platform, store) in existing:
+                continue
+            normalized.append(
+                {
+                    "platform": platform,
+                    "store": store,
+                    "source_store": store,
+                    "orders": 0,
+                    "income": 0,
+                    "income_status": "trusted",
+                    "source": "rule",
+                    "validation_note": store_rule.get("reason") or "门店配置为闭店，实时订单和营业额按 0 处理。",
+                }
+            )
     return normalized
 
 

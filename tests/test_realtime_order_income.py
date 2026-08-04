@@ -99,6 +99,18 @@ def test_meituan_realtime_dom_row_handles_zero_middle_metrics():
     assert record["income"] == 0
 
 
+def test_meituan_realtime_dom_row_handles_trend_text_in_metric_columns():
+    record = build_dom_record(
+        "8 熊小小牛排饭POKEBEAR（丽泽门店） 1,055.76 93.31 1,911.70 持平 1,364.60 98.70 29 3 47.06 7.50",
+        "美团",
+    )
+
+    assert record is not None
+    assert record["store"] == "丽泽"
+    assert record["orders"] == 29
+    assert record["income"] == 1055.76
+
+
 def test_new_wangjing_store_maps_from_platform_rows():
     record = build_dom_record(
         "4 熊小小牛排饭POKEBEAR（望京店） 128.60 340.10 44.00 520.30 20.00 410.20 5 13 25.72 31.55",
@@ -156,6 +168,33 @@ def test_closed_store_rule_forces_realtime_zero():
     assert normalized[0]["income"] == 0
     assert normalized[0]["original_orders"] == 12
     assert normalized[0]["original_income"] == 383.42
+
+
+def test_closed_store_rule_adds_missing_platform_zero_record():
+    normalized = apply_closed_store_rules(
+        [],
+        {
+            "closed_stores": {
+                "五一广场": {
+                    "platforms": ["美团"],
+                    "reason": "美团账号已不展示该门店。",
+                }
+            }
+        },
+    )
+
+    assert normalized == [
+        {
+            "platform": "美团",
+            "store": "五一广场",
+            "source_store": "五一广场",
+            "orders": 0,
+            "income": 0,
+            "income_status": "trusted",
+            "source": "rule",
+            "validation_note": "美团账号已不展示该门店。",
+        }
+    ]
 
 
 def test_meituan_page_row_validation_flags_bad_ticket():
