@@ -1144,10 +1144,13 @@ def click_meituan_rank_page(page, page_number: int) -> bool:
       const pagers = Array.from(document.querySelectorAll('[class*="pagination"],[class*="Pagination"],[class*="pager"],[class*="Pager"]'))
         .filter(visible);
       for (const pager of pagers) {
-        const candidates = Array.from(pager.querySelectorAll('a,li,button,span,[role="button"]')).filter(visible);
+        const primary = Array.from(pager.querySelectorAll('a,button,[role="button"]')).filter(visible);
+        const secondary = Array.from(pager.querySelectorAll('li,span')).filter(visible);
+        const candidates = [...primary, ...secondary];
         const option = candidates.find((el) => normalize(el.innerText || el.textContent || el.getAttribute('title')) === String(pageNumber) && !disabled(el));
         if (!option) continue;
         option.scrollIntoView({ block: 'center', inline: 'center' });
+        if (typeof option.click === 'function') option.click();
         for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
           option.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
         }
