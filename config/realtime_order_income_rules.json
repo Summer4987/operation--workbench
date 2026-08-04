@@ -1,11 +1,6 @@
 {
   "closed_stores": {},
-  "account_out_platforms": {
-    "滨江": {
-      "platforms": ["美团"],
-      "reason": "美团全部门店当前未展示滨江店；如后台已恢复该店，采集到真实行后会自动显示真实美团单量和营业额。"
-    }
-  },
+  "account_out_platforms": {},
   "meituan_page_row_validation": {
     "min_ticket": 8,
     "max_ticket": 120

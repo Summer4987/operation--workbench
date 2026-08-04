@@ -222,6 +222,15 @@ def test_account_out_platform_rule_adds_missing_only():
     assert by_key[("美团", "滨江")]["validation_note"] == "美团未展示滨江"
 
 
+def test_account_out_config_is_not_used_for_binjiang_by_default():
+    from scripts.realtime_order_income import load_realtime_rules
+
+    rules = load_realtime_rules()
+
+    assert rules["closed_stores"] == {}
+    assert rules["account_out_platforms"] == {}
+
+
 def test_payload_tracks_account_out_without_income_missing():
     records = apply_account_out_platform_rules(
         [],

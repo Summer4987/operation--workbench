@@ -1122,8 +1122,51 @@ def scroll_meituan_realtime_table(page) -> None:
         pass
 
 
-def parse_meituan_dom_across_scroll(page, steps: int = 8) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
+def click_meituan_rank_page(page, page_number: int) -> bool:
+    script = """
+    (pageNumber) => {
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const disabled = (el) => {
+        let node = el;
+        for (let depth = 0; node && depth < 4; depth += 1, node = node.parentElement) {
+          const classText = String(node.className || '').toLowerCase();
+          if (classText.includes('disabled')) return true;
+          const aria = node.getAttribute && node.getAttribute('aria-disabled');
+          if (aria && aria !== 'false') return true;
+        }
+        return false;
+      };
+      const normalize = (value) => String(value || '').replace(/\\s+/g, '').trim();
+      const pagers = Array.from(document.querySelectorAll('[class*="pagination"],[class*="Pagination"],[class*="pager"],[class*="Pager"]'))
+        .filter(visible);
+      for (const pager of pagers) {
+        const candidates = Array.from(pager.querySelectorAll('a,li,button,span,[role="button"]')).filter(visible);
+        const option = candidates.find((el) => normalize(el.innerText || el.textContent || el.getAttribute('title')) === String(pageNumber) && !disabled(el));
+        if (!option) continue;
+        option.scrollIntoView({ block: 'center', inline: 'center' });
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          option.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+        }
+        return true;
+      }
+      return false;
+    }
+    """
+    for target in [page, *page.frames]:
+        try:
+            if target.evaluate(script, page_number):
+                page.wait_for_timeout(1800)
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def reset_meituan_rank_scroll(page) -> None:
     for target in [page, *page.frames]:
         try:
             target.evaluate(
@@ -1138,11 +1181,27 @@ def parse_meituan_dom_across_scroll(page, steps: int = 8) -> list[dict[str, Any]
             )
         except Exception:
             pass
-    for _ in range(steps + 1):
-        for target in [page, *page.frames]:
-            records.extend(parse_dom_records(target, "美团"))
-        scroll_meituan_realtime_table(page)
-        page.wait_for_timeout(900)
+
+
+def parse_meituan_dom_across_scroll(page, steps: int = 8, max_pages: int = 4) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    visited_pages: set[int] = set()
+    for page_number in range(1, max_pages + 1):
+        if page_number > 1 and not click_meituan_rank_page(page, page_number):
+            break
+        visited_pages.add(page_number)
+        reset_meituan_rank_scroll(page)
+        for _ in range(steps + 1):
+            for target in [page, *page.frames]:
+                records.extend(parse_dom_records(target, "美团"))
+            if platform_target_count(records, "美团") >= len(TARGET_STORES):
+                break
+            scroll_meituan_realtime_table(page)
+            page.wait_for_timeout(900)
+        if platform_target_count(records, "美团") >= len(TARGET_STORES):
+            break
+    if len(visited_pages) > 1:
+        log(f"美团：已翻页解析门店排行 {len(visited_pages)} 页")
     return merge_records(records)
 
 
