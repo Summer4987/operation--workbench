@@ -203,6 +203,12 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         outer = f"https://e.waimai.meituan.com/#{inner}"
         self.assertEqual(self.module.promo_navigation_url(outer), outer)
 
+    def test_headquarters_promo_bridge_targets_selected_store(self) -> None:
+        self.assertEqual(
+            self.module.headquarters_promo_bridge_url("30703865"),
+            "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId=30703865&_source=PC#/index",
+        )
+
     def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
         account = {
             "id": "direct_test",

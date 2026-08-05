@@ -121,6 +121,11 @@ def url_for_store(base_url: str, wm_id: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), "/index"))
 
 
+def headquarters_promo_bridge_url(wm_id: str) -> str:
+    inner = f"https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId={wm_id}&_source=PC#/index"
+    return f"https://e.waimai.meituan.com/#{inner}"
+
+
 def page_text(page) -> str:
     texts: list[str] = []
     for frame in page.frames:
@@ -396,7 +401,8 @@ def open_headquarters_budget_page(context, task: dict):
     if not click_visible_text(page, "门店推广"):
         raise RuntimeError(f"总部账号已切到分门店 {selected}，但点击门店推广失败")
     expected_wm_id = wm_poi_id(task)
-    for _ in range(40):
+    bridge_attempted = False
+    for attempt in range(40):
         time.sleep(0.5)
         for candidate in reversed(context.pages):
             promo_url = recent_promo_url_from_page(candidate)
@@ -405,6 +411,15 @@ def open_headquarters_budget_page(context, task: dict):
         landing_url = recent_promo_landing_url_from_page(page)
         if landing_url:
             return page, created_page, landing_url
+        routes = [page.url, *(frame.url for frame in page.frames)]
+        reached_pc_bridge = any("waimaieapp.meituan.com/ad/v1/pc" in route for route in routes)
+        if not bridge_attempted and (reached_pc_bridge or attempt >= 3):
+            page.goto(
+                headquarters_promo_bridge_url(expected_wm_id),
+                wait_until="domcontentloaded",
+                timeout=30000,
+            )
+            bridge_attempted = True
     raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广预算页没有加载")
 
 
