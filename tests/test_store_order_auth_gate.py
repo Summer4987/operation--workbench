@@ -388,7 +388,7 @@ def test_daily_order_submit_hermes_uses_configured_group_target(monkeypatch):
     assert "MEDIA:/tmp/order.xlsx" in calls[0][0][4]
 
 
-def test_inventory_warning_uses_store_notify_group_webhook(tmp_path, monkeypatch):
+def test_inventory_warning_changes_are_deferred_until_daily_summary(tmp_path, monkeypatch):
     module = load_inventory_module()
     db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
     monkeypatch.setattr(db_module, "DB_PATH", tmp_path / "inventory.sqlite3")
@@ -421,6 +421,7 @@ def test_inventory_warning_uses_store_notify_group_webhook(tmp_path, monkeypatch
         module.finish_import(conn, import_id, status="success", line_count=1)
 
     calls = []
+    logs = []
 
     class FakeResponse:
         def read(self):
@@ -431,9 +432,18 @@ def test_inventory_warning_uses_store_notify_group_webhook(tmp_path, monkeypatch
         return FakeResponse()
 
     monkeypatch.setattr(module.url_request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(module, "_write_inventory_warning_log", lambda status, text: logs.append((status, text)))
 
     module._notify_inventory_warning_for_skus({"SKU-LOW"}, source="测试出库")
 
+    assert calls == []
+    assert logs[0][0] == "deferred"
+    assert "每日16:00汇总推送" in logs[0][1]
+
+    result = module._notify_inventory_warning_daily()
+
+    assert result["status"] == "sent"
+    assert result["warning_count"] == 1
     assert len(calls) == 1
     request, timeout = calls[0]
     assert timeout == 6
@@ -441,6 +451,7 @@ def test_inventory_warning_uses_store_notify_group_webhook(tmp_path, monkeypatch
     payload = json.loads(request.data.decode("utf-8"))
     assert payload["msgtype"] == "text"
     assert "【熊小小仓库库存预警】" in payload["text"]["content"]
+    assert "每日16:00库存预警汇总" in payload["text"]["content"]
     assert "低库存商品（SKU-LOW）：库存 -2件，预警值 5件｜冷冻" in payload["text"]["content"]
 
 

@@ -155,3 +155,11 @@ def test_low_balance_notifications_only_follow_morning_and_afternoon_budget_runs
     assert '"--promo-balance-period", "上午"' in morning_text
     assert 'task_candidates.update(load_promo_balance_alert_tasks())' not in notifier_text
     assert 'choices=("上午", "下午")' in notifier_text
+
+
+def test_inventory_warning_is_installed_as_separate_4pm_notification():
+    installer = INSTALL_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'run_inventory_warning_daily.zsh' in installer
+    assert 'write_plist "com.summer.operation.inventory-warning-daily" 16 0' in installer
+    assert 'scripts/send_inventory_warning_daily.py' in installer

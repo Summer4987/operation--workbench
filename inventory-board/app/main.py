@@ -343,6 +343,12 @@ def inbound_template_status():
     }
 
 
+@app.post("/api/inventory/warnings/notify")
+def notify_daily_inventory_warnings(request: Request):
+    _require_agent_inbox_token(request)
+    return _notify_inventory_warning_daily(source="每日16:00库存预警汇总")
+
+
 @app.get("/api/promo-budget-overrides")
 def promo_budget_overrides(request: Request):
     _require_operation_auth(request)
@@ -2043,14 +2049,38 @@ def _notify_inventory_warning_for_skus(skus: set[str], source: str) -> None:
     if not warning_items:
         return
     text = _inventory_warning_message(warning_items, source)
+    _write_inventory_warning_log("deferred", f"已延迟到每日16:00汇总推送。\n\n{text}")
+
+
+def _all_inventory_warning_items() -> list[dict]:
+    return [
+        item
+        for item in inventory_summary()
+        if float(item.get("balance") or 0) <= float(item.get("warning_threshold") or 0)
+    ]
+
+
+def _notify_inventory_warning_daily(source: str = "每日16:00库存预警汇总") -> dict:
+    warning_items = _all_inventory_warning_items()
+    if not warning_items:
+        return {"status": "clear", "warning_count": 0, "message": "当前没有仓库库存预警，无需推送。"}
+    return _send_inventory_warning_items(warning_items, source)
+
+
+def _send_inventory_warning_items(warning_items: list[dict], source: str) -> dict:
+    text = _inventory_warning_message(warning_items, source)
     notify_type = _inventory_warning_notify_type()
     if notify_type == "hermes":
-        _notify_inventory_warning_with_hermes(text)
-        return
+        delivered = _notify_inventory_warning_with_hermes(text)
+        return {
+            "status": "sent" if delivered else "failed",
+            "warning_count": len(warning_items),
+            "message": "库存预警汇总已推送。" if delivered else "库存预警汇总推送失败。",
+        }
     webhook = _inventory_warning_webhook()
     if not webhook:
         _write_inventory_warning_log("skipped", text)
-        return
+        return {"status": "skipped", "warning_count": len(warning_items), "message": "库存预警通知通道未配置。"}
     if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
         body = {"msgtype": "text", "text": {"content": text}}
     else:
@@ -2060,8 +2090,10 @@ def _notify_inventory_warning_for_skus(skus: set[str], source: str) -> None:
     try:
         url_request.urlopen(req, timeout=6).read()
         _write_inventory_warning_log("sent", text)
+        return {"status": "sent", "warning_count": len(warning_items), "message": "库存预警汇总已推送。"}
     except Exception as exc:
         _write_inventory_warning_log("failed", f"{type(exc).__name__}: {exc}\n\n{text}")
+        return {"status": "failed", "warning_count": len(warning_items), "message": f"库存预警汇总推送失败：{exc}"}
 
 
 def _inventory_warning_message(items: list[dict], source: str) -> str:
@@ -2119,16 +2151,16 @@ def _write_inventory_warning_log(status: str, text: str) -> None:
         pass
 
 
-def _notify_inventory_warning_with_hermes(text: str) -> None:
+def _notify_inventory_warning_with_hermes(text: str) -> bool:
     if os.environ.get("INVENTORY_WARNING_NOTIFY_DRY_RUN", "").strip().lower() in {"1", "true", "yes", "on"}:
         _write_inventory_warning_log("dry-run", text)
-        return
+        return True
 
     hermes_bin = Path(os.environ.get("ORDER_HERMES_BIN", "~/.local/bin/hermes")).expanduser()
     target = os.environ.get("INVENTORY_WARNING_HERMES_TARGET", os.environ.get("ORDER_HERMES_TARGET", "")).strip()
     if not target:
         _write_inventory_warning_log("failed", "INVENTORY_WARNING_HERMES_TARGET 和 ORDER_HERMES_TARGET 均为空，已跳过库存预警发送")
-        return
+        return False
     try:
         completed = subprocess.run(
             [str(hermes_bin), "send", "--to", target, text],
@@ -2141,11 +2173,12 @@ def _notify_inventory_warning_with_hermes(text: str) -> None:
         )
     except Exception as exc:
         _write_inventory_warning_log("failed", f"{type(exc).__name__}: {exc}\n\n{text}")
-        return
+        return False
 
     status = "sent" if completed.returncode == 0 else "failed"
     output = (completed.stdout or "").strip()
     _write_inventory_warning_log(status, f"target={target}\nreturncode={completed.returncode}\noutput={output}\n\n{text}")
+    return completed.returncode == 0
 
 
 def _format_quantity(value) -> str:

@@ -594,6 +594,26 @@ export AI_BUSINESS_CENTER_ENV="production"
 EOF
 chmod +x "$SCRIPT_DIR/run_evening_budget.zsh"
 
+cat > "$SCRIPT_DIR/run_inventory_warning_daily.zsh" <<EOF
+#!/bin/zsh
+set -euo pipefail
+
+ROOT="${ROOT}"
+SECRETS_FILE="${SECRETS_FILE}"
+PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
+if [[ ! -x "\$PYTHON" ]]; then
+  PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+fi
+if [[ -r "\$SECRETS_FILE" ]]; then
+  set -a
+  source "\$SECRETS_FILE"
+  set +a
+fi
+cd "\$ROOT"
+"\$PYTHON" scripts/send_inventory_warning_daily.py
+EOF
+chmod +x "$SCRIPT_DIR/run_inventory_warning_daily.zsh"
+
 write_plist() {
   local label="$1"
   local hour="$2"
@@ -708,6 +728,7 @@ for old_label in \
   com.summer.operation.lunch-budget \
   com.summer.operation.evening \
   com.summer.operation.inventory-sync \
+  com.summer.operation.inventory-warning-daily \
   com.summer.operation.realtime-order-income
 do
   /bin/launchctl bootout "gui/$(id -u)" "$LAUNCH_DIR/${old_label}.plist" >/dev/null 2>&1 || true
@@ -716,6 +737,7 @@ done
 
 write_plist "com.summer.operation.morning" 8 0 "$SCRIPT_DIR/run_morning_ops.zsh" "$ROOT"
 write_realtime_plist
+write_plist "com.summer.operation.inventory-warning-daily" 16 0 "$SCRIPT_DIR/run_inventory_warning_daily.zsh" "$ROOT"
 write_plist "com.summer.operation.evening" 16 30 "$SCRIPT_DIR/run_evening_budget.zsh" "$ROOT"
 
 echo
@@ -723,5 +745,6 @@ echo "Mac mini 定时任务已安装。"
 echo "上午：每天 8:00 一键运营，采集完成后立即提交午餐推广预算"
 echo "实时：每天 10:30-13:00 每半小时、13:00-17:00 每小时、17:00-20:00 每半小时"
 echo "库存：已改为云端主流程，不再安装 10:10 本地同步"
+echo "库存预警：每天 16:00 单独汇总推送一次"
 echo "晚间：每天 16:30 推广预算真实提交"
 echo "launchd 日志目录：$LAUNCHD_LOG_DIR"
