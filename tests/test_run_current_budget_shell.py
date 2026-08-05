@@ -71,6 +71,7 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
     assert "REALTIME_COLLECT_RETRY_ATTEMPTS" in text
     assert "首次实时采集未通过完整性校验" in text
     assert text.count('"\\$ROOT/scripts/realtime_order_income.py"') == 2
+    assert '"$SOURCE_ROOT/config/ops_notify.json" != "$ROOT/config/ops_notify.json"' in text
 
 
 def test_data_only_deploy_verifies_direct_latest_from_stage_dir():

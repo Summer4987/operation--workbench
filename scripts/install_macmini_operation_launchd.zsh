@@ -14,7 +14,9 @@ mkdir -p "$LAUNCH_DIR" "$LAUNCHD_LOG_DIR" "$ROOT/morning-ops/logs" "$SCRIPT_DIR"
 # deliver their results after every reinstall or runtime refresh.
 if [ -r "$SOURCE_ROOT/config/ops_notify.json" ]; then
   mkdir -p "$ROOT/config"
-  /bin/cp "$SOURCE_ROOT/config/ops_notify.json" "$ROOT/config/ops_notify.json"
+  if [[ "$SOURCE_ROOT/config/ops_notify.json" != "$ROOT/config/ops_notify.json" ]]; then
+    /bin/cp "$SOURCE_ROOT/config/ops_notify.json" "$ROOT/config/ops_notify.json"
+  fi
   /bin/chmod 600 "$ROOT/config/ops_notify.json"
 fi
 
