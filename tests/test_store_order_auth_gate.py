@@ -455,6 +455,21 @@ def test_inventory_warning_changes_are_deferred_until_daily_summary(tmp_path, mo
     assert "低库存商品（SKU-LOW）：库存 -2件，预警值 5件｜冷冻" in payload["text"]["content"]
 
 
+def test_inventory_warning_daily_endpoint_uses_token_gate_without_operation_login(monkeypatch):
+    module = load_inventory_module()
+    monkeypatch.setenv("INVENTORY_PASSWORD", "operation-password")
+    monkeypatch.setenv("AGENT_INBOX_TOKEN", "inventory-warning-token")
+    monkeypatch.setattr(module, "_notify_inventory_warning_daily", lambda source: {"status": "clear"})
+
+    client = TestClient(module.app)
+    missing_token = client.post("/api/inventory/warnings/notify")
+    accepted = client.post("/api/inventory/warnings/notify?token=inventory-warning-token")
+
+    assert missing_token.status_code == 403
+    assert accepted.status_code == 200
+    assert accepted.json() == {"status": "clear"}
+
+
 def test_inventory_warning_hermes_uses_order_group_target(monkeypatch):
     module = load_inventory_module()
     monkeypatch.setenv("ORDER_NOTIFY_TYPE", "hermes")

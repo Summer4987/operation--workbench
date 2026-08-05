@@ -869,6 +869,8 @@ def _is_public_request(request: Request) -> bool:
         return True
     if path.startswith("/agent-wecom/inbox/"):
         return True
+    if path == "/api/inventory/warnings/notify":
+        return True
     if path == "/order-submit" or path.startswith("/order-file/") or path.startswith("/api/public-order/") or path.startswith("/api/order/files/"):
         return secrets.compare_digest(_request_token(request), _public_order_token())
     return False
