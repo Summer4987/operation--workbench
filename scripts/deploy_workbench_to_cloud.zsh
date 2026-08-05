@@ -33,6 +33,9 @@ run_optional() {
 }
 
 "$PYTHON" scripts/sync_promo_budget_overrides.py
+if [[ "$DEPLOY_MODE" != "data-only" ]]; then
+  "$PYTHON" business-report-dashboard/process_reports.py --render-existing
+fi
 run_optional "日报重点状态更新" "$PYTHON" scripts/build_daily_focus_status.py
 run_optional "评价待办状态更新" "$PYTHON" scripts/build_review_action_status.py
 run_optional "直营店日报看板生成" "$PYTHON" business-report-dashboard/process_direct_reports.py
@@ -313,6 +316,8 @@ else
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
   verify_remote_file "workbench.js" "$STAGE_DIR/workbench.js"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
+  verify_remote_file "business-report-dashboard/index.html" "$STAGE_DIR/business-report-dashboard/dashboard/index.html"
+  verify_remote_file "business-report-dashboard/data/latest.json" "$STAGE_DIR/business-report-dashboard/data/latest.json"
   verify_remote_file "franchise-contract-generator/index.html" "$STAGE_DIR/franchise-contract-generator/index.html"
   verify_remote_file "franchise-contract-generator/app.js" "$STAGE_DIR/franchise-contract-generator/app.js"
   verify_remote_file "floor-plan-designer/index.html" "$STAGE_DIR/floor-plan-designer/index.html"

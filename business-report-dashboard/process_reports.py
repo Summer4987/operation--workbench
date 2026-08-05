@@ -1878,13 +1878,36 @@ def resolve_input_files(
     )
 
 
+def render_existing_payload(payload_path: Path = DATA_DIR / "latest.json") -> dict:
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"日报数据格式不正确：{payload_path}")
+    if not payload.get("generated_at") or not latest_report_date(payload):
+        raise RuntimeError(f"日报数据缺少生成时间或有效日期：{payload_path}")
+    dashboard_path = write_dashboard(payload)
+    store_report_paths = write_store_reports(payload)
+    return {
+        "dashboard_path": str(dashboard_path),
+        "store_report_paths": [str(path) for path in store_report_paths],
+        "payload": payload,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成经营日报看板")
     parser.add_argument("--eleme", type=Path, help="饿了么 Excel 文件路径；不填则自动从下载目录找最新文件")
     parser.add_argument("--meituan", type=Path, help="美团 CSV 文件路径；不填则自动从下载目录找最新文件")
     parser.add_argument("--downloads-dir", type=Path, default=Path.home() / "Downloads", help="自动查找报表的下载目录")
     parser.add_argument("--allow-missing-platform", action="store_true", help="只处理显式传入的平台文件；缺失平台不自动使用历史文件")
+    parser.add_argument("--render-existing", action="store_true", help="从 data/latest.json 重新渲染页面，不重新解析或采集平台文件")
     args = parser.parse_args()
+
+    if args.render_existing:
+        result = render_existing_payload()
+        payload = result["payload"]
+        print(f"已从最新日报数据重新生成网页看板：{result['dashboard_path']}")
+        print(f"最新日期：{latest_report_date(payload)}，门店数：{len(payload.get('store_summary', []))}")
+        return
 
     eleme_path, meituan_path = resolve_input_files(
         args.eleme,
