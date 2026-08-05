@@ -20,10 +20,14 @@ enum WidgetSnapshotWriter {
 
         do {
             let data = try JSONEncoder.widgetEncoder.encode(snapshot)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try data.write(to: url, options: [.atomic])
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            assertionFailure("Failed to write widget snapshot: \(error)")
+            print("Failed to write widget snapshot: \(error)")
         }
     }
 

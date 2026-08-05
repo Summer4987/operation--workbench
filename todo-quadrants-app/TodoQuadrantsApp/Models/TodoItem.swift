@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class TodoItem {
-    var id: UUID
-    var title: String
-    var categoryRawValue: String
-    var quadrantRawValue: String
-    var isCompleted: Bool
-    var createdAt: Date
-    var updatedAt: Date
+    var id: UUID = UUID()
+    var title: String = ""
+    var categoryRawValue: String = TodoCategory.platform.rawValue
+    var quadrantRawValue: String = PriorityQuadrant.importantUrgent.rawValue
+    var isCompleted: Bool = false
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     var completedAt: Date?
 
     init(
