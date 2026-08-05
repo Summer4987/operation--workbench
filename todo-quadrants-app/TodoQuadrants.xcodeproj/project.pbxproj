@@ -1,0 +1,595 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		09222A4C485A068EAED34F28 /* TodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F001D966FF4429EA45E8AAD /* TodoItem.swift */; };
+		0E70390872BF48F765EBC753 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF610F14B8CE6A5C6C7AD73A /* ContentView.swift */; };
+		18A26BE0A68BD16876223062 /* TodoQuadrantsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */; };
+		18EB8A90EA5F6B8E0EA3220D /* TodoCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B624E2F3FBD92830CEF8F21 /* TodoCategory.swift */; };
+		1DD787B9AF54E9722B2BA92B /* TodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F001D966FF4429EA45E8AAD /* TodoItem.swift */; };
+		33F88E834CA0EC12ECFE84C5 /* PriorityQuadrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A056AADCA23CDA5A469DDA /* PriorityQuadrant.swift */; };
+		3A6A08CA3ECCD2B63E9F4B77 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B99128187B6EE92C61DC93 /* AppConstants.swift */; };
+		3E661758E2B3B4B2BD6EB40A /* CompletedListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7523186ED9730C11A453F5 /* CompletedListView.swift */; };
+		46828696174FB8711325691C /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */; };
+		4C7FC82000B4FA10FCBA3B7F /* CategoryComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E14413372B9ED44EA219C91 /* CategoryComposerView.swift */; };
+		51268771F1F57603070657EA /* TodoCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B624E2F3FBD92830CEF8F21 /* TodoCategory.swift */; };
+		5B872D58EB1C11D6F1E330CF /* CompletedListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7523186ED9730C11A453F5 /* CompletedListView.swift */; };
+		6143F38ED05B2EE8F594FDD7 /* TodoQuadrantsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5CA6B388E329DBD72DFD495E /* TodoQuadrantsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		78147407083F9FB265C39DB5 /* QuadrantGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27DD560FF8E72289546CAF0E /* QuadrantGridView.swift */; };
+		7F2244A7740ED27283363B38 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B99128187B6EE92C61DC93 /* AppConstants.swift */; };
+		8C5E97EFB384683517539F61 /* PriorityQuadrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A056AADCA23CDA5A469DDA /* PriorityQuadrant.swift */; };
+		93DB07FD04BABF5267587885 /* CategoryComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E14413372B9ED44EA219C91 /* CategoryComposerView.swift */; };
+		9837937B29502DB6859E0386 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */; };
+		A7A5B0D4E74FE7348FDF3325 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */; };
+		AB1BB1958337E30447DC746B /* WidgetSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD1BEB5E0F583774796D71E /* WidgetSnapshotWriter.swift */; };
+		ACF9240F296B4AA8492835DF /* TodoQuadrantsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */; };
+		B879830C7D6C44F68C435631 /* AppConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B99128187B6EE92C61DC93 /* AppConstants.swift */; };
+		BB6E34184432524F36C7E796 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF610F14B8CE6A5C6C7AD73A /* ContentView.swift */; };
+		C48349F6D534A8DBD230BC6D /* WidgetSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD1BEB5E0F583774796D71E /* WidgetSnapshotWriter.swift */; };
+		D18402B7E4EA272144CB055E /* TodoQuadrantsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BDCBAA009B1621B14420F2 /* TodoQuadrantsWidget.swift */; };
+		DE4029734A8882E60EB61AFC /* QuadrantGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27DD560FF8E72289546CAF0E /* QuadrantGridView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		80D9166F31F8A85C31EEFC3F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A4CF5A84E47741BAE6A484C9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2C02A14FDC11A543CB1F1CBE;
+			remoteInfo = TodoQuadrantsWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A81FAD42140F65C8850DBF66 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				6143F38ED05B2EE8F594FDD7 /* TodoQuadrantsWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoQuadrantsApp.swift; sourceTree = "<group>"; };
+		27DD560FF8E72289546CAF0E /* QuadrantGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuadrantGridView.swift; sourceTree = "<group>"; };
+		28BDCBAA009B1621B14420F2 /* TodoQuadrantsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoQuadrantsWidget.swift; sourceTree = "<group>"; };
+		2D516FAD812209DC152C5B1F /* TodoQuadrants macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "TodoQuadrants macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2D7523186ED9730C11A453F5 /* CompletedListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletedListView.swift; sourceTree = "<group>"; };
+		3F562E589C02C0C939B9516E /* TodoQuadrants iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "TodoQuadrants iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FD305891FE7FE4CE70653F4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		58450FED9E98FCD68A053401 /* TodoQuadrantsApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TodoQuadrantsApp.entitlements; sourceTree = "<group>"; };
+		5CA6B388E329DBD72DFD495E /* TodoQuadrantsWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TodoQuadrantsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		78B99128187B6EE92C61DC93 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
+		7E14413372B9ED44EA219C91 /* CategoryComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryComposerView.swift; sourceTree = "<group>"; };
+		8B624E2F3FBD92830CEF8F21 /* TodoCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoCategory.swift; sourceTree = "<group>"; };
+		9063EB6B507A1D28655469E5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		949A961DB23287C2F3E9DA91 /* TodoQuadrantsWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TodoQuadrantsWidget.entitlements; sourceTree = "<group>"; };
+		9F001D966FF4429EA45E8AAD /* TodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoItem.swift; sourceTree = "<group>"; };
+		B9A056AADCA23CDA5A469DDA /* PriorityQuadrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityQuadrant.swift; sourceTree = "<group>"; };
+		BDD1BEB5E0F583774796D71E /* WidgetSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotWriter.swift; sourceTree = "<group>"; };
+		CF610F14B8CE6A5C6C7AD73A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		49CE85AE1612652F18BCCBD5 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B9A056AADCA23CDA5A469DDA /* PriorityQuadrant.swift */,
+				8B624E2F3FBD92830CEF8F21 /* TodoCategory.swift */,
+				9F001D966FF4429EA45E8AAD /* TodoItem.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		4AB95559146FA8BFA486591E /* TodoQuadrantsWidget */ = {
+			isa = PBXGroup;
+			children = (
+				9063EB6B507A1D28655469E5 /* Info.plist */,
+				949A961DB23287C2F3E9DA91 /* TodoQuadrantsWidget.entitlements */,
+				28BDCBAA009B1621B14420F2 /* TodoQuadrantsWidget.swift */,
+			);
+			path = TodoQuadrantsWidget;
+			sourceTree = "<group>";
+		};
+		4AD93A9B2CD07AD802BF7457 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				BDD1BEB5E0F583774796D71E /* WidgetSnapshotWriter.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		6AFC3898775AAFEF323D42DC /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				78B99128187B6EE92C61DC93 /* AppConstants.swift */,
+				DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		6C39AA75A5071EBB66213E4C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3F562E589C02C0C939B9516E /* TodoQuadrants iOS.app */,
+				2D516FAD812209DC152C5B1F /* TodoQuadrants macOS.app */,
+				5CA6B388E329DBD72DFD495E /* TodoQuadrantsWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		922737031C148CC5173E8EC2 /* TodoQuadrantsApp */ = {
+			isa = PBXGroup;
+			children = (
+				4FD305891FE7FE4CE70653F4 /* Info.plist */,
+				58450FED9E98FCD68A053401 /* TodoQuadrantsApp.entitlements */,
+				04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */,
+				49CE85AE1612652F18BCCBD5 /* Models */,
+				4AD93A9B2CD07AD802BF7457 /* Services */,
+				9CA09D27CAB213CDD6FB81E4 /* Views */,
+			);
+			path = TodoQuadrantsApp;
+			sourceTree = "<group>";
+		};
+		9CA09D27CAB213CDD6FB81E4 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				7E14413372B9ED44EA219C91 /* CategoryComposerView.swift */,
+				2D7523186ED9730C11A453F5 /* CompletedListView.swift */,
+				CF610F14B8CE6A5C6C7AD73A /* ContentView.swift */,
+				27DD560FF8E72289546CAF0E /* QuadrantGridView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D5C3B125FB2D517A0699D927 = {
+			isa = PBXGroup;
+			children = (
+				6AFC3898775AAFEF323D42DC /* Shared */,
+				922737031C148CC5173E8EC2 /* TodoQuadrantsApp */,
+				4AB95559146FA8BFA486591E /* TodoQuadrantsWidget */,
+				6C39AA75A5071EBB66213E4C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0A0B91495BF22B488E1A719F /* TodoQuadrants macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0F617DE7CE72E201DB6F7B6F /* Build configuration list for PBXNativeTarget "TodoQuadrants macOS" */;
+			buildPhases = (
+				4BB25FA27410F2319DC1C07C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "TodoQuadrants macOS";
+			packageProductDependencies = (
+			);
+			productName = "TodoQuadrants macOS";
+			productReference = 2D516FAD812209DC152C5B1F /* TodoQuadrants macOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		2C02A14FDC11A543CB1F1CBE /* TodoQuadrantsWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A5B827A322ABE66EF69C679 /* Build configuration list for PBXNativeTarget "TodoQuadrantsWidget" */;
+			buildPhases = (
+				F532709C4B6B71B8DED0D0CF /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TodoQuadrantsWidget;
+			packageProductDependencies = (
+			);
+			productName = TodoQuadrantsWidget;
+			productReference = 5CA6B388E329DBD72DFD495E /* TodoQuadrantsWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		69B1AAED83605518D10EE746 /* TodoQuadrants iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAFD0DCED8AED8E17CB925E2 /* Build configuration list for PBXNativeTarget "TodoQuadrants iOS" */;
+			buildPhases = (
+				4C920ABAEC697D8F3C930FC6 /* Sources */,
+				A81FAD42140F65C8850DBF66 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C1A83B150A0D2FA60188CD4F /* PBXTargetDependency */,
+			);
+			name = "TodoQuadrants iOS";
+			packageProductDependencies = (
+			);
+			productName = "TodoQuadrants iOS";
+			productReference = 3F562E589C02C0C939B9516E /* TodoQuadrants iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A4CF5A84E47741BAE6A484C9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0A0B91495BF22B488E1A719F = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					2C02A14FDC11A543CB1F1CBE = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					69B1AAED83605518D10EE746 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A382680D04466D512739A4C1 /* Build configuration list for PBXProject "TodoQuadrants" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D5C3B125FB2D517A0699D927;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6C39AA75A5071EBB66213E4C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				69B1AAED83605518D10EE746 /* TodoQuadrants iOS */,
+				0A0B91495BF22B488E1A719F /* TodoQuadrants macOS */,
+				2C02A14FDC11A543CB1F1CBE /* TodoQuadrantsWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4BB25FA27410F2319DC1C07C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3A6A08CA3ECCD2B63E9F4B77 /* AppConstants.swift in Sources */,
+				4C7FC82000B4FA10FCBA3B7F /* CategoryComposerView.swift in Sources */,
+				3E661758E2B3B4B2BD6EB40A /* CompletedListView.swift in Sources */,
+				0E70390872BF48F765EBC753 /* ContentView.swift in Sources */,
+				8C5E97EFB384683517539F61 /* PriorityQuadrant.swift in Sources */,
+				78147407083F9FB265C39DB5 /* QuadrantGridView.swift in Sources */,
+				18EB8A90EA5F6B8E0EA3220D /* TodoCategory.swift in Sources */,
+				1DD787B9AF54E9722B2BA92B /* TodoItem.swift in Sources */,
+				18A26BE0A68BD16876223062 /* TodoQuadrantsApp.swift in Sources */,
+				9837937B29502DB6859E0386 /* WidgetSnapshot.swift in Sources */,
+				AB1BB1958337E30447DC746B /* WidgetSnapshotWriter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C920ABAEC697D8F3C930FC6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B879830C7D6C44F68C435631 /* AppConstants.swift in Sources */,
+				93DB07FD04BABF5267587885 /* CategoryComposerView.swift in Sources */,
+				5B872D58EB1C11D6F1E330CF /* CompletedListView.swift in Sources */,
+				BB6E34184432524F36C7E796 /* ContentView.swift in Sources */,
+				33F88E834CA0EC12ECFE84C5 /* PriorityQuadrant.swift in Sources */,
+				DE4029734A8882E60EB61AFC /* QuadrantGridView.swift in Sources */,
+				51268771F1F57603070657EA /* TodoCategory.swift in Sources */,
+				09222A4C485A068EAED34F28 /* TodoItem.swift in Sources */,
+				ACF9240F296B4AA8492835DF /* TodoQuadrantsApp.swift in Sources */,
+				46828696174FB8711325691C /* WidgetSnapshot.swift in Sources */,
+				C48349F6D534A8DBD230BC6D /* WidgetSnapshotWriter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F532709C4B6B71B8DED0D0CF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7F2244A7740ED27283363B38 /* AppConstants.swift in Sources */,
+				D18402B7E4EA272144CB055E /* TodoQuadrantsWidget.swift in Sources */,
+				A7A5B0D4E74FE7348FDF3325 /* WidgetSnapshot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C1A83B150A0D2FA60188CD4F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2C02A14FDC11A543CB1F1CBE /* TodoQuadrantsWidget */;
+			targetProxy = 80D9166F31F8A85C31EEFC3F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1957CE19CCAD9A02F670914A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsWidget/TodoQuadrantsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = TodoQuadrantsWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongxiaoxiao.todoquadrants.widget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		77133B39886FD19D79533D19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = TodoQuadrantsApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongxiaoxiao.todoquadrants.mac;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A1EF06516A56F1D3B15F5C6B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B19CD7598D89EEF4214BEFE4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = TodoQuadrantsApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongxiaoxiao.todoquadrants;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B5257970B689483F236CF543 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = TodoQuadrantsApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongxiaoxiao.todoquadrants;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D053298D4C870E74364C2F8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = TodoQuadrantsApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongxiaoxiao.todoquadrants.mac;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DFBF35AFBEA8AB2511C9F028 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsWidget/TodoQuadrantsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = TodoQuadrantsWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongxiaoxiao.todoquadrants.widget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		FF038E97A788E555B07A58CC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0F617DE7CE72E201DB6F7B6F /* Build configuration list for PBXNativeTarget "TodoQuadrants macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				77133B39886FD19D79533D19 /* Debug */,
+				D053298D4C870E74364C2F8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4A5B827A322ABE66EF69C679 /* Build configuration list for PBXNativeTarget "TodoQuadrantsWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1957CE19CCAD9A02F670914A /* Debug */,
+				DFBF35AFBEA8AB2511C9F028 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A382680D04466D512739A4C1 /* Build configuration list for PBXProject "TodoQuadrants" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1EF06516A56F1D3B15F5C6B /* Debug */,
+				FF038E97A788E555B07A58CC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AAFD0DCED8AED8E17CB925E2 /* Build configuration list for PBXNativeTarget "TodoQuadrants iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B19CD7598D89EEF4214BEFE4 /* Debug */,
+				B5257970B689483F236CF543 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A4CF5A84E47741BAE6A484C9 /* Project object */;
+}

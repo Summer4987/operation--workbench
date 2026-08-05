@@ -18,14 +18,13 @@
 这台机器当前只有 Command Line Tools，没有完整 Xcode，所以这里先提供源码和 `project.yml`。
 
 1. 安装 Xcode。
-2. 安装 XcodeGen：
+2. 工程已经生成在 `TodoQuadrants.xcodeproj`。如果后续改了 `project.yml`，再安装 XcodeGen 重新生成：
    ```bash
    brew install xcodegen
    ```
-3. 生成工程：
+3. 打开工程：
    ```bash
    cd "/Users/summer/Documents/New project/todo-quadrants-app"
-   xcodegen generate
    open TodoQuadrants.xcodeproj
    ```
 4. 在 Xcode 里选择你的 Apple Team。
