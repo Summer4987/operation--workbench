@@ -1,0 +1,52 @@
+name: TodoQuadrants
+options:
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+targets:
+  TodoQuadrants iOS:
+    type: application
+    platform: iOS
+    sources:
+      - Shared
+      - TodoQuadrantsApp
+    entitlements:
+      path: TodoQuadrantsApp/TodoQuadrantsApp.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongxiaoxiao.todoquadrants
+        INFOPLIST_FILE: TodoQuadrantsApp/Info.plist
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - target: TodoQuadrantsWidget
+  TodoQuadrants macOS:
+    type: application
+    platform: macOS
+    sources:
+      - Shared
+      - TodoQuadrantsApp
+    entitlements:
+      path: TodoQuadrantsApp/TodoQuadrantsApp.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongxiaoxiao.todoquadrants.mac
+        INFOPLIST_FILE: TodoQuadrantsApp/Info.plist
+        CODE_SIGN_STYLE: Automatic
+  TodoQuadrantsWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Shared
+      - TodoQuadrantsWidget
+    entitlements:
+      path: TodoQuadrantsWidget/TodoQuadrantsWidget.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongxiaoxiao.todoquadrants.widget
+        INFOPLIST_FILE: TodoQuadrantsWidget/Info.plist
+        CODE_SIGN_STYLE: Automatic
