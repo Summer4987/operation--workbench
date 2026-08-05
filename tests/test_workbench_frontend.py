@@ -12,6 +12,15 @@ class WorkbenchFrontendTests(unittest.TestCase):
 
         self.assertNotIn(".slice(0, 8)", realtime_section)
 
+    def test_realtime_missing_period_renders_two_snapshot_comparison_area(self) -> None:
+        page = (ROOT / "index.html").read_text(encoding="utf-8")
+        script = (ROOT / "workbench.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="realtimeSnapshotComparison"', page)
+        self.assertIn('realtimeComparison?.status !== "time_missing"', script)
+        self.assertIn("当前较该快照", script)
+        self.assertIn("仅供人工比对", script)
+
 
 if __name__ == "__main__":
     unittest.main()

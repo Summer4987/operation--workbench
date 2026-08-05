@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI管理系统</title>
-    <link rel="stylesheet" href="./workbench.css?v=20260620-flow-clear-v5" />
+    <link rel="stylesheet" href="./workbench.css?v=20260805-realtime-snapshots" />
   </head>
   <body>
     <main class="app">
@@ -91,6 +91,7 @@
               <div><span>当前营业额</span><strong id="realtimeIncome">-</strong></div>
               <div><span>昨日同时段</span><strong id="realtimeCompare">-</strong></div>
             </div>
+            <div class="realtime-snapshot-comparison" id="realtimeSnapshotComparison" hidden></div>
             <p class="realtime-meta" id="realtimeMeta">等待实时数据。</p>
             <div class="realtime-store-grid" id="realtimeStoreRows"></div>
           </article>
@@ -408,6 +409,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260620-flow-clear-v5"></script>
+    <script src="./workbench.js?v=20260805-realtime-snapshots"></script>
   </body>
 </html>

@@ -121,6 +121,7 @@ function comparisonLabel(currentIncome, currentOrders, previous) {
     const baseTime = realtimeComparison.matched_time ? realtimeComparison.matched_time.slice(11, 16) : "最近时刻";
     return `较昨日基准 ${baseTime} ${signedNumber(realtimeOrders.delta)} 单`;
   }
+  if (realtimeComparison?.status === "time_missing") return realtimeComparison.message || "昨日同时段数据缺失";
   if (!previous || previous.status === "missing") return previous?.message || "昨日暂无可用实时历史数据，明天开始生成";
   const previousIncome = Number(previous.income ?? previous.total_income ?? 0);
   const previousOrders = Number(previous.orders ?? previous.total_orders ?? 0);
@@ -129,6 +130,42 @@ function comparisonLabel(currentIncome, currentOrders, previous) {
   const moneyText = `${incomeDelta >= 0 ? "+" : "-"}${yuan(Math.abs(incomeDelta))}`;
   const orderText = `${orderDelta >= 0 ? "+" : "-"}${num(Math.abs(orderDelta))} 单`;
   return `较昨日基准 ${moneyText} / ${orderText}`;
+}
+
+function renderRealtimeSnapshotComparison(realtimeComparison) {
+  const el = document.querySelector("#realtimeSnapshotComparison");
+  if (!el) return;
+  const snapshots = realtimeComparison?.nearest_snapshots || [];
+  if (realtimeComparison?.status !== "time_missing" || !snapshots.length) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  const targetTime = realtimeComparison.target_time ? realtimeComparison.target_time.slice(11, 16) : "目标时刻";
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="realtime-comparison-warning">
+      <strong>昨日 ${escapeHtml(targetTime)} 同时段数据缺失</strong>
+      <span>${escapeHtml(realtimeComparison.detail || "以下为前后最近的成功快照，仅供人工比对，不参与同时段涨跌结论。")}</span>
+    </div>
+    <div class="realtime-snapshot-grid">
+      ${snapshots.map((snapshot) => {
+        const summary = snapshot.summary || {};
+        const relation = snapshot.relation === "before" ? "此前最近" : snapshot.relation === "after" ? "此后最近" : "附近快照";
+        const orderDelta = Number(summary.current_order_delta || 0);
+        const incomeDelta = Number(summary.current_income_delta || 0);
+        const incomeDeltaText = `${incomeDelta >= 0 ? "+" : "-"}${yuan(Math.abs(incomeDelta))}`;
+        return `
+          <article class="realtime-snapshot-card">
+            <div><span>${escapeHtml(relation)}</span><strong>${escapeHtml(snapshot.time_label || snapshot.generated_at || "-")}</strong></div>
+            <dl>
+              <div><dt>成功快照单量</dt><dd>${num(summary.orders || 0)} 单</dd></div>
+              <div><dt>成功快照营业额</dt><dd>${yuan(summary.income || 0)}</dd></div>
+            </dl>
+            <p>当前较该快照：${signedNumber(orderDelta)} 单 / ${escapeHtml(incomeDeltaText)}</p>
+          </article>`;
+      }).join("")}
+    </div>`;
 }
 
 function signedNumber(value) {
@@ -442,6 +479,7 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace(/^较/, ""));
   document.querySelector("#realtimeCompare")?.classList.remove("trend-up", "trend-down", "trend-flat");
   document.querySelector("#realtimeCompare")?.classList.add(trendClass(Number(realtimeComparison?.summary?.orders?.delta || 0)));
+  renderRealtimeSnapshotComparison(realtimeComparison);
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtimeStatusText);
   text("realtimeMeta", realtime.anomaly_reason || `最近成功：${generatedAt}，覆盖 ${covered || 0} 家门店，当前缺失 ${missing} 个平台门店，最近失败缺失 ${failedPlatformStoreCount} 个。${comparisonBaseText}${collectionIssue && collectionStatus !== "ok" ? ` ${collectionIssue}` : ""}`);

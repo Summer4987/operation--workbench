@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_PATH = ROOT / "workbench-data.js"
 DATA_DIR = ROOT / "data"
 REALTIME_HISTORY_PATH = DATA_DIR / "realtime-history.json"
+REALTIME_SAME_PERIOD_TOLERANCE_MINUTES = 10
 MORNING_COLLECTION_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 REALTIME_COLLECTION_STATUS_PATH = ROOT / "outputs" / "realtime_order_income_status" / "latest.json"
 REVIEW_ACTION_STATUS_PATH = ROOT / "outputs" / "review_action_status" / "latest.json"
@@ -438,6 +439,9 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
         item_time = parse_time(item.get("generated_at"))
         if not item_time or item.get("generated_at") == realtime.get("generated_at"):
             continue
+        item_status = str(item.get("status") or "").lower()
+        if item_status and item_status not in {"ok", "ready", "success"}:
+            continue
         if item_time.date() != target_time.date():
             continue
         delta = abs((item_time - target_time).total_seconds())
@@ -449,9 +453,56 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
             "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-    _, previous_time, previous = sorted(candidates, key=lambda item: item[0])[0]
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    _, previous_time, previous = candidates[0]
     match_delta_minutes = round(abs((previous_time - target_time).total_seconds()) / 60)
     current_summary = realtime.get("summary") or {}
+    if abs((previous_time - target_time).total_seconds()) > REALTIME_SAME_PERIOD_TOLERANCE_MINUTES * 60:
+        before = sorted((item for item in candidates if item[1] <= target_time), key=lambda item: item[1], reverse=True)
+        after = sorted((item for item in candidates if item[1] > target_time), key=lambda item: item[1])
+        selected = []
+        if before:
+            selected.append(before[0])
+        if after:
+            selected.append(after[0])
+        selected_times = {item[1] for item in selected}
+        for candidate in candidates:
+            if len(selected) >= 2:
+                break
+            if candidate[1] not in selected_times:
+                selected.append(candidate)
+                selected_times.add(candidate[1])
+
+        nearest_snapshots = []
+        for delta, snapshot_time, snapshot in sorted(selected, key=lambda item: item[1]):
+            snapshot_summary = snapshot.get("summary") or {}
+            snapshot_orders = float(snapshot_summary.get("total_orders") or 0)
+            snapshot_income = float(snapshot_summary.get("total_income") or 0)
+            current_orders = float(current_summary.get("total_orders") or 0)
+            current_income = float(current_summary.get("total_income") or 0)
+            nearest_snapshots.append(
+                {
+                    "generated_at": snapshot_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "time_label": snapshot_time.strftime("%Y-%m-%d %H:%M"),
+                    "relation": "before" if snapshot_time <= target_time else "after",
+                    "delta_minutes": round(delta / 60),
+                    "summary": {
+                        "orders": snapshot_orders,
+                        "income": snapshot_income,
+                        "current_order_delta": current_orders - snapshot_orders,
+                        "current_income_delta": current_income - snapshot_income,
+                    },
+                }
+            )
+        return {
+            "status": "time_missing",
+            "message": "昨日同时段数据缺失",
+            "detail": f"目标时刻 {target_time.strftime('%H:%M')} 前后 {REALTIME_SAME_PERIOD_TOLERANCE_MINUTES} 分钟内没有成功快照，以下展示前后最近的成功快照供人工比对。",
+            "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "same_period_tolerance_minutes": REALTIME_SAME_PERIOD_TOLERANCE_MINUTES,
+            "nearest_snapshots": nearest_snapshots,
+        }
+
     previous_summary = previous.get("summary") or {}
     previous_stores = {item.get("store"): item for item in previous.get("stores") or []}
     stores = []
@@ -482,7 +533,7 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
 
     return {
         "status": "ready",
-        "message": f"已对比昨日最接近时刻 {previous_time.strftime('%H:%M')}",
+        "message": f"已对比昨日同时段 {previous_time.strftime('%H:%M')}",
         "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
         "matched_time": previous_time.strftime("%Y-%m-%d %H:%M:%S"),
         "matched_time_label": previous_time.strftime("%Y-%m-%d %H:%M"),
