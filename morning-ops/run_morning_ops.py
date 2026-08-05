@@ -29,6 +29,7 @@ EVIDENCE_UPLOAD_RUNNER = WORKSPACE / "scripts" / "upload_store_inspection_eviden
 DAILY_FOCUS_STATUS_RUNNER = WORKSPACE / "scripts" / "build_daily_focus_status.py"
 REVIEW_ACTION_STATUS_RUNNER = WORKSPACE / "scripts" / "build_review_action_status.py"
 PROMO_BALANCE_STATUS_RUNNER = WORKSPACE / "scripts" / "build_promo_balance_status.py"
+PROMO_BALANCE_NOTIFY_RUNNER = WORKSPACE / "scripts" / "agent_task_notifier.py"
 LOGIN_PREFLIGHT_RUNNER = WORKSPACE / "scripts" / "check_platform_login_preflight.py"
 ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
 PROMO_PREVIEW_RUNNER = WORKSPACE / "scripts" / "build_promo_budget_preview.mjs"
@@ -466,6 +467,12 @@ def main() -> int:
                 )
                 if result.returncode != 0:
                     add_failure(failures, f"美团{budget_period}预算", result)
+                run_step(
+                    "上午推广低余额通知",
+                    [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER), "--promo-balance-period", "上午"],
+                    required=False,
+                    timeout_seconds=60,
+                )
             result = run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False)
             if result.returncode != 0:
                 add_failure(failures, "运营总看板", result)

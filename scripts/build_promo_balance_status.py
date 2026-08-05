@@ -29,6 +29,13 @@ PLATFORM_TOKENS = {
     "美团": ("meituan", "美团"),
 }
 EVIDENCE_SUFFIXES = {".png", ".jpg", ".jpeg", ".json"}
+MEITUAN_LOW_BALANCE_EXCLUDED_STORE_KEYWORDS = (
+    "朝阳门",
+    "银泰城",
+    "万象城",
+    "金融城",
+    "保利中心",
+)
 
 RECOVERY_GUIDES = {
     "permission": {
@@ -279,26 +286,57 @@ def unconfirmed_balance_items(payload: dict) -> list[dict]:
     return items
 
 
+def is_meituan_low_balance_excluded(item: dict) -> bool:
+    if str(item.get("platform") or "").strip() != "美团":
+        return False
+    store_name = str(item.get("store_name") or item.get("store") or "")
+    return any(keyword in store_name for keyword in MEITUAN_LOW_BALANCE_EXCLUDED_STORE_KEYWORDS)
+
+
+def is_low_balance_candidate(item: dict, threshold: float) -> bool:
+    if is_unconfirmed_zero_balance(item):
+        return False
+    balance = float(item.get("balance") or 0)
+    return item.get("status") == "warning" or balance <= threshold
+
+
 def low_balance_items(payload: dict) -> list[dict]:
     threshold = float(payload.get("threshold") or 100)
     warnings: list[dict] = []
     for item in balance_items(payload):
-        if is_unconfirmed_zero_balance(item):
+        if not is_low_balance_candidate(item, threshold) or is_meituan_low_balance_excluded(item):
             continue
         balance = float(item.get("balance") or 0)
-        if item.get("status") == "warning" or balance <= threshold:
-            warnings.append(
-                {
-                    "platform": item.get("platform", ""),
-                    "store_name": item.get("store_name") or item.get("store") or "",
-                    "balance": balance,
-                    "threshold": threshold,
-                    "status": "warning",
-                    "message": item.get("message") or "推广余额低于预警阈值。",
-                    "human_action": "先充值低余额门店，再执行预算或出价自动化。",
-                }
-            )
+        warnings.append(
+            {
+                "platform": item.get("platform", ""),
+                "store_name": item.get("store_name") or item.get("store") or "",
+                "balance": balance,
+                "threshold": threshold,
+                "status": "warning",
+                "message": item.get("message") or "推广余额低于预警阈值。",
+                "human_action": "先充值低余额门店，再执行预算或出价自动化。",
+            }
+        )
     return warnings
+
+
+def excluded_low_balance_items(payload: dict) -> list[dict]:
+    threshold = float(payload.get("threshold") or 100)
+    excluded = []
+    for item in balance_items(payload):
+        if not is_low_balance_candidate(item, threshold) or not is_meituan_low_balance_excluded(item):
+            continue
+        excluded.append(
+            {
+                "platform": "美团",
+                "store_name": item.get("store_name") or item.get("store") or "",
+                "balance": float(item.get("balance") or 0),
+                "threshold": threshold,
+                "reason": "该直营门店美团余额不纳入低余额预警和企业微信低余额推送。",
+            }
+        )
+    return excluded
 
 
 def platform_rows(payload: dict, failures: list[dict]) -> list[dict]:
@@ -378,6 +416,7 @@ def build_status(payload: dict) -> dict:
     direct_coverage = build_direct_coverage(items, {"饿了么", "美团"})
     coverage_rows = direct_coverage_rows(payload)
     warnings = [] if is_stale else low_balance_items(payload)
+    excluded_warnings = [] if is_stale else excluded_low_balance_items(payload)
     unconfirmed_items = [] if is_stale else unconfirmed_balance_items(payload)
     platform_failure_count = len(failures)
     coverage_missing_count = sum(len(row.get("missing_stores") or []) for row in coverage_rows)
@@ -450,6 +489,7 @@ def build_status(payload: dict) -> dict:
             "platform_failure_count": platform_failure_count,
             "direct_coverage_missing_count": coverage_missing_count,
             "low_balance_count": low_balance_count,
+            "excluded_low_balance_count": len(excluded_warnings),
             "balance_unconfirmed_count": unconfirmed_count,
             "store_count": store_count,
             "platform_count": platform_count,
@@ -472,6 +512,7 @@ def build_status(payload: dict) -> dict:
         "direct_coverage": direct_coverage,
         "direct_coverage_issues": coverage_rows,
         "low_balance_items": warnings,
+        "excluded_low_balance_items": excluded_warnings,
         "unconfirmed_balance_items": unconfirmed_items,
         "recharge_plan": recharge,
     }

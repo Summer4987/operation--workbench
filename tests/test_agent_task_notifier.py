@@ -285,6 +285,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
                     "include_unconfigured": False,
                 },
             )()
+            args.promo_balance_period = "上午"
             original_loader = self.notifier.load_promo_balance_alert_tasks
             try:
                 self.notifier.load_promo_balance_alert_tasks = lambda: original_loader(balance_path)
@@ -302,6 +303,64 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertIn("1. 美团 丽泽门店：余额 184.58 元", notice["message"])
             self.assertIn("2. 饿了么 望京店：余额 47.68 元", notice["message"])
             self.assertIn("先充值低余额门店", notice["message"])
+
+            try:
+                self.notifier.load_promo_balance_alert_tasks = lambda: original_loader(balance_path)
+                second_payload = self.notifier.notify(args)
+                self.assertEqual(second_payload["notification_count"], 0)
+
+                args.promo_balance_period = "下午"
+                afternoon_payload = self.notifier.notify(args)
+                self.assertEqual(afternoon_payload["notification_count"], 1)
+            finally:
+                self.notifier.load_promo_balance_alert_tasks = original_loader
+
+    def test_generic_notifier_does_not_push_low_balance_refreshes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            balance_path = tmp_path / "promo_balance_status.json"
+            runs_path.write_text(json.dumps({"tasks": {}}, ensure_ascii=False), encoding="utf-8")
+            balance_path.write_text(
+                json.dumps(
+                    {
+                        "status": "warning",
+                        "source_generated_at": "2026-07-26 09:15:00",
+                        "summary": {"low_balance_count": 1, "source_is_stale": False},
+                        "low_balance_items": [
+                            {"platform": "饿了么", "store_name": "望京店", "balance": 47.68, "threshold": 200}
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": True,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                    "promo_balance_period": "",
+                },
+            )()
+            original_loader = self.notifier.load_promo_balance_alert_tasks
+            try:
+                self.notifier.load_promo_balance_alert_tasks = lambda: original_loader(balance_path)
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_promo_balance_alert_tasks = original_loader
+
+            self.assertEqual(payload["notification_count"], 0)
 
     def test_notify_skips_stale_low_balance_alert(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

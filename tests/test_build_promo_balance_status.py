@@ -69,27 +69,50 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
         self.assertEqual(len(status["low_balance_items"]), 1)
         self.assertFalse(status["summary"]["source_is_stale"])
 
-    def test_direct_meituan_low_balance_is_not_filtered(self) -> None:
+    def test_selected_direct_meituan_stores_are_excluded_from_low_balance_warning(self) -> None:
         payload = {
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "threshold": 200,
             "items": [
                 {
                     "platform": "美团",
-                    "store_name": "朝阳门店",
+                    "store_name": f"熊小小牛排饭POKEBEAR（{store_name}）",
                     "balance": 31.89,
                     "status": "warning",
                     "source": "Chrome CDP接口读取",
                 }
+                for store_name in ("朝阳门店", "银泰城店", "万象城店", "金融城店", "保利中心店")
+            ]
+            + [
+                {
+                    "platform": "饿了么",
+                    "store_name": "朝阳门店",
+                    "balance": 20,
+                    "status": "warning",
+                    "source": "Chrome CDP接口读取",
+                },
+                {
+                    "platform": "美团",
+                    "store_name": "金融街店",
+                    "balance": 50,
+                    "status": "warning",
+                    "source": "Chrome CDP接口读取",
+                },
             ],
-            "summary": {"store_count": 1, "platform_count": 1, "warning_count": 1},
+            "summary": {"store_count": 7, "platform_count": 2, "warning_count": 7},
         }
 
         status = self.module.build_status(payload)
 
-        self.assertEqual(status["summary"]["store_count"], 1)
-        self.assertEqual(status["summary"]["low_balance_count"], 1)
-        self.assertEqual(status["low_balance_items"][0]["store_name"], "朝阳门店")
+        self.assertEqual(status["summary"]["store_count"], 7)
+        self.assertEqual(status["summary"]["low_balance_count"], 2)
+        self.assertEqual(status["summary"]["excluded_low_balance_count"], 5)
+        self.assertEqual(
+            {(item["platform"], item["store_name"]) for item in status["low_balance_items"]},
+            {("饿了么", "朝阳门店"), ("美团", "金融街店")},
+        )
+        self.assertEqual(len(status["excluded_low_balance_items"]), 5)
+        self.assertEqual(status["recharge_plan"]["item_count"], 2)
         self.assertGreater(status["direct_coverage"]["expected_count"], 5)
 
 

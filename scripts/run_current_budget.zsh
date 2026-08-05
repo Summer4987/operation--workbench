@@ -309,6 +309,17 @@ else
 fi
 
 echo
+if [[ "$MODE" == "commit" ]]; then
+  if [[ "$PERIOD" == "午餐" ]]; then
+    BALANCE_NOTIFY_PERIOD="上午"
+  else
+    BALANCE_NOTIFY_PERIOD="下午"
+  fi
+  run_budget_step "${BALANCE_NOTIFY_PERIOD}推广低余额通知" "${PROMO_BALANCE_NOTIFY_TIMEOUT_SECONDS:-60}" 1 \
+    "$PYTHON" scripts/agent_task_notifier.py --promo-balance-period "$BALANCE_NOTIFY_PERIOD" || true
+fi
+
+echo
 echo "刷新运营总看板数据..."
 run_budget_step "推广预算重试策略刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_promo_budget_retry_plan.py || true
 run_budget_step "运营总看板数据刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_workbench_data.py || true

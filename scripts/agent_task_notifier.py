@@ -100,6 +100,9 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def task_signature(task: dict[str, Any]) -> str:
+    notification_slot = str(task.get("notification_slot") or "")
+    if notification_slot:
+        return f"notification_slot|{notification_slot}"
     return "|".join(
         [
             str(task.get("status") or ""),
@@ -379,14 +382,20 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     consecutive_failures = int(previous_state.get("consecutive_failures") or 0)
     now = time.time()
     policy_rows = load_policy_rows()
-    task_candidates = dict(tasks)
-    for task_id, task in load_schedule_issue_tasks().items():
-        label = ((task.get("extra") or {}).get("launchd_label") or "") if isinstance(task, dict) else ""
-        mapped_task_id = hermes_schedule_status.LABEL_TASK_IDS.get(str(label), "")
-        if mapped_task_id and mapped_task_id in tasks:
-            continue
-        task_candidates[task_id] = task
-    task_candidates.update(load_promo_balance_alert_tasks())
+    promo_balance_period = str(getattr(args, "promo_balance_period", "") or "")
+    if promo_balance_period:
+        task_candidates = load_promo_balance_alert_tasks()
+        notification_slot = f"{time.strftime('%Y-%m-%d')}|{promo_balance_period}"
+        for task in task_candidates.values():
+            task["notification_slot"] = notification_slot
+    else:
+        task_candidates = dict(tasks)
+        for task_id, task in load_schedule_issue_tasks().items():
+            label = ((task.get("extra") or {}).get("launchd_label") or "") if isinstance(task, dict) else ""
+            mapped_task_id = hermes_schedule_status.LABEL_TASK_IDS.get(str(label), "")
+            if mapped_task_id and mapped_task_id in tasks:
+                continue
+            task_candidates[task_id] = task
     notifications = []
     pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
@@ -484,6 +493,12 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="只打印将发送的通知，不实际发送")
     parser.add_argument("--no-write", action="store_true", help="不写 state/log 文件")
     parser.add_argument("--include-unconfigured", action="store_true", help="允许未进入通知配置的任务主动推送")
+    parser.add_argument(
+        "--promo-balance-period",
+        choices=("上午", "下午"),
+        default="",
+        help="只在上午或下午推广设置完成后推送一次低余额通知；不传时通用通知器不推送低余额。",
+    )
     args = parser.parse_args()
 
     payload = notify(args)

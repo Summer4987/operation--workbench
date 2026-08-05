@@ -143,3 +143,14 @@ def test_promo_balance_refresh_collects_builds_and_deploys_data_only():
     assert "promo_balance_refresh.lock" in text
     assert 'for hour in {9..20}' in installer
     assert "<integer>15</integer>" in installer
+
+
+def test_low_balance_notifications_only_follow_morning_and_afternoon_budget_runs():
+    budget_text = SCRIPT.read_text(encoding="utf-8")
+    morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")
+    notifier_text = (ROOT / "scripts" / "agent_task_notifier.py").read_text(encoding="utf-8")
+
+    assert '--promo-balance-period "$BALANCE_NOTIFY_PERIOD"' in budget_text
+    assert '"--promo-balance-period", "上午"' in morning_text
+    assert 'task_candidates.update(load_promo_balance_alert_tasks())' not in notifier_text
+    assert 'choices=("上午", "下午")' in notifier_text
