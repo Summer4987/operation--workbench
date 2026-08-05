@@ -155,6 +155,14 @@ window.DIANJIN_RULES = {
       "minBid": 0.5,
       "shopId": 544830199,
       "elemeFullName": "熊小小牛排饭POKEBEAR(望京店)"
+    },
+    {
+      "name": "滨江店",
+      "lunchBudget": 100,
+      "dinnerBudget": 150,
+      "minBid": 0.5,
+      "shopId": 545055537,
+      "elemeFullName": "熊小小牛排饭POKEBEAR(滨江店)"
     }
   ],
   "enrichedAt": "2026-06-03T11:03:47.729Z",

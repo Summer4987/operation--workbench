@@ -44,6 +44,7 @@ function matchMeituanName(storeName) {
     "安贞店": "熊小小牛排饭POKEBEAR（安贞店）",
     "五一广场店": "熊小小牛排饭POKEBEAR（五一广场店）",
     "望京店": "熊小小牛排饭POKEBEAR（望京店）",
+    "滨江店": "熊小小牛排饭POKEBEAR(滨江店)",
   };
   return map[storeName] || "";
 }
@@ -180,6 +181,7 @@ function meituanKeyword(storeName) {
     "安贞店": "安贞",
     "五一广场店": "五一广场",
     "望京店": "望京",
+    "滨江店": "滨江",
   };
   return map[storeName] || "";
 }
