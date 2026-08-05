@@ -72,6 +72,7 @@ const meituanDinner = rules.stores
 function meituanTask(store, period) {
   const directAccount = directMeituanAccountForStore(store.name);
   const meituanName = matchMeituanName(store.name);
+  const promoEnabled = store.meituanPromoEnabled !== false;
   const targetBudget = budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
   return {
     platform: "美团",
@@ -82,11 +83,14 @@ function meituanTask(store, period) {
     time: period === "午餐" ? "上午运营按钮" : "16:30",
     type: "budget",
     targetBudget,
-    status: meituanName ? "auto" : "unmatched",
+    status: meituanName ? (promoEnabled ? "auto" : "platform_unavailable") : "unmatched",
+    unavailableReason: promoEnabled ? "" : (store.meituanPromoDisabledReason || "美团尚未开放推广入口"),
     directMeituanAccountId: directAccount?.id || "",
-    action: meituanName
+    action: meituanName && promoEnabled
       ? `自动设置${period}预算 ${targetBudget} 元`
-      : "未匹配到美团门店，需人工确认",
+      : meituanName
+        ? (store.meituanPromoDisabledReason || "美团尚未开放推广入口")
+        : "未匹配到美团门店，需人工确认",
   };
 }
 
@@ -101,10 +105,11 @@ const payload = {
   summary: {
     eleme_lunch_count: elemeLunch.length,
     eleme_dinner_count: elemeDinner.length,
-    meituan_lunch_auto_count: meituanLunch.length,
-    meituan_dinner_auto_count: meituanDinner.length,
-    total_initial_budget_items: elemeLunch.length + meituanLunch.length,
-    total_dinner_budget_items: elemeDinner.length + meituanDinner.length,
+    meituan_lunch_auto_count: meituanLunch.filter((item) => item.status === "auto").length,
+    meituan_dinner_auto_count: meituanDinner.filter((item) => item.status === "auto").length,
+    meituan_unavailable_count: meituanLunch.filter((item) => item.status === "platform_unavailable").length,
+    total_initial_budget_items: elemeLunch.length + meituanLunch.filter((item) => item.status === "auto").length,
+    total_dinner_budget_items: elemeDinner.length + meituanDinner.filter((item) => item.status === "auto").length,
   },
   eleme_lunch: elemeLunch.map((task) => ({
     platform: task.platform,

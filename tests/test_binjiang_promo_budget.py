@@ -18,6 +18,8 @@ class BinjiangPromoBudgetTests(unittest.TestCase):
         self.assertEqual(store["shopId"], 545055537)
         self.assertEqual((store["lunchBudget"], store["dinnerBudget"]), (100, 150))
         self.assertEqual(store["elemeFullName"], "熊小小牛排饭POKEBEAR(滨江店)")
+        self.assertIs(store["meituanPromoEnabled"], False)
+        self.assertIn("未开放门店推广入口", store["meituanPromoDisabledReason"])
 
         overrides = json.loads((ROOT / "config" / "promo_budget_overrides.json").read_text(encoding="utf-8"))
         self.assertEqual(overrides["stores"]["滨江店"]["饿了么"]["lunchBudget"], 100)

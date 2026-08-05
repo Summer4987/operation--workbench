@@ -162,7 +162,9 @@ window.DIANJIN_RULES = {
       "dinnerBudget": 150,
       "minBid": 0.5,
       "shopId": 545055537,
-      "elemeFullName": "熊小小牛排饭POKEBEAR(滨江店)"
+      "elemeFullName": "熊小小牛排饭POKEBEAR(滨江店)",
+      "meituanPromoEnabled": false,
+      "meituanPromoDisabledReason": "美团后台当前仅显示“仅接受预订”，未开放门店推广入口"
     }
   ],
   "enrichedAt": "2026-06-03T11:03:47.729Z",
