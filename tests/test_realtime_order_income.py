@@ -266,6 +266,43 @@ def test_meituan_page_row_validation_flags_bad_ticket():
     assert "客单价异常" in errors[0]
 
 
+def test_meituan_page_row_validation_allows_real_high_ticket():
+    errors = realtime_validation_errors(
+        [
+            {
+                "platform": "美团",
+                "store": "金融街",
+                "orders": 9,
+                "income": 1109.66,
+                "source": "page",
+                "raw": "金融街 1109.66 575.64 1451.10 510.80 1278.40 607.10 9 6 142.04 97.29",
+            }
+        ],
+        {"meituan_page_row_validation": {"min_ticket": 8, "max_ticket": 300}},
+    )
+
+    assert errors == []
+
+
+def test_meituan_page_row_validation_still_flags_extreme_ticket():
+    errors = realtime_validation_errors(
+        [
+            {
+                "platform": "美团",
+                "store": "金融街",
+                "orders": 2,
+                "income": 1000,
+                "source": "page",
+                "raw": "bad row",
+            }
+        ],
+        {"meituan_page_row_validation": {"min_ticket": 8, "max_ticket": 300}},
+    )
+
+    assert errors
+    assert "客单价异常" in errors[0]
+
+
 def test_payload_marks_missing_income_as_partial():
     record = build_api_record(
         {

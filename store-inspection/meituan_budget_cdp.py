@@ -430,18 +430,35 @@ def enter_dianjin(page) -> None:
     raise RuntimeError("进入点金推广后没有预算区域")
 
 
+def promo_navigation_url(target_url: str) -> str:
+    """Open promo inner routes through the Meituan merchant shell.
+
+    The authenticated ``waimaieapp`` route is an iframe route. Meituan can
+    leave it as a blank page when it is opened as a top-level document, while
+    the same route renders normally inside ``e.waimai.meituan.com``.
+    """
+    if target_url.startswith("https://waimaieapp.meituan.com/"):
+        return f"https://e.waimai.meituan.com/#{target_url}"
+    return target_url
+
+
 def enter_dianjin_with_recovery(page, target_url: str) -> None:
     errors: list[str] = []
+    recovery_url = promo_navigation_url(target_url)
     for attempt in range(3):
         try:
             enter_dianjin(page)
             return
         except Exception as exc:
             errors.append(str(exc))
-            if attempt == 0:
+            if attempt >= 2:
+                break
+            if page.url != recovery_url:
+                page.goto(recovery_url, wait_until="domcontentloaded", timeout=30000)
+            elif attempt == 0:
                 page.reload(wait_until="domcontentloaded", timeout=30000)
             else:
-                page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+                page.goto(recovery_url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(8)
     raise RuntimeError("没有可见的点金推广入口；重试后仍失败：" + "；".join(errors[-2:]))
 
@@ -804,7 +821,7 @@ def read_committed_budget_after_save(page, target_url: str) -> float | None:
     try:
         page.reload(wait_until="domcontentloaded", timeout=30000)
     except Exception:
-        page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+        page.goto(promo_navigation_url(target_url), wait_until="domcontentloaded", timeout=30000)
     time.sleep(5)
     enter_dianjin_with_recovery(page, target_url)
     wait_setting_ready(page)
@@ -885,7 +902,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     }
     try:
         if created_page:
-            page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            page.goto(promo_navigation_url(target_url), wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
         enter_dianjin_with_recovery(page, target_url)
         ready = wait_setting_ready(page)

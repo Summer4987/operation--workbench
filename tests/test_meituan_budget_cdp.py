@@ -193,6 +193,16 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertEqual(self.module.recent_promo_landing_url_from_page(FakePage(landing)), landing)
 
+    def test_promo_navigation_wraps_authenticated_inner_route(self) -> None:
+        inner = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&wmPoiId=30703865#/index"
+
+        self.assertEqual(
+            self.module.promo_navigation_url(inner),
+            f"https://e.waimai.meituan.com/#{inner}",
+        )
+        outer = f"https://e.waimai.meituan.com/#{inner}"
+        self.assertEqual(self.module.promo_navigation_url(outer), outer)
+
     def test_direct_task_falls_back_to_configured_promo_url(self) -> None:
         account = {
             "id": "direct_test",
@@ -347,6 +357,28 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         open_menu.assert_not_called()
+
+    def test_new_headquarters_page_opens_inner_route_through_outer_shell(self) -> None:
+        authenticated = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=999#/index"
+        context = FakeContext([FakePage(authenticated)])
+        task = {
+            "store": "第3档口",
+            "keyword": "第3档口",
+            "wmPoiId": "30703865",
+            "targetBudget": 120,
+        }
+
+        with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+            with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
+                with mock.patch.object(self.module, "wait_budget", return_value=120.0):
+                    with mock.patch.object(self.module, "read_budget", return_value=120.0):
+                        result = self.module.execute_task(context, authenticated, task, commit=False)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            context.pages[-1].url,
+            "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=30703865#/index",
+        )
 
     def test_classify_platform_budget_locked_zero_range(self) -> None:
         self.assertEqual(

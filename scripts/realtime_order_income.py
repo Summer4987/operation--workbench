@@ -105,7 +105,7 @@ DEFAULT_RULES = {
     "account_out_platforms": {},
     "meituan_page_row_validation": {
         "min_ticket": 8,
-        "max_ticket": 120,
+        "max_ticket": 300,
     },
 }
 
