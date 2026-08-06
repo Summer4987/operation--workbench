@@ -1067,10 +1067,15 @@ def download_eleme_reviews() -> Path:
         comment_frame = frame_or_page_with_any_text(page, ["顾客评价", "评价内容"], timeout_seconds=45)
         content_tab = comment_frame.get_by_text("评价内容", exact=True)
         if content_tab.count() and content_tab.first.is_visible():
-            content_tab.first.click(timeout=10_000)
-            page.wait_for_timeout(5000)
-        if comment_frame.get_by_text("导出评价", exact=True).count() == 0:
-            raise RuntimeError("切换到评价内容后仍未出现导出评价按钮")
+            # The score panel can leave a transparent overlay over this tab
+            # while its empty-store state is settling. A forced click is safe
+            # here and reliably switches to the independent review list.
+            content_tab.first.click(timeout=10_000, force=True)
+        try:
+            comment_frame = frame_or_page_with_any_text(page, ["导出评价"], timeout_seconds=30)
+            comment_frame.get_by_text("导出评价", exact=True).wait_for(state="visible", timeout=10_000)
+        except Exception as exc:
+            raise RuntimeError("切换到评价内容后仍未出现导出评价按钮") from exc
         task_ids: list[str] = []
         export_metas: list[dict] = []
 
