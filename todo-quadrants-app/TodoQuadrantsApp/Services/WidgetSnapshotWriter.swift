@@ -39,19 +39,3 @@ enum WidgetSnapshotWriter {
             .map { WidgetTodo(id: $0.id, title: $0.title, category: $0.category.rawValue, quadrant: $0.quadrant.rawValue) }
     }
 }
-
-extension JSONEncoder {
-    static var widgetEncoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }
-}
-
-extension JSONDecoder {
-    static var widgetDecoder: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }
-}

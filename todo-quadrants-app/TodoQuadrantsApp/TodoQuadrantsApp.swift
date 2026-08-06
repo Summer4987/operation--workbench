@@ -1,6 +1,8 @@
 import SwiftData
 import SwiftUI
+#if os(macOS)
 import Security
+#endif
 
 @main
 struct TodoQuadrantsApp: App {
@@ -36,6 +38,7 @@ struct TodoQuadrantsApp: App {
     }
 
     private var hasCloudKitEntitlement: Bool {
+        #if os(macOS)
         guard
             let task = SecTaskCreateFromSelf(nil),
             let value = SecTaskCopyValueForEntitlement(
@@ -56,5 +59,12 @@ struct TodoQuadrantsApp: App {
         }
 
         return false
+        #else
+        #if DEBUG
+        return false
+        #else
+        return true
+        #endif
+        #endif
     }
 }

@@ -22,3 +22,19 @@ struct WidgetSnapshot: Codable, Hashable {
         notUrgentNotImportant: []
     )
 }
+
+extension JSONEncoder {
+    static var widgetEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+extension JSONDecoder {
+    static var widgetDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}
