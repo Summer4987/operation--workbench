@@ -30,6 +30,7 @@ DATA_DIR = BASE_DIR / "data"
 SUBMISSION_DIR = DATA_DIR / "submissions"
 ORDER_LINES_PATH = DATA_DIR / "order-lines.csv"
 LOGISTICS_PATH = DATA_DIR / "logistics.json"
+TODO_QUADRANTS_PATH = DATA_DIR / "todo-quadrants.json"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
 BEIJING_CATALOG_PATH = BASE_DIR / "app" / "catalog-beijing.json"
 BEIJING_SUBMISSION_DIR = DATA_DIR / "beijing-submissions"
@@ -39,7 +40,7 @@ app = FastAPI(title="Daily Order")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 app.mount("/daily-order/static", StaticFiles(directory=STATIC_DIR), name="daily-order-static")
@@ -178,6 +179,20 @@ def beijing_catalog():
 def health():
     catalog_data = _load_catalog()
     return {"status": "ok", "item_count": len(catalog_data["items"])}
+
+
+@app.get("/daily-order/api/todo-quadrants")
+def todo_quadrants_sync_get(request: Request):
+    _require_todo_quadrants_sync(request)
+    return _load_todo_quadrants_sync()
+
+
+@app.put("/daily-order/api/todo-quadrants")
+async def todo_quadrants_sync_put(request: Request, payload: dict):
+    _require_todo_quadrants_sync(request)
+    envelope = _normalize_todo_quadrants_payload(payload)
+    _write_todo_quadrants_sync(envelope)
+    return envelope
 
 
 @app.get("/beijing-order/api/health")
@@ -1286,6 +1301,73 @@ def _require_admin(request: Request) -> None:
     supplied = request.query_params.get("token", "")
     if supplied != token:
         raise HTTPException(status_code=403, detail="后台链接无效")
+
+
+def _require_todo_quadrants_sync(request: Request) -> None:
+    token = os.environ.get("TODO_QUADRANTS_SYNC_TOKEN", "xiongxiaoxiao-todo-sync")
+    supplied = request.query_params.get("token", "")
+    if supplied != token:
+        raise HTTPException(status_code=403, detail="待办同步链接无效")
+
+
+def _load_todo_quadrants_sync() -> dict:
+    if not TODO_QUADRANTS_PATH.exists():
+        return {"updated_at": "", "items": []}
+    try:
+        payload = json.loads(TODO_QUADRANTS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"updated_at": "", "items": []}
+    if not isinstance(payload, dict):
+        return {"updated_at": "", "items": []}
+    return _normalize_todo_quadrants_payload(payload, keep_updated_at=True)
+
+
+def _write_todo_quadrants_sync(envelope: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_path = TODO_QUADRANTS_PATH.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(envelope, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(TODO_QUADRANTS_PATH)
+
+
+def _normalize_todo_quadrants_payload(payload: dict, keep_updated_at: bool = False) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="待办同步数据格式不正确")
+    raw_items = payload.get("items")
+    if raw_items is None:
+        raw_items = []
+    if not isinstance(raw_items, list):
+        raise HTTPException(status_code=400, detail="待办列表格式不正确")
+    items = [_normalize_todo_quadrants_item(item) for item in raw_items]
+    items.sort(key=lambda item: (item["is_completed"], item["updated_at"], item["id"]), reverse=True)
+    updated_at = str(payload.get("updated_at") or "").strip() if keep_updated_at else ""
+    if not updated_at:
+        updated_at = datetime.now(timezone.utc).isoformat()
+    return {"updated_at": updated_at, "items": items}
+
+
+def _normalize_todo_quadrants_item(item: dict) -> dict:
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="待办项目格式不正确")
+    item_id = str(item.get("id") or "").strip()
+    title = str(item.get("title") or "").strip()
+    category = str(item.get("category") or "platform").strip()
+    quadrant = str(item.get("quadrant") or "importantUrgent").strip()
+    if not item_id or not title:
+        raise HTTPException(status_code=400, detail="待办项目缺少 id 或标题")
+    if category not in {"platform", "directStores", "franchise", "supplyChain", "ai"}:
+        raise HTTPException(status_code=400, detail=f"待办分类无效：{category}")
+    if quadrant not in {"importantUrgent", "importantNotUrgent", "urgentNotImportant", "notUrgentNotImportant", "notImportantNotUrgent"}:
+        raise HTTPException(status_code=400, detail=f"待办象限无效：{quadrant}")
+    return {
+        "id": item_id,
+        "title": title[:200],
+        "category": category,
+        "quadrant": quadrant,
+        "is_completed": bool(item.get("is_completed")),
+        "created_at": str(item.get("created_at") or ""),
+        "updated_at": str(item.get("updated_at") or ""),
+        "completed_at": str(item.get("completed_at") or ""),
+    }
 
 
 def _require_logistics_ingest(request: Request) -> None:

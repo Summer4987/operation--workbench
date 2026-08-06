@@ -1,4 +1,6 @@
 .DS_Store
+xcuserdata/
+*.xcuserstate
 
 # Python / JS dependencies
 __pycache__/
@@ -70,3 +72,4 @@ docx_extracted.txt
 pdf_extracted.txt
 pdf_vs_docx_pdf_text.txt
 tmp/
+todo-quadrants-app/logs/
