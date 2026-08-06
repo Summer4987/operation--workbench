@@ -26,6 +26,10 @@ if Path(WORKING_NODE).exists():
     os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
 
 
+class EmptyReportError(RuntimeError):
+    """A platform produced a syntactically valid report with no business rows."""
+
+
 def load_config() -> dict:
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
@@ -613,6 +617,51 @@ def download_direct(url: str, filename: str, expected_suffix: str) -> Path:
     return target
 
 
+def validate_eleme_report_file(path: Path, target_date: str | None = None) -> int:
+    try:
+        from openpyxl import load_workbook
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("缺少 openpyxl，无法校验饿了么日报完整性") from exc
+    workbook = None
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=True)
+        sheet = workbook["data"] if "data" in workbook.sheetnames else workbook[workbook.sheetnames[0]]
+        rows = sheet.iter_rows(values_only=True)
+        header = next(rows, None)
+        if not header:
+            raise EmptyReportError(f"饿了么日报为空：{path.name}")
+        header_names = [str(value or "").strip() for value in header]
+        if "日期" not in header_names or "门店名称" not in header_names:
+            raise RuntimeError(f"饿了么日报缺少日期或门店名称字段：{path.name}")
+        date_index = header_names.index("日期")
+        row_count = 0
+        target_values: set[str] = set()
+        for row in rows:
+            if not any(value not in (None, "") for value in row):
+                continue
+            row_count += 1
+            if date_index < len(row) and row[date_index] not in (None, ""):
+                value = row[date_index]
+                if hasattr(value, "strftime"):
+                    target_values.add(value.strftime("%Y%m%d"))
+                else:
+                    target_values.add(str(value).replace("-", "").split()[0])
+        if row_count == 0:
+            raise EmptyReportError(f"饿了么日报只有表头、没有业务数据：{path.name}")
+        if target_date and target_date not in target_values:
+            raise RuntimeError(
+                f"饿了么日报没有目标日期 {target_date} 的数据：{path.name}；"
+                f"实际日期={','.join(sorted(target_values)) or '未识别'}"
+            )
+        return row_count
+    finally:
+        try:
+            if workbook is not None:
+                workbook.close()
+        except Exception:
+            pass
+
+
 def download_eleme_latest(target_date: str | None = None) -> Path:
     config = load_config()
     platform = config["platforms"]["eleme"]
@@ -648,10 +697,25 @@ def download_eleme_latest(target_date: str | None = None) -> Path:
             ready_rows = [row for row in ready_rows if target_date in row.get("fileName", "")]
         if not ready_rows:
             raise RuntimeError(f"饿了么下载列表没有可下载文件：{history}")
-        latest = ready_rows[0]
-        target = download_direct(latest["downloadUrl"], latest["fileName"], ".xlsx")
-        print(f"饿了么最新报表已下载：{target}")
-        return target
+        failures: list[str] = []
+        saw_empty = False
+        for candidate in ready_rows:
+            target = download_direct(candidate["downloadUrl"], candidate["fileName"], ".xlsx")
+            try:
+                row_count = validate_eleme_report_file(target, target_date)
+            except EmptyReportError as exc:
+                saw_empty = True
+                failures.append(str(exc))
+                continue
+            except Exception as exc:
+                failures.append(str(exc))
+                continue
+            print(f"饿了么最新报表已下载并通过完整性校验：{target}（{row_count} 行）")
+            return target
+        message = "；".join(failures) or f"饿了么下载列表没有有效文件：{history}"
+        if saw_empty:
+            raise EmptyReportError(message)
+        raise RuntimeError(message)
     finally:
         disconnect_browser(playwright, browser)
 
@@ -828,6 +892,10 @@ def wait_for_eleme_report(target_date: str, timeout_seconds: int = 180) -> Path:
     while time.time() < deadline:
         try:
             return download_eleme_latest(target_date)
+        except EmptyReportError:
+            # A completed-but-empty export will never fill itself. Return
+            # immediately so run_daily can submit one fresh export task.
+            raise
         except Exception as exc:
             last_error = exc
             time.sleep(10)
@@ -991,7 +1059,13 @@ def download_eleme_reviews() -> Path:
         page = reusable_page(context)
         page.goto(ELEME_COMMENTS_URL, wait_until="domcontentloaded", timeout=90_000)
         page.wait_for_timeout(8000)
-        comment_frame = frame_or_page_with_any_text(page, ["导出评价"], timeout_seconds=45)
+        comment_frame = frame_or_page_with_any_text(page, ["顾客评价", "评价内容"], timeout_seconds=45)
+        content_tab = comment_frame.get_by_text("评价内容", exact=True)
+        if content_tab.count() and content_tab.first.is_visible():
+            content_tab.first.click(timeout=10_000)
+            page.wait_for_timeout(5000)
+        if comment_frame.get_by_text("导出评价", exact=True).count() == 0:
+            raise RuntimeError("切换到评价内容后仍未出现导出评价按钮")
         task_ids: list[str] = []
         export_metas: list[dict] = []
 
@@ -1156,6 +1230,16 @@ def download_meituan_reviews() -> Path:
 
         page.on("response", collect_comment_url)
         page.goto(MEITUAN_COMMENTS_URL, wait_until="domcontentloaded", timeout=90_000)
+        page.wait_for_timeout(8000)
+        clicked_list = False
+        for frame in page.frames:
+            tab = frame.get_by_text("外卖评价列表", exact=True)
+            if tab.count() and tab.first.is_visible():
+                tab.first.click(timeout=10_000)
+                clicked_list = True
+                break
+        if not clicked_list:
+            raise RuntimeError("美团评价页没有找到外卖评价列表入口")
         deadline = time.time() + 30
         while not comment_urls and time.time() < deadline:
             page.wait_for_timeout(1000)
@@ -1179,6 +1263,10 @@ def download_meituan_reviews() -> Path:
                 else:
                     without_target_pages += 1
                 dates = [str(item.get("createTime") or "") for item in items]
+                if target_items and any(date_value and date_value < target_date for date_value in dates):
+                    comment_pages.clear()
+                    without_target_pages = 2
+                    break
                 if rows and without_target_pages >= 2 and dates and max(dates) < target_date:
                     comment_pages.clear()
                     break
@@ -1290,7 +1378,13 @@ def local_report_candidate(target_date: str, platform: str) -> Path | None:
         for pattern in patterns:
             candidates.extend(path for path in directory.glob(pattern) if path.is_file())
         if candidates:
-            return max(candidates, key=lambda path: path.stat().st_mtime)
+            for candidate in sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True):
+                if platform == "eleme":
+                    try:
+                        validate_eleme_report_file(candidate, target_date)
+                    except Exception:
+                        continue
+                return candidate
     return None
 
 
@@ -1359,6 +1453,14 @@ def run_daily(target_date: str | None = None) -> None:
     if submitted["eleme"]:
         try:
             eleme_path = wait_for_eleme_report(report_date)
+        except EmptyReportError as exc:
+            print(f"饿了么首份日报为空，重新提交一次：{exc}", file=sys.stderr)
+            try:
+                generate_eleme_report(report_date)
+                eleme_path = wait_for_eleme_report(report_date)
+            except Exception as retry_exc:
+                download_failures.append(f"饿了么报表重试后仍不可用：{retry_exc}")
+                print(f"饿了么报表重试后仍不可用：{retry_exc}", file=sys.stderr)
         except Exception as exc:
             download_failures.append(f"饿了么报表下载失败：{exc}")
             print(f"饿了么报表下载失败：{exc}", file=sys.stderr)

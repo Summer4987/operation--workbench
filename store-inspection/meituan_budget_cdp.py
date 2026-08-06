@@ -109,6 +109,20 @@ def wm_poi_id_from_url(raw_url: str) -> str | None:
     return None
 
 
+def assert_promo_page_targets_task(page, task: dict) -> None:
+    """Reject stale promo pages before their budget can be trusted or saved."""
+    if task.get("directMeituanAccountId"):
+        return
+    expected = wm_poi_id(task)
+    routes = [page.url, *(frame.url for frame in page.frames)]
+    actual_ids = {value for route in routes if (value := wm_poi_id_from_url(route))}
+    if expected not in actual_ids:
+        raise RuntimeError(
+            f"推广页面门店身份不一致：目标 wmPoiId={expected}，"
+            f"当前页面 wmPoiId={','.join(sorted(actual_ids)) or '未识别'}"
+        )
+
+
 def url_for_store(base_url: str, wm_id: str) -> str:
     parts = urlsplit(base_url)
     if "waimaieapp.meituan.com" in parts.fragment:
@@ -890,12 +904,12 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     page = None
     created_page = False
     if not task.get("directMeituanAccountId"):
-        authenticated_budget_url = recent_authenticated_budget_url_from_context(context)
-        if authenticated_budget_url:
-            base_url = authenticated_budget_url
-        else:
-            page, created_page, base_url = open_headquarters_budget_page(context, task)
-            created_page = False
+        # The token/acctId in a headquarters promo URL is tied to the currently
+        # selected store. Reusing the previous store's authenticated URL and
+        # replacing only wmPoiId can read or save the wrong store. Always switch
+        # through the headquarters selector for every task and every retry.
+        page, created_page, base_url = open_headquarters_budget_page(context, task)
+        created_page = False
     target_url = url_for_store(base_url, wm_id) if wm_id else base_url
     if wm_id:
         for candidate in context.pages:
@@ -927,6 +941,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             time.sleep(5)
             enter_dianjin_with_recovery(page, target_url)
             wait_setting_ready(page)
+        assert_promo_page_targets_task(page, task)
         record["beforeBudget"] = wait_budget(page)
         if preflight:
             try:
@@ -969,6 +984,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             open_budget_modal(page)
         record["beforeInput"], record["afterInput"], record["inputAttempts"] = fill_budget_with_recovery(page, target)
         final_budget, message = confirm_budget_with_recovery(page, target, target_url)
+        assert_promo_page_targets_task(page, task)
         record["afterBudget"] = final_budget
         if final_budget is None or abs(final_budget - target) > 0.01:
             spend_blocked, today_spend = spent_exceeds_target(page, target)

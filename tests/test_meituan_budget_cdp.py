@@ -319,10 +319,13 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         }
 
         headquarters_page = context.new_page()
+        headquarters_page.url = (
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=32022526#/index"
+        )
         with mock.patch.object(
             self.module,
             "open_headquarters_budget_page",
-            return_value=(headquarters_page, True, "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123"),
+            return_value=(headquarters_page, True, headquarters_page.url),
         ):
             with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
                 with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
@@ -344,7 +347,7 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIn("今日已消耗110.91元", result["message"])
         open_modal.assert_not_called()
 
-    def test_authenticated_budget_page_skips_headquarters_menu(self) -> None:
+    def test_authenticated_budget_page_still_reselects_headquarters_store(self) -> None:
         budget_url = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=32022526#/subapp/isomor_cpc/pages/index/index"
         context = FakeContext([FakePage(budget_url)])
         task = {
@@ -354,7 +357,12 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             "targetBudget": 100,
         }
 
-        with mock.patch.object(self.module, "open_headquarters_budget_page") as open_menu:
+        selected_page = FakePage(budget_url)
+        with mock.patch.object(
+            self.module,
+            "open_headquarters_budget_page",
+            return_value=(selected_page, False, budget_url),
+        ) as open_menu:
             with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
                 with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
                     with mock.patch.object(self.module, "wait_budget", return_value=100.0):
@@ -362,9 +370,36 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                             result = self.module.execute_task(context, budget_url, task, commit=True)
 
         self.assertTrue(result["ok"])
-        open_menu.assert_not_called()
+        open_menu.assert_called_once_with(context, task)
 
-    def test_new_headquarters_page_opens_inner_route_through_outer_shell(self) -> None:
+    def test_page_identity_rejects_stale_store_route(self) -> None:
+        page = FakePage(
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=33766612#/index"
+        )
+        task = {
+            "store": "丽泽店",
+            "keyword": "丽泽",
+            "wmPoiId": "32914406",
+            "targetBudget": 80,
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "门店身份不一致"):
+            self.module.assert_promo_page_targets_task(page, task)
+
+    def test_page_identity_accepts_expected_store_route(self) -> None:
+        page = FakePage(
+            "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=32914406#/index"
+        )
+        task = {
+            "store": "丽泽店",
+            "keyword": "丽泽",
+            "wmPoiId": "32914406",
+            "targetBudget": 80,
+        }
+
+        self.module.assert_promo_page_targets_task(page, task)
+
+    def test_new_headquarters_page_reselects_store_before_opening_inner_route(self) -> None:
         authenticated = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=999#/index"
         context = FakeContext([FakePage(authenticated)])
         task = {
@@ -374,17 +409,21 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             "targetBudget": 120,
         }
 
-        with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
-            with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
-                with mock.patch.object(self.module, "wait_budget", return_value=120.0):
-                    with mock.patch.object(self.module, "read_budget", return_value=120.0):
-                        result = self.module.execute_task(context, authenticated, task, commit=False)
+        selected_url = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=30703865#/index"
+        selected_page = FakePage(selected_url)
+        with mock.patch.object(
+            self.module,
+            "open_headquarters_budget_page",
+            return_value=(selected_page, False, selected_url),
+        ) as open_menu:
+            with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+                with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
+                    with mock.patch.object(self.module, "wait_budget", return_value=120.0):
+                        with mock.patch.object(self.module, "read_budget", return_value=120.0):
+                            result = self.module.execute_task(context, authenticated, task, commit=False)
 
         self.assertTrue(result["ok"])
-        self.assertEqual(
-            context.pages[-1].url,
-            "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123&wmPoiId=30703865#/index",
-        )
+        open_menu.assert_called_once_with(context, task)
 
     def test_classify_platform_budget_locked_zero_range(self) -> None:
         self.assertEqual(

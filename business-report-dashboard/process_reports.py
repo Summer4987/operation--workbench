@@ -382,6 +382,8 @@ def standardize(df: pd.DataFrame, platform: str, mapping: dict, alias_lookup: di
 
 def read_eleme(path: Path, config: dict, alias_lookup: dict[str, list[tuple[str, str]]]) -> tuple[pd.DataFrame, list[dict]]:
     df = pd.read_excel(path, sheet_name=config["eleme"]["sheet_name"])
+    if df.empty:
+        raise RuntimeError(f"饿了么日报只有表头、没有业务数据：{path.name}")
     return standardize(df, "饿了么", config["eleme"]["columns"], alias_lookup)
 
 
