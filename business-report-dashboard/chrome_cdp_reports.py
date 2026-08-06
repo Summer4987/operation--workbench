@@ -626,6 +626,11 @@ def validate_eleme_report_file(path: Path, target_date: str | None = None) -> in
     try:
         workbook = load_workbook(path, read_only=True, data_only=True)
         sheet = workbook["data"] if "data" in workbook.sheetnames else workbook[workbook.sheetnames[0]]
+        # Some Eleme exports contain a stale worksheet dimension such as A1:A1
+        # even though the sheet has many populated rows and columns.  In
+        # read-only mode openpyxl trusts that metadata unless it is reset.
+        if hasattr(sheet, "reset_dimensions"):
+            sheet.reset_dimensions()
         rows = sheet.iter_rows(values_only=True)
         header = next(rows, None)
         if not header:

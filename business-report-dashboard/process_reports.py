@@ -380,10 +380,14 @@ def standardize(df: pd.DataFrame, platform: str, mapping: dict, alias_lookup: di
     return pd.DataFrame(rows), warnings
 
 
+class EmptyDailyReportError(RuntimeError):
+    """A downloaded daily report contains headers but no business rows."""
+
+
 def read_eleme(path: Path, config: dict, alias_lookup: dict[str, list[tuple[str, str]]]) -> tuple[pd.DataFrame, list[dict]]:
     df = pd.read_excel(path, sheet_name=config["eleme"]["sheet_name"])
     if df.empty:
-        raise RuntimeError(f"饿了么日报只有表头、没有业务数据：{path.name}")
+        raise EmptyDailyReportError(f"饿了么日报只有表头、没有业务数据：{path.name}")
     return standardize(df, "饿了么", config["eleme"]["columns"], alias_lookup)
 
 
@@ -1752,7 +1756,13 @@ def write_store_reports(payload: dict) -> list[Path]:
     return paths
 
 
-def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
+def process(
+    eleme_path: Path | None,
+    meituan_path: Path | None,
+    *,
+    include_eleme_history: bool = True,
+    include_meituan_history: bool = True,
+) -> dict:
     config = load_config()
     alias_lookup = build_alias_lookup(config)
 
@@ -1775,19 +1785,38 @@ def process(eleme_path: Path | None, meituan_path: Path | None) -> dict:
                 latest[key] = path
         return sorted(latest.values(), key=lambda path: path.stat().st_mtime)
 
-    eleme_paths = latest_by_report_date(
-        sorted(RAW_DIR.glob("门店下载_*.xlsx"), key=lambda path: path.stat().st_mtime),
-        r"门店下载_(\d{8})至\1",
+    eleme_paths = (
+        latest_by_report_date(
+            sorted(RAW_DIR.glob("门店下载_*.xlsx"), key=lambda path: path.stat().st_mtime),
+            r"门店下载_(\d{8})至\1",
+        )
+        if include_eleme_history
+        else ([RAW_DIR / eleme_path.name] if eleme_path else [])
     )
-    meituan_paths = latest_by_report_date(
-        sorted((path for path in RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem), key=lambda path: path.stat().st_mtime),
-        r"门店_全部门店_(\d{8})_\1",
+    meituan_paths = (
+        latest_by_report_date(
+            sorted((path for path in RAW_DIR.glob("门店_全部门店_*.csv") if "_UTF8" not in path.stem), key=lambda path: path.stat().st_mtime),
+            r"门店_全部门店_(\d{8})_\1",
+        )
+        if include_meituan_history
+        else ([RAW_DIR / meituan_path.name] if meituan_path else [])
     )
 
     frames = []
     warnings = []
     for path in eleme_paths:
-        frame, frame_warnings = read_eleme(path, config, alias_lookup)
+        try:
+            frame, frame_warnings = read_eleme(path, config, alias_lookup)
+        except EmptyDailyReportError as exc:
+            warnings.append(
+                {
+                    "platform": "饿了么",
+                    "file": path.name,
+                    "field": "文件完整性",
+                    "issue": f"{exc}；已跳过",
+                }
+            )
+            continue
         frames.append(frame)
         warnings.extend(frame_warnings)
     for path in meituan_paths:
@@ -1919,7 +1948,12 @@ def main() -> None:
     )
     print(f"使用饿了么报表：{eleme_path if eleme_path else '缺失，本次不自动使用历史文件'}")
     print(f"使用美团报表：{meituan_path if meituan_path else '缺失，本次不自动使用历史文件'}")
-    result = process(eleme_path, meituan_path)
+    result = process(
+        eleme_path,
+        meituan_path,
+        include_eleme_history=not args.allow_missing_platform or eleme_path is not None,
+        include_meituan_history=not args.allow_missing_platform or meituan_path is not None,
+    )
     payload = result["payload"]
     print(f"已生成统一数据：{result['unified_path']}")
     print(f"已生成网页看板：{result['dashboard_path']}")

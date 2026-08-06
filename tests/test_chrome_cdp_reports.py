@@ -5,6 +5,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 from openpyxl import Workbook
@@ -64,6 +65,26 @@ class ChromeCdpReportsTests(unittest.TestCase):
             workbook.save(path)
 
             self.assertEqual(self.module.validate_eleme_report_file(path, "20260805"), 1)
+
+    def test_validate_eleme_report_ignores_stale_worksheet_dimension(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "eleme.xlsx"
+            rewritten = pathlib.Path(directory) / "rewritten.xlsx"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "data"
+            sheet.append(["日期", "门店名称", "订单量"])
+            sheet.append(["2026-08-05", "安贞店", 12])
+            workbook.save(path)
+
+            with zipfile.ZipFile(path, "r") as source, zipfile.ZipFile(rewritten, "w") as target:
+                for item in source.infolist():
+                    content = source.read(item.filename)
+                    if item.filename == "xl/worksheets/sheet1.xml":
+                        content = content.replace(b'<dimension ref="A1:C2"/>', b'<dimension ref="A1:A1"/>')
+                    target.writestr(item, content)
+
+            self.assertEqual(self.module.validate_eleme_report_file(rewritten, "20260805"), 1)
 
     def test_wait_for_eleme_report_returns_empty_export_immediately(self) -> None:
         with mock.patch.object(
