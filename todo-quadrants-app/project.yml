@@ -7,7 +7,7 @@ settings:
   base:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: SHR23XM2U8
 targets:
   TodoQuadrants iOS:
     type: application
@@ -22,6 +22,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiongxiaoxiao.todoquadrants
         INFOPLIST_FILE: TodoQuadrantsApp/Info.plist
         CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: TodoQuadrantsApp/TodoQuadrantsApp.Debug.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: TodoQuadrantsApp/TodoQuadrantsApp.entitlements
     dependencies:
       - target: TodoQuadrantsWidget
   TodoQuadrants macOS:
@@ -37,6 +42,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiongxiaoxiao.todoquadrants.mac
         INFOPLIST_FILE: TodoQuadrantsApp/Info.plist
         CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: TodoQuadrantsApp/TodoQuadrantsApp.Debug.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: TodoQuadrantsApp/TodoQuadrantsApp.entitlements
   TodoQuadrantsWidget:
     type: app-extension
     platform: iOS
@@ -50,3 +60,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiongxiaoxiao.todoquadrants.widget
         INFOPLIST_FILE: TodoQuadrantsWidget/Info.plist
         CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: TodoQuadrantsWidget/TodoQuadrantsWidget.Debug.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: TodoQuadrantsWidget/TodoQuadrantsWidget.entitlements

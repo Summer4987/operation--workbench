@@ -324,7 +324,7 @@
 		1957CE19CCAD9A02F670914A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsWidget/TodoQuadrantsWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsWidget/TodoQuadrantsWidget.Debug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = TodoQuadrantsWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -342,7 +342,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.Debug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = TodoQuadrantsApp/Info.plist;
@@ -391,7 +391,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = SHR23XM2U8;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -425,7 +425,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TodoQuadrantsApp/TodoQuadrantsApp.Debug.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = TodoQuadrantsApp/Info.plist;
@@ -527,7 +527,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = SHR23XM2U8;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
