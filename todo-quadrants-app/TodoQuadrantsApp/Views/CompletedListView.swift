@@ -9,7 +9,7 @@ struct CompletedListView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: verticalSpacing) {
             HStack(spacing: 10) {
                 Button {
                     withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
@@ -19,9 +19,9 @@ struct CompletedListView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("已完成")
-                                .font(.headline.weight(.bold))
+                                .font(titleFont)
                             Text(items.isEmpty ? "完成后会收纳到这里" : "\(items.count) 项已归档")
-                                .font(.caption)
+                                .font(subtitleFont)
                                 .foregroundStyle(.secondary)
                         }
 
@@ -42,7 +42,7 @@ struct CompletedListView: View {
                         Image(systemName: "trash")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.red.opacity(0.86))
-                            .frame(width: 34, height: 34)
+                            .frame(width: deleteButtonSize, height: deleteButtonSize)
                             .background(Color.red.opacity(0.10))
                             .clipShape(Circle())
                     }
@@ -72,7 +72,7 @@ struct CompletedListView: View {
                         .foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.title)
-                            .font(.subheadline)
+                            .font(rowTitleFont)
                             .lineLimit(1)
                             .foregroundStyle(.secondary)
                         if items.count > 1 {
@@ -96,13 +96,61 @@ struct CompletedListView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
-        .padding(16)
+        .padding(cardPadding)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.secondary.opacity(0.10), lineWidth: 1)
         )
+    }
+
+    private var verticalSpacing: CGFloat {
+        #if os(iOS)
+        8
+        #else
+        10
+        #endif
+    }
+
+    private var cardPadding: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
+
+    private var titleFont: Font {
+        #if os(iOS)
+        .subheadline.weight(.bold)
+        #else
+        .headline.weight(.bold)
+        #endif
+    }
+
+    private var subtitleFont: Font {
+        #if os(iOS)
+        .caption2
+        #else
+        .caption
+        #endif
+    }
+
+    private var rowTitleFont: Font {
+        #if os(iOS)
+        .caption.weight(.medium)
+        #else
+        .subheadline
+        #endif
+    }
+
+    private var deleteButtonSize: CGFloat {
+        #if os(iOS)
+        30
+        #else
+        34
+        #endif
     }
 }
 

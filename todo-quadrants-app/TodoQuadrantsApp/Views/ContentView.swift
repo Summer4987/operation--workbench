@@ -15,15 +15,15 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: pageSpacing) {
                     headerView
                     QuadrantGridView(items: activeTodos, onToggle: toggle)
                     CategoryComposerView(onAdd: addTodo)
                     MemoPadView(text: $memoText, onSave: saveMemo)
                     CompletedListView(items: completedTodos, onToggle: toggle, onDelete: delete, onDeleteAll: deleteCompletedTodos)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 18)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, verticalPadding)
                 .frame(maxWidth: 980, alignment: .topLeading)
                 .frame(maxWidth: .infinity)
             }
@@ -72,16 +72,40 @@ struct ContentView: View {
         #endif
     }
 
+    private var pageSpacing: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        20
+        #endif
+    }
+
+    private var horizontalPadding: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
+
+    private var verticalPadding: CGFloat {
+        #if os(iOS)
+        8
+        #else
+        18
+        #endif
+    }
+
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: headerSpacing) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("今日待办")
-                        .font(.title.bold())
+                        .font(headerTitleFont)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                     Text(summaryText)
-                        .font(.subheadline)
+                        .font(summaryFont)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -97,7 +121,7 @@ struct ContentView: View {
                 MetricPill(title: "重急", value: "\(count(for: .importantUrgent))", color: PriorityQuadrant.importantUrgent.accentColor)
             }
         }
-        .padding(16)
+        .padding(headerPadding)
         .background(
             LinearGradient(
                 colors: [Color.white, Color(red: 0.91, green: 0.94, blue: 0.98)],
@@ -113,6 +137,38 @@ struct ContentView: View {
         .shadow(color: Color.black.opacity(0.05), radius: 14, x: 0, y: 6)
     }
 
+    private var headerSpacing: CGFloat {
+        #if os(iOS)
+        8
+        #else
+        12
+        #endif
+    }
+
+    private var headerPadding: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
+
+    private var headerTitleFont: Font {
+        #if os(iOS)
+        .title3.bold()
+        #else
+        .title.bold()
+        #endif
+    }
+
+    private var summaryFont: Font {
+        #if os(iOS)
+        .footnote
+        #else
+        .subheadline
+        #endif
+    }
+
     private var syncButton: some View {
         Button {
             Task {
@@ -124,18 +180,42 @@ struct ContentView: View {
                     .fill(syncStatus == "已同步" ? Color.green : Color.orange)
                     .frame(width: 8, height: 8)
                 Text(syncStatus)
-                    .font(.caption2.weight(.semibold))
+                    .font(syncFont)
                     .lineLimit(1)
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.caption2.weight(.semibold))
+                    .font(syncFont)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.horizontal, syncHorizontalPadding)
+            .padding(.vertical, syncVerticalPadding)
             .background(Color.white.opacity(0.86))
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
         .help("同步")
+    }
+
+    private var syncFont: Font {
+        #if os(iOS)
+        .caption2.weight(.semibold)
+        #else
+        .caption.weight(.semibold)
+        #endif
+    }
+
+    private var syncHorizontalPadding: CGFloat {
+        #if os(iOS)
+        8
+        #else
+        10
+        #endif
+    }
+
+    private var syncVerticalPadding: CGFloat {
+        #if os(iOS)
+        6
+        #else
+        7
+        #endif
     }
 
     private var summaryText: String {
@@ -259,7 +339,7 @@ private struct MemoPadView: View {
                 .focused($isFocused)
                 .font(.body)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 96)
+                .frame(minHeight: editorMinHeight)
                 .padding(10)
                 .background(Color.secondary.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -273,7 +353,7 @@ private struct MemoPadView: View {
                     }
                 }
         }
-        .padding(16)
+        .padding(cardPadding)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
@@ -286,6 +366,22 @@ private struct MemoPadView: View {
             }
         }
     }
+
+    private var editorMinHeight: CGFloat {
+        #if os(iOS)
+        76
+        #else
+        96
+        #endif
+    }
+
+    private var cardPadding: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
 }
 
 private struct MetricPill: View {
@@ -296,16 +392,40 @@ private struct MetricPill: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(value)
-                .font(.headline.weight(.bold))
+                .font(valueFont)
                 .foregroundStyle(color)
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(titleFont)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, verticalPadding)
         .background(Color.white.opacity(0.75))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var valueFont: Font {
+        #if os(iOS)
+        .subheadline.weight(.bold)
+        #else
+        .headline.weight(.bold)
+        #endif
+    }
+
+    private var titleFont: Font {
+        #if os(iOS)
+        .caption2.weight(.semibold)
+        #else
+        .caption.weight(.semibold)
+        #endif
+    }
+
+    private var verticalPadding: CGFloat {
+        #if os(iOS)
+        8
+        #else
+        10
+        #endif
     }
 }
 

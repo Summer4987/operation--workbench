@@ -5,16 +5,18 @@ struct QuadrantGridView: View {
     let onToggle: (TodoItem) -> Void
     @State private var selectedQuadrant: PriorityQuadrant?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    private var columns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: gridSpacing),
+            GridItem(.flexible(), spacing: gridSpacing),
+        ]
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: sectionSpacing) {
             SectionHeader(title: "优先级矩阵", subtitle: "自动按重要 / 紧急归位")
 
-            LazyVGrid(columns: columns, spacing: 12) {
+            LazyVGrid(columns: columns, spacing: gridSpacing) {
                 ForEach(PriorityQuadrant.allCases) { quadrant in
                     QuadrantCard(
                         quadrant: quadrant,
@@ -24,7 +26,7 @@ struct QuadrantGridView: View {
                             selectedQuadrant = quadrant
                         }
                     )
-                    .frame(minHeight: 132, maxHeight: 164)
+                    .frame(minHeight: cardMinHeight, maxHeight: cardMaxHeight)
                 }
             }
         }
@@ -46,6 +48,38 @@ struct QuadrantGridView: View {
             .filter { $0.quadrant == quadrant }
             .sorted { $0.updatedAt > $1.updatedAt }
     }
+
+    private var sectionSpacing: CGFloat {
+        #if os(iOS)
+        9
+        #else
+        12
+        #endif
+    }
+
+    private var gridSpacing: CGFloat {
+        #if os(iOS)
+        9
+        #else
+        12
+        #endif
+    }
+
+    private var cardMinHeight: CGFloat {
+        #if os(iOS)
+        88
+        #else
+        132
+        #endif
+    }
+
+    private var cardMaxHeight: CGFloat {
+        #if os(iOS)
+        104
+        #else
+        164
+        #endif
+    }
 }
 
 private struct QuadrantCard: View {
@@ -55,17 +89,17 @@ private struct QuadrantCard: View {
     let onOpen: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .center, spacing: 7) {
+        VStack(alignment: .leading, spacing: verticalSpacing) {
+            HStack(alignment: .center, spacing: 6) {
                 Image(systemName: quadrant.systemImage)
-                    .font(.caption.weight(.bold))
+                    .font(iconFont)
                     .foregroundStyle(quadrant.accentColor)
-                    .frame(width: 20, height: 20)
+                    .frame(width: iconBoxSize, height: iconBoxSize)
                     .background(quadrant.accentColor.opacity(0.12))
                     .clipShape(Circle())
 
                 Text(quadrant.shortTitle)
-                    .font(.caption.weight(.bold))
+                    .font(titleFont)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -74,10 +108,10 @@ private struct QuadrantCard: View {
                 Spacer()
 
                 Text("\(items.count)")
-                    .font(.caption.weight(.bold))
+                    .font(countFont)
                     .foregroundStyle(quadrant.accentColor)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, countHorizontalPadding)
+                    .padding(.vertical, countVerticalPadding)
                     .background(quadrant.accentColor.opacity(0.12))
                     .clipShape(Capsule())
             }
@@ -85,22 +119,22 @@ private struct QuadrantCard: View {
             if items.isEmpty {
                 Spacer()
                 Text("暂无事项")
-                    .font(.caption)
+                    .font(emptyFont)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                 Spacer()
             } else {
-                VStack(alignment: .leading, spacing: 5) {
-                    ForEach(items.prefix(2)) { item in
+                VStack(alignment: .leading, spacing: rowSpacing) {
+                    ForEach(items.prefix(previewLimit)) { item in
                         TodoMiniRow(item: item, accentColor: quadrant.accentColor, onToggle: onToggle)
                     }
-                    if items.count > 2 {
+                    if items.count > previewLimit {
                         Button(action: onOpen) {
                             HStack(spacing: 4) {
-                                Text("还有 \(items.count - 2) 项")
+                                Text("还有 \(items.count - previewLimit) 项")
                                 Image(systemName: "chevron.right")
                             }
-                            .font(.caption2.weight(.semibold))
+                            .font(linkFont)
                             .foregroundStyle(quadrant.accentColor)
                             .padding(.top, 2)
                         }
@@ -111,7 +145,7 @@ private struct QuadrantCard: View {
                                 Text("查看全部")
                                 Image(systemName: "chevron.right")
                             }
-                            .font(.caption2.weight(.semibold))
+                            .font(linkFont)
                             .foregroundStyle(quadrant.accentColor)
                             .padding(.top, 2)
                         }
@@ -121,7 +155,7 @@ private struct QuadrantCard: View {
                 }
             }
         }
-        .padding(10)
+        .padding(cardPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             LinearGradient(
@@ -135,7 +169,119 @@ private struct QuadrantCard: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(quadrant.accentColor.opacity(0.16), lineWidth: 1)
         )
-        .shadow(color: quadrant.accentColor.opacity(0.07), radius: 8, x: 0, y: 4)
+        .shadow(color: quadrant.accentColor.opacity(0.06), radius: shadowRadius, x: 0, y: shadowY)
+    }
+
+    private var previewLimit: Int {
+        #if os(iOS)
+        1
+        #else
+        2
+        #endif
+    }
+
+    private var verticalSpacing: CGFloat {
+        #if os(iOS)
+        5
+        #else
+        7
+        #endif
+    }
+
+    private var rowSpacing: CGFloat {
+        #if os(iOS)
+        4
+        #else
+        5
+        #endif
+    }
+
+    private var cardPadding: CGFloat {
+        #if os(iOS)
+        7
+        #else
+        10
+        #endif
+    }
+
+    private var iconBoxSize: CGFloat {
+        #if os(iOS)
+        18
+        #else
+        20
+        #endif
+    }
+
+    private var iconFont: Font {
+        #if os(iOS)
+        .caption2.weight(.bold)
+        #else
+        .caption.weight(.bold)
+        #endif
+    }
+
+    private var titleFont: Font {
+        #if os(iOS)
+        .caption2.weight(.bold)
+        #else
+        .caption.weight(.bold)
+        #endif
+    }
+
+    private var countFont: Font {
+        #if os(iOS)
+        .caption2.weight(.bold)
+        #else
+        .caption.weight(.bold)
+        #endif
+    }
+
+    private var emptyFont: Font {
+        #if os(iOS)
+        .caption2
+        #else
+        .caption
+        #endif
+    }
+
+    private var linkFont: Font {
+        #if os(iOS)
+        .caption2.weight(.bold)
+        #else
+        .caption2.weight(.semibold)
+        #endif
+    }
+
+    private var countHorizontalPadding: CGFloat {
+        #if os(iOS)
+        6
+        #else
+        7
+        #endif
+    }
+
+    private var countVerticalPadding: CGFloat {
+        #if os(iOS)
+        2
+        #else
+        3
+        #endif
+    }
+
+    private var shadowRadius: CGFloat {
+        #if os(iOS)
+        5
+        #else
+        8
+        #endif
+    }
+
+    private var shadowY: CGFloat {
+        #if os(iOS)
+        2
+        #else
+        4
+        #endif
     }
 }
 
@@ -246,8 +392,8 @@ private struct TodoMiniRow: View {
                     .foregroundStyle(accentColor)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
-                        .font(.caption.weight(.medium))
-                        .lineLimit(2)
+                        .font(miniTitleFont)
+                        .lineLimit(miniTitleLineLimit)
                         .multilineTextAlignment(.leading)
                     Text(item.category.rawValue)
                         .font(.caption2)
@@ -258,6 +404,22 @@ private struct TodoMiniRow: View {
         }
         .buttonStyle(.plain)
     }
+
+    private var miniTitleFont: Font {
+        #if os(iOS)
+        .caption2.weight(.medium)
+        #else
+        .caption.weight(.medium)
+        #endif
+    }
+
+    private var miniTitleLineLimit: Int {
+        #if os(iOS)
+        1
+        #else
+        2
+        #endif
+    }
 }
 
 struct SectionHeader: View {
@@ -267,13 +429,29 @@ struct SectionHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .font(.headline.weight(.bold))
+                .font(titleFont)
             Spacer()
             Text(subtitle)
-                .font(.caption)
+                .font(subtitleFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
+    }
+
+    private var titleFont: Font {
+        #if os(iOS)
+        .subheadline.weight(.bold)
+        #else
+        .headline.weight(.bold)
+        #endif
+    }
+
+    private var subtitleFont: Font {
+        #if os(iOS)
+        .caption2
+        #else
+        .caption
+        #endif
     }
 }

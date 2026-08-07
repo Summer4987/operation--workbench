@@ -9,10 +9,10 @@ struct CategoryComposerView: View {
     @State private var isUrgent = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: cardSpacing) {
             SectionHeader(title: "快速添加", subtitle: "选择分类和优先级")
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: innerSpacing) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(TodoCategory.allCases) { category in
@@ -30,10 +30,11 @@ struct CategoryComposerView: View {
                 HStack(spacing: 10) {
                     Image(systemName: selectedCategory.systemImage)
                         .foregroundStyle(.secondary)
-                        .frame(width: 22)
+                        .frame(width: leadingIconWidth)
 
                     TextField("输入待办", text: $draft)
                         .textFieldStyle(.plain)
+                        .font(inputFont)
                         .submitLabel(.done)
                         .onSubmit(add)
 
@@ -46,22 +47,22 @@ struct CategoryComposerView: View {
                         add()
                     } label: {
                         Image(systemName: "plus")
-                            .font(.headline.weight(.bold))
+                            .font(addButtonFont)
                             .foregroundStyle(.white)
-                            .frame(width: 34, height: 34)
+                            .frame(width: addButtonSize, height: addButtonSize)
                             .background(trimmedDraft.isEmpty ? Color.secondary.opacity(0.35) : Color.blue)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .disabled(trimmedDraft.isEmpty)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 11)
+                .padding(.horizontal, inputHorizontalPadding)
+                .padding(.vertical, inputVerticalPadding)
                 .background(Color.secondary.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
         }
-        .padding(16)
+        .padding(cardPadding)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
@@ -81,6 +82,78 @@ struct CategoryComposerView: View {
         onAdd(title, selectedCategory, isImportant, isUrgent)
         draft = ""
     }
+
+    private var cardSpacing: CGFloat {
+        #if os(iOS)
+        10
+        #else
+        14
+        #endif
+    }
+
+    private var innerSpacing: CGFloat {
+        #if os(iOS)
+        8
+        #else
+        10
+        #endif
+    }
+
+    private var cardPadding: CGFloat {
+        #if os(iOS)
+        12
+        #else
+        16
+        #endif
+    }
+
+    private var leadingIconWidth: CGFloat {
+        #if os(iOS)
+        18
+        #else
+        22
+        #endif
+    }
+
+    private var inputFont: Font {
+        #if os(iOS)
+        .subheadline
+        #else
+        .body
+        #endif
+    }
+
+    private var addButtonFont: Font {
+        #if os(iOS)
+        .subheadline.weight(.bold)
+        #else
+        .headline.weight(.bold)
+        #endif
+    }
+
+    private var addButtonSize: CGFloat {
+        #if os(iOS)
+        30
+        #else
+        34
+        #endif
+    }
+
+    private var inputHorizontalPadding: CGFloat {
+        #if os(iOS)
+        10
+        #else
+        12
+        #endif
+    }
+
+    private var inputVerticalPadding: CGFloat {
+        #if os(iOS)
+        9
+        #else
+        11
+        #endif
+    }
 }
 
 private struct CategoryChip: View {
@@ -91,15 +164,39 @@ private struct CategoryChip: View {
     var body: some View {
         Button(action: action) {
             Label(category.rawValue, systemImage: category.systemImage)
-                .font(.caption.weight(.semibold))
+                .font(chipFont)
                 .labelStyle(.titleAndIcon)
                 .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 8)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, verticalPadding)
                 .background(isSelected ? Color.blue : Color.secondary.opacity(0.08))
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    private var chipFont: Font {
+        #if os(iOS)
+        .caption2.weight(.semibold)
+        #else
+        .caption.weight(.semibold)
+        #endif
+    }
+
+    private var horizontalPadding: CGFloat {
+        #if os(iOS)
+        10
+        #else
+        11
+        #endif
+    }
+
+    private var verticalPadding: CGFloat {
+        #if os(iOS)
+        7
+        #else
+        8
+        #endif
     }
 }
 
@@ -117,11 +214,19 @@ private struct ToggleChip: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(isOn ? Color.white : color)
                 .labelStyle(.iconOnly)
-                .frame(width: 30, height: 30)
+                .frame(width: buttonSize, height: buttonSize)
                 .background(isOn ? color : color.opacity(0.12))
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
         .help(title)
+    }
+
+    private var buttonSize: CGFloat {
+        #if os(iOS)
+        28
+        #else
+        30
+        #endif
     }
 }
