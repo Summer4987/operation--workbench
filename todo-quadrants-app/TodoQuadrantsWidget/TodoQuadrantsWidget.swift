@@ -37,10 +37,10 @@ struct TodoQuadrantsWidgetView: View {
     let entry: TodoEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Text("待办")
-                    .font(.headline)
+                    .font(.headline.weight(.bold))
                 Spacer()
                 Text(entry.snapshot.updatedAt, style: .time)
                     .font(.caption2)
@@ -54,10 +54,11 @@ struct TodoQuadrantsWidgetView: View {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(entry.snapshot.importantUrgent.prefix(3)) { item in
                     HStack(spacing: 5) {
-                        Image(systemName: "square")
+                        Image(systemName: "flame.fill")
                             .font(.caption2)
+                            .foregroundStyle(.red)
                         Text(item.title)
-                            .font(.caption)
+                            .font(.caption.weight(.medium))
                             .lineLimit(1)
                     }
                 }
@@ -68,7 +69,14 @@ struct TodoQuadrantsWidgetView: View {
                 }
             }
         }
-        .containerBackground(.background, for: .widget)
+        .containerBackground(
+            LinearGradient(
+                colors: [Color.white, Color(red: 0.91, green: 0.94, blue: 0.98)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            for: .widget
+        )
     }
 }
 
@@ -86,18 +94,28 @@ private struct QuadrantCountGrid: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
-            ForEach(counts, id: \.0) { title, count in
+            ForEach(Array(counts.enumerated()), id: \.element.0) { index, item in
                 HStack {
-                    Text(title)
+                    Text(item.0)
                     Spacer()
-                    Text("\(count)")
+                    Text("\(item.1)")
                         .fontWeight(.semibold)
                 }
                 .font(.caption2)
                 .padding(6)
-                .background(Color.secondary.opacity(0.08))
+                .background(color(for: index).opacity(0.12))
+                .foregroundStyle(color(for: index))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
+        }
+    }
+
+    private func color(for index: Int) -> Color {
+        switch index {
+        case 0: .red
+        case 1: .blue
+        case 2: .orange
+        default: .green
         }
     }
 }

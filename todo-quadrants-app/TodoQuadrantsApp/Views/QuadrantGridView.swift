@@ -5,19 +5,18 @@ struct QuadrantGridView: View {
     let onToggle: (TodoItem) -> Void
 
     private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("四象限")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "优先级矩阵", subtitle: "自动按重要 / 紧急归位")
 
-            LazyVGrid(columns: columns, spacing: 10) {
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(PriorityQuadrant.allCases) { quadrant in
                     QuadrantCard(
-                        title: quadrant.shortTitle,
+                        quadrant: quadrant,
                         items: itemsFor(quadrant),
                         onToggle: onToggle
                     )
@@ -35,52 +34,85 @@ struct QuadrantGridView: View {
 }
 
 private struct QuadrantCard: View {
-    let title: String
+    let quadrant: PriorityQuadrant
     let items: [TodoItem]
     let onToggle: (TodoItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .center, spacing: 7) {
+                Image(systemName: quadrant.systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(quadrant.accentColor)
+                    .frame(width: 22, height: 22)
+                    .background(quadrant.accentColor.opacity(0.12))
+                    .clipShape(Circle())
+
+                Text(quadrant.shortTitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.86)
+
                 Spacer()
+
                 Text("\(items.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(quadrant.accentColor)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(quadrant.accentColor.opacity(0.12))
+                    .clipShape(Capsule())
             }
 
-            Divider()
+            Rectangle()
+                .fill(quadrant.accentColor.opacity(0.2))
+                .frame(height: 1)
 
             if items.isEmpty {
                 Spacer()
-                Text("空")
+                Text("暂无事项")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 Spacer()
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(items) { item in
-                            TodoMiniRow(item: item, onToggle: onToggle)
-                        }
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(items.prefix(3)) { item in
+                        TodoMiniRow(item: item, accentColor: quadrant.accentColor, onToggle: onToggle)
                     }
+                    if items.count > 3 {
+                        Text("还有 \(items.count - 3) 项")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(quadrant.accentColor)
+                            .padding(.top, 2)
+                    }
+                    Spacer(minLength: 0)
                 }
             }
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: [Color.white, quadrant.accentColor.opacity(0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(quadrant.accentColor.opacity(0.16), lineWidth: 1)
+        )
+        .shadow(color: quadrant.accentColor.opacity(0.08), radius: 10, x: 0, y: 5)
     }
 }
 
 private struct TodoMiniRow: View {
     let item: TodoItem
+    let accentColor: Color
     let onToggle: (TodoItem) -> Void
 
     var body: some View {
@@ -90,10 +122,10 @@ private struct TodoMiniRow: View {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "square")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(accentColor)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
-                        .font(.caption)
+                        .font(.caption.weight(.medium))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Text(item.category.rawValue)
@@ -104,5 +136,23 @@ private struct TodoMiniRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.headline.weight(.bold))
+            Spacer()
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
     }
 }

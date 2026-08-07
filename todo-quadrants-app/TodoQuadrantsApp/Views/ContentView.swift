@@ -14,16 +14,19 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    syncStatusView
+                VStack(alignment: .leading, spacing: 20) {
+                    headerView
                     QuadrantGridView(items: activeTodos, onToggle: toggle)
                     CategoryComposerView(onAdd: addTodo)
                     CompletedListView(items: completedTodos, onToggle: toggle, onDelete: delete)
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
+                .frame(maxWidth: 980, alignment: .topLeading)
+                .frame(maxWidth: .infinity)
             }
             .background(pageBackground)
-            .navigationTitle("待办")
+            .navigationTitle("")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -59,35 +62,93 @@ struct ContentView: View {
 
     private var pageBackground: Color {
         #if os(iOS)
-        Color(.systemGroupedBackground)
+        Color(red: 0.96, green: 0.97, blue: 0.98)
         #elseif os(macOS)
-        Color(nsColor: .windowBackgroundColor)
+        Color(red: 0.96, green: 0.97, blue: 0.98)
         #else
         Color(.background)
         #endif
     }
 
-    private var syncStatusView: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(syncStatus == "已同步" ? Color.green : Color.orange)
-                .frame(width: 8, height: 8)
-            Text(syncStatus)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                Task {
-                    await pullRemoteTodos(force: true)
+    private var headerView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("今日待办")
+                        .font(.title.bold())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                    Text(summaryText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-            } label: {
-                Label("同步", systemImage: "arrow.triangle.2.circlepath")
-                    .labelStyle(.iconOnly)
+
+                Spacer()
+
+                syncButton
             }
-            .buttonStyle(.borderless)
-            .help("同步")
+
+            HStack(spacing: 10) {
+                MetricPill(title: "待处理", value: "\(activeTodos.count)", color: .blue)
+                MetricPill(title: "已完成", value: "\(completedTodos.count)", color: .green)
+                MetricPill(title: "重急", value: "\(count(for: .importantUrgent))", color: PriorityQuadrant.importantUrgent.accentColor)
+            }
         }
-        .padding(.horizontal, 2)
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [Color.white, Color(red: 0.91, green: 0.94, blue: 0.98)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.8), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.05), radius: 14, x: 0, y: 6)
+    }
+
+    private var syncButton: some View {
+        Button {
+            Task {
+                await pullRemoteTodos(force: true)
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(syncStatus == "已同步" ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
+                Text(syncStatus)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption2.weight(.semibold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color.white.opacity(0.86))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("同步")
+    }
+
+    private var summaryText: String {
+        if activeTodos.isEmpty {
+            return "没有待处理事项，保持干净。"
+        }
+        let urgentCount = count(for: .importantUrgent) + count(for: .urgentNotImportant)
+        if urgentCount > 0 {
+            return "\(urgentCount) 项紧急事项需要优先看。"
+        }
+        return "\(activeTodos.count) 项待办，暂无紧急事项。"
+    }
+
+    private func count(for quadrant: PriorityQuadrant) -> Int {
+        activeTodos.filter { $0.quadrant == quadrant }.count
     }
 
     private func addTodo(title: String, category: TodoCategory, isImportant: Bool, isUrgent: Bool) {
@@ -167,6 +228,27 @@ struct ContentView: View {
         todos.forEach { modelContext.delete($0) }
         remoteItems.forEach { modelContext.insert($0.todoItem) }
         save()
+    }
+}
+
+private struct MetricPill: View {
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(value)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.75))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
