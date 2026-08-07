@@ -4,34 +4,52 @@ struct CompletedListView: View {
     let items: [TodoItem]
     let onToggle: (TodoItem) -> Void
     let onDelete: (TodoItem) -> Void
+    let onDeleteAll: () -> Void
 
     @State private var isExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button {
-                withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("已完成")
-                            .font(.headline.weight(.bold))
-                        Text(items.isEmpty ? "完成后会收纳到这里" : "\(items.count) 项已归档")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                        isExpanded.toggle()
                     }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("已完成")
+                                .font(.headline.weight(.bold))
+                            Text(items.isEmpty ? "完成后会收纳到这里" : "\(items.count) 项已归档")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                    Spacer()
+                        Spacer()
 
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if !items.isEmpty {
+                    Button(role: .destructive) {
+                        onDeleteAll()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.red.opacity(0.86))
+                            .frame(width: 34, height: 34)
+                            .background(Color.red.opacity(0.10))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("清空已完成")
                 }
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
                 if items.isEmpty {
@@ -52,11 +70,26 @@ struct CompletedListView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text(item.title)
-                        .font(.subheadline)
-                        .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                            .foregroundStyle(.secondary)
+                        if items.count > 1 {
+                            Text("另有 \(items.count - 1) 项，点上方展开查看")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
                     Spacer()
+
+                    Button(role: .destructive) {
+                        onDelete(item)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red.opacity(0.82))
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(10)
                 .background(Color.secondary.opacity(0.06))

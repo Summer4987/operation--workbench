@@ -20,7 +20,7 @@ struct ContentView: View {
                     QuadrantGridView(items: activeTodos, onToggle: toggle)
                     CategoryComposerView(onAdd: addTodo)
                     MemoPadView(text: $memoText, onSave: saveMemo)
-                    CompletedListView(items: completedTodos, onToggle: toggle, onDelete: delete)
+                    CompletedListView(items: completedTodos, onToggle: toggle, onDelete: delete, onDeleteAll: deleteCompletedTodos)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 18)
@@ -170,6 +170,11 @@ struct ContentView: View {
 
     private func delete(_ item: TodoItem) {
         modelContext.delete(item)
+        save()
+    }
+
+    private func deleteCompletedTodos() {
+        completedTodos.forEach { modelContext.delete($0) }
         save()
     }
 
