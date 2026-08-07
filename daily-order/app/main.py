@@ -1312,13 +1312,13 @@ def _require_todo_quadrants_sync(request: Request) -> None:
 
 def _load_todo_quadrants_sync() -> dict:
     if not TODO_QUADRANTS_PATH.exists():
-        return {"updated_at": "", "items": []}
+        return {"updated_at": "", "items": [], "memo": ""}
     try:
         payload = json.loads(TODO_QUADRANTS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"updated_at": "", "items": []}
+        return {"updated_at": "", "items": [], "memo": ""}
     if not isinstance(payload, dict):
-        return {"updated_at": "", "items": []}
+        return {"updated_at": "", "items": [], "memo": ""}
     return _normalize_todo_quadrants_payload(payload, keep_updated_at=True)
 
 
@@ -1342,7 +1342,8 @@ def _normalize_todo_quadrants_payload(payload: dict, keep_updated_at: bool = Fal
     updated_at = str(payload.get("updated_at") or "").strip() if keep_updated_at else ""
     if not updated_at:
         updated_at = datetime.now(timezone.utc).isoformat()
-    return {"updated_at": updated_at, "items": items}
+    memo = str(payload.get("memo") or "")
+    return {"updated_at": updated_at, "items": items, "memo": memo}
 
 
 def _normalize_todo_quadrants_item(item: dict) -> dict:

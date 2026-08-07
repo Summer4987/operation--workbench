@@ -36,9 +36,10 @@ def test_todo_quadrants_sync_round_trips_items(tmp_path, monkeypatch):
     client = TestClient(module.app)
     empty = client.get("/daily-order/api/todo-quadrants?token=xiongxiaoxiao-todo-sync")
     assert empty.status_code == 200
-    assert empty.json() == {"updated_at": "", "items": []}
+    assert empty.json() == {"updated_at": "", "items": [], "memo": ""}
 
     payload = {
+        "memo": "今天先记一个临时备忘",
         "items": [
             {
                 "id": "8C627A5D-6521-4E1D-B6F1-11A0CECBDE6B",
@@ -55,6 +56,7 @@ def test_todo_quadrants_sync_round_trips_items(tmp_path, monkeypatch):
     saved = client.put("/daily-order/api/todo-quadrants?token=xiongxiaoxiao-todo-sync", json=payload)
     assert saved.status_code == 200
     assert saved.json()["updated_at"]
+    assert saved.json()["memo"] == "今天先记一个临时备忘"
     assert saved.json()["items"][0]["title"] == "补充平台待办"
 
     fetched = client.get("/daily-order/api/todo-quadrants?token=xiongxiaoxiao-todo-sync")

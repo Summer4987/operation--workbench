@@ -27,11 +27,6 @@ struct CategoryComposerView: View {
                     .padding(.vertical, 1)
                 }
 
-                HStack(spacing: 8) {
-                    ToggleChip(title: "重要", systemImage: "star.fill", color: .blue, isOn: $isImportant)
-                    ToggleChip(title: "紧急", systemImage: "clock.fill", color: .orange, isOn: $isUrgent)
-                }
-
                 HStack(spacing: 10) {
                     Image(systemName: selectedCategory.systemImage)
                         .foregroundStyle(.secondary)
@@ -41,6 +36,11 @@ struct CategoryComposerView: View {
                         .textFieldStyle(.plain)
                         .submitLabel(.done)
                         .onSubmit(add)
+
+                    HStack(spacing: 6) {
+                        ToggleChip(title: "重要", systemImage: "star.fill", color: Color(red: 0.48, green: 0.24, blue: 0.84), isOn: $isImportant)
+                        ToggleChip(title: "紧急", systemImage: "clock.fill", color: Color(red: 0.84, green: 0.20, blue: 0.45), isOn: $isUrgent)
+                    }
 
                     Button {
                         add()
@@ -116,11 +116,12 @@ private struct ToggleChip: View {
             Label(title, systemImage: systemImage)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(isOn ? Color.white : color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .labelStyle(.iconOnly)
+                .frame(width: 30, height: 30)
                 .background(isOn ? color : color.opacity(0.12))
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .help(title)
     }
 }

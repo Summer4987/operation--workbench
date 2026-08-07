@@ -20,7 +20,7 @@ struct QuadrantGridView: View {
                         items: itemsFor(quadrant),
                         onToggle: onToggle
                     )
-                    .aspectRatio(1, contentMode: .fit)
+                    .frame(minHeight: 132, maxHeight: 164)
                 }
             }
         }
@@ -39,12 +39,12 @@ private struct QuadrantCard: View {
     let onToggle: (TodoItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: quadrant.systemImage)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(quadrant.accentColor)
-                    .frame(width: 22, height: 22)
+                    .frame(width: 20, height: 20)
                     .background(quadrant.accentColor.opacity(0.12))
                     .clipShape(Circle())
 
@@ -66,10 +66,6 @@ private struct QuadrantCard: View {
                     .clipShape(Capsule())
             }
 
-            Rectangle()
-                .fill(quadrant.accentColor.opacity(0.2))
-                .frame(height: 1)
-
             if items.isEmpty {
                 Spacer()
                 Text("暂无事项")
@@ -78,12 +74,12 @@ private struct QuadrantCard: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                 Spacer()
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(items.prefix(3)) { item in
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(items.prefix(2)) { item in
                         TodoMiniRow(item: item, accentColor: quadrant.accentColor, onToggle: onToggle)
                     }
-                    if items.count > 3 {
-                        Text("还有 \(items.count - 3) 项")
+                    if items.count > 2 {
+                        Text("还有 \(items.count - 2) 项")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(quadrant.accentColor)
                             .padding(.top, 2)
@@ -92,7 +88,7 @@ private struct QuadrantCard: View {
                 }
             }
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             LinearGradient(
@@ -101,12 +97,12 @@ private struct QuadrantCard: View {
                 endPoint: .bottomTrailing
             )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(quadrant.accentColor.opacity(0.16), lineWidth: 1)
         )
-        .shadow(color: quadrant.accentColor.opacity(0.08), radius: 10, x: 0, y: 5)
+        .shadow(color: quadrant.accentColor.opacity(0.07), radius: 8, x: 0, y: 4)
     }
 }
 

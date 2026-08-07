@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var lastRemoteUpdatedAt = ""
     @State private var isApplyingRemote = false
     @State private var initialSyncDone = false
+    @State private var memoText = ""
     private let syncTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -18,6 +19,7 @@ struct ContentView: View {
                     headerView
                     QuadrantGridView(items: activeTodos, onToggle: toggle)
                     CategoryComposerView(onAdd: addTodo)
+                    MemoPadView(text: $memoText, onSave: saveMemo)
                     CompletedListView(items: completedTodos, onToggle: toggle, onDelete: delete)
                 }
                 .padding(.horizontal, 16)
@@ -188,9 +190,10 @@ struct ContentView: View {
         guard initialSyncDone, !isApplyingRemote else { return }
         do {
             syncStatus = "同步中..."
-            let envelope = TodoSyncEnvelope(items: todos.map(TodoSyncItem.init(item:)))
+            let envelope = TodoSyncEnvelope(items: todos.map(TodoSyncItem.init(item:)), memo: memoText)
             let saved = try await TodoSyncService.put(envelope)
             lastRemoteUpdatedAt = saved.updatedAt
+            memoText = saved.memo
             syncStatus = "已同步"
         } catch {
             syncStatus = "同步失败"
@@ -210,6 +213,7 @@ struct ContentView: View {
             }
             if force || remote.updatedAt != lastRemoteUpdatedAt {
                 applyRemoteTodos(remote.items)
+                memoText = remote.memo
                 lastRemoteUpdatedAt = remote.updatedAt
             }
             initialSyncDone = true
@@ -228,6 +232,54 @@ struct ContentView: View {
         todos.forEach { modelContext.delete($0) }
         remoteItems.forEach { modelContext.insert($0.todoItem) }
         save()
+    }
+
+    private func saveMemo() {
+        Task {
+            await pushRemoteTodos()
+        }
+    }
+}
+
+private struct MemoPadView: View {
+    @Binding var text: String
+    let onSave: () -> Void
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "备忘录", subtitle: "随手记录，不进四象限")
+
+            TextEditor(text: $text)
+                .focused($isFocused)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 96)
+                .padding(10)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(alignment: .topLeading) {
+                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isFocused {
+                        Text("临时想法、采购提醒、会议记录...")
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 18)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+        .padding(16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.secondary.opacity(0.10), lineWidth: 1)
+        )
+        .onChange(of: isFocused) { _, focused in
+            if !focused {
+                onSave()
+            }
+        }
     }
 }
 
@@ -255,15 +307,25 @@ private struct MetricPill: View {
 private struct TodoSyncEnvelope: Codable {
     var updatedAt: String
     var items: [TodoSyncItem]
+    var memo: String
 
-    init(updatedAt: String = "", items: [TodoSyncItem]) {
+    init(updatedAt: String = "", items: [TodoSyncItem], memo: String = "") {
         self.updatedAt = updatedAt
         self.items = items
+        self.memo = memo
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt) ?? ""
+        items = try container.decodeIfPresent([TodoSyncItem].self, forKey: .items) ?? []
+        memo = try container.decodeIfPresent(String.self, forKey: .memo) ?? ""
     }
 
     enum CodingKeys: String, CodingKey {
         case updatedAt = "updated_at"
         case items
+        case memo
     }
 }
 
