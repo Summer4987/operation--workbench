@@ -51,7 +51,7 @@ struct QuadrantGridView: View {
 
     private var sectionSpacing: CGFloat {
         #if os(iOS)
-        9
+        10
         #else
         12
         #endif
@@ -59,7 +59,7 @@ struct QuadrantGridView: View {
 
     private var gridSpacing: CGFloat {
         #if os(iOS)
-        9
+        10
         #else
         12
         #endif
@@ -67,7 +67,7 @@ struct QuadrantGridView: View {
 
     private var cardMinHeight: CGFloat {
         #if os(iOS)
-        88
+        140
         #else
         132
         #endif
@@ -75,7 +75,7 @@ struct QuadrantGridView: View {
 
     private var cardMaxHeight: CGFloat {
         #if os(iOS)
-        104
+        172
         #else
         164
         #endif
@@ -174,7 +174,7 @@ private struct QuadrantCard: View {
 
     private var previewLimit: Int {
         #if os(iOS)
-        1
+        3
         #else
         2
         #endif
@@ -182,7 +182,7 @@ private struct QuadrantCard: View {
 
     private var verticalSpacing: CGFloat {
         #if os(iOS)
-        5
+        7
         #else
         7
         #endif
@@ -190,7 +190,7 @@ private struct QuadrantCard: View {
 
     private var rowSpacing: CGFloat {
         #if os(iOS)
-        4
+        5
         #else
         5
         #endif
@@ -198,7 +198,7 @@ private struct QuadrantCard: View {
 
     private var cardPadding: CGFloat {
         #if os(iOS)
-        7
+        9
         #else
         10
         #endif
@@ -206,7 +206,7 @@ private struct QuadrantCard: View {
 
     private var iconBoxSize: CGFloat {
         #if os(iOS)
-        18
+        20
         #else
         20
         #endif
@@ -222,7 +222,7 @@ private struct QuadrantCard: View {
 
     private var titleFont: Font {
         #if os(iOS)
-        .caption2.weight(.bold)
+        .caption.weight(.bold)
         #else
         .caption.weight(.bold)
         #endif
@@ -407,7 +407,7 @@ private struct TodoMiniRow: View {
 
     private var miniTitleFont: Font {
         #if os(iOS)
-        .caption2.weight(.medium)
+        .caption.weight(.medium)
         #else
         .caption.weight(.medium)
         #endif
@@ -415,7 +415,7 @@ private struct TodoMiniRow: View {
 
     private var miniTitleLineLimit: Int {
         #if os(iOS)
-        1
+        2
         #else
         2
         #endif
