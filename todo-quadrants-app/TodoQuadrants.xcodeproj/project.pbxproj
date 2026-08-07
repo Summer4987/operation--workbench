@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		02C7A82FCA9F4D0F9A4A0210 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C010689CF18D4FEC9B0901D1 /* Assets.xcassets */; };
 		09222A4C485A068EAED34F28 /* TodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F001D966FF4429EA45E8AAD /* TodoItem.swift */; };
 		0E70390872BF48F765EBC753 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF610F14B8CE6A5C6C7AD73A /* ContentView.swift */; };
 		18A26BE0A68BD16876223062 /* TodoQuadrantsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */; };
@@ -25,6 +26,7 @@
 		8C5E97EFB384683517539F61 /* PriorityQuadrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A056AADCA23CDA5A469DDA /* PriorityQuadrant.swift */; };
 		93DB07FD04BABF5267587885 /* CategoryComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E14413372B9ED44EA219C91 /* CategoryComposerView.swift */; };
 		9837937B29502DB6859E0386 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */; };
+		A0488B05468743CD9A7620C7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C010689CF18D4FEC9B0901D1 /* Assets.xcassets */; };
 		A7A5B0D4E74FE7348FDF3325 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */; };
 		AB1BB1958337E30447DC746B /* WidgetSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD1BEB5E0F583774796D71E /* WidgetSnapshotWriter.swift */; };
 		ACF9240F296B4AA8492835DF /* TodoQuadrantsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */; };
@@ -77,6 +79,7 @@
 		9F001D966FF4429EA45E8AAD /* TodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoItem.swift; sourceTree = "<group>"; };
 		B9A056AADCA23CDA5A469DDA /* PriorityQuadrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityQuadrant.swift; sourceTree = "<group>"; };
 		BDD1BEB5E0F583774796D71E /* WidgetSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotWriter.swift; sourceTree = "<group>"; };
+		C010689CF18D4FEC9B0901D1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF610F14B8CE6A5C6C7AD73A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		DD0A238398CCFC71E65DA54F /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -132,6 +135,7 @@
 		922737031C148CC5173E8EC2 /* TodoQuadrantsApp */ = {
 			isa = PBXGroup;
 			children = (
+				C010689CF18D4FEC9B0901D1 /* Assets.xcassets */,
 				4FD305891FE7FE4CE70653F4 /* Info.plist */,
 				58450FED9E98FCD68A053401 /* TodoQuadrantsApp.entitlements */,
 				04694F9B6BA37E6B626DAAF0 /* TodoQuadrantsApp.swift */,
@@ -171,6 +175,7 @@
 			buildConfigurationList = 0F617DE7CE72E201DB6F7B6F /* Build configuration list for PBXNativeTarget "TodoQuadrants macOS" */;
 			buildPhases = (
 				4BB25FA27410F2319DC1C07C /* Sources */,
+				F25F8443216E4083867029E5 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -205,6 +210,7 @@
 			buildConfigurationList = AAFD0DCED8AED8E17CB925E2 /* Build configuration list for PBXNativeTarget "TodoQuadrants iOS" */;
 			buildPhases = (
 				4C920ABAEC697D8F3C930FC6 /* Sources */,
+				E2242F2671D6405D826074AB /* Resources */,
 				A81FAD42140F65C8850DBF66 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -262,6 +268,25 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E2242F2671D6405D826074AB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02C7A82FCA9F4D0F9A4A0210 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F25F8443216E4083867029E5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0488B05468743CD9A7620C7 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4BB25FA27410F2319DC1C07C /* Sources */ = {
