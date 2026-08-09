@@ -1,5 +1,18 @@
 # 库存看板
 
+## 一键同步到飞书
+
+看板顶部的“同步到飞书”会把当前库存快照（商品编码、名称、规格、单位、仓库、库存余额、预警值、同步时间）写入已授权的飞书电子表格。生产环境需要在 `/etc/inventory-board.env` 配置：
+
+```bash
+FEISHU_APP_ID=cli_...
+FEISHU_APP_SECRET=...
+FEISHU_INVENTORY_WIKI_TOKEN=...
+FEISHU_INVENTORY_SHEET_ID=直营店仓库
+```
+
+也可以直接配置 `FEISHU_TENANT_ACCESS_TOKEN` 和 `FEISHU_INVENTORY_SPREADSHEET_TOKEN`，不再通过应用凭证和知识库节点解析。应用必须已被添加为该表的可编辑协作者。
+
 这个项目用于构建一套云端为主的库存体系：门店在云端下单，服务器自动生成出库单并扣减库存；运营在总看板上传入库 Excel，服务器解析后更新库存、流水和预警。
 
 ## 模板识别

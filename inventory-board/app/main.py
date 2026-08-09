@@ -49,6 +49,7 @@ from .order_generator import (
     public_order_catalog,
 )
 from .parser import ParseError, parse_inventory_file, parse_product_catalog
+from .feishu_inventory import FeishuInventoryError, sync_inventory
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -288,6 +289,14 @@ def summary():
             "total_balance": sum(float(item["balance"]) for item in items),
         },
     }
+
+
+@app.post("/api/feishu/inventory-sync")
+def feishu_inventory_sync():
+    try:
+        return sync_inventory(inventory_summary())
+    except FeishuInventoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/imports")

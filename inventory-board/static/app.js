@@ -19,6 +19,8 @@ const els = {
   storeDeliveries: document.querySelector("#storeDeliveryGrid"),
   deliveryMonth: document.querySelector("#deliveryMonthSelect"),
   refresh: document.querySelector("#refreshButton"),
+  feishuSync: document.querySelector("#feishuSyncButton"),
+  feishuSyncMessage: document.querySelector("#feishuSyncMessage"),
   templateDownloadLink: document.querySelector("#templateDownloadLink"),
   templateStatusText: document.querySelector("#templateStatusText"),
 };
@@ -53,6 +55,27 @@ els.deliveryMonth.addEventListener("change", async () => {
   renderStoreDeliveries(storeDeliveries);
 });
 els.refresh.addEventListener("click", loadAll);
+els.feishuSync.addEventListener("click", syncToFeishu);
+
+async function syncToFeishu() {
+  els.feishuSync.disabled = true;
+  setSyncMessage("正在同步当前库存到飞书…");
+  try {
+    const response = await fetch("/api/feishu/inventory-sync", { method: "POST" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "飞书同步失败");
+    setSyncMessage(`同步成功：已写入 ${payload.row_count} 项库存（${payload.synced_at}）`, "ok");
+  } catch (error) {
+    setSyncMessage(error.message, "error");
+  } finally {
+    els.feishuSync.disabled = false;
+  }
+}
+
+function setSyncMessage(text, type = "") {
+  els.feishuSyncMessage.textContent = text;
+  els.feishuSyncMessage.className = `message sync-message ${type}`;
+}
 
 async function loadAll() {
   const [summary, imports, movements, storeDeliveries, templateStatus] = await Promise.all([

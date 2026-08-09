@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>库存看板</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260629-no-cost" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260809-feishu-sync" />
   </head>
   <body>
     <main class="shell">
@@ -13,8 +13,12 @@
           <h1>库存看板</h1>
           <p>云端统一处理门店下单、出库扣减和运营入库上传</p>
         </div>
-        <button id="refreshButton" class="icon-button" title="刷新">↻</button>
+        <div class="topbar-actions">
+          <button id="feishuSyncButton" class="primary-button" type="button">同步到飞书</button>
+          <button id="refreshButton" class="icon-button" title="刷新">↻</button>
+        </div>
       </section>
+      <div id="feishuSyncMessage" class="message sync-message" role="status"></div>
 
       <section class="stats">
         <div>
@@ -110,6 +114,6 @@
         </div>
       </section>
     </main>
-    <script src="/static/app.js?v=20260629-no-cost"></script>
+    <script src="/static/app.js?v=20260809-feishu-sync"></script>
   </body>
 </html>
