@@ -95,7 +95,7 @@ def _spreadsheet_token(access_token: str) -> str:
         raise FeishuInventoryError("未配置 FEISHU_INVENTORY_SPREADSHEET_TOKEN 或 FEISHU_INVENTORY_WIKI_TOKEN")
     payload = _api_json(
         "GET",
-        f"/open-apis/wiki/v2/spaces/get_node?{url_parse.urlencode({'token': wiki_token, 'obj_type': 'sheet'})}",
+        f"/open-apis/wiki/v2/spaces/get_node?{url_parse.urlencode({'token': wiki_token})}",
         access_token,
         None,
     )
