@@ -22,7 +22,6 @@ def sync_inventory(items: list[dict[str, Any]]) -> dict[str, Any]:
     token = _tenant_access_token()
     spreadsheet_token = _spreadsheet_token(token)
     sheet_id = os.environ.get("FEISHU_INVENTORY_SHEET_ID", DEFAULT_SHEET_ID).strip() or DEFAULT_SHEET_ID
-    max_rows = max(100, int(os.environ.get("FEISHU_INVENTORY_MAX_ROWS", "1000")))
     headers = ["商品编码", "商品名称", "规格", "单位", "仓库", "库存余额", "预警值", "同步时间"]
     synced_at = datetime.now().astimezone().isoformat(timespec="seconds")
     rows = [
@@ -38,14 +37,7 @@ def sync_inventory(items: list[dict[str, Any]]) -> dict[str, Any]:
         ]
         for item in items
     ]
-    clear_range = f"{sheet_id}!A1:H{max_rows}"
     write_range = f"{sheet_id}!A1:H{len(rows) + 1}"
-    _api_json(
-        "POST",
-        f"/open-apis/sheets/v2/spreadsheets/{url_parse.quote(spreadsheet_token, safe='')}/values_batch_clear",
-        token,
-        {"ranges": [clear_range]},
-    )
     _api_json(
         "POST",
         f"/open-apis/sheets/v2/spreadsheets/{url_parse.quote(spreadsheet_token, safe='')}/values_batch_update",
