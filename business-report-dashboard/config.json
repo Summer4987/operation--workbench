@@ -8,7 +8,8 @@
     "双井",
     "光谷",
     "五一广场",
-    "望京"
+    "望京",
+    "滨江店"
   ],
   "store_aliases": [
     {
@@ -57,6 +58,11 @@
       "aliases": ["望京店"]
     },
     {
+      "platform": "饿了么",
+      "short_name": "滨江店",
+      "aliases": ["滨江店", "熊小小牛排饭POKEBEAR(滨江店)", "熊小小牛排饭POKEBEAR（滨江店）"]
+    },
+    {
       "platform": "美团",
       "short_name": "安贞",
       "aliases": ["安贞店"]
@@ -100,6 +106,11 @@
       "platform": "美团",
       "short_name": "望京",
       "aliases": ["望京店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "滨江店",
+      "aliases": ["滨江店", "滨江", "熊小小牛排饭POKEBEAR(滨江店)", "熊小小牛排饭POKEBEAR（滨江店）"]
     }
   ],
   "eleme": {

@@ -536,6 +536,7 @@ STORE_SLUGS = {
     "光谷": "guanggu",
     "五一广场": "wuyiguangchang",
     "望京": "wangjing",
+    "滨江店": "binjiang",
 }
 
 
