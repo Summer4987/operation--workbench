@@ -67,17 +67,17 @@ struct QuadrantGridView: View {
 
     private var cardMinHeight: CGFloat {
         #if os(iOS)
-        168
+        260
         #else
-        132
+        260
         #endif
     }
 
     private var cardMaxHeight: CGFloat {
         #if os(iOS)
-        208
+        300
         #else
-        164
+        300
         #endif
     }
 }
@@ -173,11 +173,7 @@ private struct QuadrantCard: View {
     }
 
     private var previewLimit: Int {
-        #if os(iOS)
-        3
-        #else
-        2
-        #endif
+        4
     }
 
     private var verticalSpacing: CGFloat {

@@ -39,8 +39,20 @@ struct CategoryComposerView: View {
                         .onSubmit(add)
 
                     HStack(spacing: 6) {
-                        ToggleChip(title: "重要", systemImage: "star.fill", color: Color(red: 0.48, green: 0.24, blue: 0.84), isOn: $isImportant)
-                        ToggleChip(title: "紧急", systemImage: "clock.fill", color: Color(red: 0.84, green: 0.20, blue: 0.45), isOn: $isUrgent)
+                        PriorityTextChoice(
+                            title: isImportant ? "重要" : "不重要",
+                            color: Color(red: 0.48, green: 0.24, blue: 0.84),
+                            isOn: isImportant
+                        ) {
+                            isImportant.toggle()
+                        }
+                        PriorityTextChoice(
+                            title: isUrgent ? "紧急" : "不紧急",
+                            color: Color(red: 0.84, green: 0.20, blue: 0.45),
+                            isOn: isUrgent
+                        ) {
+                            isUrgent.toggle()
+                        }
                     }
 
                     Button {
@@ -200,21 +212,20 @@ private struct CategoryChip: View {
     }
 }
 
-private struct ToggleChip: View {
+private struct PriorityTextChoice: View {
     let title: String
-    let systemImage: String
     let color: Color
-    @Binding var isOn: Bool
+    let isOn: Bool
+    let action: () -> Void
 
     var body: some View {
-        Button {
-            isOn.toggle()
-        } label: {
-            Label(title, systemImage: systemImage)
+        Button(action: action) {
+            Text(title)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(isOn ? Color.white : color)
-                .labelStyle(.iconOnly)
-                .frame(width: buttonSize, height: buttonSize)
+                .frame(minWidth: textMinWidth)
+                .padding(.horizontal, 8)
+                .frame(height: buttonHeight)
                 .background(isOn ? color : color.opacity(0.12))
                 .clipShape(Capsule())
         }
@@ -222,11 +233,19 @@ private struct ToggleChip: View {
         .help(title)
     }
 
-    private var buttonSize: CGFloat {
+    private var textMinWidth: CGFloat {
         #if os(iOS)
-        28
+        42
         #else
+        48
+        #endif
+    }
+
+    private var buttonHeight: CGFloat {
+        #if os(iOS)
         30
+        #else
+        32
         #endif
     }
 }

@@ -43,6 +43,7 @@ struct ContentView: View {
                     await pullRemoteTodos()
                 }
             }
+            .environment(\.dynamicTypeSize, .xLarge)
         }
     }
 
