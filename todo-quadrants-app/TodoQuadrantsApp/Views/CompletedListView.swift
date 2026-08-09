@@ -83,6 +83,20 @@ struct CompletedListView: View {
                     }
                     Spacer()
 
+                    Button {
+                        onToggle(item)
+                    } label: {
+                        Text("恢复")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.blue)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.10))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("恢复到原有象限")
+
                     Button(role: .destructive) {
                         onDelete(item)
                     } label: {
@@ -164,11 +178,16 @@ private struct CompletedTodoRow: View {
             Button {
                 onToggle(item)
             } label: {
-                Image(systemName: "checkmark.square.fill")
-                    .foregroundStyle(.green)
-                    .font(.title3)
+                Text("恢复")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.blue.opacity(0.10))
+                    .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .help("恢复到原有象限")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
