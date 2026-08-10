@@ -17,13 +17,18 @@ def snapshot(generated_at: str, orders: int, income: float) -> dict:
 class RealtimeComparisonTests(unittest.TestCase):
     def test_uses_success_snapshot_within_same_period_tolerance(self) -> None:
         realtime = snapshot("2026-08-05 12:30:56", 849, 27212.1)
-        history = [snapshot("2026-08-04 12:36:00", 700, 22000)]
+        history = [
+            snapshot("2026-08-04 12:36:00", 700, 22000),
+            snapshot("2026-07-29 12:31:00", 600, 19000),
+        ]
 
         result = build_realtime_comparison(realtime, history)
 
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["matched_time"], "2026-08-04 12:36:00")
         self.assertEqual(result["summary"]["orders"]["delta"], 149)
+        self.assertEqual(result["last_week"]["status"], "ready")
+        self.assertEqual(result["last_week"]["summary"]["orders"]["previous"], 600)
 
     def test_marks_same_period_missing_and_returns_surrounding_success_snapshots(self) -> None:
         realtime = snapshot("2026-08-05 12:30:56", 849, 27212.1)

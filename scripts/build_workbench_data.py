@@ -433,55 +433,46 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
     current_time = parse_time(realtime.get("generated_at"))
     if not current_time:
         return {"status": "missing", "message": "实时数据暂无生成时间"}
-    target_time = current_time - timedelta(days=1)
-    candidates = []
-    for item in history:
-        item_time = parse_time(item.get("generated_at"))
-        if not item_time or item.get("generated_at") == realtime.get("generated_at"):
-            continue
-        item_status = str(item.get("status") or "").lower()
-        if item_status and item_status not in {"ok", "ready", "success"}:
-            continue
-        if item_time.date() != target_time.date():
-            continue
-        delta = abs((item_time - target_time).total_seconds())
-        candidates.append((delta, item_time, item))
-    if not candidates:
-        return {
-            "status": "pending",
-            "message": "昨日暂无可用实时历史数据，明天开始生成",
-            "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-
-    candidates.sort(key=lambda item: (item[0], item[1]))
-    _, previous_time, previous = candidates[0]
-    match_delta_minutes = round(abs((previous_time - target_time).total_seconds()) / 60)
     current_summary = realtime.get("summary") or {}
-    if abs((previous_time - target_time).total_seconds()) > REALTIME_SAME_PERIOD_TOLERANCE_MINUTES * 60:
-        before = sorted((item for item in candidates if item[1] <= target_time), key=lambda item: item[1], reverse=True)
-        after = sorted((item for item in candidates if item[1] > target_time), key=lambda item: item[1])
-        selected = []
-        if before:
-            selected.append(before[0])
-        if after:
-            selected.append(after[0])
-        selected_times = {item[1] for item in selected}
-        for candidate in candidates:
-            if len(selected) >= 2:
-                break
-            if candidate[1] not in selected_times:
-                selected.append(candidate)
-                selected_times.add(candidate[1])
 
-        nearest_snapshots = []
-        for delta, snapshot_time, snapshot in sorted(selected, key=lambda item: item[1]):
-            snapshot_summary = snapshot.get("summary") or {}
-            snapshot_orders = float(snapshot_summary.get("total_orders") or 0)
-            snapshot_income = float(snapshot_summary.get("total_income") or 0)
+    def compare_period(target_time: datetime, label: str) -> dict:
+        candidates = []
+        for item in history:
+            item_time = parse_time(item.get("generated_at"))
+            if not item_time or item.get("generated_at") == realtime.get("generated_at"):
+                continue
+            item_status = str(item.get("status") or "").lower()
+            if item_status and item_status not in {"ok", "ready", "success"}:
+                continue
+            if item_time.date() != target_time.date():
+                continue
+            candidates.append((abs((item_time - target_time).total_seconds()), item_time, item))
+        target_text = target_time.strftime("%Y-%m-%d %H:%M:%S")
+        if not candidates:
+            return {"status": "pending", "message": f"{label}暂无可用实时历史数据", "target_time": target_text}
+
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        _, previous_time, previous = candidates[0]
+        match_delta_minutes = round(abs((previous_time - target_time).total_seconds()) / 60)
+        if abs((previous_time - target_time).total_seconds()) > REALTIME_SAME_PERIOD_TOLERANCE_MINUTES * 60:
+            before = sorted((item for item in candidates if item[1] <= target_time), key=lambda item: item[1], reverse=True)
+            after = sorted((item for item in candidates if item[1] > target_time), key=lambda item: item[1])
+            selected = ([before[0]] if before else []) + ([after[0]] if after else [])
+            selected_times = {item[1] for item in selected}
+            for candidate in candidates:
+                if len(selected) >= 2:
+                    break
+                if candidate[1] not in selected_times:
+                    selected.append(candidate)
+                    selected_times.add(candidate[1])
             current_orders = float(current_summary.get("total_orders") or 0)
             current_income = float(current_summary.get("total_income") or 0)
-            nearest_snapshots.append(
-                {
+            nearest_snapshots = []
+            for delta, snapshot_time, snapshot in sorted(selected, key=lambda item: item[1]):
+                snapshot_summary = snapshot.get("summary") or {}
+                snapshot_orders = float(snapshot_summary.get("total_orders") or 0)
+                snapshot_income = float(snapshot_summary.get("total_income") or 0)
+                nearest_snapshots.append({
                     "generated_at": snapshot_time.strftime("%Y-%m-%d %H:%M:%S"),
                     "time_label": snapshot_time.strftime("%Y-%m-%d %H:%M"),
                     "relation": "before" if snapshot_time <= target_time else "after",
@@ -492,68 +483,53 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
                         "current_order_delta": current_orders - snapshot_orders,
                         "current_income_delta": current_income - snapshot_income,
                     },
-                }
-            )
+                })
+            return {
+                "status": "time_missing",
+                "message": f"{label}同时段数据缺失",
+                "detail": f"目标时刻 {target_time.strftime('%H:%M')} 前后 {REALTIME_SAME_PERIOD_TOLERANCE_MINUTES} 分钟内没有成功快照。",
+                "target_time": target_text,
+                "same_period_tolerance_minutes": REALTIME_SAME_PERIOD_TOLERANCE_MINUTES,
+                "nearest_snapshots": nearest_snapshots,
+            }
+
+        previous_summary = previous.get("summary") or {}
+        previous_stores = {item.get("store"): item for item in previous.get("stores") or []}
+        stores = []
+        for current_store in realtime.get("stores") or []:
+            store_name = current_store.get("store")
+            previous_store = previous_stores.get(store_name) or {}
+            current_orders = float(current_store.get("orders") or 0)
+            previous_orders = float(previous_store.get("orders") or 0)
+            current_income = float(current_store.get("income") or 0)
+            previous_income = float(previous_store.get("income") or 0)
+            stores.append({
+                "store": store_name,
+                "orders": {"current": current_orders, "previous": previous_orders, "delta": current_orders - previous_orders, "change": pct_change(current_orders, previous_orders)},
+                "income": {"current": current_income, "previous": previous_income, "delta": current_income - previous_income, "change": pct_change(current_income, previous_income)},
+            })
+        current_orders = float(current_summary.get("total_orders") or 0)
+        previous_orders = float(previous_summary.get("total_orders") or 0)
+        current_income = float(current_summary.get("total_income") or 0)
+        previous_income = float(previous_summary.get("total_income") or 0)
         return {
-            "status": "time_missing",
-            "message": "昨日同时段数据缺失",
-            "detail": f"目标时刻 {target_time.strftime('%H:%M')} 前后 {REALTIME_SAME_PERIOD_TOLERANCE_MINUTES} 分钟内没有成功快照，以下展示前后最近的成功快照供人工比对。",
-            "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "same_period_tolerance_minutes": REALTIME_SAME_PERIOD_TOLERANCE_MINUTES,
-            "nearest_snapshots": nearest_snapshots,
+            "status": "ready",
+            "message": f"已对比{label} {previous_time.strftime('%H:%M')}",
+            "target_time": target_text,
+            "matched_time": previous_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "matched_time_label": previous_time.strftime("%Y-%m-%d %H:%M"),
+            "match_delta_minutes": match_delta_minutes,
+            "summary": {
+                "orders": {"current": current_orders, "previous": previous_orders, "delta": current_orders - previous_orders, "change": pct_change(current_orders, previous_orders)},
+                "income": {"current": current_income, "previous": previous_income, "delta": current_income - previous_income, "change": pct_change(current_income, previous_income)},
+            },
+            "stores": stores,
         }
 
-    previous_summary = previous.get("summary") or {}
-    previous_stores = {item.get("store"): item for item in previous.get("stores") or []}
-    stores = []
-    for current_store in realtime.get("stores") or []:
-        store_name = current_store.get("store")
-        previous_store = previous_stores.get(store_name) or {}
-        current_orders = float(current_store.get("orders") or 0)
-        previous_orders = float(previous_store.get("orders") or 0)
-        current_income = float(current_store.get("income") or 0)
-        previous_income = float(previous_store.get("income") or 0)
-        stores.append(
-            {
-                "store": store_name,
-                "orders": {
-                    "current": current_orders,
-                    "previous": previous_orders,
-                    "delta": current_orders - previous_orders,
-                    "change": pct_change(current_orders, previous_orders),
-                },
-                "income": {
-                    "current": current_income,
-                    "previous": previous_income,
-                    "delta": current_income - previous_income,
-                    "change": pct_change(current_income, previous_income),
-                },
-            }
-        )
-
-    return {
-        "status": "ready",
-        "message": f"已对比昨日同时段 {previous_time.strftime('%H:%M')}",
-        "target_time": target_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "matched_time": previous_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "matched_time_label": previous_time.strftime("%Y-%m-%d %H:%M"),
-        "match_delta_minutes": match_delta_minutes,
-        "summary": {
-            "orders": {
-                "current": float(current_summary.get("total_orders") or 0),
-                "previous": float(previous_summary.get("total_orders") or 0),
-                "delta": float(current_summary.get("total_orders") or 0) - float(previous_summary.get("total_orders") or 0),
-                "change": pct_change(float(current_summary.get("total_orders") or 0), float(previous_summary.get("total_orders") or 0)),
-            },
-            "income": {
-                "current": float(current_summary.get("total_income") or 0),
-                "previous": float(previous_summary.get("total_income") or 0),
-                "delta": float(current_summary.get("total_income") or 0) - float(previous_summary.get("total_income") or 0),
-                "change": pct_change(float(current_summary.get("total_income") or 0), float(previous_summary.get("total_income") or 0)),
-            },
-        },
-        "stores": stores,
-    }
+    yesterday = compare_period(current_time - timedelta(days=1), "昨日")
+    last_week = compare_period(current_time - timedelta(days=7), "上周")
+    yesterday["last_week"] = last_week
+    return yesterday
 
 
 def add_metric(target: dict, row: dict) -> None:

@@ -132,6 +132,17 @@ function comparisonLabel(currentIncome, currentOrders, previous) {
   return `较昨日基准 ${moneyText} / ${orderText}`;
 }
 
+function lastWeekComparisonLabel(realtimeComparison) {
+  const comparison = realtimeComparison?.last_week || {};
+  const orders = comparison.summary?.orders;
+  if (comparison.status === "ready" && orders) {
+    const baseTime = comparison.matched_time ? comparison.matched_time.slice(11, 16) : "最近时刻";
+    return `较上周基准 ${baseTime} ${signedNumber(orders.delta)} 单`;
+  }
+  if (comparison.status === "time_missing") return comparison.message || "上周同时段数据缺失";
+  return comparison.message || "上周暂无可用实时历史数据";
+}
+
 function renderRealtimeSnapshotComparison(realtimeComparison) {
   const el = document.querySelector("#realtimeSnapshotComparison");
   if (!el) return;
@@ -477,8 +488,11 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   text("realtimeIncome", yuan(totalIncome));
   text("realtimeOrders", `${num(totalOrders)} 单`);
   text("realtimeCompare", comparisonLabel(totalIncome, totalOrders, sameTimeYesterday(daily)).replace(/^较/, ""));
+  text("realtimeLastWeekCompare", lastWeekComparisonLabel(realtimeComparison).replace(/^较/, ""));
   document.querySelector("#realtimeCompare")?.classList.remove("trend-up", "trend-down", "trend-flat");
   document.querySelector("#realtimeCompare")?.classList.add(trendClass(Number(realtimeComparison?.summary?.orders?.delta || 0)));
+  document.querySelector("#realtimeLastWeekCompare")?.classList.remove("trend-up", "trend-down", "trend-flat");
+  document.querySelector("#realtimeLastWeekCompare")?.classList.add(trendClass(Number(realtimeComparison?.last_week?.summary?.orders?.delta || 0)));
   renderRealtimeSnapshotComparison(realtimeComparison);
   text("realtimeCoverage", platformTarget ? `${platformCoverage}/${platformTarget}` : `${covered}/${targetCount || sourceStores.length || 0}`);
   text("realtimeStatus", realtimeStatusText);
