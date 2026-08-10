@@ -586,6 +586,8 @@ def build_wechat_text(payload: dict[str, Any]) -> str:
     blocked = [item for item in payload["rerun_plan"] if not item.get("auto_allowed")]
     if blocked:
         names = "、".join(str(item.get("task_name") or item.get("task_id")) for item in blocked[:4])
+        if len(blocked) > 4:
+            names = f"{names}，另外还有 {len(blocked) - 4} 项"
         lines.append(f"不能自动补跑的是：{names}。这些会碰预算、发布、平台登录态或需要人工确认。")
     return "\n".join(lines) + "\n"
 
