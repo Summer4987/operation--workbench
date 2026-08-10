@@ -568,7 +568,10 @@ def build_wechat_text(payload: dict[str, Any]) -> str:
         return f"今天纳入监控的 {summary['total']} 个自动化任务没有发现失败。完成 {summary['completed']} 个。\n"
 
     lines = [
-        f"这次有 {len(problem_rows)} 个自动化任务需要处理，失败 {summary['failed']} 个，需关注 {summary['attention']} 个，运行中 {summary['running']} 个。",
+        (
+            f"这次有 {len(problem_rows)} 个自动化任务需要处理：失败 {summary['failed']} 个，"
+            f"未记录/漏跑 {summary['missing']} 个，需关注 {summary['attention']} 个，运行中 {summary['running']} 个。"
+        ),
     ]
     for row in problem_rows[:6]:
         lines.append(format_problem_row(row))
@@ -722,7 +725,7 @@ def main() -> int:
     summary = payload["summary"]
     print(
         "任务透明化摘要："
-        f"完成 {summary['completed']}，失败 {summary['failed']}，关注 {summary['attention']}，"
+        f"完成 {summary['completed']}，失败 {summary['failed']}，漏跑 {summary['missing']}，关注 {summary['attention']}，"
         f"可自动补跑 {summary['auto_rerun_allowed']}，只报告 {summary['report_only']}。"
     )
     return 0

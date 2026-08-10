@@ -84,7 +84,7 @@ class AgentTaskMonitorTests(unittest.TestCase):
 
         text = monitor_module.build_wechat_text(payload)
 
-        self.assertIn("这次有 2 个自动化任务需要处理，失败 1 个，需关注 1 个，运行中 0 个", text)
+        self.assertIn("这次有 2 个自动化任务需要处理：失败 1 个，未记录/漏跑 0 个，需关注 1 个，运行中 0 个", text)
         self.assertIn("上午运营一键采集：失败。原因：异常结束，退出码 143。", text)
         self.assertIn("可以安全补跑的是：实时单量和营业额采集", text)
         self.assertNotIn("Mac mini 自动化任务透明化报告", text)
