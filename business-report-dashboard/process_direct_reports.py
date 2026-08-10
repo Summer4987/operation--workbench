@@ -171,7 +171,18 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     frames = []
     warnings = []
     for path in collect_eleme_paths(eleme_path):
-        frame, frame_warnings = base.read_eleme(path, config, alias_lookup)
+        try:
+            frame, frame_warnings = base.read_eleme(path, config, alias_lookup)
+        except base.EmptyDailyReportError as exc:
+            warnings.append(
+                {
+                    "platform": "饿了么",
+                    "file": path.name,
+                    "field": "文件完整性",
+                    "issue": f"{exc}；已跳过，不阻断直营美团日报更新",
+                }
+            )
+            continue
         frames.append(frame)
         warnings.extend(direct_warnings(frame_warnings))
     for path in collect_meituan_paths(meituan_path):
