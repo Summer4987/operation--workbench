@@ -455,6 +455,19 @@ function realtimeStoreCompareDelta(item, compareMap) {
   return Number(previous.orders_delta ?? realtimeStoreOrders(item) - Number(previous.orders || 0));
 }
 
+function realtimeStoreLastWeekCompare(item, compareMap) {
+  const store = item.store || item.store_name || item.name || "未命名门店";
+  const previous = compareMap.get(store);
+  if (!previous) return data.realtime_comparison?.last_week?.message || "上周同时段暂无数据";
+  const orders = previous.orders || {};
+  return `较上周基准 ${data.realtime_comparison?.last_week?.matched_time ? data.realtime_comparison.last_week.matched_time.slice(11, 16) : "最近时刻"} ${signedNumber(orders.delta || 0)} 单`;
+}
+
+function realtimeStoreLastWeekCompareDelta(item, compareMap) {
+  const store = item.store || item.store_name || item.name || "未命名门店";
+  return Number(compareMap.get(store)?.orders?.delta || 0);
+}
+
 function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const realtime = data.realtime || {};
   const realtimeComparison = data.realtime_comparison || {};
@@ -462,6 +475,7 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const summary = realtime.summary || {};
   const sourceStores = realtimeStores(daily);
   const compareMap = yesterdayStoreMap(daily);
+  const lastWeekCompareMap = new Map((realtimeComparison.last_week?.stores || []).map((item) => [item.store || item.store_name || item.name, item]));
   const covered = sourceStores.filter((item) => realtimeStoreOrders(item) || realtimeStoreIncome(item)).length;
   const platformCoverage = Number(summary.platform_store_count || 0);
   const platformTarget = platformCoverage || summary.missing_count !== undefined ? platformCoverage + Number(summary.missing_count || 0) : 0;
@@ -539,11 +553,15 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
       }
       const store = item.store || item.store_name || item.name || "未命名门店";
       const compareDelta = realtimeStoreCompareDelta(item, compareMap);
+      const lastWeekCompareDelta = realtimeStoreLastWeekCompareDelta(item, lastWeekCompareMap);
       return `
         <div class="realtime-store">
           <div class="realtime-store-head">
             <span>${escapeHtml(store)}</span>
-            <em class="realtime-compare ${trendClass(compareDelta)}">${escapeHtml(realtimeStoreCompare(item, compareMap))}</em>
+            <div class="realtime-compare-stack">
+              <em class="realtime-compare ${trendClass(compareDelta)}">${escapeHtml(realtimeStoreCompare(item, compareMap))}</em>
+              <em class="realtime-compare ${trendClass(lastWeekCompareDelta)}">${escapeHtml(realtimeStoreLastWeekCompare(item, lastWeekCompareMap))}</em>
+            </div>
           </div>
           <div class="realtime-primary">
             <div>

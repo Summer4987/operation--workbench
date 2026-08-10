@@ -911,7 +911,7 @@ h2 {
 
 .realtime-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -940,11 +940,13 @@ h2 {
   line-height: 1;
 }
 
-.realtime-summary div:nth-child(3) {
+.realtime-summary div:nth-child(3),
+.realtime-summary div:nth-child(4) {
   align-content: start;
 }
 
-.realtime-summary div:nth-child(3) strong {
+.realtime-summary div:nth-child(3) strong,
+.realtime-summary div:nth-child(4) strong {
   color: #334155;
   font-size: 18px;
   font-weight: 900;
@@ -1086,6 +1088,15 @@ h2 {
   font-style: normal;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.realtime-compare-stack {
+  display: grid;
+  gap: 3px;
+}
+
+.realtime-compare-stack .realtime-compare {
+  display: block;
 }
 
 .realtime-primary {

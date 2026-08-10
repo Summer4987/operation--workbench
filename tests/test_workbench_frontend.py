@@ -21,6 +21,12 @@ class WorkbenchFrontendTests(unittest.TestCase):
         self.assertIn("当前较该快照", script)
         self.assertIn("仅供人工比对", script)
 
+    def test_realtime_summary_keeps_four_metrics_on_one_desktop_row(self) -> None:
+        css = (ROOT / "workbench.css").read_text(encoding="utf-8")
+        self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr));", css)
+        self.assertIn('id="realtimeLastWeekCompare"', (ROOT / "index.html").read_text(encoding="utf-8"))
+        self.assertIn("realtimeStoreLastWeekCompare", (ROOT / "workbench.js").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
