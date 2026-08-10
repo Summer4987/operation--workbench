@@ -134,6 +134,54 @@ class AgentTaskMonitorTests(unittest.TestCase):
         self.assertEqual({row["id"] for row in rows}, set(policies))
         self.assertNotIn("tools.franchise_contract", {row["id"] for row in rows})
 
+    def test_morning_report_can_include_afternoon_schedule_issues(self) -> None:
+        policies = monitor_module.policy_by_task(
+            {
+                "defaults": {
+                    "morning_required": True,
+                    "include_in_report": True,
+                    "include_afternoon_schedule": True,
+                },
+                "tasks": [
+                    {
+                        "id": "morning.01_collection",
+                        "name": "上午运营一键采集总状态",
+                        "morning_aggregate": True,
+                        "expected_total": 14,
+                        "expected_substeps": 13,
+                    }
+                ],
+            }
+        )
+        original_schedule_issue_rows = monitor_module.schedule_issue_rows
+        try:
+            monitor_module.schedule_issue_rows = lambda runs: [
+                {
+                    "id": "schedule.com.summer.operation.evening",
+                    "name": "晚间预算任务",
+                    "risk": "high",
+                    "schedule": "16:30",
+                    "status": "missing",
+                    "status_text": "未记录",
+                    "completed": False,
+                    "failed": False,
+                    "failure_type": "launchd_schedule",
+                    "failure_reason": "已经过了计划时间，但没看到今天的运行账本或日志。",
+                    "last_run_at": "2026-08-09 17:18:27",
+                    "last_run_step": "launchd 定时任务",
+                    "evidence": "",
+                    "human_action": "",
+                    "rerun": {"suggested": True, "auto_allowed": False},
+                }
+            ]
+            rows = monitor_module.task_rows({"tasks": []}, {"tasks": {}}, policies)
+        finally:
+            monitor_module.schedule_issue_rows = original_schedule_issue_rows
+
+        ids = {row["id"] for row in rows}
+        self.assertIn("morning.01_collection", ids)
+        self.assertIn("schedule.com.summer.operation.evening", ids)
+
     def test_success_without_morning_steps_needs_attention(self) -> None:
         row = monitor_module.build_morning_aggregate_report(
             "morning.01_collection",

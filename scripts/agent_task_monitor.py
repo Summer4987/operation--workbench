@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from atomic_io import atomic_write_text
+import hermes_schedule_status
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,12 @@ HEALTH_STATUS_FAILED = {"danger", "failed", "error"}
 HEALTH_STATUS_WARN = {"warn", "warning", "stale", "missing"}
 RUN_STATUS_DONE = {"success", "skipped"}
 RUN_STATUS_FAILED = {"failed", "error"}
+SCHEDULE_STATUS_MAP = {
+    "failed": "failed",
+    "missing": "missing",
+    "warning": "attention",
+    "running": "running",
+}
 
 
 def now_text() -> str:
@@ -98,11 +105,12 @@ def policy_by_task(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def task_rows(health: dict[str, Any], runs: dict[str, Any], policies: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     morning_status = read_json(DEFAULT_MORNING_STATUS_PATH, {})
+    include_schedule = any(policy.get("include_afternoon_schedule") for policy in policies.values())
     if any(policy.get("morning_required") for policy in policies.values()):
-        return sorted(
-            [build_morning_task_report(task_id, policy, morning_status, runs) for task_id, policy in policies.items()],
-            key=task_sort_key,
-        )
+        rows = [build_morning_task_report(task_id, policy, morning_status, runs) for task_id, policy in policies.items()]
+        if include_schedule:
+            rows.extend(schedule_issue_rows(runs))
+        return sorted(rows, key=task_sort_key)
 
     rows: dict[str, dict[str, Any]] = {}
     for item in health.get("tasks") or []:
@@ -128,7 +136,96 @@ def task_rows(health: dict[str, Any], runs: dict[str, Any], policies: dict[str, 
     for task_id in configured_only:
         rows[task_id] = build_task_report(task_id, {}, runs, policies[task_id])
 
+    if include_schedule:
+        for row in schedule_issue_rows(runs):
+            rows.setdefault(str(row["id"]), row)
+
     return sorted(rows.values(), key=task_sort_key)
+
+
+def schedule_issue_rows(runs: dict[str, Any]) -> list[dict[str, Any]]:
+    payload = hermes_schedule_status.collect_status(period="afternoon")
+    rows: list[dict[str, Any]] = []
+    for item in payload.get("tasks") or []:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status") or "")
+        completion_status = SCHEDULE_STATUS_MAP.get(status)
+        if not completion_status:
+            continue
+        label = str(item.get("label") or "")
+        mapped_task_id = hermes_schedule_status.LABEL_TASK_IDS.get(label, "")
+        if mapped_task_id and runtime_task_is_today(runs, mapped_task_id):
+            continue
+        rows.append(build_schedule_issue_report(item))
+    return rows
+
+
+def runtime_task_is_today(runs: dict[str, Any], task_id: str) -> bool:
+    task = (runs.get("tasks") or {}).get(task_id)
+    if not isinstance(task, dict):
+        return False
+    updated_at = parse_local_time(first_text(task.get("finished_at"), task.get("updated_at")))
+    return bool(updated_at and updated_at.date() == datetime.now().date())
+
+
+def parse_local_time(value: str) -> datetime | None:
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value[:19], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def build_schedule_issue_report(item: dict[str, Any]) -> dict[str, Any]:
+    status = SCHEDULE_STATUS_MAP.get(str(item.get("status") or ""), "attention")
+    label = str(item.get("label") or "")
+    name = first_text(item.get("name"), label)
+    risk = "high" if label == "com.summer.operation.evening" else "low"
+    rerun = {
+        "suggested": status in {"failed", "missing", "attention"},
+        "auto_allowed": False,
+        "mode": "report_only",
+        "reason": "该定时任务今天漏跑或未确认完成，需要先看日志再处理。",
+    }
+    if label == "com.summer.operation.realtime-order-income":
+        rerun = {
+            "suggested": True,
+            "auto_allowed": True,
+            "mode": "dry_run_plan",
+            "reason": "实时单量收入采集是只读采集加 data-only 发布，可进入低风险补跑计划。",
+            "command": ["/bin/zsh", "scripts/run_realtime_order_income.zsh"],
+            "dry_run": True,
+            "blocked_by": [],
+        }
+    elif label == "com.summer.operation.evening":
+        rerun = {
+            "suggested": True,
+            "auto_allowed": False,
+            "mode": "report_only",
+            "reason": "晚间预算会真实提交推广预算，必须人工确认目标和时间窗口。",
+            "blocked_by": ["high_risk_task", "may_submit_budget"],
+        }
+    return {
+        "id": f"schedule.{label}",
+        "name": name,
+        "risk": risk,
+        "schedule": first_text(item.get("schedule"), ""),
+        "status": status,
+        "status_text": completion_status_text(status),
+        "completed": False,
+        "failed": status == "failed",
+        "failure_type": "launchd_schedule",
+        "failure_reason": first_text(item.get("reason"), item.get("status_text"), "今天没有看到定时任务完成记录。"),
+        "last_run_at": first_text(item.get("last_at"), item.get("latest_due_at"), ""),
+        "last_run_step": "launchd 定时任务",
+        "evidence": first_text(item.get("evidence"), ""),
+        "human_action": "先确认 Mac mini 是否重启/睡眠、登录态是否正常，再决定补跑。",
+        "rerun": rerun,
+    }
 
 
 def build_morning_task_report(

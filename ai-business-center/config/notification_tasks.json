@@ -10,6 +10,7 @@
   "defaults": {
     "include_in_report": true,
     "morning_required": true,
+    "include_afternoon_schedule": true,
     "rerun_policy": {
       "auto_allowed": false,
       "mode": "report_only",

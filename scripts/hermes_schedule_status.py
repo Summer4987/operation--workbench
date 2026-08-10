@@ -220,6 +220,7 @@ def classify_row(row: dict[str, Any], runs: dict[str, Any], launchctl: dict[str,
     pid = state.get("pid", "-")
     status_code = state.get("status_code", "-")
     due_times = [item for item in times if item <= now - timedelta(minutes=GRACE_MINUTES)]
+    latest_due_at = due_times[-1] if due_times else None
 
     status = "upcoming"
     reason = ""
@@ -231,7 +232,13 @@ def classify_row(row: dict[str, Any], runs: dict[str, Any], launchctl: dict[str,
         reason = "launchd 显示正在运行。"
     elif finished_at and finished_at.date() == now.date():
         run_status = str(run.get("status") or "")
-        if run_status == "success":
+        if latest_due_at and finished_at < latest_due_at:
+            status = "missing"
+            reason = (
+                f"今天有运行记录，但最近一次记录是 {finished_at.strftime('%H:%M')}，"
+                f"早于最近计划时间 {latest_due_at.strftime('%H:%M')}。"
+            )
+        elif run_status == "success":
             status = "success"
             reason = str(run.get("message") or "今天已经完成。")
         elif run_status == "failed":
@@ -272,6 +279,7 @@ def classify_row(row: dict[str, Any], runs: dict[str, Any], launchctl: dict[str,
         "pid": pid,
         "status_code": status_code,
         "last_at": last_at.strftime("%Y-%m-%d %H:%M:%S") if last_at else "",
+        "latest_due_at": latest_due_at.strftime("%Y-%m-%d %H:%M:%S") if latest_due_at else "",
         "evidence": evidence,
     }
 
@@ -343,9 +351,15 @@ def latest_issue(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not rows:
         return None
 
-    def sort_key(row: dict[str, Any]) -> tuple[int, datetime]:
+    def time_rank(value: Any) -> float:
+        parsed = parse_time(value)
+        if parsed is None:
+            return 0.0
+        return parsed.timestamp()
+
+    def sort_key(row: dict[str, Any]) -> tuple[int, float, float]:
         priority = {"failed": 0, "warning": 1, "missing": 2}.get(str(row.get("status")), 9)
-        return (priority, parse_time(row.get("last_at")) or datetime.min)
+        return (priority, -time_rank(row.get("latest_due_at")), -time_rank(row.get("last_at")))
 
     return sorted(rows, key=sort_key)[0]
 

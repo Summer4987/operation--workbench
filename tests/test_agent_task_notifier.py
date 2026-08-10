@@ -734,6 +734,77 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertEqual(payload["notification_count"], 1)
             self.assertEqual(payload["notifications"][0]["task_id"], "ops.morning_collection")
 
+    def test_notify_keeps_schedule_issue_when_mapped_runtime_task_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            runs_path = tmp_path / "runs.json"
+            state_path = tmp_path / "state.json"
+            log_path = tmp_path / "log.json"
+            runs_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "growth.promo_budget": {
+                                "status": "success",
+                                "message": "晚餐预算全部步骤完成。",
+                                "step": "晚餐预算汇总",
+                                "finished_at": "2026-08-09 17:18:27",
+                            }
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "sent": {
+                            "growth.promo_budget": "success|2026-08-09 17:18:27|晚餐预算全部步骤完成。|晚餐预算汇总"
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            args = type(
+                "Args",
+                (),
+                {
+                    "runs": str(runs_path),
+                    "state": str(state_path),
+                    "log": str(log_path),
+                    "target": "weixin",
+                    "hermes_bin": "hermes",
+                    "seed": False,
+                    "dry_run": True,
+                    "no_write": False,
+                    "include_unconfigured": False,
+                },
+            )()
+            self.notifier.load_schedule_issue_tasks = lambda: {
+                "schedule.com.summer.operation.evening": {
+                    "status": "missing",
+                    "message": "已经过了计划时间，但没看到今天的运行账本或日志。",
+                    "step": "晚间预算任务",
+                    "finished_at": "2026-08-09 17:18:27",
+                    "extra": {
+                        "launchd_label": "com.summer.operation.evening",
+                        "latest_due_at": "2026-08-10 16:30:00",
+                    },
+                }
+            }
+            original_loader = self.notifier.load_policy_rows
+            try:
+                self.notifier.load_policy_rows = lambda: dict(self.notifier.DIRECT_TASK_ROWS)
+                payload = self.notifier.notify(args)
+            finally:
+                self.notifier.load_policy_rows = original_loader
+
+            self.assertEqual(payload["notification_count"], 1)
+            self.assertEqual(payload["notifications"][0]["task_id"], "schedule.com.summer.operation.evening")
+            self.assertIn("晚间预算任务", payload["notifications"][0]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

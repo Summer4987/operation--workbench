@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import re
 import subprocess
@@ -169,9 +170,35 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
                 "launchd_label": label,
                 "schedule": row.get("schedule") or "",
                 "status_code": row.get("status_code") or "",
+                "latest_due_at": row.get("latest_due_at") or "",
             },
         }
     return issue_tasks
+
+
+def parse_local_time(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text[:19], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def task_is_current_for_schedule(task: dict[str, Any], schedule_task: dict[str, Any]) -> bool:
+    task_at = parse_local_time(task.get("finished_at") or task.get("updated_at"))
+    extra = schedule_task.get("extra") if isinstance(schedule_task.get("extra"), dict) else {}
+    due_at = parse_local_time(extra.get("latest_due_at"))
+    schedule_at = due_at or parse_local_time(schedule_task.get("finished_at") or schedule_task.get("updated_at"))
+    target_date = schedule_at.date() if schedule_at is not None else datetime.now().date()
+    if task_at is None or task_at.date() != target_date:
+        return False
+    if due_at is not None and task_at < due_at:
+        return False
+    return True
 
 
 def format_money(value: Any) -> str:
@@ -393,7 +420,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         for task_id, task in load_schedule_issue_tasks().items():
             label = ((task.get("extra") or {}).get("launchd_label") or "") if isinstance(task, dict) else ""
             mapped_task_id = hermes_schedule_status.LABEL_TASK_IDS.get(str(label), "")
-            if mapped_task_id and mapped_task_id in tasks:
+            if mapped_task_id and task_is_current_for_schedule(tasks.get(mapped_task_id) or {}, task):
                 continue
             task_candidates[task_id] = task
     notifications = []
