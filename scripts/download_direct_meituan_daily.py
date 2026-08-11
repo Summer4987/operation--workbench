@@ -185,8 +185,8 @@ def report_generation_temporarily_unavailable(result: dict) -> bool:
 
 def generate_report(page, account: dict, target_date: str) -> bool:
     fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
-    goto_report_page(page, account)
-    result = page.evaluate(
+    frame = goto_report_page(page, account)
+    result = frame.evaluate(
         """async ({ targetDate, fields }) => {
           const findField = (value, keywords) => {
             const stack = [value];
@@ -338,16 +338,23 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
     sync_playwright = require_playwright()
     with sync_playwright() as p:
         context, should_close_context = launch_context(p, account, visible, browser_executable)
-        page = next(
-            (
-                candidate
-                for candidate in reversed(context.pages)
-                if any(
-                    "bizdata_pc/report/download" in getattr(frame, "url", "")
-                    for frame in getattr(candidate, "frames", [])
-                )
+        report_pages = [
+            candidate
+            for candidate in context.pages
+            if any(
+                "bizdata_pc/report/download" in getattr(frame, "url", "")
+                for frame in getattr(candidate, "frames", [])
+            )
+        ]
+        page = max(
+            report_pages,
+            key=lambda candidate: any(
+                "acctId=" in getattr(frame, "url", "")
+                and "wmPoiId=" in getattr(frame, "url", "")
+                and "token=" in getattr(frame, "url", "")
+                for frame in getattr(candidate, "frames", [])
             ),
-            context.pages[0] if context.pages else context.new_page(),
+            default=context.pages[0] if context.pages else context.new_page(),
         )
         try:
             if submit:
