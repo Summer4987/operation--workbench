@@ -296,7 +296,7 @@ run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-1800
 echo
 if [[ "$MODE" == "commit" ]]; then
   echo "执行美团${PERIOD}预算提交前预检..."
-  if run_budget_step "美团${PERIOD}预算提交前预检" "${MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-1800}" "${MEITUAN_BUDGET_PREFLIGHT_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode preview --limit "$LIMIT" --preflight; then
+  if run_budget_step "美团${PERIOD}预算提交前预检" "${MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-1800}" "${MEITUAN_BUDGET_PREFLIGHT_RETRIES:-3}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode preview --limit "$LIMIT" --preflight; then
     echo
     echo "执行美团${PERIOD}预算真实提交..."
     run_budget_step "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-1800}" "${BUDGET_STEP_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode commit --limit "$LIMIT" || true
