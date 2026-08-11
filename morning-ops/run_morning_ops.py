@@ -386,14 +386,34 @@ def main() -> int:
                     add_failure(failures, "本地门店日报", result)
             else:
                 preflight = run_step(
-                    "开跑前登录态预检",
-                    [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "morning", "--notify"],
+                    "总部平台登录态预检",
+                    [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--notify"],
                     required=False,
                     timeout_seconds=300,
                 )
                 if preflight.returncode != 0:
-                    add_failure(failures, "开跑前登录态预检", preflight)
-                    raise RuntimeError("开跑前登录态预检失败，已停止上午正式动作。")
+                    add_failure(failures, "总部平台登录态预检", preflight)
+                    raise RuntimeError("总部美团/饿了么登录态预检失败，已停止对应正式动作。")
+                direct_preflight = run_step(
+                    "直营美团逐账号登录态预检",
+                    [
+                        sys.executable,
+                        str(LOGIN_PREFLIGHT_RUNNER),
+                        "--scope",
+                        "morning",
+                        "--continue-on-direct-failure",
+                        "--notify",
+                    ],
+                    required=False,
+                    timeout_seconds=300,
+                )
+                if direct_preflight.returncode != 0:
+                    add_failure(failures, "直营美团逐账号登录态", direct_preflight)
+                    print(
+                        "直营美团存在单账号登录异常：已记录并继续总部平台、其它直营账号及推广预算任务。",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 ensure_backend_chrome(report_python)
                 result = run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240)
                 if result.returncode != 0:

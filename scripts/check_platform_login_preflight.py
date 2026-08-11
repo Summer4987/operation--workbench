@@ -198,17 +198,22 @@ def write_payload(payload: dict[str, Any]) -> None:
     LATEST_PATH.chmod(0o644)
 
 
-def build_notice(scope: str, failed: list[dict[str, Any]]) -> str:
+def build_notice(scope: str, failed: list[dict[str, Any]], continue_on_direct_failure: bool = False) -> str:
+    direct_only = bool(failed) and all(item.get("platform") == "直营美团" for item in failed)
     lines = [
         "【运营自动化开跑前预检失败】",
         f"范围：{scope}",
-        "发现登录态/验证码/Chrome 页面问题，已停止正式动作。",
+        (
+            "发现直营账号登录问题；失败门店将单独跳过，其它门店和总部任务继续执行。"
+            if continue_on_direct_failure and direct_only
+            else "发现登录态/验证码/Chrome 页面问题，已停止对应正式动作。"
+        ),
     ]
     for item in failed[:6]:
         platform = item.get("platform") or item.get("account_id") or "未知平台"
         blockers = "、".join(item.get("blocking_texts") or []) or item.get("status") or "needs_manual"
         lines.append(f"- {platform}：{blockers}")
-    lines.append("请在 Mac mini 对应 Chrome 页面完成登录、验证码或安全验证后再重跑。")
+    lines.append("请在 Mac mini 对应 Chrome 页面完成登录、验证码或安全验证后再补跑失败门店。")
     return "\n".join(lines)
 
 
@@ -237,6 +242,11 @@ def main() -> int:
     parser.add_argument("--include-direct", action="store_true", help="额外检查直营美团独立账号。")
     parser.add_argument("--wait-ms", type=int, default=3500)
     parser.add_argument("--notify", action="store_true", help="失败时发送运营通知。")
+    parser.add_argument(
+        "--continue-on-direct-failure",
+        action="store_true",
+        help="直营账号失败时明确标记为单店隔离；调用方可继续其它门店和总部任务。",
+    )
     args = parser.parse_args()
 
     payload = build_payload(args.scope, args.include_direct, args.wait_ms)
@@ -250,7 +260,7 @@ def main() -> int:
         detail = "、".join(item.get("blocking_texts") or []) or item.get("message") or ""
         print(f"- {item.get('platform')}: {item.get('status')} {detail}".rstrip())
     if payload["status"] != "ok":
-        notice = build_notice(args.scope, payload["failed_checks"])
+        notice = build_notice(args.scope, payload["failed_checks"], args.continue_on_direct_failure)
         print(notice)
         if args.notify:
             notify(notice)
