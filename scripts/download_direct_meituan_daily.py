@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import date, timedelta
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 from urllib.request import urlopen
 
 
@@ -110,9 +110,33 @@ def cdp_available(debug_port: int) -> bool:
 
 
 def goto_report_page(page, account: dict):
+    # The outer Meituan shell injects acctId/wmPoiId/token only after entering
+    # 经营分析 -> 报表下载. Reuse that initialized iframe when it already exists.
+    for candidate in page.frames:
+        if "bizdata_pc/report/download" not in candidate.url:
+            continue
+        if report_params_ready(page, candidate):
+            return candidate
+
     url = (account.get("pages") or {}).get("daily_report") or "https://waimaieapp.meituan.com/bizdata_pc/report/download"
-    page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-    page.wait_for_timeout(9000)
+    query = dict(parse_qsl(urlparse(url).query))
+    if all(query.get(key) for key in ("acctId", "wmPoiId", "token")):
+        page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+        page.wait_for_timeout(9000)
+    else:
+        home_url = (account.get("pages") or {}).get("home") or "https://e.waimai.meituan.com/"
+        page.goto(home_url, wait_until="domcontentloaded", timeout=90_000)
+        page.wait_for_timeout(6000)
+        analysis = page.locator("text=经营分析")
+        if analysis.count() == 0:
+            raise RuntimeError("直营美团外层后台没有找到“经营分析”，登录态可能已失效。")
+        analysis.first.click(timeout=15_000)
+        page.wait_for_timeout(2500)
+        report_download = page.get_by_text("报表下载", exact=True)
+        if report_download.count() == 0:
+            raise RuntimeError("直营美团外层后台没有找到“报表下载”入口。")
+        report_download.first.click(timeout=15_000)
+        page.wait_for_timeout(9000)
     frame = meituan_report_frame(page)
     if not report_params_ready(page, frame):
         raise RuntimeError(
@@ -314,7 +338,17 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
     sync_playwright = require_playwright()
     with sync_playwright() as p:
         context, should_close_context = launch_context(p, account, visible, browser_executable)
-        page = context.pages[0] if context.pages else context.new_page()
+        page = next(
+            (
+                candidate
+                for candidate in reversed(context.pages)
+                if any(
+                    "bizdata_pc/report/download" in getattr(frame, "url", "")
+                    for frame in getattr(candidate, "frames", [])
+                )
+            ),
+            context.pages[0] if context.pages else context.new_page(),
+        )
         try:
             if submit:
                 generate_report(page, account, target_date)
