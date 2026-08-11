@@ -54,6 +54,12 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
         self.assertIn("朝阳门店", self.module.pause_message(pause))
         self.assertIsNone(self.module.daily_report_pause(account, today=date(2026, 7, 11)))
 
+    def test_report_date_match_does_not_accept_creation_date(self) -> None:
+        stale = "门店_全部门店_20260809_20260809_user_2026-08-10 08_07_41"
+        current = "门店_全部门店_20260810_20260810_user_2026-08-11 08_07_41"
+        self.assertFalse(self.module.report_name_matches_target(stale, "20260810"))
+        self.assertTrue(self.module.report_name_matches_target(current, "20260810"))
+
     def test_run_continues_to_download_when_submit_reports_maintenance(self) -> None:
         fake_page = object()
         fake_context = mock.Mock()

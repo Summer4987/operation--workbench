@@ -309,6 +309,15 @@ def download_url_to_direct_raw(context, url: str, filename: str) -> Path:
     return target
 
 
+def report_name_matches_target(name: str, target_date: str) -> bool:
+    dashed = date_with_dashes(target_date)
+    normalized = f"_{name or ''}_"
+    return (
+        f"_{target_date}_{target_date}_" in normalized
+        or f"_{dashed}_{dashed}_" in normalized
+    )
+
+
 def download_latest(page, context, account: dict, target_date: str | None) -> Path:
     frame = goto_report_page(page, account)
     history = meituan_history(frame)
@@ -319,10 +328,9 @@ def download_latest(page, context, account: dict, target_date: str | None) -> Pa
         if isinstance(row, dict) and row.get("status") == 2 and row.get("url")
     ]
     if target_date:
-        dashed = date_with_dashes(target_date)
         ready_rows = [
             row for row in ready_rows
-            if target_date in (row.get("name") or "") or dashed in (row.get("name") or "")
+            if report_name_matches_target(row.get("name") or "", target_date)
         ]
     if not ready_rows:
         raise RuntimeError(f"直营美团下载列表没有可下载文件：{history}")
