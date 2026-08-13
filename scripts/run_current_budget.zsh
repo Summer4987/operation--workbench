@@ -296,12 +296,46 @@ run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-1800
 echo
 if [[ "$MODE" == "commit" ]]; then
   echo "执行美团${PERIOD}预算提交前预检..."
-  if run_budget_step "美团${PERIOD}预算提交前预检" "${MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-1800}" "${MEITUAN_BUDGET_PREFLIGHT_RETRIES:-3}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode preview --limit "$LIMIT" --preflight; then
+  MEITUAN_PREFLIGHT_RESULT="$ROOT/outputs/current_budget/meituan_preflight_${PERIOD}.json"
+  /bin/rm -f "$MEITUAN_PREFLIGHT_RESULT"
+  set +e
+  run_with_retry "美团${PERIOD}预算提交前预检" "${MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-1800}" "${MEITUAN_BUDGET_PREFLIGHT_RETRIES:-3}" \
+    "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode preview --limit "$LIMIT" --preflight \
+    --preflight-result-output "$MEITUAN_PREFLIGHT_RESULT"
+  MEITUAN_PREFLIGHT_RC=$?
+  set -e
+  MEITUAN_PASSED_STORES=""
+  if [[ -f "$MEITUAN_PREFLIGHT_RESULT" ]]; then
+    MEITUAN_PASSED_STORES="$($PYTHON - "$MEITUAN_PREFLIGHT_RESULT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(",".join(str(item) for item in payload.get("successfulKeywords", []) if item))
+for item in payload.get("failed", []):
+    print(
+        f"单店预检失败，已隔离跳过：{item.get('keyword') or item.get('store')}："
+        f"{item.get('failure_type')}：{item.get('error')}",
+        file=sys.stderr,
+    )
+PY
+)"
+  fi
+  if [[ -n "$MEITUAN_PASSED_STORES" ]]; then
+    if (( MEITUAN_PREFLIGHT_RC == 0 )); then
+      record_task_run "$TASK_ID" success --message "美团${PERIOD}预算提交前预检全部通过。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode 0
+    else
+      record_task_run "$TASK_ID" success --message "美团${PERIOD}预算提交前预检部分通过；失败门店已隔离，其余继续。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode 0
+    fi
     echo
-    echo "执行美团${PERIOD}预算真实提交..."
-    run_budget_step "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-1800}" "${BUDGET_STEP_RETRIES:-2}" "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode commit --limit "$LIMIT" || true
+    echo "执行美团${PERIOD}预算真实提交（仅预检通过门店）..."
+    run_budget_step "美团${PERIOD}预算" "${MEITUAN_BUDGET_TIMEOUT_SECONDS:-1800}" "${BUDGET_STEP_RETRIES:-2}" \
+      "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode commit --stores "$MEITUAN_PASSED_STORES" || true
   else
-    echo "美团${PERIOD}预算提交前预检失败，已跳过真实提交。"
+    echo "美团${PERIOD}预算没有任何门店通过预检，已跳过真实提交。"
+    record_task_run "$TASK_ID" failed --message "美团${PERIOD}预算没有任何门店通过预检。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode "${MEITUAN_PREFLIGHT_RC:-1}"
+    FAILED_STEPS+=("美团${PERIOD}预算提交前预检")
   fi
 else
   echo "执行美团${PERIOD}预算页面预演..."

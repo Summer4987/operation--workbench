@@ -33,6 +33,15 @@ def test_direct_meituan_accounts_sync_skips_identical_runtime_file():
     assert "/bin/cp \"$ROOT/config/direct_meituan_accounts.json\" \"$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json\"" not in text
 
 
+def test_meituan_budget_isolates_failed_preflight_stores():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert '--preflight-result-output "$MEITUAN_PREFLIGHT_RESULT"' in text
+    assert '--mode commit --stores "$MEITUAN_PASSED_STORES"' in text
+    assert "单店预检失败，已隔离跳过" in text
+    assert "没有任何门店通过预检，已跳过真实提交" in text
+
+
 def test_realtime_runner_preserves_collect_failure_after_followup_failure():
     text = REALTIME_SCRIPT.read_text(encoding="utf-8")
 

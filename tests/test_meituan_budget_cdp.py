@@ -148,6 +148,21 @@ class FakeConfirmPage:
         self.goto_url = url
 
 
+class FakeOnboardingFrame:
+    url = "https://waimaieapp.meituan.com/ad/v1/rpc"
+
+    def __init__(self, actions: list[str]) -> None:
+        self.actions = actions
+
+    def evaluate(self, *_args, **_kwargs) -> str:
+        return self.actions.pop(0) if self.actions else ""
+
+
+class FakeOnboardingPage:
+    def __init__(self, actions: list[str]) -> None:
+        self.frames = [FakeOnboardingFrame(actions)]
+
+
 class MeituanBudgetCdpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -285,6 +300,14 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertTrue(locator.clicked)
         self.assertIn("强制点击确定", message)
         self.assertEqual(locator.click_kwargs[-1].get("force"), True)
+
+    def test_budget_onboarding_is_dismissed_until_no_step_remains(self) -> None:
+        page = FakeOnboardingPage(["next", "next", "close", ""])
+
+        with mock.patch.object(self.module.time, "sleep"):
+            self.assertTrue(self.module.dismiss_budget_onboarding(page))
+
+        self.assertEqual(page.frames[0].actions, [])
 
     def test_current_day_spend_ignores_stale_today_card(self) -> None:
         text = "今日 07-21 17:04 更新，指标解读\n推广花费\n80.01元\n昨日130元"

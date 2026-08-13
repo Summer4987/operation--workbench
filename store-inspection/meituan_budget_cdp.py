@@ -495,6 +495,8 @@ def enter_dianjin_with_recovery(page, target_url: str) -> None:
 
 def open_budget_modal(page) -> None:
     suppress_click_blocking_overlays(page)
+    dismiss_budget_onboarding(page)
+    suppress_click_blocking_overlays(page)
 
     def opened() -> bool:
         for frame in page.frames:
@@ -823,6 +825,59 @@ def suppress_click_blocking_overlays(page) -> None:
             )
         except Exception:
             continue
+
+
+def dismiss_budget_onboarding(page) -> bool:
+    """Dismiss Meituan's first-use budget tour when it covers the budget row."""
+    dismissed = False
+    for _ in range(8):
+        changed = False
+        for frame in page.frames:
+            try:
+                action = frame.evaluate(
+                    """() => {
+                        const visible = (el) => {
+                            const rect = el.getBoundingClientRect();
+                            const style = getComputedStyle(el);
+                            return rect.width > 0 && rect.height > 0
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden';
+                        };
+                        const hints = [...document.querySelectorAll('body *')].filter((el) => {
+                            if (!visible(el)) return false;
+                            const text = (el.innerText || '').trim();
+                            return text.includes('此处填写您的每日预算')
+                                || text.includes('保持流量稳定')
+                                || (text.includes('下一步') && text.includes('每日预算'));
+                        });
+                        if (!hints.length) return '';
+                        const hint = hints.sort((a, b) => {
+                            const ar = a.getBoundingClientRect();
+                            const br = b.getBoundingClientRect();
+                            return ar.width * ar.height - br.width * br.height;
+                        })[0];
+                        let root = hint;
+                        for (let depth = 0; root && depth < 8; depth += 1, root = root.parentElement) {
+                            const close = [...root.querySelectorAll('button, [role=button], [class*=close], [class*=skip]')]
+                                .find((el) => visible(el) && /^(×|关闭|跳过|我知道了)$/.test((el.innerText || el.getAttribute('aria-label') || '').trim()));
+                            if (close) { close.click(); return 'close'; }
+                        }
+                        const next = [...document.querySelectorAll('button, [role=button]')]
+                            .find((el) => visible(el) && /^(下一步|完成|我知道了)$/.test((el.innerText || '').trim()));
+                        if (next) { next.click(); return 'next'; }
+                        return '';
+                    }"""
+                )
+            except Exception:
+                continue
+            if action:
+                dismissed = True
+                changed = True
+                time.sleep(0.7)
+                break
+        if not changed:
+            break
+    return dismissed
 
 
 def click_confirm_button(page, locator) -> str:
@@ -1241,6 +1296,7 @@ def main() -> int:
     parser.add_argument("--limit", default="all", help="执行数量；默认 all。预览时可用 1 快速验证。")
     parser.add_argument("--stores", default="", help="只执行指定门店关键词，逗号分隔，例如：第3档口,川湘府")
     parser.add_argument("--preflight", action="store_true", help="正式提交前只读预检：打开点金页、预算弹窗和输入框，但不保存。")
+    parser.add_argument("--preflight-result-output", default="", help="把预检通过/失败门店写入指定 JSON，供整批任务隔离失败门店。")
     args = parser.parse_args()
     period = resolve_period(args.period)
     commit = args.mode == "commit" and not args.preflight
@@ -1309,6 +1365,31 @@ def main() -> int:
                     pass
 
     write_run_log(output, period, args.period, args.mode, results, partial=False, preflight=args.preflight)
+    if args.preflight_result_output:
+        preflight_result_path = Path(args.preflight_result_output).expanduser()
+        preflight_result_path.parent.mkdir(parents=True, exist_ok=True)
+        preflight_result_path.write_text(
+            json.dumps(
+                {
+                    "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "period": period,
+                    "successfulKeywords": [item.get("keyword") for item in results if item.get("ok") and item.get("keyword")],
+                    "failed": [
+                        {
+                            "keyword": item.get("keyword"),
+                            "store": item.get("store"),
+                            "failure_type": item.get("failure_type") or "execution_failed",
+                            "error": item.get("error") or item.get("message") or "",
+                        }
+                        for item in results
+                        if not item.get("ok") and not item.get("skipped")
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            ) + "\n",
+            encoding="utf-8",
+        )
     ok_count = sum(1 for item in results if item.get("ok"))
     skipped_count = sum(1 for item in results if item.get("skipped"))
     fail_count = sum(1 for item in results if not item.get("ok") and not item.get("skipped"))
