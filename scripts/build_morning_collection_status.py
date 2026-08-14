@@ -17,7 +17,9 @@ TASK_ID = "ops.morning_collection"
 EXPECTED_STEPS = [
     "初始化",
     "启动/检查后台 Chrome",
-    "双平台评价下载",
+    "饿了么评价下载",
+    "美团评价下载",
+    "评价看板生成",
     "门店日报采集并发布",
     "直营美团日报下载",
     "推广余额总巡检",
@@ -31,6 +33,7 @@ EXPECTED_STEPS = [
     "运营总看板发布腾讯云",
     "汇总",
 ]
+LEGACY_EXPECTED_STEPS = {"双平台评价下载"}
 
 REPAIR_GUIDES = {
     "auth_block": {
@@ -295,7 +298,7 @@ def summarize_steps(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         step = str(event.get("step") or "")
         if not step or step in {"start", "finish", "exception"}:
             continue
-        if step not in EXPECTED_STEPS and not any(step.startswith(prefix) for prefix in ("饿了么", "美团")):
+        if step not in EXPECTED_STEPS and step not in LEGACY_EXPECTED_STEPS and not any(step.startswith(prefix) for prefix in ("饿了么", "美团")):
             continue
         message = event.get("message") or ""
         failure_type = event.get("failure_type") or ""
@@ -457,9 +460,15 @@ def build_payload() -> dict[str, Any]:
     repair_guides = build_repair_guides(failed_steps)
     completed_steps = [step for step in steps if step["status"] == "success"]
     running_steps = [step for step in steps if step["status"] == "running"]
+    recorded_names = {step["name"] for step in steps}
+    not_run_steps = [name for name in EXPECTED_STEPS if name not in recorded_names]
     if failed_steps or task.get("status") == "failed":
         status = "failed"
-        message = f"上午运营一键采集有 {len(failed_steps)} 个子步骤失败。"
+        failed_names = "、".join(step["name"] for step in failed_steps) or str(task.get("step") or "未识别步骤")
+        message = (
+            f"上午运营部分异常：仅以下项目失败：{failed_names}。"
+            f"已明确成功 {len(completed_steps)} 项，未运行或未记录 {len(not_run_steps)} 项。"
+        )
     elif not all_events:
         status = "missing_run"
         message = "尚未找到上午运营一键采集运行记录。"
@@ -490,9 +499,12 @@ def build_payload() -> dict[str, Any]:
             "running_count": len(running_steps),
             "event_count": len(all_events),
             "repair_guide_count": len(repair_guides),
+            "not_run_count": len(not_run_steps),
         },
         "steps": steps,
+        "successful_steps": completed_steps,
         "failed_steps": failed_steps,
+        "not_run_steps": not_run_steps,
         "resolved_failed_steps": resolved_failed_steps,
         "recovery_actions": recovery_actions,
         "repair_guides": repair_guides,

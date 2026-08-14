@@ -381,6 +381,26 @@ def frame_or_page_with_any_text(page, texts: list[str], timeout_seconds: int = 3
     raise RuntimeError(f"没有找到包含任一文本的页面：{texts}；最后看到：{last_seen}")
 
 
+def frame_or_page_with_exact_text(page, text: str, timeout_seconds: int = 30):
+    """Return the frame that owns a visible exact-text control.
+
+    The Eleme shell repeats section names from its embedded application. Looking
+    at body text can therefore select the outer shell even though the actionable
+    tab lives in an iframe.
+    """
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        for target in [*page.frames, page]:
+            try:
+                locator = target.get_by_text(text, exact=True)
+                if any(locator.nth(index).is_visible() for index in range(locator.count())):
+                    return target
+            except Exception:
+                continue
+        page.wait_for_timeout(1000)
+    raise RuntimeError(f"没有找到可见的精确文本控件：{text}")
+
+
 def click_text(page, text: str, timeout: int = 30_000) -> None:
     clicked = page.evaluate(
         """
@@ -1064,7 +1084,7 @@ def download_eleme_reviews() -> Path:
         page = reusable_page(context)
         page.goto(ELEME_COMMENTS_URL, wait_until="domcontentloaded", timeout=90_000)
         page.wait_for_timeout(8000)
-        comment_frame = frame_or_page_with_any_text(page, ["顾客评价", "评价内容"], timeout_seconds=45)
+        comment_frame = frame_or_page_with_exact_text(page, "评价内容", timeout_seconds=45)
         content_tab = comment_frame.get_by_text("评价内容", exact=True)
         if content_tab.count() and content_tab.first.is_visible():
             # The score panel can leave a transparent overlay over this tab
@@ -1072,7 +1092,7 @@ def download_eleme_reviews() -> Path:
             # here and reliably switches to the independent review list.
             content_tab.first.click(timeout=10_000, force=True)
         try:
-            comment_frame = frame_or_page_with_any_text(page, ["导出评价"], timeout_seconds=30)
+            comment_frame = frame_or_page_with_exact_text(page, "导出评价", timeout_seconds=30)
             comment_frame.get_by_text("导出评价", exact=True).wait_for(state="visible", timeout=10_000)
         except Exception as exc:
             raise RuntimeError("切换到评价内容后仍未出现导出评价按钮") from exc
@@ -1258,6 +1278,7 @@ def download_meituan_reviews() -> Path:
         rows: list[dict] = []
         seen_offsets: set[int] = set()
         without_target_pages = 0
+        passed_target_date = False
         for _ in range(80):
             while comment_pages:
                 data = comment_pages.pop(0)
@@ -1273,6 +1294,10 @@ def download_meituan_reviews() -> Path:
                 else:
                     without_target_pages += 1
                 dates = [str(item.get("createTime") or "") for item in items]
+                if dates and max(dates) < target_date:
+                    passed_target_date = True
+                    comment_pages.clear()
+                    break
                 if target_items and any(date_value and date_value < target_date for date_value in dates):
                     comment_pages.clear()
                     without_target_pages = 2
@@ -1280,7 +1305,7 @@ def download_meituan_reviews() -> Path:
                 if rows and without_target_pages >= 2 and dates and max(dates) < target_date:
                     comment_pages.clear()
                     break
-            if rows and without_target_pages >= 2:
+            if passed_target_date or (rows and without_target_pages >= 2):
                 break
             before_count = len(seen_offsets)
             page.mouse.click(1118, 950)
@@ -1289,9 +1314,6 @@ def download_meituan_reviews() -> Path:
                 without_target_pages += 1
                 if rows and without_target_pages >= 2:
                     break
-
-        if not rows:
-            raise RuntimeError(f"美团评价接口没有返回 {target_date} 的评价")
 
         review_dir = ROOT / "data" / "reviews" / "raw"
         review_dir.mkdir(parents=True, exist_ok=True)
@@ -1329,6 +1351,8 @@ def download_meituan_reviews() -> Path:
                     }
                 )
         print(f"美团评价已下载：{target}")
+        if not rows:
+            print(f"美团 {target_date} 没有新评价，已生成 0 条评价的成功快照。")
         return target
     except Exception as exc:
         raise RuntimeError(f"美团评价未下载到新文件，已停止生成：{exc}") from exc
@@ -1374,6 +1398,11 @@ def download_reviews_and_process() -> None:
     else:
         print("双平台评价下载完成。")
     process_reports()
+
+
+def process_downloaded_reviews() -> None:
+    process_reports()
+    print("评价看板已使用当前可用评价文件重新生成。")
 
 
 def local_report_candidate(target_date: str, platform: str) -> Path | None:
@@ -1510,6 +1539,9 @@ def main() -> None:
     subparsers.add_parser("download-meituan", help="进入美团下载列表并下载最新报表")
     subparsers.add_parser("download-meituan-and-process", help="下载美团最新报表并重新生成看板")
     subparsers.add_parser("download-all-and-process", help="下载两个平台最新报表并重新生成看板")
+    subparsers.add_parser("download-eleme-reviews", help="仅下载饿了么评价")
+    subparsers.add_parser("download-meituan-reviews", help="仅下载美团评价")
+    subparsers.add_parser("process-downloaded-reviews", help="使用当前可用评价文件重新生成看板")
     subparsers.add_parser("download-reviews-and-process", help="下载双平台评价并重新生成看板")
     daily_parser = subparsers.add_parser("daily", help="一键生成昨日日报：提交任务、下载两个平台报表并生成看板")
     daily_parser.add_argument("--date", help="指定日报日期，格式 YYYYMMDD；不填则使用昨天")
@@ -1533,6 +1565,12 @@ def main() -> None:
         download_meituan_and_process()
     elif args.command == "download-all-and-process":
         download_all_and_process()
+    elif args.command == "download-eleme-reviews":
+        download_eleme_reviews()
+    elif args.command == "download-meituan-reviews":
+        download_meituan_reviews()
+    elif args.command == "process-downloaded-reviews":
+        process_downloaded_reviews()
     elif args.command == "download-reviews-and-process":
         download_reviews_and_process()
     elif args.command == "daily":

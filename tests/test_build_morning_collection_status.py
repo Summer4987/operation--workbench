@@ -14,6 +14,42 @@ import build_morning_collection_status as morning_module  # noqa: E402
 
 
 class BuildMorningCollectionStatusTests(unittest.TestCase):
+    def test_partial_failure_names_exact_step_and_exposes_success_and_not_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            task_runs = Path(tmp) / "latest.json"
+            task_runs.write_text(
+                json.dumps(
+                    {
+                        "tasks": {
+                            "ops.morning_collection": {
+                                "status": "failed",
+                                "message": "上午运营部分异常：仅以下项目失败：饿了么评价下载。其他已完成项目不受影响。",
+                                "step": "汇总",
+                                "updated_at": "2026-08-14 09:00:00",
+                            }
+                        },
+                        "events": [
+                            {"task_id": "ops.morning_collection", "status": "running", "step": "初始化", "message": "开始", "created_at": "2026-08-14 08:00:00"},
+                            {"task_id": "ops.morning_collection", "status": "failed", "step": "饿了么评价下载", "message": "饿了么评价下载失败", "created_at": "2026-08-14 08:05:00"},
+                            {"task_id": "ops.morning_collection", "status": "success", "step": "美团评价下载", "message": "美团评价下载完成。", "created_at": "2026-08-14 08:06:00"},
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            original = morning_module.TASK_RUNS_PATH
+            try:
+                morning_module.TASK_RUNS_PATH = task_runs
+                payload = morning_module.build_payload()
+            finally:
+                morning_module.TASK_RUNS_PATH = original
+
+        self.assertIn("仅以下项目失败：饿了么评价下载", payload["message"])
+        self.assertEqual([step["name"] for step in payload["failed_steps"]], ["饿了么评价下载"])
+        self.assertIn("美团评价下载", [step["name"] for step in payload["successful_steps"]])
+        self.assertIn("评价看板生成", payload["not_run_steps"])
+
     def test_safe_tail_rerun_does_not_hide_morning_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

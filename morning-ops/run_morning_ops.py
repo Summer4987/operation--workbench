@@ -415,9 +415,15 @@ def main() -> int:
                         flush=True,
                     )
                 ensure_backend_chrome(report_python)
-                result = run_step_with_pause("双平台评价下载", [report_python, str(REPORT_AUTOMATION), "download-reviews-and-process"], required=False, timeout_seconds=240)
+                result = run_step_with_pause("饿了么评价下载", [report_python, str(REPORT_AUTOMATION), "download-eleme-reviews"], required=False, timeout_seconds=240)
                 if result.returncode != 0:
-                    add_failure(failures, "双平台评价", result)
+                    add_failure(failures, "饿了么评价下载", result)
+                result = run_step_with_pause("美团评价下载", [report_python, str(REPORT_AUTOMATION), "download-meituan-reviews"], required=False, timeout_seconds=240)
+                if result.returncode != 0:
+                    add_failure(failures, "美团评价下载", result)
+                result = run_step("评价看板生成", [report_python, str(REPORT_AUTOMATION), "process-downloaded-reviews"], required=False, timeout_seconds=180)
+                if result.returncode != 0:
+                    add_failure(failures, "评价看板生成", result)
                 result = run_step_with_pause("直营美团评价下载", [report_python, str(DIRECT_MEITUAN_REVIEW_RUNNER), "--all"], required=False, timeout_seconds=420)
                 if result.returncode != 0:
                     add_failure(failures, "直营美团评价", result)
@@ -505,10 +511,11 @@ def main() -> int:
             cleanup_chrome_sessions("任务结束后 Chrome 会话清理")
             if failures:
                 names = failure_names(failures)
-                print(f"\n运营一键采集完成，但有失败项：{'、'.join(names)}。", file=sys.stderr, flush=True)
+                failure_message = f"上午运营部分异常：仅以下项目失败：{'、'.join(names)}。其他已完成项目不受影响。"
+                print(f"\n{failure_message}", file=sys.stderr, flush=True)
                 record_task_run(
                     "failed",
-                    f"上午运营一键采集完成，但有失败项：{'、'.join(names)}。",
+                    failure_message,
                     "汇总",
                     log_path,
                     returncode=1,
