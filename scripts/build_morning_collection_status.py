@@ -270,8 +270,7 @@ def latest_start_index(events: list[dict[str, Any]]) -> int:
         if event.get("task_id") != TASK_ID:
             continue
         step = str(event.get("step") or "")
-        message = str(event.get("message") or "")
-        if event.get("status") == "running" and (step in {"start", "初始化"} or "开始" in message):
+        if event.get("status") == "running" and step in {"start", "初始化"}:
             return index
     for index in range(len(events) - 1, -1, -1):
         if events[index].get("task_id") == TASK_ID:

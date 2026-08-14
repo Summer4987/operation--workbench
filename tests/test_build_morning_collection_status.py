@@ -14,6 +14,15 @@ import build_morning_collection_status as morning_module  # noqa: E402
 
 
 class BuildMorningCollectionStatusTests(unittest.TestCase):
+    def test_substep_start_does_not_replace_morning_session_start(self) -> None:
+        events = [
+            {"task_id": "ops.morning_collection", "status": "running", "step": "初始化", "message": "上午运营一键采集开始。"},
+            {"task_id": "ops.morning_collection", "status": "success", "step": "饿了么评价下载", "message": "饿了么评价下载完成。"},
+            {"task_id": "ops.morning_collection", "status": "running", "step": "美团午餐预算真实提交", "message": "美团午餐预算真实提交开始。"},
+        ]
+
+        self.assertEqual(morning_module.latest_start_index(events), 0)
+
     def test_partial_failure_names_exact_step_and_exposes_success_and_not_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             task_runs = Path(tmp) / "latest.json"
