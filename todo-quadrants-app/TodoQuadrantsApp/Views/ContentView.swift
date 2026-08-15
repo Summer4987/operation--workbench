@@ -43,7 +43,11 @@ struct ContentView: View {
                     await pullRemoteTodos()
                 }
             }
+            #if os(macOS)
+            // The large desktop type size was requested for the Mac window.
+            // Do not force an accessibility size onto the compact iPhone UI.
             .environment(\.dynamicTypeSize, .accessibility1)
+            #endif
         }
     }
 
