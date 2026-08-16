@@ -98,6 +98,8 @@ def test_deploy_rejects_realtime_history_regression_and_verifies_upload():
     assert "local_latest == remote_latest and local_count < remote_count" in text
     assert "history_regressed" in text
     assert "ALLOW_REALTIME_HISTORY_SHRINK" in text
+    assert "PUBLISH_REALTIME_HISTORY=0" in text
+    assert "本次保留线上实时历史，继续发布其它工作台数据" in text
     assert text.count(
         'verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"'
     ) == 2
@@ -164,6 +166,16 @@ def test_low_balance_notifications_only_follow_morning_and_afternoon_budget_runs
     assert '"--promo-balance-period", "上午"' in morning_text
     assert 'task_candidates.update(load_promo_balance_alert_tasks())' not in notifier_text
     assert 'choices=("上午", "下午")' in notifier_text
+
+
+def test_budget_support_failures_do_not_report_budget_setting_failed():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "run_support_step()" in text
+    assert 'run_support_step "运营总看板发布"' in text
+    assert 'run_support_step "推广预算重试策略刷新"' in text
+    assert "附属步骤失败（不代表预算设置失败）" in text
+    assert "预算设置成功；附属步骤失败" in text
 
 
 def test_inventory_warning_is_installed_as_separate_4pm_notification():

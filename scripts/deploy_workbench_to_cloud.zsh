@@ -114,7 +114,7 @@ PY
 )"
   read -r local_count local_latest <<< "$local_metrics"
 
-  ssh "${SSH_OPTS[@]}" "$SERVER" \
+  if ssh "${SSH_OPTS[@]}" "$SERVER" \
     "python3 - '$REMOTE_DIR/data/realtime-history.json' '$local_count' '$local_latest' '${ALLOW_REALTIME_HISTORY_SHRINK:-0}'" <<'PY'
 import json
 import sys
@@ -146,8 +146,15 @@ if not allow_shrink and history_regressed:
         f"线上 count={remote_count}, latest={remote_latest or '-'}。"
     )
 PY
+  then
+    PUBLISH_REALTIME_HISTORY=1
+  else
+    PUBLISH_REALTIME_HISTORY=0
+    echo "实时历史较线上旧，本次保留线上实时历史，继续发布其它工作台数据。" >&2
+  fi
 }
 
+PUBLISH_REALTIME_HISTORY=1
 validate_realtime_history_deploy
 
 if [[ "$DEPLOY_MODE" == "full" ]]; then
@@ -215,10 +222,12 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest-data.js" \
     "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
-  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/data/realtime-history.json" \
-    "$SERVER:$REMOTE_DIR/data/"
+  if [[ "$PUBLISH_REALTIME_HISTORY" == "1" ]]; then
+    rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+      -e "ssh ${SSH_OPTS[*]}" \
+      "$STAGE_DIR/data/realtime-history.json" \
+      "$SERVER:$REMOTE_DIR/data/"
+  fi
   rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/direct-dashboard/" \
@@ -246,10 +255,12 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest-data.js" \
     "$SERVER:$REMOTE_DIR/outputs/promo_budget_preview/"
-  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/data/realtime-history.json" \
-    "$SERVER:$REMOTE_DIR/data/"
+  if [[ "$PUBLISH_REALTIME_HISTORY" == "1" ]]; then
+    rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+      -e "ssh ${SSH_OPTS[*]}" \
+      "$STAGE_DIR/data/realtime-history.json" \
+      "$SERVER:$REMOTE_DIR/data/"
+  fi
   rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/dashboard/" \
@@ -303,7 +314,9 @@ if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "outputs/realtime_order_income/latest.json" "$STAGE_DIR/outputs/realtime_order_income/latest.json"
   verify_remote_file "outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest.json"
-  verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"
+  if [[ "$PUBLISH_REALTIME_HISTORY" == "1" ]]; then
+    verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"
+  fi
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
   verify_remote_file "business-report-dashboard/data/direct-latest.json" "$STAGE_DIR/business-report-dashboard/data/direct-latest.json"
 else
@@ -312,7 +325,9 @@ else
   verify_remote_file "outputs/agent_mobile/latest.json" "$STAGE_DIR/outputs/agent_mobile/latest.json"
   verify_remote_file "outputs/realtime_order_income/latest.json" "$STAGE_DIR/outputs/realtime_order_income/latest.json"
   verify_remote_file "outputs/promo_budget_preview/latest.json" "$STAGE_DIR/outputs/promo_budget_preview/latest.json"
-  verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"
+  if [[ "$PUBLISH_REALTIME_HISTORY" == "1" ]]; then
+    verify_remote_file "data/realtime-history.json" "$STAGE_DIR/data/realtime-history.json"
+  fi
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
   verify_remote_file "workbench.js" "$STAGE_DIR/workbench.js"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"

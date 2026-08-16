@@ -352,6 +352,18 @@ def infer_meituan_realtime_row(text: str) -> tuple[float | None, float | None, s
     if source_name and source_name in text:
         tail = text.split(source_name, 1)[1]
     cleaned = tail.replace(",", "")
+    # The compact table variant appends pagination text (for example
+    # ``共 11 条 1 2``) to the final visible row.  Those numbers are not row
+    # metrics and must never be interpreted as the order count.
+    metric_text = re.split(r"\s*共\s*\d+\s*条", cleaned, maxsplit=1)[0]
+    metric_tokens = re.findall(r"-?\d+(?:\.\d+)?", metric_text)
+    metric_numbers = [to_number(item) for item in metric_tokens]
+    metric_numbers = [item for item in metric_numbers if item is not None]
+    # In the compact five-column layout the values are: 营业收入、优惠前总额、
+    # 订单实付、订单量、实付单均价.  Trend cells may all be rendered as “持平”,
+    # leaving exactly five numeric values.
+    if len(metric_numbers) == 5 and "持平" in metric_text:
+        return metric_numbers[3], metric_numbers[0], source_name
     number_tokens = re.findall(r"-?\d+(?:\.\d+)?", cleaned)
     numbers = [to_number(item) for item in number_tokens]
     numbers = [item for item in numbers if item is not None]

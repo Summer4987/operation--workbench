@@ -187,6 +187,28 @@ run_budget_step() {
   return "$rc"
 }
 
+run_support_step() {
+  local step="$1"
+  local seconds="$2"
+  local attempts="$3"
+  shift 3
+  record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
+  local rc=0
+  set +e
+  run_with_retry "$step" "$seconds" "$attempts" "$@"
+  rc=$?
+  set -e
+  if (( rc == 0 )); then
+    return 0
+  fi
+  echo "附属步骤失败（不代表预算设置失败）：${step}"
+  SUPPORT_FAILED_STEPS+=("$step")
+  record_task_run "$TASK_ID" running \
+    --message "${PERIOD}预算设置已完成；附属步骤失败：${step}。" \
+    --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
+  return "$rc"
+}
+
 run_required_step() {
   local step="$1"
   local seconds="$2"
@@ -284,6 +306,7 @@ else
 fi
 
 FAILED_STEPS=()
+SUPPORT_FAILED_STEPS=()
 
 echo
 if [[ "$MODE" == "commit" ]]; then
@@ -349,17 +372,17 @@ if [[ "$MODE" == "commit" ]]; then
   else
     BALANCE_NOTIFY_PERIOD="下午"
   fi
-  run_budget_step "${BALANCE_NOTIFY_PERIOD}推广低余额通知" "${PROMO_BALANCE_NOTIFY_TIMEOUT_SECONDS:-60}" 1 \
+  run_support_step "${BALANCE_NOTIFY_PERIOD}推广低余额通知" "${PROMO_BALANCE_NOTIFY_TIMEOUT_SECONDS:-60}" 1 \
     "$PYTHON" scripts/agent_task_notifier.py --promo-balance-period "$BALANCE_NOTIFY_PERIOD" || true
 fi
 
 echo
 echo "刷新运营总看板数据..."
-run_budget_step "推广预算重试策略刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_promo_budget_retry_plan.py || true
-run_budget_step "运营总看板数据刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_workbench_data.py || true
+run_support_step "推广预算重试策略刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_promo_budget_retry_plan.py || true
+run_support_step "运营总看板数据刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_workbench_data.py || true
 if [[ "$MODE" == "commit" ]]; then
   echo "发布运营总看板..."
-  run_budget_step "运营总看板发布" "${WORKBENCH_DEPLOY_TIMEOUT_SECONDS:-240}" "${DEPLOY_STEP_RETRIES:-2}" env OPERATION_ROOT="$ROOT" /bin/zsh "$DEPLOY_RUNNER" || true
+  run_support_step "运营总看板发布" "${WORKBENCH_DEPLOY_TIMEOUT_SECONDS:-240}" "${DEPLOY_STEP_RETRIES:-2}" env OPERATION_ROOT="$ROOT" /bin/zsh "$DEPLOY_RUNNER" || true
 else
   echo "预演模式：不发布云端看板。"
 fi
@@ -371,4 +394,12 @@ if (( ${#FAILED_STEPS[@]} > 0 )); then
   record_task_run "$TASK_ID" failed --message "${PERIOD}预算失败步骤：${(j:、:)FAILED_STEPS}" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 70
   exit 70
 fi
-record_task_run "$TASK_ID" success --message "${PERIOD}预算全部步骤完成。" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0
+if (( ${#SUPPORT_FAILED_STEPS[@]} > 0 )); then
+  echo "预算设置成功，附属步骤失败：${(j:、:)SUPPORT_FAILED_STEPS}"
+  record_task_run "$TASK_ID" success \
+    --message "${PERIOD}预算设置成功；附属步骤失败：${(j:、:)SUPPORT_FAILED_STEPS}。" \
+    --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0 \
+    --extra "support_failures=${(j:、:)SUPPORT_FAILED_STEPS}"
+else
+  record_task_run "$TASK_ID" success --message "${PERIOD}预算全部步骤完成。" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0
+fi

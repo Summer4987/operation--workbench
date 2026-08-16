@@ -113,6 +113,21 @@ def test_meituan_realtime_dom_row_handles_trend_text_in_metric_columns():
     assert record["income"] == 1055.76
 
 
+def test_meituan_realtime_dom_row_ignores_pagination_numbers():
+    record = build_dom_record(
+        "排名 门店名称 营业收入 优惠前总额 订单实付 订单量 实付单均价 "
+        "数值 涨跌 数值 涨跌 数值 涨跌 数值 涨跌 数值 涨跌 "
+        "11 熊小小牛排饭POKEBEAR（金融街店） "
+        "0.00 持平 0.00 持平 0.00 持平 0 持平 0.00 持平 共 11 条 1 2",
+        "美团",
+    )
+
+    assert record is not None
+    assert record["store"] == "金融街"
+    assert record["orders"] == 0
+    assert record["income"] == 0
+
+
 def test_new_wangjing_store_maps_from_platform_rows():
     record = build_dom_record(
         "4 熊小小牛排饭POKEBEAR（望京店） 128.60 340.10 44.00 520.30 20.00 410.20 5 13 25.72 31.55",
