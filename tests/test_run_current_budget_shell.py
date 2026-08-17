@@ -105,6 +105,17 @@ def test_deploy_rejects_realtime_history_regression_and_verifies_upload():
     ) == 2
 
 
+def test_deploy_preserves_newer_cloud_franchise_daily_data():
+    text = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "validate_franchise_daily_deploy" in text
+    assert "local_latest < remote_latest" in text
+    assert "ALLOW_FRANCHISE_DAILY_REGRESSION" in text
+    assert "PUBLISH_FRANCHISE_DAILY=0" in text
+    assert "本次保留线上日报，继续发布其它工作台数据" in text
+    assert 'if [[ "$PUBLISH_FRANCHISE_DAILY" == "1" ]]; then' in text
+
+
 def test_production_entrypoints_run_login_preflight_before_platform_work():
     budget_text = SCRIPT.read_text(encoding="utf-8")
     morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")

@@ -157,6 +157,56 @@ PY
 PUBLISH_REALTIME_HISTORY=1
 validate_realtime_history_deploy
 
+validate_franchise_daily_deploy() {
+  local local_file="$STAGE_DIR/business-report-dashboard/data/latest.json"
+  local local_latest
+  local_latest="$("$PYTHON" - "$local_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+dates = [str(item) for item in payload.get("source_dates") or [] if item]
+if not dates:
+    raise SystemExit("待发布加盟店日报没有有效日期，跳过加盟店日报发布。")
+print(max(dates))
+PY
+)"
+
+  if ssh "${SSH_OPTS[@]}" "$SERVER" \
+    "python3 - '$REMOTE_DIR/business-report-dashboard/data/latest.json' '$local_latest' '${ALLOW_FRANCHISE_DAILY_REGRESSION:-0}'" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+remote_path = Path(sys.argv[1])
+local_latest = sys.argv[2]
+allow_regression = sys.argv[3] == "1"
+if not remote_path.exists():
+    raise SystemExit(0)
+
+payload = json.loads(remote_path.read_text(encoding="utf-8"))
+dates = [str(item) for item in payload.get("source_dates") or [] if item]
+remote_latest = max(dates) if dates else ""
+if not allow_regression and remote_latest and local_latest < remote_latest:
+    raise SystemExit(
+        "拒绝用较旧的加盟店日报覆盖线上数据："
+        f"待发布 latest={local_latest}；线上 latest={remote_latest}。"
+    )
+PY
+  then
+    PUBLISH_FRANCHISE_DAILY=1
+  else
+    PUBLISH_FRANCHISE_DAILY=0
+    echo "加盟店日报较线上旧，本次保留线上日报，继续发布其它工作台数据。" >&2
+  fi
+}
+
+PUBLISH_FRANCHISE_DAILY=1
+if [[ "$DEPLOY_MODE" != "data-only" ]]; then
+  validate_franchise_daily_deploy
+fi
+
 if [[ "$DEPLOY_MODE" == "full" ]]; then
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
@@ -168,11 +218,13 @@ if [[ "$DEPLOY_MODE" == "full" ]]; then
     "$SERVER:$REMOTE_DIR/"
 
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/business-report-dashboard/data'"
-  rsync -az --delete \
-    -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/business-report-dashboard/dashboard/" \
-    "$SERVER:$REMOTE_DIR/business-report-dashboard/"
-  rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/business-report-dashboard/data/" "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  if [[ "$PUBLISH_FRANCHISE_DAILY" == "1" ]]; then
+    rsync -az --delete \
+      -e "ssh ${SSH_OPTS[*]}" \
+      "$STAGE_DIR/business-report-dashboard/dashboard/" \
+      "$SERVER:$REMOTE_DIR/business-report-dashboard/"
+    rsync -az -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/business-report-dashboard/data/" "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  fi
   rsync -az --delete --delete-excluded --exclude='* 2.html' \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/direct-dashboard/" \
@@ -261,10 +313,12 @@ else
       "$STAGE_DIR/data/realtime-history.json" \
       "$SERVER:$REMOTE_DIR/data/"
   fi
-  rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/business-report-dashboard/dashboard/" \
-    "$SERVER:$REMOTE_DIR/business-report-dashboard/"
+  if [[ "$PUBLISH_FRANCHISE_DAILY" == "1" ]]; then
+    rsync -az --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+      -e "ssh ${SSH_OPTS[*]}" \
+      "$STAGE_DIR/business-report-dashboard/dashboard/" \
+      "$SERVER:$REMOTE_DIR/business-report-dashboard/"
+  fi
   rsync -az --delete --delete-excluded --exclude='* 2.html' --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/business-report-dashboard/direct-dashboard/" \
@@ -277,10 +331,12 @@ else
     -e "ssh ${SSH_OPTS[*]}" \
     "$STAGE_DIR/floor-plan-designer/" \
     "$SERVER:$REMOTE_DIR/floor-plan-designer/"
-  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-    -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/business-report-dashboard/data/" \
-    "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  if [[ "$PUBLISH_FRANCHISE_DAILY" == "1" ]]; then
+    rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+      -e "ssh ${SSH_OPTS[*]}" \
+      "$STAGE_DIR/business-report-dashboard/data/" \
+      "$SERVER:$REMOTE_DIR/business-report-dashboard/data/"
+  fi
   if [[ -f "$STAGE_DIR/store-inspection/latest.json" && -f "$STAGE_DIR/store-inspection/latest-data.js" ]]; then
     rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
       -e "ssh ${SSH_OPTS[*]}" \
@@ -331,8 +387,10 @@ else
   verify_remote_file "workbench.css" "$STAGE_DIR/workbench.css"
   verify_remote_file "workbench.js" "$STAGE_DIR/workbench.js"
   verify_remote_file "workbench-data.js" "$STAGE_DIR/workbench-data.js"
-  verify_remote_file "business-report-dashboard/index.html" "$STAGE_DIR/business-report-dashboard/dashboard/index.html"
-  verify_remote_file "business-report-dashboard/data/latest.json" "$STAGE_DIR/business-report-dashboard/data/latest.json"
+  if [[ "$PUBLISH_FRANCHISE_DAILY" == "1" ]]; then
+    verify_remote_file "business-report-dashboard/index.html" "$STAGE_DIR/business-report-dashboard/dashboard/index.html"
+    verify_remote_file "business-report-dashboard/data/latest.json" "$STAGE_DIR/business-report-dashboard/data/latest.json"
+  fi
   verify_remote_file "franchise-contract-generator/index.html" "$STAGE_DIR/franchise-contract-generator/index.html"
   verify_remote_file "franchise-contract-generator/app.js" "$STAGE_DIR/franchise-contract-generator/app.js"
   verify_remote_file "floor-plan-designer/index.html" "$STAGE_DIR/floor-plan-designer/index.html"
