@@ -17,7 +17,8 @@ WORKSPACE = ROOT.parent
 REPORT_DIR = WORKSPACE / "business-report-dashboard"
 OUTPUT_JSON = ROOT / "eleme-cdp-latest.json"
 OUTPUT_DATA_JS = ROOT / "eleme-cdp-latest-data.js"
-ELEME_BALANCE_URL = "https://r.ele.me/doujin-isv-manage/index.html?__path__=accountChain/accountDetail"
+ELEME_BALANCE_URL = "https://melody.shop.ele.me/app/unit/vas__account#app.unit.vas.account"
+ELEME_ACCOUNT_FRAME_KEY = "__path__=accountChain"
 BALANCE_API_KEY = "IGwShopInfoService.listLeafShopInfoPage"
 THRESHOLD = 200.0
 WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
@@ -130,6 +131,56 @@ def collect_dom_balance_rows(page) -> list[dict]:
     )
 
 
+def find_account_frame(page, timeout_seconds: int = 30):
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        for frame in page.frames:
+            if ELEME_ACCOUNT_FRAME_KEY in frame.url:
+                return frame
+        page.wait_for_timeout(500)
+    raise RuntimeError("饿了么新推广资金页没有加载账户明细区域。")
+
+
+def click_exact_text(frame, text: str) -> bool:
+    locator = frame.get_by_text(text, exact=True)
+    if locator.count() < 1:
+        return False
+    locator.first.click(timeout=10_000)
+    frame.page.wait_for_timeout(800)
+    return True
+
+
+def open_leaf_balance_detail(page):
+    """Open the new unit-account leaf balance table without changing any funds."""
+    frame = find_account_frame(page)
+
+    # The platform can show a one-time account-upgrade explanation over the tabs.
+    try:
+        click_exact_text(frame, "知道了")
+    except Exception:
+        pass
+
+    body = frame.locator("body").inner_text(timeout=10_000)
+    if "分店账户明细及转账" in body:
+        return frame
+
+    if "分店账户" in body:
+        click_exact_text(frame, "分店账户")
+        body = frame.locator("body").inner_text(timeout=10_000)
+
+    if "账户明细及转账" not in body:
+        raise RuntimeError("饿了么推广资金页没有显示“账户明细及转账”入口。")
+
+    click_exact_text(frame, "账户明细及转账")
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        body = frame.locator("body").inner_text(timeout=10_000)
+        if "分店账户明细及转账" in body:
+            return frame
+        page.wait_for_timeout(500)
+    raise RuntimeError("饿了么推广资金页未进入分店账户明细。")
+
+
 def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str]:
     config = cdp.load_config()
     playwright, browser = cdp.connect_browser(config)
@@ -160,9 +211,9 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                 page.wait_for_timeout(500)
             return len(response_payloads) >= count
 
-        def click_page_number(page_number: int) -> bool:
+        def click_page_number(surface, page_number: int) -> bool:
             return bool(
-                page.evaluate(
+                surface.evaluate(
                     """
                     (pageNumber) => {
                       const label = String(pageNumber);
@@ -216,15 +267,13 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
         page.on("response", handle_response)
         try:
             cdp.goto_backend_page(page, ELEME_BALANCE_URL, timeout=90_000)
+            balance_frame = open_leaf_balance_detail(page)
             deadline = time.time() + timeout_seconds
             while time.time() < deadline and not response_payloads:
                 page.wait_for_timeout(1000)
-                if not response_payloads and BALANCE_API_KEY not in page.url:
-                    # Keep the page active without clicking any business controls.
-                    page.evaluate("() => document.body && document.body.innerText")
                 if not response_payloads:
                     try:
-                        dom_rows = collect_dom_balance_rows(page)
+                        dom_rows = collect_dom_balance_rows(balance_frame)
                     except Exception:
                         dom_rows = []
                     if dom_rows:
@@ -233,11 +282,11 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                             for index, row in enumerate(dom_rows)
                         }
                         for page_number in range(2, 6):
-                            if not click_page_number(page_number):
+                            if not click_page_number(balance_frame, page_number):
                                 break
                             page.wait_for_timeout(1200)
                             try:
-                                for row in collect_dom_balance_rows(page):
+                                for row in collect_dom_balance_rows(balance_frame):
                                     key = str(row.get("shopId") or row.get("shopName") or len(rows_by_shop))
                                     rows_by_shop[key] = row
                             except Exception:
@@ -251,7 +300,7 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                 page.wait_for_timeout(2500)
                 for page_number in range(2, total_pages + 1):
                     before = len(response_payloads)
-                    if not click_page_number(page_number):
+                    if not click_page_number(balance_frame, page_number):
                         break
                     wait_for_response_count(before + 1)
                     page.wait_for_timeout(1000)

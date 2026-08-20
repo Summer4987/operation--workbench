@@ -59,6 +59,33 @@ class CdpElemeBalanceTests(unittest.TestCase):
 
         self.assertEqual(items, [])
 
+    def test_uses_new_unit_promotion_funds_route(self) -> None:
+        self.assertEqual(
+            self.module.ELEME_BALANCE_URL,
+            "https://melody.shop.ele.me/app/unit/vas__account#app.unit.vas.account",
+        )
+
+    def test_parse_new_leaf_balance_api_rows(self) -> None:
+        items = self.module.parse_shop_rows(
+            {
+                "result": [
+                    {
+                        "shopId": 545055537,
+                        "shopName": "熊小小牛排饭POKEBEAR(滨江店)",
+                        "adBalance": {
+                            "detail": {"shopId": 545055537, "balance": 31010},
+                            "totalCash": 31010,
+                        },
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["store_id"], "545055537")
+        self.assertEqual(items[0]["balance"], 310.10)
+        self.assertEqual(items[0]["status"], "normal")
+
 
 if __name__ == "__main__":
     unittest.main()
