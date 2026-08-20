@@ -11,7 +11,9 @@ def test_total_balance_collection_includes_direct_meituan_and_validates_coverage
 
     assert "import cdp_direct_meituan_balance" in text
     assert '("美团直营", collect_direct_meituan)' in text
-    assert "cdp_direct_meituan_balance.enabled_accounts(None)" in text
+    assert "run_isolated_collector" in text
+    assert "Path(cdp_direct_meituan_balance.__file__)" in text
+    assert '"--all"' in text
     assert "failed_items = [item for item in items if item.get(\"error\")]" in text
     assert "if store not in DIRECT_MEITUAN_CHAIN_STORES" in text
     assert 'apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么", "美团"})' in text

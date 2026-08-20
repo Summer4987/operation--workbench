@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -24,16 +27,50 @@ OUTPUT_DATA_JS = ROOT / "cdp-latest-data.js"
 THRESHOLD = 200.0
 
 
+def run_isolated_collector(script: Path, output_path: Path, *args: str) -> dict:
+    """Run each Playwright collector in its own process.
+
+    Playwright's CDP driver is not reliably restartable in the same Python
+    process on the production Mac. Isolation also ensures one platform closing
+    its driver cannot silently stop the remaining platform patrols.
+    """
+    started_at = time.time()
+    result = subprocess.run(
+        [sys.executable, str(script), *args],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=300,
+    )
+    output = (result.stdout or "").strip()
+    if output:
+        print(output, flush=True)
+    if result.returncode != 0:
+        raise RuntimeError(output or f"{script.name} 退出码 {result.returncode}")
+    if not output_path.exists() or output_path.stat().st_mtime < started_at - 1:
+        raise RuntimeError(f"{script.name} 没有生成本轮余额结果。")
+    return json.loads(output_path.read_text(encoding="utf-8"))
+
+
 def collect_eleme() -> tuple[list[dict], str]:
-    payload, response_url = cdp_eleme_balance.collect_balance_payload()
-    items = cdp_eleme_balance.parse_shop_rows(payload or {})
+    payload = run_isolated_collector(
+        Path(cdp_eleme_balance.__file__),
+        cdp_eleme_balance.OUTPUT_JSON,
+    )
+    items = payload.get("items") or []
     if not items:
         raise RuntimeError("饿了么 CDP 接口没有读取到门店余额。")
+    response_url = str(payload.get("response_url") or "")
     return items, response_url.split("?")[0] if response_url else ""
 
 
 def collect_meituan() -> tuple[list[dict], str]:
-    items, _network_candidates, base_url = cdp_meituan_balance.collect_balances()
+    payload = run_isolated_collector(
+        Path(cdp_meituan_balance.__file__),
+        cdp_meituan_balance.OUTPUT_JSON,
+    )
+    items = payload.get("items") or []
     ok_items = [item for item in items if not item.get("error")]
     if not ok_items:
         raise RuntimeError("美团 CDP 接口没有读取到门店余额。")
@@ -41,24 +78,26 @@ def collect_meituan() -> tuple[list[dict], str]:
         missing = len(items) - len(ok_items)
         raise RuntimeError(f"美团 CDP 有 {missing} 家门店未解析到账户余额。")
     response_url = next((item.get("account_response_url") for item in ok_items if item.get("account_response_url")), "")
+    base_url = str(payload.get("base_url") or "")
     return ok_items, response_url or (base_url.split("?")[0] if base_url else "")
 
 
 def collect_direct_meituan() -> tuple[list[dict], str]:
-    items: list[dict] = []
+    payload = run_isolated_collector(
+        Path(cdp_direct_meituan_balance.__file__),
+        cdp_direct_meituan_balance.OUTPUT_JSON,
+        "--all",
+        "--wait-seconds",
+        "20",
+    )
+    items = payload.get("items") or []
     errors: list[str] = []
-    source_url = ""
-    for account in cdp_direct_meituan_balance.enabled_accounts(None):
-        try:
-            account_items, meta = cdp_direct_meituan_balance.collect_account(
-                account,
-                visible=False,
-                wait_seconds=20,
-            )
-            items.extend(account_items)
-            source_url = source_url or str(meta.get("url") or "")
-        except Exception as exc:
-            errors.append(f"{account.get('name') or account.get('id')}：{exc}")
+    source_url = next(
+        (str(item.get("account_response_url") or item.get("page_url") or "") for item in items if item),
+        "",
+    )
+    if payload.get("status") == "failed":
+        errors.append(str(payload.get("message") or "直营美团余额采集失败。"))
     failed_items = [item for item in items if item.get("error")]
     if errors or failed_items:
         failed_names = [str(item.get("store_name") or "未知门店") for item in failed_items]
