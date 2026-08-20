@@ -42,6 +42,7 @@ def run_isolated_collector(script: Path, output_path: Path, *args: str) -> dict:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         timeout=300,
+        start_new_session=True,
     )
     output = (result.stdout or "").strip()
     if output:
