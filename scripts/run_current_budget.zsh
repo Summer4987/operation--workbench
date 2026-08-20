@@ -117,6 +117,10 @@ echo "数量：$LIMIT"
 echo "允许窗口：${ALLOWED_WINDOW_LABEL}"
 cleanup_chrome_sessions "== 预算任务开始前 Chrome 会话清理 =="
 record_task_run "$TASK_ID" running --message "${PERIOD}预算执行开始。" --step "${PERIOD}预算初始化" --log-path "$RUN_LOG"
+FAILED_STEPS=()
+SUPPORT_FAILED_STEPS=()
+ELEME_LOGIN_OK=1
+MEITUAN_LOGIN_OK=1
 
 run_with_timeout() {
   local seconds="$1"
@@ -279,11 +283,15 @@ else
 fi
 
 if [[ "$MODE" == "commit" ]]; then
-  if run_required_step "开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$REPORT_PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --notify; then
-    :
-  else
-    rc=$?
-    exit "$rc"
+  if ! run_required_step "饿了么开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$REPORT_PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --platform eleme --notify; then
+    ELEME_LOGIN_OK=0
+    FAILED_STEPS+=("饿了么登录态预检")
+    echo "饿了么预检失败，已隔离跳过；继续执行美团。"
+  fi
+  if ! run_required_step "美团开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$REPORT_PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --platform meituan --notify; then
+    MEITUAN_LOGIN_OK=0
+    FAILED_STEPS+=("美团登录态预检")
+    echo "美团预检失败，已隔离跳过；不影响饿了么。"
   fi
 fi
 
@@ -305,19 +313,22 @@ else
   exit "$rc"
 fi
 
-FAILED_STEPS=()
-SUPPORT_FAILED_STEPS=()
-
 echo
-if [[ "$MODE" == "commit" ]]; then
+if [[ "$MODE" == "commit" && "$ELEME_LOGIN_OK" -eq 0 ]]; then
+  echo "饿了么登录态预检未通过，本轮跳过饿了么${PERIOD}预算。"
+elif [[ "$MODE" == "commit" ]]; then
   echo "执行饿了么${PERIOD}预算真实提交..."
 else
   echo "执行饿了么${PERIOD}预算页面预演..."
 fi
-run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-1800}" "${ELEME_BUDGET_RETRIES:-1}" /bin/zsh "$ELEME_RUNNER" --time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT" || true
+if [[ "$MODE" != "commit" || "$ELEME_LOGIN_OK" -eq 1 ]]; then
+  run_budget_step "饿了么${PERIOD}预算" "${ELEME_BUDGET_TIMEOUT_SECONDS:-1800}" "${ELEME_BUDGET_RETRIES:-1}" /bin/zsh "$ELEME_RUNNER" --time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT" || true
+fi
 
 echo
-if [[ "$MODE" == "commit" ]]; then
+if [[ "$MODE" == "commit" && "$MEITUAN_LOGIN_OK" -eq 0 ]]; then
+  echo "美团登录态预检未通过，本轮跳过美团${PERIOD}预算。"
+elif [[ "$MODE" == "commit" ]]; then
   echo "执行美团${PERIOD}预算提交前预检..."
   MEITUAN_PREFLIGHT_RESULT="$ROOT/outputs/current_budget/meituan_preflight_${PERIOD}.json"
   /bin/rm -f "$MEITUAN_PREFLIGHT_RESULT"

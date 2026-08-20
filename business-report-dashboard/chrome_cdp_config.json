@@ -9,7 +9,7 @@
     "eleme": {
       "name": "饿了么",
       "entry_url": "https://melody.shop.ele.me/",
-      "download_url": "https://melody.shop.ele.me/app/chain/93331264/downloadCenter#app.chainshop.downloadCenter",
+      "download_url": "https://melody.shop.ele.me/app/unit/downloadCenter#app.unit.downloadCenter",
       "ready_texts": [
         "数据下载",
         "报表下载",

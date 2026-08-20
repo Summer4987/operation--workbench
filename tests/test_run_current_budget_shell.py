@@ -121,7 +121,10 @@ def test_production_entrypoints_run_login_preflight_before_platform_work():
     morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")
     realtime_text = REALTIME_SCRIPT.read_text(encoding="utf-8")
 
-    assert "$REPORT_PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope budget --notify" in budget_text
+    assert "--scope budget --platform eleme --notify" in budget_text
+    assert "--scope budget --platform meituan --notify" in budget_text
+    assert "饿了么预检失败，已隔离跳过；继续执行美团" in budget_text
+    assert 'if [[ "$MODE" != "commit" || "$ELEME_LOGIN_OK" -eq 1 ]]; then' in budget_text
     assert "[sys.executable, str(LOGIN_PREFLIGHT_RUNNER), \"--scope\", \"morning\", \"--notify\"]" in morning_text
     assert "\"$PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope realtime --notify" in realtime_text
     assert "PREFLIGHT_RC=$?" in realtime_text

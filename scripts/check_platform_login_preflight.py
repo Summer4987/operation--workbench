@@ -44,6 +44,7 @@ LOGIN_BLOCKERS = [
 ]
 
 ELEME_REALTIME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
+ELEME_BUDGET_URL = "https://melody.shop.ele.me/app/unit/vas__bid#app.unit.vas.bid"
 
 
 def require_playwright():
@@ -92,7 +93,7 @@ def classify_page(platform: str, title: str, url: str, body: str, ready_texts: l
     }
 
 
-def check_common_platforms(scope: str, wait_ms: int) -> list[dict[str, Any]]:
+def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") -> list[dict[str, Any]]:
     config = cdp.load_config()
     if not cdp.cdp_available(config):
         if not cdp.start_chrome(wait_seconds=45):
@@ -109,12 +110,16 @@ def check_common_platforms(scope: str, wait_ms: int) -> list[dict[str, Any]]:
     try:
         context = cdp.first_context(browser)
         for key, platform in config.get("platforms", {}).items():
+            if platform_filter and key != platform_filter:
+                continue
             if scope == "budget" and key not in {"eleme", "meituan"}:
                 continue
             page = cdp.reusable_page(context)
             url = platform.get("download_url") or platform.get("entry_url")
             if scope == "realtime" and key == "eleme":
                 url = ELEME_REALTIME_URL
+            elif scope == "budget" and key == "eleme":
+                url = ELEME_BUDGET_URL
             try:
                 cdp.goto_backend_page(page, url, timeout=90_000)
                 page.wait_for_timeout(wait_ms)
@@ -223,8 +228,8 @@ def build_notice(scope: str, failed: list[dict[str, Any]], continue_on_direct_fa
     return "\n".join(lines)
 
 
-def build_payload(scope: str, include_direct: bool, wait_ms: int) -> dict[str, Any]:
-    checks = check_common_platforms(scope, wait_ms)
+def build_payload(scope: str, include_direct: bool, wait_ms: int, platform_filter: str = "") -> dict[str, Any]:
+    checks = check_common_platforms(scope, wait_ms, platform_filter)
     if should_check_direct(scope, include_direct):
         checks.extend(check_direct_meituan_accounts(wait_ms))
     failed = [item for item in checks if item.get("status") != "ok"]
@@ -245,6 +250,7 @@ def build_payload(scope: str, include_direct: bool, wait_ms: int) -> dict[str, A
 def main() -> int:
     parser = argparse.ArgumentParser(description="运营自动化开跑前登录态只读预检。")
     parser.add_argument("--scope", choices=["morning", "budget", "realtime", "all"], default="all")
+    parser.add_argument("--platform", choices=["eleme", "meituan"], default="")
     parser.add_argument("--include-direct", action="store_true", help="额外检查直营美团独立账号。")
     parser.add_argument("--wait-ms", type=int, default=3500)
     parser.add_argument("--notify", action="store_true", help="失败时发送运营通知。")
@@ -255,7 +261,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    payload = build_payload(args.scope, args.include_direct, args.wait_ms)
+    payload = build_payload(args.scope, args.include_direct, args.wait_ms, args.platform)
     write_payload(payload)
     summary = payload["summary"]
     print(

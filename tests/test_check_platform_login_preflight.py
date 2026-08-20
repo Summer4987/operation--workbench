@@ -1,4 +1,4 @@
-from scripts.check_platform_login_preflight import classify_page
+from scripts.check_platform_login_preflight import ELEME_BUDGET_URL, ELEME_REALTIME_URL, classify_page
 
 
 def test_eleme_security_center_menu_is_not_auth_block():
@@ -38,3 +38,10 @@ def test_invalid_legacy_chain_store_is_blocked():
 
     assert result["status"] == "auth_block"
     assert "无效店铺" in result["blocking_texts"]
+
+
+def test_eleme_group_account_routes_do_not_use_legacy_chain_path():
+    assert "/app/unit/" in ELEME_REALTIME_URL
+    assert "/app/unit/" in ELEME_BUDGET_URL
+    assert "/app/chain/" not in ELEME_REALTIME_URL
+    assert "/app/chain/" not in ELEME_BUDGET_URL
