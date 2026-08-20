@@ -61,6 +61,8 @@ RUN_LOG="$LOG_DIR/eleme_${SAFE_TIME}_$(date +%Y%m%d_%H%M%S).log"
 
 main() {
 
+RUN_STARTED_EPOCH="$(date +%s)"
+
 echo "== 饿了么点金自动化 =="
 echo "时间点：$TIME_POINT"
 echo "模式：$MODE"
@@ -124,6 +126,8 @@ try:
 except Exception:
     raise SystemExit(1)
 if not payload.get("ok"):
+    raise SystemExit(1)
+if payload.get("total") == 0 and not payload.get("verifiedNoChanges"):
     raise SystemExit(1)
 if any(not item.get("ok") for item in payload.get("results", [])):
     raise SystemExit(1)
@@ -239,7 +243,7 @@ PREVIEW_FILE="outputs/dianjin_automation/execution_preview_${SAFE_TIME}.json"
 
 echo
 echo "分析当前状态并生成执行预览..."
-"$NODE" scripts/eleme_dianjin_adapter.mjs analyze-state-combined --time "$TIME_POINT" --output "$STATE_FILE"
+"$NODE" scripts/eleme_dianjin_adapter.mjs analyze-state-combined --time "$TIME_POINT" --since "$RUN_STARTED_EPOCH" --output "$STATE_FILE"
 "$NODE" scripts/export_current_state_for_ui.mjs "$STATE_FILE"
 "$NODE" scripts/build_execution_preview.mjs "$STATE_FILE" --time "$TIME_POINT"
 

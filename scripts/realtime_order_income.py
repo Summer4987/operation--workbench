@@ -32,6 +32,7 @@ OUTPUT_DIR = ROOT / "outputs" / "realtime_order_income"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 FAILED_PATH = OUTPUT_DIR / "last_failed.json"
 RULES_PATH = ROOT / "config" / "realtime_order_income_rules.json"
+ELEME_REQUEST_CACHE_PATH = OUTPUT_DIR / "eleme_rank_request.json"
 
 TARGET_STORES = {
     "中关村": ["中关村", "中关村店", "第2号档口", "利康金桥", "第3档口", "吉祥美食城"],
@@ -711,6 +712,17 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     captured_rank_request: dict[str, Any] = {}
     dom_records: list[dict[str, Any]] = []
 
+    cached_request = load_eleme_rank_request()
+    if cached_request:
+        log("饿了么：优先用已保存的接口模板直连补拉，避免反复刷新限流页面")
+        cached_records: list[dict[str, Any]] = []
+        for payload in fetch_eleme_rank_pages(context, cached_request):
+            cached_records.extend(walk_json_records(payload, "饿了么", cached_request["url"]))
+        direct_result = merge_records(cached_records)
+        if len(direct_result) >= len(TARGET_STORES):
+            log(f"饿了么：直连接口完成 {len(direct_result)} 个目标门店")
+            return direct_result
+
     def on_request(request) -> None:
         if "proteinStandardQuery/TG3gM96" not in request.url:
             return
@@ -728,6 +740,7 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
             for key, value in (request.headers or {}).items()
             if key.lower() not in {"accept-encoding", "content-length", "cookie", "host"}
         }
+        save_eleme_rank_request(captured_rank_request)
 
     try:
         log("饿了么：开始")
@@ -784,8 +797,30 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     return result
 
 
+def load_eleme_rank_request() -> dict[str, Any] | None:
+    try:
+        payload = json.loads(ELEME_REQUEST_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if "proteinStandardQuery/TG3gM96" not in str(payload.get("url") or ""):
+        return None
+    if not isinstance(payload.get("payload"), dict):
+        return None
+    return payload
+
+
+def save_eleme_rank_request(request: dict[str, Any]) -> None:
+    if "proteinStandardQuery/TG3gM96" not in str(request.get("url") or ""):
+        return
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {**request, "saved_at": datetime.now().isoformat(timespec="seconds")}
+    temp_path = ELEME_REQUEST_CACHE_PATH.with_suffix(".tmp")
+    temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(ELEME_REQUEST_CACHE_PATH)
+
+
 def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[dict[str, Any]]:
-    cookies = context.cookies("https://lsycm.alibaba.com")
+    cookies = context.cookies()
     cookie_header = "; ".join(f"{item['name']}={item['value']}" for item in cookies)
     headers = {
         key: value

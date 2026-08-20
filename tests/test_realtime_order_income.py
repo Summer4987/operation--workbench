@@ -4,6 +4,7 @@ from scripts.realtime_order_income import (
     build_api_record,
     build_dom_record,
     build_payload,
+    load_eleme_rank_request,
     meituan_all_stores_active,
     meituan_realtime_active,
     meituan_realtime_switch_diagnostics,
@@ -11,6 +12,7 @@ from scripts.realtime_order_income import (
     parse_meituan_dom_across_scroll,
     page_requires_login,
     realtime_validation_errors,
+    save_eleme_rank_request,
 )
 
 
@@ -159,6 +161,24 @@ def test_new_binjiang_store_maps_from_both_platform_rows():
     assert meituan["store"] == "滨江"
     assert eleme is not None
     assert eleme["store"] == "滨江"
+
+
+def test_eleme_rank_request_cache_round_trip(tmp_path, monkeypatch):
+    cache_path = tmp_path / "eleme_rank_request.json"
+    monkeypatch.setattr("scripts.realtime_order_income.ELEME_REQUEST_CACHE_PATH", cache_path)
+    request = {
+        "url": "https://melody.shop.ele.me/proteinStandardQuery/TG3gM96",
+        "payload": {"current": 1, "pageSize": 10},
+        "headers": {"x-requested-with": "XMLHttpRequest"},
+    }
+
+    save_eleme_rank_request(request)
+    cached = load_eleme_rank_request()
+
+    assert cached is not None
+    assert cached["url"] == request["url"]
+    assert cached["payload"] == request["payload"]
+    assert cached["saved_at"]
 
 
 def test_closed_store_rule_forces_realtime_zero():

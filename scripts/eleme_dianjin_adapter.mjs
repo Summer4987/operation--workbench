@@ -209,25 +209,33 @@ async function latestProbeFile(prefix) {
   return matches[0]?.path || null;
 }
 
-async function latestProbeFiles(prefix, count = 2) {
+async function latestProbeFiles(prefix, count = 2, sinceEpoch = 0) {
   const files = await fs.readdir(outputDir).catch(() => []);
   const matches = [];
   for (const file of files) {
     if (!file.startsWith(prefix) || !file.endsWith(".json")) continue;
     const path = `${outputDir}/${file}`;
     const stat = await fs.stat(path);
+    if (stat.mtimeMs < Number(sinceEpoch || 0) * 1000) continue;
     matches.push({ path, mtime: stat.mtimeMs });
   }
   matches.sort((a, b) => b.mtime - a.mtime);
   return matches.slice(0, count).map((item) => item.path);
 }
 
-async function combinedCurrentRowsFromLatestProbes() {
-  const files = await latestProbeFiles("eleme_store_probe_", 6);
+async function combinedCurrentRowsFromLatestProbes(sinceEpoch = 0) {
+  const files = await latestProbeFiles("eleme_store_probe_", 6, sinceEpoch);
+  if (!files.length) {
+    throw new Error("本次运行没有生成新的饿了么门店状态，禁止使用历史快照");
+  }
   const rowsByShopId = new Map();
   const usedFiles = [];
   for (const file of files) {
     const probe = JSON.parse(await fs.readFile(file, "utf8"));
+    const pageText = String(probe.pageText || probe.text || "");
+    if (/系统被限流|访问过于频繁|稍后重试/.test(pageText)) {
+      throw new Error(`饿了么推广页被系统限流（${file}），禁止使用历史快照或提交预算`);
+    }
     const rows = currentRowsFromProbe(probe);
     if (!rows.length) continue;
     usedFiles.push(file);
@@ -237,7 +245,26 @@ async function combinedCurrentRowsFromLatestProbes() {
     }
     if (rowsByShopId.size >= 12) break;
   }
+  if (!rowsByShopId.size) {
+    throw new Error("本次运行未读取到任何饿了么门店状态，禁止使用历史快照或提交预算");
+  }
   return { files: usedFiles, rows: Array.from(rowsByShopId.values()) };
+}
+
+async function latestProbeWithApi(urlToken) {
+  const files = await latestProbeFiles("eleme_store_probe_", 200);
+  for (const path of files) {
+    let probe = null;
+    try {
+      probe = JSON.parse(await fs.readFile(path, "utf8"));
+    } catch {
+      continue;
+    }
+    if (!probe) continue;
+    const api = (probe.apiResponses || []).find((item) => item.url?.includes(urlToken) && item.request?.postData);
+    if (api) return { path, api };
+  }
+  return null;
 }
 
 async function probeChrome(config) {
@@ -406,11 +433,9 @@ async function probePromotionPage(config) {
 }
 
 async function fetchBranchSolutions(config, pageNum = 1, pageSize = 10) {
-  const probePath = await latestProbeFile("eleme_store_probe_");
-  if (!probePath) throw new Error("没有可复用的门店探测文件，无法取得接口请求体");
-  const probe = JSON.parse(await fs.readFile(probePath, "utf8"));
-  const api = (probe.apiResponses || []).find((item) => item.url.includes("method=queryBranchSolutions") && item.request?.postData);
-  if (!api) throw new Error("探测文件里没有 queryBranchSolutions 请求体");
+  const matched = await latestProbeWithApi("method=queryBranchSolutions");
+  if (!matched) throw new Error("历史探测文件里没有可复用的 queryBranchSolutions 请求体");
+  const { api } = matched;
   const body = JSON.parse(api.request.postData);
   body.params.params[1].pageNum = Number(pageNum);
   body.params.params[1].pageSize = Number(pageSize);
@@ -793,7 +818,20 @@ async function runExecutionPreview(config, args) {
     throw new Error("当前 automation_config.json 的 safety.dryRun 仍为 true，禁止正式保存");
   }
   if (!rows.length) {
-    return { ok: true, mode: commit ? "commit" : "rehearse", previewPath, total: 0, results: [] };
+    const verifiedNoChanges = Number(preview.summary?.missing || 0) === 0 &&
+      (preview.rows || []).length > 0 &&
+      (preview.rows || []).every((row) => row.found && (
+        row.type === "budget" ? row.currentBudget === row.targetBudget : row.currentBid === row.targetBid
+      ));
+    return {
+      ok: verifiedNoChanges,
+      verifiedNoChanges,
+      error: verifiedNoChanges ? "" : "没有可执行项目，且无法确认所有目标均已符合",
+      mode: commit ? "commit" : "rehearse",
+      previewPath,
+      total: 0,
+      results: [],
+    };
   }
 
   await probeChrome(config);
@@ -1330,7 +1368,7 @@ async function main() {
   }
 
   if (args.command === "analyze-state-combined") {
-    const combined = await combinedCurrentRowsFromLatestProbes();
+    const combined = await combinedCurrentRowsFromLatestProbes(Number(args.since || 0));
     const recommendations = makeRecommendations(logic.buildTasks(rules), combined.rows, args, logic);
     const output = {
       probeFiles: combined.files,
