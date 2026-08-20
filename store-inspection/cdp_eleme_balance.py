@@ -187,7 +187,12 @@ def open_leaf_balance_detail(page):
     click_exact_text(frame, "账户明细及转账")
     deadline = time.time() + 20
     while time.time() < deadline:
-        body = frame.locator("body").inner_text(timeout=10_000)
+        try:
+            body = frame.locator("body").inner_text(timeout=10_000)
+        except Exception:
+            # Route navigation replaces the account iframe on some Chrome runs.
+            frame = find_account_frame(page)
+            body = frame.locator("body").inner_text(timeout=10_000)
         if "分店账户明细及转账" in body:
             return frame
         page.wait_for_timeout(500)
