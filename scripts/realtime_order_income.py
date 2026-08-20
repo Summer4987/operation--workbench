@@ -25,8 +25,8 @@ from chrome_cdp_reports import (  # noqa: E402
 )
 
 
-ELEME_URL = "https://melody.shop.ele.me/app/chain/93331264/store-analysis#app.chainshop.store-analysis?path=1&dateType=realTime&orderCol=valid_ord_amt&orderType=DESC"
-ELEME_STATS_CENTER_URL = "https://melody.shop.ele.me/app/chain/93331264/stats__center#app.chainshop.stats.center"
+ELEME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
+ELEME_STATS_CENTER_URL = ELEME_URL
 MEITUAN_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/business"
 OUTPUT_DIR = ROOT / "outputs" / "realtime_order_income"
 LATEST_PATH = OUTPUT_DIR / "latest.json"

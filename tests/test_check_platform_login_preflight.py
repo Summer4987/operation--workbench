@@ -25,3 +25,16 @@ def test_real_verification_text_still_blocks():
 
     assert result["status"] == "auth_block"
     assert "验证码" in result["blocking_texts"]
+
+
+def test_invalid_legacy_chain_store_is_blocked():
+    result = classify_page(
+        "饿了么",
+        "淘宝闪购商家版",
+        "https://melody.shop.ele.me/app/chain/93331264/store-analysis",
+        "集团主体账号 无效店铺，无法访问 当前账号无法访问该店铺",
+        ["商家版"],
+    )
+
+    assert result["status"] == "auth_block"
+    assert "无效店铺" in result["blocking_texts"]

@@ -39,7 +39,11 @@ LOGIN_BLOCKERS = [
     "未登录",
     "login",
     "verify.meituan.com",
+    "无效店铺",
+    "当前账号无法访问该店铺",
 ]
+
+ELEME_REALTIME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
 
 
 def require_playwright():
@@ -109,6 +113,8 @@ def check_common_platforms(scope: str, wait_ms: int) -> list[dict[str, Any]]:
                 continue
             page = cdp.reusable_page(context)
             url = platform.get("download_url") or platform.get("entry_url")
+            if scope == "realtime" and key == "eleme":
+                url = ELEME_REALTIME_URL
             try:
                 cdp.goto_backend_page(page, url, timeout=90_000)
                 page.wait_for_timeout(wait_ms)
