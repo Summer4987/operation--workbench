@@ -268,6 +268,13 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
         try:
             cdp.goto_backend_page(page, ELEME_BALANCE_URL, timeout=90_000)
             balance_frame = open_leaf_balance_detail(page)
+
+            # The account table remembers its last pagination position. Always
+            # return to page 1 so a patrol cannot silently start from page 2.
+            before_first_page = len(response_payloads)
+            if click_page_number(balance_frame, 1):
+                wait_for_response_count(before_first_page + 1, seconds=5)
+
             deadline = time.time() + timeout_seconds
             while time.time() < deadline and not response_payloads:
                 page.wait_for_timeout(1000)
@@ -295,7 +302,10 @@ def collect_balance_payload(timeout_seconds: int = 60) -> tuple[dict | None, str
                         break
             if response_payloads:
                 total_count = int(response_payloads[0].get("totalCount") or len(response_payloads[0].get("result") or []))
-                page_size = max(1, len(response_payloads[0].get("result") or []))
+                page_size = max(
+                    1,
+                    *(len(payload.get("result") or []) for payload in response_payloads),
+                )
                 total_pages = math.ceil(total_count / page_size)
                 page.wait_for_timeout(2500)
                 for page_number in range(2, total_pages + 1):
