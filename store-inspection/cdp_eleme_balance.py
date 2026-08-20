@@ -145,7 +145,9 @@ def click_exact_text(frame, text: str) -> bool:
     locator = frame.get_by_text(text, exact=True)
     if locator.count() < 1:
         return False
-    locator.first.click(timeout=10_000)
+    locator.first.evaluate(
+        "(element) => (element.closest('label,button,a,li') || element).click()"
+    )
     frame.page.wait_for_timeout(800)
     return True
 
