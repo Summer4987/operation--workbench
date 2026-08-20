@@ -150,6 +150,17 @@ def click_exact_text(frame, text: str) -> bool:
     return True
 
 
+def wait_for_frame_text(frame, text: str, timeout_seconds: int = 15) -> str:
+    deadline = time.time() + timeout_seconds
+    body = ""
+    while time.time() < deadline:
+        body = frame.locator("body").inner_text(timeout=10_000)
+        if text in body:
+            return body
+        frame.page.wait_for_timeout(500)
+    return body
+
+
 def open_leaf_balance_detail(page):
     """Open the new unit-account leaf balance table without changing any funds."""
     frame = find_account_frame(page)
@@ -166,7 +177,7 @@ def open_leaf_balance_detail(page):
 
     if "分店账户" in body:
         click_exact_text(frame, "分店账户")
-        body = frame.locator("body").inner_text(timeout=10_000)
+        body = wait_for_frame_text(frame, "账户明细及转账")
 
     if "账户明细及转账" not in body:
         raise RuntimeError("饿了么推广资金页没有显示“账户明细及转账”入口。")
