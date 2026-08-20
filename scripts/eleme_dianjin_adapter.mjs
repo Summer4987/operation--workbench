@@ -1303,6 +1303,10 @@ async function main() {
     const outputPath = `${outputDir}/eleme_branch_solutions_page${pageNum}_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     await fs.writeFile(outputPath, JSON.stringify({ pageNum, raw: data, summary }, null, 2), "utf8");
     console.log(`计划接口数据已保存：${outputPath}`);
+    if (!summary) {
+      const message = data?.error?.message || data?.error?.gracefulMsg || "接口未返回推广计划数据";
+      throw new Error(`饿了么推广计划接口失败：${message}`);
+    }
     console.log(JSON.stringify(summary, null, 2));
     return;
   }

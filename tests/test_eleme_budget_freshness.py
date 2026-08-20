@@ -26,3 +26,11 @@ def test_direct_read_can_reuse_latest_historical_probe_with_matching_api():
 
     assert 'latestProbeWithApi("method=queryBranchSolutions")' in adapter
     assert 'latestProbeFiles("eleme_store_probe_", 200)' in adapter
+
+
+def test_rate_limited_direct_read_fails_and_budget_does_not_immediately_retry():
+    adapter = (ROOT / "scripts" / "eleme_dianjin_adapter.mjs").read_text(encoding="utf-8")
+    current_runner = (ROOT / "scripts" / "run_current_budget.zsh").read_text(encoding="utf-8")
+
+    assert "饿了么推广计划接口失败" in adapter
+    assert '"${ELEME_BUDGET_RETRIES:-1}"' in current_runner
