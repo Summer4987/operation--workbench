@@ -183,6 +183,13 @@ def env_int(name: str, default: int) -> int:
     return value
 
 
+def env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
 def is_production_environment() -> bool:
     env = os.environ.get("AI_BUSINESS_CENTER_ENV", "").strip().lower()
     hostname = os.uname().nodename.lower()
@@ -365,6 +372,7 @@ def main() -> int:
         log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
         budget_period = resolve_budget_period(args.budget_period)
         budget_time = BUDGET_PERIODS[budget_period]["time"]
+        skip_eleme_budget = env_flag("MORNING_SKIP_ELEME_BUDGET")
         record_task_run(
             "running",
             "上午运营一键采集开始。",
@@ -373,6 +381,7 @@ def main() -> int:
             mode=args.mode,
             source=args.source,
             budget_period=budget_period,
+            skip_eleme_budget=str(skip_eleme_budget).lower(),
         )
         print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}，来源：{args.source}）。", flush=True)
         cleanup_chrome_sessions("任务开始前 Chrome 会话清理")
@@ -385,9 +394,12 @@ def main() -> int:
                 if result.returncode != 0:
                     add_failure(failures, "本地门店日报", result)
             else:
+                budget_preflight_args = [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--notify"]
+                if skip_eleme_budget:
+                    budget_preflight_args.extend(["--platform", "meituan"])
                 preflight = run_step(
                     "总部平台登录态预检",
-                    [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--notify"],
+                    budget_preflight_args,
                     required=False,
                     timeout_seconds=300,
                 )
@@ -464,14 +476,20 @@ def main() -> int:
             if args.mode == "preview":
                 print("预览模式：跳过双平台预算页面检查和保存。", flush=True)
             else:
-                result = run_step_with_pause(
-                    f"饿了么{budget_period}预算真实提交",
-                    ["/bin/zsh", str(ELEME_BUDGET_RUNNER), "--time", budget_time, "--mode", "commit", "--limit", "all"],
-                    required=False,
-                    timeout_seconds=int(os.environ.get("ELEME_BUDGET_TIMEOUT_SECONDS", "1800")),
-                )
-                if result.returncode != 0:
-                    add_failure(failures, f"饿了么{budget_period}预算", result)
+                if skip_eleme_budget:
+                    print(
+                        f"按临时运营设置跳过饿了么{budget_period}预算；美团预算及其它采集、看板任务照常执行。",
+                        flush=True,
+                    )
+                else:
+                    result = run_step_with_pause(
+                        f"饿了么{budget_period}预算真实提交",
+                        ["/bin/zsh", str(ELEME_BUDGET_RUNNER), "--time", budget_time, "--mode", "commit", "--limit", "all"],
+                        required=False,
+                        timeout_seconds=int(os.environ.get("ELEME_BUDGET_TIMEOUT_SECONDS", "1800")),
+                    )
+                    if result.returncode != 0:
+                        add_failure(failures, f"饿了么{budget_period}预算", result)
                 meituan_budget_timeout = env_int(
                     "MEITUAN_BUDGET_TIMEOUT_SECONDS",
                     DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS,

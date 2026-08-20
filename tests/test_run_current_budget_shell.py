@@ -125,9 +125,20 @@ def test_production_entrypoints_run_login_preflight_before_platform_work():
     assert "--scope budget --platform meituan --notify" in budget_text
     assert "饿了么预检失败，已隔离跳过；继续执行美团" in budget_text
     assert 'if [[ "$MODE" != "commit" || "$ELEME_LOGIN_OK" -eq 1 ]]; then' in budget_text
-    assert "[sys.executable, str(LOGIN_PREFLIGHT_RUNNER), \"--scope\", \"morning\", \"--notify\"]" in morning_text
+    assert 'budget_preflight_args = [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--notify"]' in morning_text
     assert "\"$PYTHON\" \"$LOGIN_PREFLIGHT_RUNNER\" --scope realtime --notify" in realtime_text
     assert "PREFLIGHT_RC=$?" in realtime_text
+
+
+def test_scheduled_morning_skips_only_eleme_budget():
+    morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")
+    installer_text = INSTALL_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'skip_eleme_budget = env_flag("MORNING_SKIP_ELEME_BUDGET")' in morning_text
+    assert 'budget_preflight_args.extend(["--platform", "meituan"])' in morning_text
+    assert "按临时运营设置跳过饿了么" in morning_text
+    assert "美团预算及其它采集、看板任务照常执行" in morning_text
+    assert "export MORNING_SKIP_ELEME_BUDGET=1" in installer_text
 
 
 def test_login_preflight_notifies_and_uses_auth_exit_code():

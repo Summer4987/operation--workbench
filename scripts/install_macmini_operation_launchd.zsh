@@ -428,6 +428,7 @@ export MORNING_OPS_LOG_DIR="\$LOG_DIR"
 export AI_BUSINESS_CENTER_ENV="production"
 export PYTHONUNBUFFERED=1
 export PYTHONNOUSERSITE=1
+export MORNING_SKIP_ELEME_BUDGET=1
 
 now_hhmm="\$(date +%H%M)"
 if [ "\$now_hhmm" -lt 800 ] || [ "\$now_hhmm" -gt 1050 ]; then
