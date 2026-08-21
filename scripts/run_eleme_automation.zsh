@@ -5,7 +5,10 @@ ROOT="${OPERATION_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT"
 
 NODE="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
-export ELEME_CDP_DEBUG_URL="${ELEME_CDP_DEBUG_URL:-http://127.0.0.1:9223}"
+# Use the long-lived daily Chrome profile. The isolated Eleme profile on 9223
+# can be rate-limited independently even when the headquarters context in the
+# daily profile is healthy.
+export ELEME_CDP_DEBUG_URL="${ELEME_CDP_DEBUG_URL:-http://127.0.0.1:9222}"
 PYTHON_FALLBACK="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
 if [ ! -x "$PYTHON_FALLBACK" ]; then
   PYTHON_FALLBACK="python3"
