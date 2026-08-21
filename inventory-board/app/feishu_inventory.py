@@ -50,7 +50,6 @@ def sync_inventory(items: list[dict[str, Any]]) -> dict[str, Any]:
         "status": "success",
         "row_count": len(rows),
         "verified_row_count": verified_rows,
-        "spreadsheet_token": spreadsheet_token,
         "sheet_id": sheet_id,
         "spreadsheet_title": sheet_meta.get("spreadsheet_title") or "",
         "sheet_title": sheet_meta.get("sheet_title") or sheet_id,
