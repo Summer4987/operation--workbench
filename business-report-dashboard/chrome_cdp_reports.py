@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "chrome_cdp_config.json"
-ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/chain/93331264/comments#app.chainshop.comments"
+ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/unit/comments#app.unit.comments"
 MEITUAN_COMMENTS_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw"
 WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
 if Path(WORKING_NODE).exists():

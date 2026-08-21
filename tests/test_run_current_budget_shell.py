@@ -130,7 +130,7 @@ def test_production_entrypoints_run_login_preflight_before_platform_work():
     assert "PREFLIGHT_RC=$?" in realtime_text
 
 
-def test_scheduled_morning_skips_only_eleme_budget():
+def test_scheduled_morning_runs_both_platform_budgets():
     morning_text = MORNING_SCRIPT.read_text(encoding="utf-8")
     installer_text = INSTALL_SCRIPT.read_text(encoding="utf-8")
 
@@ -138,7 +138,7 @@ def test_scheduled_morning_skips_only_eleme_budget():
     assert 'budget_preflight_args.extend(["--platform", "meituan"])' in morning_text
     assert "按临时运营设置跳过饿了么" in morning_text
     assert "美团预算及其它采集、看板任务照常执行" in morning_text
-    assert "export MORNING_SKIP_ELEME_BUDGET=1" in installer_text
+    assert "export MORNING_SKIP_ELEME_BUDGET=1" not in installer_text
 
 
 def test_login_preflight_notifies_and_uses_auth_exit_code():
