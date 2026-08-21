@@ -19,7 +19,7 @@ LATEST_OUTPUT = OUTPUT_DIR / "eleme_headquarters_context_latest.json"
 GROUP_ID = "93331264"
 PIVOT_SHOP_ID = "524321320"
 GROUP_CONTEXT_URL = (
-    f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/vas__bid#app.chainshop.vas.bid"
+    f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/dashboard#app.chainshop.dashboard"
 )
 PROMOTION_URL = (
     "https://r.ele.me/doujin-isv-manage/index.html?__path__=eleCpcChain/oldBranch"
