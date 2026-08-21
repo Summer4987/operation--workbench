@@ -8,7 +8,7 @@ def test_pac_only_routes_eleme_domains() -> None:
     pac = (ROOT / "config/eleme-proxy.pac").read_text(encoding="utf-8")
     assert 'dnsDomainIs(normalizedHost, ".ele.me")' in pac
     assert 'dnsDomainIs(normalizedHost, ".elemecdn.com")' in pac
-    assert 'return "SOCKS5 127.0.0.1:18888"' in pac
+    assert 'return "SOCKS5 127.0.0.1:18887"' in pac
     assert 'return "DIRECT"' in pac
     assert "meituan" not in pac.lower()
 

@@ -6,7 +6,7 @@ function FindProxyForURL(url, host) {
     normalizedHost === "elemecdn.com" ||
     dnsDomainIs(normalizedHost, ".elemecdn.com")
   ) {
-    return "SOCKS5 127.0.0.1:18888";
+    return "SOCKS5 127.0.0.1:18887";
   }
   return "DIRECT";
 }
