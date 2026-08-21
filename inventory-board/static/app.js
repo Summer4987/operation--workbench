@@ -64,7 +64,8 @@ async function syncToFeishu() {
     const response = await fetch("/api/feishu/inventory-sync", { method: "POST" });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "飞书同步失败");
-    setSyncMessage(`同步成功：已写入 ${payload.row_count} 项库存（${payload.synced_at}）`, "ok");
+    const target = [payload.spreadsheet_title, payload.sheet_title].filter(Boolean).join(" / ") || payload.sheet_id || "目标飞书表";
+    setSyncMessage(`同步成功：${target} 已写入 ${payload.row_count} 项库存，读回校验 ${payload.verified_row_count} 行（${payload.synced_at}）`, "ok");
   } catch (error) {
     setSyncMessage(error.message, "error");
   } finally {

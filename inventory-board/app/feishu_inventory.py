@@ -22,6 +22,7 @@ def sync_inventory(items: list[dict[str, Any]]) -> dict[str, Any]:
     token = _tenant_access_token()
     spreadsheet_token = _spreadsheet_token(token)
     sheet_id = os.environ.get("FEISHU_INVENTORY_SHEET_ID", DEFAULT_SHEET_ID).strip() or DEFAULT_SHEET_ID
+    sheet_meta = _spreadsheet_meta(token, spreadsheet_token, sheet_id)
     headers = ["商品编码", "商品名称", "规格", "单位", "仓库", "库存余额", "预警值", "同步时间"]
     synced_at = datetime.now().astimezone().isoformat(timespec="seconds")
     rows = [
@@ -44,11 +45,15 @@ def sync_inventory(items: list[dict[str, Any]]) -> dict[str, Any]:
         token,
         {"valueRanges": [{"range": write_range, "values": [headers, *rows]}]},
     )
+    verified_rows = _verify_written_values(token, spreadsheet_token, sheet_id, headers, rows)
     return {
         "status": "success",
         "row_count": len(rows),
+        "verified_row_count": verified_rows,
         "spreadsheet_token": spreadsheet_token,
         "sheet_id": sheet_id,
+        "spreadsheet_title": sheet_meta.get("spreadsheet_title") or "",
+        "sheet_title": sheet_meta.get("sheet_title") or sheet_id,
         "synced_at": synced_at,
     }
 
@@ -98,6 +103,53 @@ def _spreadsheet_token(access_token: str) -> str:
     if not spreadsheet_token or (obj_type and obj_type not in {"sheet", "spreadsheet"}):
         raise FeishuInventoryError("飞书库存表不是可写入的电子表格，或知识库节点解析失败")
     return spreadsheet_token
+
+
+def _spreadsheet_meta(access_token: str, spreadsheet_token: str, sheet_id: str) -> dict[str, str]:
+    payload = _api_json(
+        "GET",
+        f"/open-apis/sheets/v2/spreadsheets/{url_parse.quote(spreadsheet_token, safe='')}/metainfo",
+        access_token,
+        None,
+    )
+    data = payload.get("data") or {}
+    properties = data.get("properties") or {}
+    spreadsheet_title = str(properties.get("title") or "")
+    sheet_title = ""
+    for sheet in data.get("sheets") or []:
+        current_id = str(sheet.get("sheetId") or sheet.get("sheet_id") or "")
+        current_title = str(sheet.get("title") or "")
+        if sheet_id in {current_id, current_title}:
+            sheet_title = current_title
+            break
+    return {"spreadsheet_title": spreadsheet_title, "sheet_title": sheet_title}
+
+
+def _verify_written_values(
+    access_token: str,
+    spreadsheet_token: str,
+    sheet_id: str,
+    headers: list[str],
+    rows: list[list[Any]],
+) -> int:
+    read_range = f"{sheet_id}!A1:H{len(rows) + 1}"
+    payload = _api_json(
+        "GET",
+        f"/open-apis/sheets/v2/spreadsheets/{url_parse.quote(spreadsheet_token, safe='')}/values/{url_parse.quote(read_range, safe='')}",
+        access_token,
+        None,
+    )
+    data = payload.get("data") or {}
+    value_range = data.get("valueRange") or data.get("value_range") or {}
+    values = value_range.get("values") or []
+    if not values or values[0] != headers:
+        raise FeishuInventoryError("飞书写入后读回校验失败：表头没有更新到目标工作表")
+    verified_rows = max(0, len(values) - 1)
+    if verified_rows < len(rows):
+        raise FeishuInventoryError(f"飞书写入后读回校验失败：应写入 {len(rows)} 行，只读回 {verified_rows} 行")
+    if rows and values[1][:2] != rows[0][:2]:
+        raise FeishuInventoryError("飞书写入后读回校验失败：第一条库存数据和云端库存不一致")
+    return verified_rows
 
 
 def _api_json(method: str, path: str, access_token: str, payload: dict[str, Any] | None) -> dict[str, Any]:
