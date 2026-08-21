@@ -299,6 +299,11 @@ set -e
 
 LATEST_EXEC_RESULT="$(latest_exec_result)"
 if [[ "$EXEC_STATUS" -ne 0 ]] || [[ -z "$LATEST_EXEC_RESULT" ]] || ! execution_result_ok "$LATEST_EXEC_RESULT"; then
+  if [[ -n "$LATEST_EXEC_RESULT" ]] && /usr/bin/jq -e '.blockedReason == "platform_rate_limited" or .blockedReason == "not_logged_in"' "$LATEST_EXEC_RESULT" >/dev/null 2>&1; then
+    echo "执行已停止：$(/usr/bin/jq -r '.error // "饿了么页面被阻断"' "$LATEST_EXEC_RESULT")"
+    echo "未进行逐店重试，避免扩大风控或产生误操作。"
+    exit 71
+  fi
   if [[ -n "$STORE_FILTER" || -n "$STORE_FILTERS" || -n "$SHOP_ID_FILTER" || "$LIMIT" != "all" ]]; then
     echo "执行失败：饿了么${MODE}未完全成功，且当前使用了过滤条件，拒绝自动扩大重试范围。"
     exit 71

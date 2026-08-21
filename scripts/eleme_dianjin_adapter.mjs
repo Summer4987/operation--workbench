@@ -872,6 +872,39 @@ async function runExecutionPreview(config, args) {
     await cdp.send("Page.bringToFront").catch(() => {});
     await cdp.send("Page.navigate", { url: config.eleme.promotionUrl });
     await new Promise((resolve) => setTimeout(resolve, 5000));
+    const pageGate = await cdp.send("Runtime.evaluate", {
+      returnByValue: true,
+      expression: `(() => {
+        const text = document.body ? document.body.innerText : '';
+        return {
+          rateLimited: text.includes('系统被限流'),
+          notLoggedIn: text.includes('未登录') || location.pathname.includes('/login'),
+          text: text.slice(0, 500)
+        };
+      })()`,
+    });
+    if (pageGate.result.value?.rateLimited) {
+      return {
+        ok: false,
+        blockedReason: "platform_rate_limited",
+        error: "饿了么旧版批量页明确返回系统被限流；已停止整批执行和逐店重试，避免延长风控",
+        mode,
+        previewPath,
+        total: rows.length,
+        results: [],
+      };
+    }
+    if (pageGate.result.value?.notLoggedIn) {
+      return {
+        ok: false,
+        blockedReason: "not_logged_in",
+        error: "饿了么专用 Chrome 未登录；已停止整批执行和逐店重试",
+        mode,
+        previewPath,
+        total: rows.length,
+        results: [],
+      };
+    }
     for (const row of rows) {
       await writeProgress(row);
       await cdp.send("Page.navigate", { url: config.eleme.promotionUrl });

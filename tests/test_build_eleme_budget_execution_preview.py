@@ -95,3 +95,12 @@ def test_budget_wrapper_uses_dedicated_eleme_chrome() -> None:
     assert "ELEME_CDP_DEBUG_URL" in adapter
     assert "eleme-chrome-profile" in launcher
     assert "__path__=eleCpcChain/oldBranch" in launcher
+
+
+def test_rate_limit_stops_batch_and_split_retries() -> None:
+    wrapper = (ROOT / "scripts/run_eleme_automation.zsh").read_text(encoding="utf-8")
+    adapter = (ROOT / "scripts/eleme_dianjin_adapter.mjs").read_text(encoding="utf-8")
+    assert 'blockedReason: "platform_rate_limited"' in adapter
+    assert "已停止整批执行和逐店重试" in adapter
+    assert '.blockedReason == "platform_rate_limited"' in wrapper
+    assert "未进行逐店重试" in wrapper
