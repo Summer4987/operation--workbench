@@ -58,6 +58,22 @@ def visible_locator(locator):
     return None
 
 
+def has_visible_switcher(page) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                """() => Array.from(document.querySelectorAll('div[class*="shopSwitcher"]'))
+                  .some((element) => {
+                    const rect = element.getBoundingClientRect();
+                    const style = getComputedStyle(element);
+                    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                  })"""
+            )
+        )
+    except Exception:
+        return False
+
+
 def open_switcher(page):
     switchers = page.locator('div[class*="shopSwitcher"]')
     switchers.first.wait_for(state="visible", timeout=45_000)
@@ -129,6 +145,7 @@ def main() -> int:
         "expectedShopIds": expected,
     }
     helper = None
+    helper_owned = False
     try:
         from playwright.sync_api import sync_playwright
 
@@ -137,9 +154,19 @@ def main() -> int:
             if not browser.contexts:
                 raise RuntimeError("日常 Chrome 没有可用浏览器上下文")
             context = browser.contexts[0]
-            helper = context.new_page()
-            helper.goto(GROUP_CONTEXT_URL, wait_until="domcontentloaded", timeout=90_000)
-            helper.wait_for_timeout(args.wait_ms)
+            helper = next(
+                (
+                    page
+                    for page in context.pages
+                    if "melody.shop.ele.me/app/" in page.url and has_visible_switcher(page)
+                ),
+                None,
+            )
+            if helper is None:
+                helper = context.new_page()
+                helper_owned = True
+                helper.goto(GROUP_CONTEXT_URL, wait_until="domcontentloaded", timeout=90_000)
+                helper.wait_for_timeout(args.wait_ms)
 
             # A no-op click on “全部” does not refresh Eleme's organization token.
             # Force a real transition through one store, then return to headquarters.
@@ -187,7 +214,7 @@ def main() -> int:
     except Exception as exc:
         result.update(error=str(exc))
     finally:
-        if helper is not None:
+        if helper is not None and helper_owned:
             try:
                 helper.close()
             except Exception:
