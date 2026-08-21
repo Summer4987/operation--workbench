@@ -1059,7 +1059,15 @@ async function runExecutionPreview(config, args) {
               targetRow = findTargetRow();
             }
           }
-          if (!targetRow) return { ok: false, store: row.store, shopId: row.shopId, error: '没有找到目标门店行' };
+          if (!targetRow) {
+            const pageText = textOf(document.body);
+            const hasStoreRows = Array.from(document.querySelectorAll('tbody tr,.ant-table-row'))
+              .some((tr) => /ID[：:]\s*\d+/.test(textOf(tr)));
+            const error = /No data|暂无数据/.test(pageText) && !hasStoreRows
+              ? '旧版批量页当前账号未返回任何门店；请检查 Mac mini Chrome 是否登录总部组织账号'
+              : '旧版批量页已加载，但没有找到该门店行';
+            return { ok: false, store: row.store, shopId: row.shopId, error };
+          }
           const rowText = textOf(targetRow).slice(0, 1000);
           const checkbox = targetRow.querySelector('input[type="checkbox"]');
           if (!checkbox) return { ok: false, store: row.store, shopId: row.shopId, rowText, error: '没有找到行选择框' };

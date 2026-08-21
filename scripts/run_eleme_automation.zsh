@@ -233,43 +233,26 @@ fi
 
 "$NODE" scripts/eleme_dianjin_adapter.mjs probe
 
-if [[ "$TIME_POINT" == "10:30" || "$TIME_POINT" == "16:30" ]]; then
-  PYTHON_AUTOMATION="$ROOT/business-report-dashboard/.venv/bin/python"
-  if [[ ! -x "$PYTHON_AUTOMATION" ]]; then
-    PYTHON_AUTOMATION="$PYTHON_FALLBACK"
-  fi
-  SINGLE_STORE_ARGS=(--time "$TIME_POINT" --mode "$MODE" --limit "$LIMIT")
-  if [[ -n "$STORE_FILTER" ]]; then
-    SINGLE_STORE_ARGS+=(--store "$STORE_FILTER")
-  fi
-  if [[ -n "$STORE_FILTERS" ]]; then
-    SINGLE_STORE_ARGS+=(--stores "$STORE_FILTERS")
-  fi
-  if [[ -n "$SHOP_ID_FILTER" ]]; then
-    SINGLE_STORE_ARGS+=(--shop-id "$SHOP_ID_FILTER")
-  fi
-  echo
-  echo "预算任务改走单店逐家提交路径；单店失败会跳过并继续。"
-  "$PYTHON_AUTOMATION" scripts/eleme_single_store_budget.py "${SINGLE_STORE_ARGS[@]}"
-  echo
-  echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"
-  echo "日志：$RUN_LOG"
-  exit 0
-fi
-
-echo
-echo "读取饿了么后台门店状态..."
-"$NODE" scripts/eleme_dianjin_adapter.mjs probe-store --store 金融街店
-"$NODE" scripts/eleme_dianjin_adapter.mjs probe-store --store 金融街店 --page 2
-
 STATE_FILE="outputs/dianjin_automation/current_state_${SAFE_TIME}_all.json"
 PREVIEW_FILE="outputs/dianjin_automation/execution_preview_${SAFE_TIME}.json"
 
-echo
-echo "分析当前状态并生成执行预览..."
-"$NODE" scripts/eleme_dianjin_adapter.mjs analyze-state-combined --time "$TIME_POINT" --since "$RUN_STARTED_EPOCH" --output "$STATE_FILE"
-"$NODE" scripts/export_current_state_for_ui.mjs "$STATE_FILE"
-"$NODE" scripts/build_execution_preview.mjs "$STATE_FILE" --time "$TIME_POINT"
+if [[ "$TIME_POINT" == "10:30" || "$TIME_POINT" == "16:30" ]]; then
+  echo
+  echo "使用单店斗金计划批量处理（原分店资金）页面生成预算任务..."
+  "$NODE" scripts/build_promo_budget_preview.mjs
+  "$NODE" scripts/build_eleme_budget_execution_preview.mjs --time "$TIME_POINT" --output "$PREVIEW_FILE"
+else
+  echo
+  echo "读取饿了么后台门店状态..."
+  "$NODE" scripts/eleme_dianjin_adapter.mjs probe-store --store 金融街店
+  "$NODE" scripts/eleme_dianjin_adapter.mjs probe-store --store 金融街店 --page 2
+
+  echo
+  echo "分析当前状态并生成执行预览..."
+  "$NODE" scripts/eleme_dianjin_adapter.mjs analyze-state-combined --time "$TIME_POINT" --since "$RUN_STARTED_EPOCH" --output "$STATE_FILE"
+  "$NODE" scripts/export_current_state_for_ui.mjs "$STATE_FILE"
+  "$NODE" scripts/build_execution_preview.mjs "$STATE_FILE" --time "$TIME_POINT"
+fi
 
 if [[ "$MODE" == "preview" ]]; then
   echo
