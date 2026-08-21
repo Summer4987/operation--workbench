@@ -18,8 +18,8 @@ OUTPUT_DIR = ROOT / "outputs" / "dianjin_automation"
 LATEST_OUTPUT = OUTPUT_DIR / "eleme_headquarters_context_latest.json"
 GROUP_ID = "93331264"
 PIVOT_SHOP_ID = "524321320"
-GROUP_DASHBOARD_URL = (
-    f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/dashboard#app.chainshop.dashboard"
+GROUP_CONTEXT_URL = (
+    f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/vas__bid#app.chainshop.vas.bid"
 )
 PROMOTION_URL = (
     "https://r.ele.me/doujin-isv-manage/index.html?__path__=eleCpcChain/oldBranch"
@@ -59,7 +59,9 @@ def visible_locator(locator):
 
 
 def open_switcher(page):
-    switcher = visible_locator(page.locator('div[class*="shopSwitcher"]'))
+    switchers = page.locator('div[class*="shopSwitcher"]')
+    switchers.first.wait_for(state="visible", timeout=45_000)
+    switcher = visible_locator(switchers)
     if switcher is None:
         raise RuntimeError("饿了么总部页面没有显示门店切换器")
     switcher.click()
@@ -136,7 +138,7 @@ def main() -> int:
                 raise RuntimeError("日常 Chrome 没有可用浏览器上下文")
             context = browser.contexts[0]
             helper = context.new_page()
-            helper.goto(GROUP_DASHBOARD_URL, wait_until="domcontentloaded", timeout=90_000)
+            helper.goto(GROUP_CONTEXT_URL, wait_until="domcontentloaded", timeout=90_000)
             helper.wait_for_timeout(args.wait_ms)
 
             # A no-op click on “全部” does not refresh Eleme's organization token.
