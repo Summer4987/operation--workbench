@@ -161,9 +161,12 @@ async def set_current_budget(shop_id: str, store: str, target: int, commit: bool
     await value_input.fill(str(target))
     if await value_input.input_value() != str(target):
         raise RuntimeError(f"{store} 预算输入框未写入 {target}")
+    await value_input.press("Tab")
+    await frame.wait_for_timeout(800)
     confirm = modal.get_by_role("button", name="确定", exact=True)
     print(json.dumps({"phase": "set", "store": store, "shopId": shop_id, "current": current, "target": target, "saved": True}, ensure_ascii=False), flush=True)
-    await confirm.evaluate("element => element.click()")
+    await confirm.click(no_wait_after=True)
+    await frame.wait_for_timeout(1_000)
     await playwright.stop()
 
 
@@ -227,11 +230,11 @@ def run_all(args: argparse.Namespace) -> int:
                 continue
             time.sleep(5)
             verify = run_phase("_verify", "--shop-id", shop_id, "--store", store, "--budget", str(target))
-            if verify.returncode != 0:
+            try:
+                item = json.loads(verify.stdout.strip().splitlines()[-1])
+            except Exception:
                 error = (verify.stderr or verify.stdout or "预算回读失败").strip()
                 item = {"ok": False, "store": store, "shopId": int(shop_id), "targetBudget": target, "error": error}
-            else:
-                item = json.loads(verify.stdout.strip().splitlines()[-1])
             results.append(item)
             print(f"{store}：{'成功' if item['ok'] else '失败'}，回读 {item.get('verifiedBudget')} 元", flush=True)
         result = {"ok": bool(results) and all(item.get("ok") for item in results), "mode": args.mode, "total": len(rows), "results": results}
