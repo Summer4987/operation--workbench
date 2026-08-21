@@ -5,6 +5,7 @@ ROOT="${OPERATION_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT"
 
 NODE="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+export ELEME_CDP_DEBUG_URL="${ELEME_CDP_DEBUG_URL:-http://127.0.0.1:9223}"
 PYTHON_FALLBACK="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
 if [ ! -x "$PYTHON_FALLBACK" ]; then
   PYTHON_FALLBACK="python3"
@@ -226,9 +227,9 @@ PY
   return 0
 }
 
-if ! /usr/bin/curl -fsS "http://127.0.0.1:9222/json/version" >/dev/null 2>&1; then
-  echo "Chrome 调试端口未连接，尝试启动常用 Chrome..."
-  /usr/bin/python3 "$ROOT/business-report-dashboard/chrome_cdp_reports.py" start-chrome || true
+if ! /usr/bin/curl -fsS "$ELEME_CDP_DEBUG_URL/json/version" >/dev/null 2>&1; then
+  echo "饿了么专用 Chrome 未连接，尝试启动..."
+  /bin/zsh "$ROOT/scripts/start_eleme_chrome.zsh"
 fi
 
 "$NODE" scripts/eleme_dianjin_adapter.mjs probe

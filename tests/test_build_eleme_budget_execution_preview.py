@@ -83,3 +83,15 @@ def test_batch_executor_reports_missing_headquarters_context() -> None:
     text = (ROOT / "scripts/eleme_dianjin_adapter.mjs").read_text(encoding="utf-8")
     assert "旧版批量页当前账号未返回任何门店" in text
     assert "Mac mini Chrome 是否登录总部组织账号" in text
+
+
+def test_budget_wrapper_uses_dedicated_eleme_chrome() -> None:
+    text = (ROOT / "scripts/run_eleme_automation.zsh").read_text(encoding="utf-8")
+    adapter = (ROOT / "scripts/eleme_dianjin_adapter.mjs").read_text(encoding="utf-8")
+    launcher = (ROOT / "scripts/start_eleme_chrome.zsh").read_text(encoding="utf-8")
+    assert "ELEME_CDP_DEBUG_URL" in text
+    assert "http://127.0.0.1:9223" in text
+    assert "start_eleme_chrome.zsh" in text
+    assert "ELEME_CDP_DEBUG_URL" in adapter
+    assert "eleme-chrome-profile" in launcher
+    assert "__path__=eleCpcChain/oldBranch" in launcher

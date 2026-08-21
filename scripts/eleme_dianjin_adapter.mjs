@@ -6,6 +6,10 @@ const logicPath = "dianjin-prototype/logic.js";
 const configPath = "dianjin-prototype/automation_config.json";
 const outputDir = "outputs/dianjin_automation";
 
+function elemeDebugUrl(config) {
+  return String(process.env.ELEME_CDP_DEBUG_URL || config.eleme?.debugUrl || config.chrome.debugUrl).replace(/\/$/, "");
+}
+
 function loadBrowserRules() {
   const context = { window: {} };
   vm.runInNewContext(awaitText(rulesPath), context);
@@ -268,7 +272,7 @@ async function latestProbeWithApi(urlToken) {
 }
 
 async function probeChrome(config) {
-  const response = await fetch(`${config.chrome.debugUrl}/json/version`);
+  const response = await fetch(`${elemeDebugUrl(config)}/json/version`);
   if (!response.ok) throw new Error(`Chrome 调试端口不可用：${response.status}`);
   return response.json();
 }
@@ -349,14 +353,15 @@ class CDP {
 }
 
 async function findOrOpenPromotionTab(config) {
-  const tabs = await cdpJson(`${config.chrome.debugUrl}/json/list`);
+  const debugUrl = elemeDebugUrl(config);
+  const tabs = await cdpJson(`${debugUrl}/json/list`);
   const existing = tabs.find((tab) =>
     tab.type === "page" &&
     tab.url.includes("doujin-isv-manage") &&
     tab.url.includes("__path__=eleCpcChain/oldBranch")
   );
-  const tab = existing || await cdpJson(`${config.chrome.debugUrl}/json/new?${encodeURIComponent(config.eleme.promotionUrl)}`, { method: "PUT" });
-  await fetch(`${config.chrome.debugUrl}/json/activate/${tab.id}`).catch(() => {});
+  const tab = existing || await cdpJson(`${debugUrl}/json/new?${encodeURIComponent(config.eleme.promotionUrl)}`, { method: "PUT" });
+  await fetch(`${debugUrl}/json/activate/${tab.id}`).catch(() => {});
   return tab;
 }
 
