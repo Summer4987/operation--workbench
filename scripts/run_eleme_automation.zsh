@@ -13,6 +13,10 @@ PYTHON_FALLBACK="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/depen
 if [ ! -x "$PYTHON_FALLBACK" ]; then
   PYTHON_FALLBACK="python3"
 fi
+REPORT_PYTHON="$ROOT/business-report-dashboard/.venv/bin/python"
+if [ ! -x "$REPORT_PYTHON" ]; then
+  REPORT_PYTHON="$PYTHON_FALLBACK"
+fi
 TIME_POINT=""
 MODE="rehearse"
 LIMIT="all"
@@ -245,6 +249,15 @@ if [[ "$TIME_POINT" == "10:30" || "$TIME_POINT" == "16:30" ]]; then
   echo "使用单店斗金计划批量处理（原分店资金）页面生成预算任务..."
   "$NODE" scripts/build_promo_budget_preview.mjs
   "$NODE" scripts/build_eleme_budget_execution_preview.mjs --time "$TIME_POINT" --output "$PREVIEW_FILE"
+
+  if [[ "$MODE" != "preview" ]]; then
+    echo
+    echo "强制校准饿了么总部上下文：单店 → 全部，并核对完整门店..."
+    PLAYWRIGHT_NODEJS_PATH="$NODE" \
+      "$REPORT_PYTHON" scripts/ensure_eleme_headquarters_context.py \
+      --debug-url "$ELEME_CDP_DEBUG_URL" \
+      --preview "$PREVIEW_FILE"
+  fi
 else
   echo
   echo "读取饿了么后台门店状态..."

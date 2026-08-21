@@ -57,6 +57,7 @@ echo "== 配置与语法检查 =="
   scripts/check_android_execution_config.py \
   scripts/init_android_execution_config.py \
   scripts/build_promo_budget_retry_plan.py \
+  scripts/ensure_eleme_headquarters_context.py \
   scripts/build_promo_bid_advice.py \
   scripts/build_promo_bid_approval_queue.py \
   scripts/build_promo_bid_execution_plan.py \

@@ -537,10 +537,12 @@ chmod +x "$SCRIPT_DIR/run_morning_ops.zsh"
 
 /bin/cp "$SOURCE_ROOT/scripts/run_current_budget.zsh" "$SCRIPT_DIR/run_current_budget.zsh"
 /bin/cp "$SOURCE_ROOT/scripts/run_eleme_automation.zsh" "$SCRIPT_DIR/run_eleme_automation.zsh"
+/bin/cp "$SOURCE_ROOT/scripts/ensure_eleme_headquarters_context.py" "$SCRIPT_DIR/ensure_eleme_headquarters_context.py"
 /bin/cp "$SOURCE_ROOT/scripts/run_evening_budget.zsh" "$SCRIPT_DIR/run_evening_budget_entry.zsh"
 chmod u+rwX,go+rX \
   "$SCRIPT_DIR/run_current_budget.zsh" \
   "$SCRIPT_DIR/run_eleme_automation.zsh" \
+  "$SCRIPT_DIR/ensure_eleme_headquarters_context.py" \
   "$SCRIPT_DIR/run_evening_budget_entry.zsh"
 
 NODE_RUNTIME_ROOT="$HOME/Library/Application Support/xiong-operation/node-runtime"
