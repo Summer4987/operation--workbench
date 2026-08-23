@@ -18,9 +18,7 @@ OUTPUT_DIR = ROOT / "outputs" / "dianjin_automation"
 LATEST_OUTPUT = OUTPUT_DIR / "eleme_headquarters_context_latest.json"
 GROUP_ID = "93331264"
 PIVOT_SHOP_ID = "524321320"
-GROUP_CONTEXT_URL = (
-    f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/dashboard#app.chainshop.dashboard"
-)
+NEUTRAL_CONTEXT_URL = "https://melody.shop.ele.me/app"
 PROMOTION_URL = (
     "https://r.ele.me/doujin-isv-manage/index.html?__path__=eleCpcChain/oldBranch"
 )
@@ -171,9 +169,17 @@ def main() -> int:
                 None,
             )
             if helper is None:
-                helper = context.new_page()
-                helper_owned = True
-                helper.goto(GROUP_CONTEXT_URL, wait_until="domcontentloaded", timeout=90_000)
+                helper = next(
+                    (page for page in context.pages if "melody.shop.ele.me" in page.url),
+                    None,
+                )
+                if helper is None:
+                    helper = context.new_page()
+                    helper_owned = True
+                # A stale chain/shop URL can render “无效店铺” without the
+                # switcher. The neutral app entry restores the account-level
+                # selector before we choose the nationwide group.
+                helper.goto(NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=90_000)
                 helper.wait_for_timeout(args.wait_ms)
 
             # A no-op click on “全部” does not refresh Eleme's organization token.
