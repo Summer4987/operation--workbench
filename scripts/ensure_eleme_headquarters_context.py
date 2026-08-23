@@ -87,6 +87,14 @@ def open_switcher(page):
 
 def choose_context(page, value: str, expected_url_pattern: str) -> None:
     open_switcher(page)
+    # The cascader can reopen on another legal entity/region. Select the
+    # nationwide group in the left column first so its store options are
+    # actually populated in the right column.
+    group = visible_locator(page.locator(f'li[data-value="{GROUP_ID}"]'))
+    if group is None:
+        raise RuntimeError(f"门店切换器没有找到全国集团：{GROUP_ID}")
+    group.click()
+    page.wait_for_timeout(700)
     option = visible_locator(page.locator(f'li[data-value="{value}"]'))
     if option is None:
         raise RuntimeError(f"门店切换器没有找到上下文：{value}")
