@@ -646,6 +646,11 @@ DELIVERY_LOG_DIR="\${DAILY_ORDER_WECHAT_LOG_DIR:-\$HOME/HermesPrivate/logs/daily
 LATEST="\${DAILY_ORDER_WECHAT_LATEST:-20}"
 SENDER_BIN="\${DAILY_ORDER_WECHAT_GUI_BIN:-\$ROOT/inventory-board/scripts/wechat_gui_sender.py}"
 
+if ! /usr/bin/pgrep -f "/Applications/CuaDriver.app/Contents/MacOS/cua-driver serve" >/dev/null 2>&1; then
+  /usr/bin/open -n -g -a CuaDriver --args serve >/dev/null 2>&1 || true
+  sleep 3
+fi
+
 {
   echo
   echo "[\$(date '+%F %T')] 日配订单微信群自动投递开始"

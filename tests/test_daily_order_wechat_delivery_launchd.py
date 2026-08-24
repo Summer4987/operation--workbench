@@ -15,6 +15,7 @@ def test_macmini_installer_schedules_daily_order_wechat_delivery():
     assert "DAILY_ORDER_WECHAT_LATEST:-20" in text
     assert "熊小小牛排饭-易代仓仓储配送群" in text
     assert "Desktop/库存管理/出库记录" in text
+    assert "CuaDriver --args serve" in text
 
     for hour in range(9, 20):
         assert f"<dict><key>Hour</key><integer>{hour}</integer><key>Minute</key><integer>0</integer></dict>" in text
