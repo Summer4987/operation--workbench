@@ -95,6 +95,9 @@ def test_successful_delivery_calls_group_and_records_state(tmp_path, monkeypatch
     state = module.load_state(tmp_path / "state.json")
 
     assert payload["sent"] == 1
+    assert payload["output_dir"] == str(tmp_path / "orders")
+    assert payload["state_path"] == str(tmp_path / "state.json")
+    assert payload["log_dir"] == str(tmp_path / "logs")
     assert calls[0][1] == "熊小小牛排饭-易代仓仓储配送群"
     assert "MEDIA:" in calls[0][0]
     assert module.item_key(item) in state["delivered"]
@@ -140,6 +143,8 @@ def test_failed_wechat_gui_delivery_is_not_marked_sent(tmp_path, monkeypatch):
 
     assert payload["sent"] == 0
     assert payload["failed"] == 1
+    log_payload = next((tmp_path / "logs").glob("*.json")).read_text(encoding="utf-8")
+    assert str(tmp_path / "orders" / item["filename"]) in log_payload
     assert module.item_key(item) not in state["delivered"]
 
 

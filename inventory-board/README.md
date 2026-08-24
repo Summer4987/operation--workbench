@@ -120,7 +120,7 @@ sudo nano /etc/inventory-board.env
 python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --init-baseline
 ```
 
-之后定时运行：
+之后由 Mac mini 定时运行。正式排程是 09:00 到 20:00 之间每个整点和半点检查一次最近 20 个订单；20:00 后到第二天 09:00 前的新订单会在第二天 09:00 统一补发：
 
 ```bash
 python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py \
@@ -154,6 +154,18 @@ python3 inventory-board/scripts/wechat_gui_sender.py --health-check --json
 
 ```bash
 python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --sender wechat-gui --dry-run
+```
+
+发送失败时不会标记为已发送，下次排程会继续重试。兜底手动补发目录：
+
+```text
+~/Desktop/库存管理/出库记录
+```
+
+发送日志目录：
+
+```text
+~/HermesPrivate/logs/daily_order_hermes_delivery
 ```
 
 企业微信机器人新增：

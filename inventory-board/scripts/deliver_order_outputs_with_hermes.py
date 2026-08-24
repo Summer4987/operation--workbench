@@ -182,6 +182,7 @@ def deliver(args: argparse.Namespace) -> dict[str, Any]:
             "returncode": result.returncode,
             "output": (result.stdout or "").strip(),
             "target": args.target,
+            "file": str(path),
             "message": message,
             "item": item,
         }
@@ -196,7 +197,17 @@ def deliver(args: argparse.Namespace) -> dict[str, Any]:
             break
     if not args.dry_run:
         save_state(state_path, state)
-    return {"status": "ok" if failed == 0 else "failed", "checked": len(items), "pending": len(pending), "sent": sent, "failed": failed, "logs": logs}
+    return {
+        "status": "ok" if failed == 0 else "failed",
+        "checked": len(items),
+        "pending": len(pending),
+        "sent": sent,
+        "failed": failed,
+        "output_dir": str(output_dir),
+        "state_path": str(state_path),
+        "log_dir": str(log_dir),
+        "logs": logs,
+    }
 
 
 def fetch_json(url: str) -> dict[str, Any]:

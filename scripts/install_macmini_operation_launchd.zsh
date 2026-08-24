@@ -616,6 +616,69 @@ cd "\$ROOT"
 EOF
 chmod +x "$SCRIPT_DIR/run_inventory_warning_daily.zsh"
 
+cat > "$SCRIPT_DIR/run_daily_order_wechat_delivery.zsh" <<EOF
+#!/bin/zsh
+set -uo pipefail
+
+ROOT="${ROOT}"
+SECRETS_FILE="${SECRETS_FILE}"
+PYTHON="\$ROOT/business-report-dashboard/.venv/bin/python"
+if [[ ! -x "\$PYTHON" ]]; then
+  PYTHON="/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+fi
+if [[ ! -x "\$PYTHON" ]]; then
+  PYTHON="python3"
+fi
+if [[ -r "\$SECRETS_FILE" ]]; then
+  set -a
+  source "\$SECRETS_FILE"
+  set +a
+fi
+
+cd "\$ROOT"
+LOG_DIR="\$HOME/Library/Logs/xiong-operation/daily_order_wechat_delivery"
+mkdir -p "\$LOG_DIR"
+LOG_FILE="\$LOG_DIR/\$(date +%F).log"
+TARGET="\${DAILY_ORDER_WECHAT_TARGET:-熊小小牛排饭-易代仓仓储配送群}"
+OUTPUT_DIR="\${DAILY_ORDER_WECHAT_OUTPUT_DIR:-\$HOME/Desktop/库存管理/出库记录}"
+STATE_PATH="\${DAILY_ORDER_WECHAT_STATE_PATH:-\$HOME/HermesPrivate/state/daily_order_hermes_delivery.json}"
+DELIVERY_LOG_DIR="\${DAILY_ORDER_WECHAT_LOG_DIR:-\$HOME/HermesPrivate/logs/daily_order_hermes_delivery}"
+LATEST="\${DAILY_ORDER_WECHAT_LATEST:-20}"
+SENDER_BIN="\${DAILY_ORDER_WECHAT_GUI_BIN:-\$ROOT/inventory-board/scripts/wechat_gui_sender.py}"
+
+{
+  echo
+  echo "[\$(date '+%F %T')] 日配订单微信群自动投递开始"
+  echo "目标群：\$TARGET"
+  echo "兜底目录：\$OUTPUT_DIR"
+  "\$PYTHON" "\$ROOT/inventory-board/scripts/deliver_order_outputs_with_hermes.py" \
+    --sender wechat-gui \
+    --wechat-gui-bin "\$SENDER_BIN" \
+    --target "\$TARGET" \
+    --output-dir "\$OUTPUT_DIR" \
+    --state-path "\$STATE_PATH" \
+    --log-dir "\$DELIVERY_LOG_DIR" \
+    --latest "\$LATEST" \
+    --json
+  rc=\$?
+  if [[ "\$rc" -eq 0 ]]; then
+    echo "[\$(date '+%F %T')] 日配订单微信群自动投递完成"
+    exit 0
+  fi
+  echo "[\$(date '+%F %T')] 日配订单微信群自动投递失败，退出码：\$rc"
+  if [[ -x "\$PYTHON" && -f "\$ROOT/scripts/ops_notify.py" ]]; then
+    "\$PYTHON" "\$ROOT/scripts/ops_notify.py" "【日配订单微信群自动发送失败】
+目标群：\$TARGET
+兜底目录：\$OUTPUT_DIR
+发送日志：\$DELIVERY_LOG_DIR
+运行日志：\$LOG_FILE
+处理方式：打开 Mac mini 上的兜底目录，手动把未发送的 Excel 发到微信群；系统下次检查会继续重试，成功后才会标记已发送。" || true
+  fi
+  exit "\$rc"
+} >> "\$LOG_FILE" 2>&1
+EOF
+chmod +x "$SCRIPT_DIR/run_daily_order_wechat_delivery.zsh"
+
 write_plist() {
   local label="$1"
   local hour="$2"
@@ -715,6 +778,67 @@ EOF
   echo "已安装：${label} -> 实时采集 10:30-20:00"
 }
 
+write_daily_order_wechat_delivery_plist() {
+  local label="com.summer.operation.daily-order-wechat-delivery"
+  local runner="$SCRIPT_DIR/run_daily_order_wechat_delivery.zsh"
+  local plist="$LAUNCH_DIR/${label}.plist"
+
+  cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>/bin/zsh '${runner}'</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${SCRIPT_DIR}</string>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>${LAUNCHD_LOG_DIR}/${label}.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>${LAUNCHD_LOG_DIR}/${label}.err.log</string>
+</dict>
+</plist>
+EOF
+
+  /bin/launchctl bootout "gui/$(id -u)" "$plist" >/dev/null 2>&1 || true
+  /bin/launchctl bootstrap "gui/$(id -u)" "$plist"
+  /bin/launchctl enable "gui/$(id -u)/${label}" >/dev/null 2>&1 || true
+  echo "已安装：${label} -> 日配订单微信群投递 09:00-20:00 每半小时"
+}
+
 for old_label in \
   com.xiong.daily-report \
   com.summer.store-inspection.promo-balance \
@@ -731,6 +855,7 @@ for old_label in \
   com.summer.operation.evening \
   com.summer.operation.inventory-sync \
   com.summer.operation.inventory-warning-daily \
+  com.summer.operation.daily-order-wechat-delivery \
   com.summer.operation.realtime-order-income
 do
   /bin/launchctl bootout "gui/$(id -u)" "$LAUNCH_DIR/${old_label}.plist" >/dev/null 2>&1 || true
@@ -739,6 +864,7 @@ done
 
 write_plist "com.summer.operation.morning" 8 0 "$SCRIPT_DIR/run_morning_ops.zsh" "$ROOT"
 write_realtime_plist
+write_daily_order_wechat_delivery_plist
 write_plist "com.summer.operation.inventory-warning-daily" 16 0 "$SCRIPT_DIR/run_inventory_warning_daily.zsh" "$ROOT"
 write_plist "com.summer.operation.evening" 16 30 "$SCRIPT_DIR/run_evening_budget.zsh" "$ROOT"
 
@@ -746,6 +872,7 @@ echo
 echo "Mac mini 定时任务已安装。"
 echo "上午：每天 8:00 一键运营，采集完成后立即提交午餐推广预算"
 echo "实时：每天 10:30-13:00 每半小时、13:00-17:00 每小时、17:00-20:00 每半小时"
+echo "日配订单微信群：每天 09:00-20:00 每半小时检查最近 20 个订单，失败文件留在 ~/Desktop/库存管理/出库记录"
 echo "库存：已改为云端主流程，不再安装 10:10 本地同步"
 echo "库存预警：每天 16:00 单独汇总推送一次"
 echo "晚间：每天 16:30 推广预算真实提交"
