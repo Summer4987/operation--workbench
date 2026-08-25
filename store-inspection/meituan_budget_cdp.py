@@ -374,7 +374,11 @@ def select_headquarters_store(page, task: dict) -> str:
     if current and any(alias in current for alias in aliases):
         return current
     selector.click(timeout=8000)
-    items = page.locator(".roo-popup.bottom li")
+    # Meituan changes the popup placement class with the available viewport
+    # (for example ``bottom`` became ``bottom-end``).  The stable container
+    # class is ``roo-popup``; tying store discovery to the placement class
+    # makes a healthy account look as if it has no stores.
+    items = page.locator(".roo-popup li")
     for _ in range(20):
         if items.count() > 0:
             break
