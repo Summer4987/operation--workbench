@@ -95,7 +95,7 @@ def build_message(path: Path, item: dict[str, Any]) -> str:
 
 
 def build_wechat_gui_message(path: Path, item: dict[str, Any]) -> str:
-    return "熊小小日配订货 Excel 已生成，文件见附件。"
+    return ""
 
 
 def send_with_hermes(message: str, target: str, hermes_bin: Path) -> subprocess.CompletedProcess[str]:

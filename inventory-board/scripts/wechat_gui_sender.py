@@ -57,6 +57,22 @@ FileHandle.standardOutput.write(data)
 '''
 
 
+FILE_CLIPBOARD_SWIFT = r'''
+import Foundation
+import AppKit
+
+let path = CommandLine.arguments[1]
+let url = URL(fileURLWithPath: path)
+let pasteboard = NSPasteboard.general
+pasteboard.clearContents()
+let ok = pasteboard.writeObjects([url as NSURL])
+if !ok {
+  fputs("failed to write file URL to pasteboard\n", stderr)
+  exit(1)
+}
+'''
+
+
 def normalize_text(value: str) -> str:
     return "".join(ch for ch in value if not ch.isspace()).replace("（", "(").replace("）", ")")
 
@@ -178,6 +194,10 @@ def ocr_image(path: Path) -> list[dict[str, Any]]:
     return json.loads(result.stdout or "[]")
 
 
+def set_file_clipboard(file_path: Path) -> subprocess.CompletedProcess[str]:
+    return run(["swift", "-", str(file_path)], input_text=FILE_CLIPBOARD_SWIFT, timeout=30)
+
+
 def text_center(row: dict[str, Any], width: int, height: int) -> tuple[int, int]:
     x = (float(row["x"]) + float(row["w"]) / 2) * width
     y = (1 - (float(row["y"]) + float(row["h"]) / 2)) * height
@@ -283,12 +303,12 @@ def send_text(cua_bin: Path, window: dict[str, Any], message: str) -> dict[str, 
 
 def send_file_with_wechat(cua_bin: Path, window: dict[str, Any], width: int, height: int, file_path: Path) -> subprocess.CompletedProcess[str]:
     focus_input(cua_bin, window, width, height)
+    clipboard_result = set_file_clipboard(file_path)
+    if clipboard_result.returncode != 0:
+        return clipboard_result
     script = r'''
-on run argv
-  set filePath to item 1 of argv
-  set fileRef to POSIX file filePath
+on run
   delay 0.6
-  set the clipboard to fileRef
   tell application "System Events"
     keystroke "v" using command down
     delay 1.2
@@ -297,20 +317,32 @@ on run argv
   end tell
 end run
 '''
-    return run_osascript(script, str(file_path), timeout=30)
+    return run_osascript(script, timeout=30)
 
 
-def verify_file_visible(cua_bin: Path, window: dict[str, Any], file_path: Path) -> bool:
+def file_rows(rows: list[dict[str, Any]], file_path: Path) -> set[str]:
+    stem = normalize_text(file_path.stem)
+    matches: set[str] = set()
+    if len(stem) < 6:
+        return matches
+    for row in rows:
+        # Vision uses a bottom-left origin. Restrict attachment verification to
+        # the lower chat area so historical filename text higher in the window
+        # does not masquerade as a newly sent file attachment.
+        if float(row.get("y") or 0) > 0.58:
+            continue
+        text = normalize_text(str(row.get("text") or ""))
+        if stem[:6] in text or text[:6] in stem:
+            matches.add(text)
+    return matches
+
+
+def verify_new_file_visible(cua_bin: Path, window: dict[str, Any], file_path: Path, before_rows: list[dict[str, Any]]) -> bool:
     with tempfile.TemporaryDirectory(prefix="wechat-cua-file-") as tmp:
         screenshot = Path(tmp) / "wechat-file.png"
         capture_window(cua_bin, window, screenshot)
-        rows = ocr_image(screenshot)
-    stem = normalize_text(file_path.stem)
-    for row in rows:
-        text = normalize_text(str(row.get("text") or ""))
-        if len(stem) >= 6 and (stem[:6] in text or text[:6] in stem):
-            return True
-    return False
+        after_rows = ocr_image(screenshot)
+    return bool(file_rows(after_rows, file_path) - file_rows(before_rows, file_path))
 
 
 def send(
@@ -351,11 +383,13 @@ def send(
     height = int(selection["screenshot_height"])
     focus_input(cua_bin, window, width, height)
     result: dict[str, Any] = {"text": None, "file": None}
-    if clean_message:
-        result["text"] = send_text(cua_bin, window, clean_message)
     if expanded_file:
+        with tempfile.TemporaryDirectory(prefix="wechat-cua-before-file-") as tmp:
+            before_screenshot = Path(tmp) / "before-file.png"
+            capture_window(cua_bin, window, before_screenshot)
+            before_rows = ocr_image(before_screenshot)
         file_result = send_file_with_wechat(cua_bin, window, width, height, expanded_file)
-        file_visible = file_result.returncode == 0 and verify_file_visible(cua_bin, window, expanded_file)
+        file_visible = file_result.returncode == 0 and verify_new_file_visible(cua_bin, window, expanded_file, before_rows)
         result["file"] = {
             "returncode": file_result.returncode,
             "output": (file_result.stdout or "").strip(),
@@ -363,6 +397,8 @@ def send(
         }
         if file_result.returncode != 0 or not file_visible:
             return {"ok": False, "dry_run": False, "selection": selection, "send_result": result, **payload}
+    if clean_message:
+        result["text"] = send_text(cua_bin, window, clean_message)
     return {"ok": True, "dry_run": False, "selection": selection, "send_result": result, **payload}
 
 
