@@ -282,20 +282,15 @@ def send_text(cua_bin: Path, window: dict[str, Any], message: str) -> dict[str, 
 
 
 def send_file_with_wechat(cua_bin: Path, window: dict[str, Any], width: int, height: int, file_path: Path) -> subprocess.CompletedProcess[str]:
-    click_window_point(cua_bin, window, int(width * 0.46), int(height * 0.947))
+    focus_input(cua_bin, window, width, height)
     script = r'''
 on run argv
   set filePath to item 1 of argv
+  set fileRef to POSIX file filePath
   delay 0.6
+  set the clipboard to fileRef
   tell application "System Events"
-    keystroke "g" using {command down, shift down}
-    delay 0.3
-    set the clipboard to filePath
     keystroke "v" using command down
-    delay 0.3
-    key code 36
-    delay 0.8
-    key code 36
     delay 1.2
     key code 36
     delay 0.8

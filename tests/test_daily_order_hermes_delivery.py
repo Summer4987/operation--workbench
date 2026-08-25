@@ -123,7 +123,7 @@ def test_successful_delivery_can_use_wechat_gui_sender(tmp_path, monkeypatch):
     assert calls[0][1] == "皮皮球球备忘录"
     assert calls[0][2].name == item["filename"]
     assert "MEDIA:" not in calls[0][0]
-    assert "文件：" in calls[0][0]
+    assert item["filename"] not in calls[0][0]
     assert module.item_key(item) in state["delivered"]
 
 
