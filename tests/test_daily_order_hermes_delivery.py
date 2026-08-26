@@ -161,13 +161,13 @@ def test_delivered_items_are_skipped(tmp_path, monkeypatch):
     assert payload["sent"] == 0
 
 
-def test_wechat_gui_sender_uses_file_dialog_instead_of_path_message():
+def test_wechat_gui_sender_uses_file_clipboard_instead_of_file_dialog():
     script = (ROOT / "inventory-board" / "scripts" / "wechat_gui_sender.py").read_text(encoding="utf-8")
     start = script.index("def send_file_with_wechat")
     end = script.index("def file_rows")
     block = script[start:end]
 
-    assert "key code 53" in block
-    assert 'keystroke "g" using {command down, shift down}' in block
-    assert "set the clipboard to filePath" in block
-    assert "click_window_point" in block
+    assert "FILE_CLIPBOARD_SWIFT" in script
+    assert "pasteboard.writeObjects([url as NSURL])" in script
+    assert 'keystroke "g" using {command down, shift down}' not in block
+    assert "click_window_point" not in block
