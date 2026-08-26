@@ -57,22 +57,6 @@ FileHandle.standardOutput.write(data)
 '''
 
 
-FILE_CLIPBOARD_SWIFT = r'''
-import Foundation
-import AppKit
-
-let path = CommandLine.arguments[1]
-let url = URL(fileURLWithPath: path)
-let pasteboard = NSPasteboard.general
-pasteboard.clearContents()
-let ok = pasteboard.writeObjects([url as NSURL])
-if !ok {
-  fputs("failed to write file URL to pasteboard\n", stderr)
-  exit(1)
-}
-'''
-
-
 def normalize_text(value: str) -> str:
     return "".join(ch for ch in value if not ch.isspace()).replace("（", "(").replace("）", ")")
 
@@ -194,10 +178,6 @@ def ocr_image(path: Path) -> list[dict[str, Any]]:
     return json.loads(result.stdout or "[]")
 
 
-def set_file_clipboard(file_path: Path) -> subprocess.CompletedProcess[str]:
-    return run(["swift", "-", str(file_path)], input_text=FILE_CLIPBOARD_SWIFT, timeout=30)
-
-
 def text_center(row: dict[str, Any], width: int, height: int) -> tuple[int, int]:
     x = (float(row["x"]) + float(row["w"]) / 2) * width
     y = (1 - (float(row["y"]) + float(row["h"]) / 2)) * height
@@ -302,22 +282,28 @@ def send_text(cua_bin: Path, window: dict[str, Any], message: str) -> dict[str, 
 
 
 def send_file_with_wechat(cua_bin: Path, window: dict[str, Any], width: int, height: int, file_path: Path) -> subprocess.CompletedProcess[str]:
-    focus_input(cua_bin, window, width, height)
-    clipboard_result = set_file_clipboard(file_path)
-    if clipboard_result.returncode != 0:
-        return clipboard_result
+    run_osascript('tell application "System Events" to key code 53\ndelay 0.3', timeout=10)
+    click_window_point(cua_bin, window, int(width * 0.456), int(height * 0.947))
     script = r'''
-on run
-  delay 0.6
+on run argv
+  set filePath to item 1 of argv
+  set the clipboard to filePath
   tell application "System Events"
+    delay 0.8
+    keystroke "g" using {command down, shift down}
+    delay 0.4
     keystroke "v" using command down
-    delay 1.2
+    delay 0.4
     key code 36
     delay 0.8
+    key code 36
+    delay 1.5
+    key code 36
+    delay 1.0
   end tell
 end run
 '''
-    return run_osascript(script, timeout=30)
+    return run_osascript(script, str(file_path), timeout=30)
 
 
 def file_rows(rows: list[dict[str, Any]], file_path: Path) -> set[str]:
