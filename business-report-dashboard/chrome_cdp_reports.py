@@ -1091,11 +1091,30 @@ def download_eleme_reviews() -> Path:
             # while its empty-store state is settling. A forced click is safe
             # here and reliably switches to the independent review list.
             content_tab.first.click(timeout=10_000, force=True)
-        try:
-            comment_frame = frame_or_page_with_exact_text(page, "导出评价", timeout_seconds=30)
-            comment_frame.get_by_text("导出评价", exact=True).wait_for(state="visible", timeout=10_000)
-        except Exception as exc:
-            raise RuntimeError("切换到评价内容后仍未出现导出评价按钮") from exc
+        # The comments app can first render a temporary “no matching stores”
+        # score panel.  Its overlay occasionally consumes the first forced
+        # click, so retry the tab until the export control proves that the
+        # review list is active.
+        export_deadline = time.time() + 45
+        last_export_error: Exception | None = None
+        while time.time() < export_deadline:
+            try:
+                comment_frame = frame_or_page_with_exact_text(page, "导出评价", timeout_seconds=3)
+                export_button = comment_frame.get_by_text("导出评价", exact=True)
+                export_button.wait_for(state="visible", timeout=3_000)
+                break
+            except Exception as exc:
+                last_export_error = exc
+                try:
+                    comment_frame = frame_or_page_with_exact_text(page, "评价内容", timeout_seconds=3)
+                    content_tab = comment_frame.get_by_text("评价内容", exact=True)
+                    if content_tab.count() and content_tab.first.is_visible():
+                        content_tab.first.click(timeout=5_000, force=True)
+                except Exception:
+                    pass
+                page.wait_for_timeout(2_000)
+        else:
+            raise RuntimeError("切换到评价内容后仍未出现导出评价按钮") from last_export_error
         task_ids: list[str] = []
         export_metas: list[dict] = []
 

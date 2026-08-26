@@ -145,9 +145,18 @@ def click_exact_text(frame, text: str) -> bool:
     locator = frame.get_by_text(text, exact=True)
     if locator.count() < 1:
         return False
-    locator.first.evaluate(
-        "(element) => (element.closest('label,button,a,li') || element).click()"
-    )
+    # The account page now renders tabs inside clickable div containers.  A
+    # DOM ``element.click()`` on the inner text node no longer bubbles through
+    # the same React event path, while a real Playwright click does.
+    try:
+        locator.first.click(timeout=5_000)
+    except Exception:
+        try:
+            locator.first.click(timeout=5_000, force=True)
+        except Exception:
+            locator.first.evaluate(
+                "(element) => (element.closest('label,button,a,li,[role=tab]') || element).click()"
+            )
     frame.page.wait_for_timeout(800)
     return True
 
