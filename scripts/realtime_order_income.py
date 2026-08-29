@@ -380,6 +380,34 @@ def infer_meituan_realtime_row(text: str) -> tuple[float | None, float | None, s
     return orders, income, source_name
 
 
+def meituan_row_metrics_are_consistent(item: dict[str, Any]) -> bool:
+    """Confirm an unusual Meituan row against its other displayed metrics.
+
+    The chain ranking renders five metrics with current/comparison pairs:
+    business income, pre-discount total, order paid, order count and paid AOV.
+    A genuinely large catering order can exceed the generic AOV guard.  It is
+    safe to retain only when the displayed order-paid value, order count and
+    paid AOV reconcile with each other and the parser selected the same income
+    and order-count cells.
+    """
+    raw = str(item.get("raw") or "")
+    source_name = source_store_from_text(raw)
+    tail = raw.split(source_name, 1)[1] if source_name and source_name in raw else raw
+    metric_text = re.split(r"\s*共\s*\d+\s*条", tail.replace(",", ""), maxsplit=1)[0]
+    values = [to_number(token) for token in re.findall(r"-?\d+(?:\.\d+)?", metric_text)]
+    values = [value for value in values if value is not None]
+    if len(values) < 9:
+        return False
+    income, order_paid, displayed_orders, paid_aov = values[0], values[4], values[6], values[8]
+    parsed_orders = float(item.get("orders") or 0)
+    parsed_income = float(item.get("income") or 0)
+    if displayed_orders <= 0 or order_paid < 0 or paid_aov < 0:
+        return False
+    parsed_cells_match = abs(parsed_orders - displayed_orders) < 0.01 and abs(parsed_income - income) < 0.02
+    paid_metrics_match = abs(order_paid / displayed_orders - paid_aov) <= max(0.05, abs(paid_aov) * 0.01)
+    return parsed_cells_match and paid_metrics_match
+
+
 def walk_json_records(payload: Any, platform: str, url: str) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
 
@@ -563,6 +591,11 @@ def realtime_validation_errors(records: list[dict[str, Any]], rules: dict[str, A
             continue
         ticket = income / orders
         if (min_ticket and ticket < min_ticket) or (max_ticket and ticket > max_ticket):
+            if meituan_row_metrics_are_consistent(item):
+                item["validation_note"] = (
+                    f"美团页面显示异常客单 {ticket:.2f} 元/单，但订单实付、订单量和实付单均价相互校验一致，按真实大额订单保留。"
+                )
+                continue
             errors.append(f"美团实时行客单价异常：{item.get('store')} {ticket:.2f} 元/单，订单 {orders}，收入 {income:.2f}，raw={item.get('raw')}")
     return errors
 

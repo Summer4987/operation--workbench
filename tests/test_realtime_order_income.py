@@ -338,6 +338,28 @@ def test_meituan_page_row_validation_still_flags_extreme_ticket():
     assert "客单价异常" in errors[0]
 
 
+def test_meituan_page_row_validation_accepts_internally_consistent_large_order():
+    item = {
+        "platform": "美团",
+        "store": "丽泽",
+        "orders": 2,
+        "income": 1316.83,
+        "source": "page",
+        "raw": (
+            "1 熊小小牛排饭POKEBEAR（丽泽门店） "
+            "1,316.83 1,193.62 1,505.70 1,275.90 1,466.50 1,302.90 2 1 733.25 678.72"
+        ),
+    }
+
+    errors = realtime_validation_errors(
+        [item],
+        {"meituan_page_row_validation": {"min_ticket": 8, "max_ticket": 300}},
+    )
+
+    assert errors == []
+    assert "真实大额订单" in item["validation_note"]
+
+
 def test_payload_marks_missing_income_as_partial():
     record = build_api_record(
         {
