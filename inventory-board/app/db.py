@@ -71,6 +71,22 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(import_file_id) REFERENCES import_files(id)
             );
+
+            CREATE TRIGGER IF NOT EXISTS ignore_disabled_inventory_product_insert
+            BEFORE INSERT ON products
+            WHEN NEW.sku = 'CWXXX0004'
+              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS ignore_disabled_inventory_product_update
+            BEFORE UPDATE ON products
+            WHEN NEW.sku = 'CWXXX0004'
+              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END;
             """
         )
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(products)").fetchall()}

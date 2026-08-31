@@ -184,6 +184,12 @@ def test_inventory_db_rejects_disabled_packaging_bag(tmp_path, monkeypatch):
 
     module.init_db()
     with module.connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO products (sku, name, spec, unit, warehouse, warning_threshold, updated_at, unit_cost)
+            VALUES ('CWXXX0004', '打包袋', '1000个/袋', '袋', '成都易代仓', 10, '2026-08-31T10:00:00+08:00', 0)
+            """
+        )
         module.upsert_product(
             conn,
             sku="CWXXX0004",
