@@ -2,10 +2,23 @@ import SwiftData
 import SwiftUI
 #if os(macOS)
 import Security
+import AppKit
+#endif
+
+#if os(macOS)
+private final class TodoQuadrantsAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+}
 #endif
 
 @main
 struct TodoQuadrantsApp: App {
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(TodoQuadrantsAppDelegate.self) private var appDelegate
+    #endif
+
     var body: some Scene {
         WindowGroup {
             ContentView()
