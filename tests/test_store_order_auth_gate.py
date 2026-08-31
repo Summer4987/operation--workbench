@@ -155,8 +155,8 @@ def test_daily_order_submit_catalog_filters_non_public_inventory_items(tmp_path)
     assert "LDXXX00013" in product_skus
     assert "牛肉筋（冻）" not in product_names
     assert "LDXXX00014" not in product_skus
-    assert "打包袋" in product_names
-    assert "CWXXX0004" in product_skus
+    assert "打包袋" not in product_names
+    assert "CWXXX0004" not in product_skus
 
 
 def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypatch):
@@ -170,10 +170,7 @@ def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypa
     rows = {item["sku"]: item for item in module.inventory_summary()}
     assert rows["LDXXX00013"]["balance"] == 0
     assert rows["LDXXX00014"]["balance"] == 0
-    assert rows["CWXXX0004"]["name"] == "打包袋"
-    assert rows["CWXXX0004"]["spec"] == "1000个/袋"
-    assert rows["CWXXX0004"]["unit"] == "袋"
-    assert rows["CWXXX0004"]["balance"] == 50
+    assert "CWXXX0004" not in rows
     assert rows["CWXXX0005"]["name"] == "熊小小牛排饭-定制大米"
     assert rows["CWXXX0005"]["spec"] == "25kg/袋"
     assert rows["CWXXX0005"]["unit"] == "袋"
@@ -828,3 +825,16 @@ def test_wechat_addon_messages_keep_digest_format_and_mark_addon():
     assert module._is_wechat_addon_time(datetime(2026, 6, 29, 23, 59, tzinfo=shanghai))
     assert not module._is_wechat_addon_time(datetime(2026, 6, 29, 17, 59, tzinfo=shanghai))
     assert module._wechat_addon_messages(order) == ["【四川鸿鹄微信群 加单】\n测试门店：青菜 5斤"]
+
+
+def test_packaging_bag_addon_goes_to_songli_group():
+    module = load_daily_order_module()
+    order = {
+        "store_name": "测试门店",
+        "items": [
+            {"sku": "CJ-044", "name": "打包袋", "unit": "袋", "quantity": 2, "purchase_channel": "颂李包装群"},
+        ],
+    }
+
+    assert module._purchase_channel({"sku": "CJ-044", "name": "打包袋"}) == "颂李包装群"
+    assert module._wechat_addon_messages(order) == ["【颂李包装群 加单】\n测试门店：打包袋 2袋"]

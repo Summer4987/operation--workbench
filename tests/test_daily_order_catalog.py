@@ -175,12 +175,17 @@ def test_packaging_order_groups_bowls_before_starch_boxes():
         ]
 
 
-def test_chengdu_order_catalog_removes_legacy_packaging_bag_sku():
+def test_chengdu_order_catalog_moves_packaging_bag_to_songli_packaging():
     root = Path(__file__).resolve().parents[1]
     catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+    by_name = {item["name"]: item for item in catalog["items"]}
 
-    assert all(item.get("sku") != "CJ-044" for item in catalog["items"])
-    assert all(item.get("name") != "打包袋" for item in catalog["items"])
+    item = by_name["打包袋"]
+    assert item["sku"] == "CJ-044"
+    assert item["category"] == "包材"
+    assert item["source"] == "厂家配送（2日内）"
+    assert item["purchase_channel"] == "颂李包装群"
+    assert item["force_purchase_channel"] is True
 
 
 def test_chengdu_order_catalog_has_taobao_delivery_bags():

@@ -24,14 +24,6 @@
     "initial_balance": 41
   },
   {
-    "sku": "CWXXX0004",
-    "name": "打包袋",
-    "spec": "1000个/袋",
-    "unit": "袋",
-    "warehouse": "成都易代仓",
-    "initial_balance": 50
-  },
-  {
     "sku": "CWXXX0003",
     "name": "熊小小牛排饭-寿司调味汁",
     "spec": "10kg/箱",
