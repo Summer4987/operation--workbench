@@ -22,6 +22,8 @@ SERVER_TEMPLATE_DIR = SERVER_DATA_DIR / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
+DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004"}
+DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC"}
 
 
 def _env_path(name: str) -> Path | None:
@@ -236,7 +238,7 @@ def public_order_catalog(template_path: Path = TEMPLATE_PATH) -> dict:
                 "unit": product.unit,
             }
             for product in products
-            if product.public_order
+            if product.public_order and not _is_disabled_public_order_product(product)
         ],
     }
 
@@ -406,6 +408,11 @@ def _load_project_catalog_products(path: Path = CATALOG_PATH) -> list[Product]:
             )
         )
     return result
+
+
+def _is_disabled_public_order_product(product: Product) -> bool:
+    clean_name = product.name.replace("熊小小牛排饭-", "").strip()
+    return product.sku in DISABLED_PUBLIC_ORDER_SKUS or product.name in DISABLED_PUBLIC_ORDER_NAMES or clean_name in DISABLED_PUBLIC_ORDER_NAMES
 
 
 def _merge_products(primary: list[Product], extra: list[Product]) -> list[Product]:

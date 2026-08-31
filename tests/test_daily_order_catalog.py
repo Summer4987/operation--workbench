@@ -192,6 +192,14 @@ def test_chengdu_order_catalog_moves_packaging_bag_to_songli_packaging():
     assert item["sku"] == "CJ-044"
 
 
+def test_store_order_vendor_badge_hides_internal_vendor_name():
+    root = Path(__file__).resolve().parents[1]
+    app_js = (root / "daily-order" / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert "同厂商 ${escapeHtml(vendorGroup)}" not in app_js
+    assert ">同厂商</em>" in app_js
+
+
 def test_chengdu_order_catalog_has_taobao_delivery_bags():
     root = Path(__file__).resolve().parents[1]
     catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))

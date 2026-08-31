@@ -236,7 +236,7 @@ function renderItem(item) {
         <strong>${escapeHtml(nameLine)}</strong>
         <span>${escapeHtml(detail)}</span>
         ${orderable ? "" : `<em class="stock-badge">库存 0，暂不可下单</em>`}
-        ${vendorGroup ? `<em class="vendor-badge vendor-${escapeHtml(vendorGroup)}">同厂商 ${escapeHtml(vendorGroup)}</em>` : ""}
+        ${vendorGroup ? `<em class="vendor-badge vendor-${escapeHtml(vendorGroup)}">同厂商</em>` : ""}
       </div>
       <div class="qty-control">
         <button type="button" data-step="-1" data-sku="${escapeHtml(item.sku)}" aria-label="减少 ${escapeHtml(item.name)}" ${orderable ? "" : "disabled"}>-</button>
