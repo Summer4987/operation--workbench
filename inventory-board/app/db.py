@@ -8,6 +8,8 @@ from pathlib import Path
 
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "inventory.sqlite3"
+DISABLED_INVENTORY_SKUS = {"CWXXX0004"}
+DISABLED_INVENTORY_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC"}
 
 
 @contextmanager
@@ -98,6 +100,8 @@ def upsert_product(
     warehouse: str = "",
     unit_cost: float | int | str = 0,
 ) -> None:
+    if _is_disabled_inventory_product(sku=sku, name=name):
+        return
     existing = conn.execute("SELECT sku, name, spec, unit, warehouse, unit_cost FROM products WHERE sku = ?", (sku,)).fetchone()
     parsed_cost = _to_float(unit_cost)
     if existing:
@@ -170,6 +174,8 @@ def inventory_summary() -> list[dict]:
                 MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
+            WHERE p.sku NOT IN ('CWXXX0004')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             GROUP BY p.sku
             ORDER BY
                 CASE
@@ -185,7 +191,9 @@ def inventory_summary() -> list[dict]:
 
 
 def inventory_warning_items(skus: list[str] | set[str] | tuple[str, ...]) -> list[dict]:
-    clean_skus = sorted({str(sku).strip() for sku in skus if str(sku).strip()})
+    clean_skus = sorted(
+        {str(sku).strip() for sku in skus if str(sku).strip() and str(sku).strip() not in DISABLED_INVENTORY_SKUS}
+    )
     if not clean_skus:
         return []
     placeholders = ",".join("?" for _ in clean_skus)
@@ -203,6 +211,8 @@ def inventory_warning_items(skus: list[str] | set[str] | tuple[str, ...]) -> lis
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
             WHERE p.sku IN ({placeholders})
+              AND p.sku NOT IN ('CWXXX0004')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             GROUP BY p.sku
             HAVING balance <= p.warning_threshold
             ORDER BY balance ASC, p.sku
@@ -210,6 +220,12 @@ def inventory_warning_items(skus: list[str] | set[str] | tuple[str, ...]) -> lis
             clean_skus,
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def _is_disabled_inventory_product(*, sku: str, name: str = "") -> bool:
+    clean_sku = str(sku or "").strip()
+    clean_name = str(name or "").strip()
+    return clean_sku in DISABLED_INVENTORY_SKUS or clean_name in DISABLED_INVENTORY_NAMES
 
 
 def recent_imports(limit: int = 20) -> list[dict]:

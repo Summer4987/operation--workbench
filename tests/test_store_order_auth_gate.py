@@ -177,6 +177,35 @@ def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypa
     assert rows["CWXXX0005"]["balance"] == 41
 
 
+def test_inventory_db_rejects_disabled_packaging_bag(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
+    monkeypatch.setattr(db_module, "DB_PATH", tmp_path / "inventory.sqlite3")
+
+    module.init_db()
+    with module.connect() as conn:
+        module.upsert_product(
+            conn,
+            sku="CWXXX0004",
+            name="熊小小牛排饭-定制无纺布袋-YDC",
+            spec="1000个/袋",
+            unit="袋",
+            warehouse="成都易代仓",
+        )
+        module.upsert_product(
+            conn,
+            sku="TEST-001",
+            name="正常物料",
+            spec="1件",
+            unit="件",
+            warehouse="成都易代仓",
+        )
+
+    rows = {item["sku"]: item for item in module.inventory_summary()}
+    assert "CWXXX0004" not in rows
+    assert rows["TEST-001"]["name"] == "正常物料"
+
+
 def test_order_template_candidates_include_server_data_dir(monkeypatch):
     load_inventory_module()
     order_generator = sys.modules["inventory_board_auth_gate_for_tests.order_generator"]
