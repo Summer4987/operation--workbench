@@ -229,7 +229,9 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-030.svg",
-      "purchase_channel": "颂李包装群"
+      "purchase_channel": "颂李包装群",
+      "force_purchase_channel": true,
+      "vendor_group": "颂李"
     },
     {
       "sku": "CJ-041",
@@ -240,7 +242,9 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-041.svg",
-      "purchase_channel": "四川鸿鹄包装群"
+      "purchase_channel": "颂李包装群",
+      "force_purchase_channel": true,
+      "vendor_group": "颂李"
     },
     {
       "sku": "CJ-027",
@@ -251,7 +255,9 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-027.svg",
-      "purchase_channel": "颂李包装群"
+      "purchase_channel": "颂李包装群",
+      "force_purchase_channel": true,
+      "vendor_group": "颂李"
     },
     {
       "sku": "CJ-033",
@@ -262,7 +268,9 @@
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/CJ-033.svg",
-      "purchase_channel": "颂李包装群"
+      "purchase_channel": "颂李包装群",
+      "force_purchase_channel": true,
+      "vendor_group": "颂李"
     },
     {
       "sku": "CJ-038",
@@ -273,7 +281,9 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-038.svg",
-      "purchase_channel": "四川鸿鹄包装群"
+      "purchase_channel": "颂李包装群",
+      "force_purchase_channel": true,
+      "vendor_group": "颂李"
     },
     {
       "sku": "CJ-044",

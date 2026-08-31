@@ -180,12 +180,16 @@ def test_chengdu_order_catalog_moves_packaging_bag_to_songli_packaging():
     catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
     by_name = {item["name"]: item for item in catalog["items"]}
 
+    songli_names = {"小塑料碗", "酱料盒", "玉米淀粉盒", "餐具", "餐盒", "打包袋"}
+    for name in songli_names:
+        assert by_name[name]["category"] == "包材"
+        assert by_name[name]["source"] == "厂家配送（2日内）"
+        assert by_name[name]["purchase_channel"] == "颂李包装群"
+        assert by_name[name]["force_purchase_channel"] is True
+        assert by_name[name]["vendor_group"] == "颂李"
+
     item = by_name["打包袋"]
     assert item["sku"] == "CJ-044"
-    assert item["category"] == "包材"
-    assert item["source"] == "厂家配送（2日内）"
-    assert item["purchase_channel"] == "颂李包装群"
-    assert item["force_purchase_channel"] is True
 
 
 def test_chengdu_order_catalog_has_taobao_delivery_bags():

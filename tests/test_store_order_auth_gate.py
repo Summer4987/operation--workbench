@@ -858,12 +858,21 @@ def test_wechat_addon_messages_keep_digest_format_and_mark_addon():
 
 def test_packaging_bag_addon_goes_to_songli_group():
     module = load_daily_order_module()
+    items = [
+        {"sku": "CJ-030", "name": "小塑料碗", "unit": "箱", "quantity": 1, "purchase_channel": "颂李包装群"},
+        {"sku": "CJ-041", "name": "酱料盒", "unit": "箱", "quantity": 2, "purchase_channel": "颂李包装群"},
+        {"sku": "CJ-027", "name": "玉米淀粉盒", "unit": "箱", "quantity": 3, "purchase_channel": "颂李包装群"},
+        {"sku": "CJ-033", "name": "餐具", "unit": "袋", "quantity": 4, "purchase_channel": "颂李包装群"},
+        {"sku": "CJ-038", "name": "餐盒", "unit": "箱", "quantity": 5, "purchase_channel": "颂李包装群"},
+        {"sku": "CJ-044", "name": "打包袋", "unit": "袋", "quantity": 6, "purchase_channel": "颂李包装群"},
+    ]
     order = {
         "store_name": "测试门店",
-        "items": [
-            {"sku": "CJ-044", "name": "打包袋", "unit": "袋", "quantity": 2, "purchase_channel": "颂李包装群"},
-        ],
+        "items": items,
     }
 
-    assert module._purchase_channel({"sku": "CJ-044", "name": "打包袋"}) == "颂李包装群"
-    assert module._wechat_addon_messages(order) == ["【颂李包装群 加单】\n测试门店：打包袋 2袋"]
+    for item in items:
+        assert module._purchase_channel(item) == "颂李包装群"
+    assert module._wechat_addon_messages(order) == [
+        "【颂李包装群 加单】\n测试门店：小塑料碗 1箱，酱料盒 2箱，玉米淀粉盒 3箱，餐具 4袋，餐盒 5箱，打包袋 6袋"
+    ]

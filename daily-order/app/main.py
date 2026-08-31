@@ -802,10 +802,8 @@ def _wechat_group_channel(name: str, sku: str) -> str:
         return "虾仁群"
     if name == "辣白菜" or sku == "CJ-015":
         return "辣白菜群"
-    if name in {"玉米淀粉盒", "餐具包", "餐具", "小塑料盒", "小塑料碗", "打包袋"} or sku in {"CJ-027", "CJ-030", "CJ-033", "CJ-044"}:
+    if name in {"玉米淀粉盒", "餐具包", "餐具", "小塑料盒", "小塑料碗", "酱料盒", "餐盒", "打包袋"} or sku in {"CJ-027", "CJ-030", "CJ-033", "CJ-038", "CJ-041", "CJ-044"}:
         return "颂李包装群"
-    if name in {"餐盒", "酱料盒"} or sku in {"CJ-038", "CJ-041"}:
-        return "四川鸿鹄包装群"
     return ""
 
 
