@@ -206,6 +206,66 @@ def test_inventory_db_rejects_disabled_packaging_bag(tmp_path, monkeypatch):
     assert rows["TEST-001"]["name"] == "正常物料"
 
 
+def test_inventory_views_hide_disabled_packaging_bag_movements(tmp_path, monkeypatch):
+    module = load_inventory_module()
+    db_module = sys.modules["inventory_board_auth_gate_for_tests.db"]
+    monkeypatch.setattr(db_module, "DB_PATH", tmp_path / "inventory.sqlite3")
+
+    module.init_db()
+    with module.connect() as conn:
+        bag_import_id = module.create_import(
+            conn,
+            file_hash="legacy-bag",
+            filename="手工出库_打包袋.json",
+            movement_type="outbound",
+            source="test",
+        )
+        conn.execute(
+            """
+            INSERT INTO movements (
+                import_file_id, row_key, movement_type, sku, name, spec, unit, warehouse,
+                quantity, signed_quantity, document_date, source_row, created_at, address, store_name
+            )
+            VALUES (?, ?, 'outbound', 'CWXXX0004', '打包袋', '1000个/袋', '袋', '成都易代仓', 1, -1, '2026-08-31', 1, '2026-08-31T10:00:00+08:00', '', '测试门店')
+            """,
+            (bag_import_id, "legacy-bag-row"),
+        )
+        module.finish_import(conn, bag_import_id, status="success", line_count=1)
+        module.upsert_product(conn, sku="TEST-001", name="正常物料", spec="1件", unit="件", warehouse="成都易代仓")
+        normal_import_id = module.create_import(
+            conn,
+            file_hash="normal-item",
+            filename="正常入库.json",
+            movement_type="inbound",
+            source="test",
+        )
+        conn.execute(
+            """
+            INSERT INTO movements (
+                import_file_id, row_key, movement_type, sku, name, spec, unit, warehouse,
+                quantity, signed_quantity, document_date, source_row, created_at, address, store_name
+            )
+            VALUES (?, ?, 'inbound', 'TEST-001', '正常物料', '1件', '件', '成都易代仓', 3, 3, '2026-08-31', 1, '2026-08-31T11:00:00+08:00', '', '测试门店')
+            """,
+            (normal_import_id, "normal-item-row"),
+        )
+        module.finish_import(conn, normal_import_id, status="success", line_count=1)
+
+    visible_payload = repr(
+        [
+            module.inventory_summary(),
+            module.recent_imports(),
+            module.recent_movements(),
+            module.delivery_months(),
+            module.store_delivery_summary(),
+            module.inventory_flow_summary(),
+        ]
+    )
+    assert "打包袋" not in visible_payload
+    assert "CWXXX0004" not in visible_payload
+    assert "正常物料" in visible_payload
+
+
 def test_order_template_candidates_include_server_data_dir(monkeypatch):
     load_inventory_module()
     order_generator = sys.modules["inventory_board_auth_gate_for_tests.order_generator"]

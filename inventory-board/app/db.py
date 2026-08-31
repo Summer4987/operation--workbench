@@ -250,6 +250,10 @@ def recent_imports(limit: int = 20) -> list[dict]:
             """
             SELECT id, filename, movement_type, source, status, line_count, message, created_at
             FROM import_files
+            WHERE filename NOT LIKE '%打包袋%'
+              AND filename NOT LIKE '%CWXXX0004%'
+              AND message NOT LIKE '%打包袋%'
+              AND message NOT LIKE '%CWXXX0004%'
             ORDER BY id DESC
             LIMIT ?
             """,
@@ -274,6 +278,8 @@ def recent_movements(limit: int = 50) -> list[dict]:
                 movements.created_at
             FROM movements
             JOIN import_files ON import_files.id = movements.import_file_id
+            WHERE movements.sku NOT IN ('CWXXX0004')
+              AND movements.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             ORDER BY movements.id DESC
             LIMIT ?
             """,
@@ -288,7 +294,10 @@ def delivery_months() -> list[str]:
             """
             SELECT DISTINCT substr(created_at, 1, 7) AS month
             FROM movements
-            WHERE movement_type = 'outbound' AND created_at != ''
+            WHERE movement_type = 'outbound'
+              AND created_at != ''
+              AND sku NOT IN ('CWXXX0004')
+              AND name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             ORDER BY month DESC
             """
         ).fetchall()
@@ -315,6 +324,8 @@ def store_delivery_summary(month: str | None = None) -> list[dict]:
             FROM movements m
             LEFT JOIN products p ON p.sku = m.sku
             WHERE m.movement_type = 'outbound'
+            AND m.sku NOT IN ('CWXXX0004')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             {month_filter}
             GROUP BY store_name, delivery_date, m.sku
             ORDER BY
@@ -391,6 +402,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
                 MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
+            WHERE p.sku NOT IN ('CWXXX0004')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             GROUP BY p.sku
             HAVING inbound_quantity > 0 OR outbound_quantity > 0 OR current_balance != 0
             ORDER BY outbound_quantity DESC, inbound_quantity DESC, current_value DESC, p.sku
@@ -407,6 +420,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
                 SUM(m.quantity) AS quantity
             FROM movements m
             WHERE m.movement_type = 'outbound'
+            AND m.sku NOT IN ('CWXXX0004')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             {movement_filter}
             GROUP BY m.sku, destination
             ORDER BY m.sku, quantity DESC
@@ -430,6 +445,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
             FROM movements m
             JOIN import_files f ON f.id = m.import_file_id
             WHERE 1 = 1
+            AND m.sku NOT IN ('CWXXX0004')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
             {movement_filter}
             ORDER BY m.id DESC
             LIMIT 40
