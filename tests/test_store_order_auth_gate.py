@@ -874,5 +874,5 @@ def test_packaging_bag_addon_goes_to_songli_group():
     for item in items:
         assert module._purchase_channel(item) == "颂李包装群"
     assert module._wechat_addon_messages(order) == [
-        "【颂李包装群 加单】\n测试门店：小塑料碗 1箱，酱料盒 2箱，玉米淀粉盒 3箱，餐具 4袋，餐盒 5箱，打包袋 6袋"
+        "【颂李包装群 加单】\n测试门店：小塑料碗 1箱、酱料盒 2箱、玉米淀粉盒 3箱、餐具 4袋、餐盒 5箱、打包袋 6袋"
     ]
