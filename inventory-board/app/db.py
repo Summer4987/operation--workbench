@@ -84,6 +84,7 @@ def init_db() -> None:
             conn.execute("ALTER TABLE movements ADD COLUMN address TEXT DEFAULT ''")
         if "store_name" not in movement_columns:
             conn.execute("ALTER TABLE movements ADD COLUMN store_name TEXT DEFAULT ''")
+        prune_disabled_inventory_products(conn)
 
 
 def now_iso() -> str:
@@ -101,6 +102,7 @@ def upsert_product(
     unit_cost: float | int | str = 0,
 ) -> None:
     if _is_disabled_inventory_product(sku=sku, name=name):
+        prune_disabled_inventory_products(conn)
         return
     existing = conn.execute("SELECT sku, name, spec, unit, warehouse, unit_cost FROM products WHERE sku = ?", (sku,)).fetchone()
     parsed_cost = _to_float(unit_cost)
@@ -226,6 +228,20 @@ def _is_disabled_inventory_product(*, sku: str, name: str = "") -> bool:
     clean_sku = str(sku or "").strip()
     clean_name = str(name or "").strip()
     return clean_sku in DISABLED_INVENTORY_SKUS or clean_name in DISABLED_INVENTORY_NAMES
+
+
+def prune_disabled_inventory_products(conn: sqlite3.Connection) -> None:
+    sku_placeholders = ",".join("?" for _ in DISABLED_INVENTORY_SKUS)
+    name_placeholders = ",".join("?" for _ in DISABLED_INVENTORY_NAMES)
+    params = [*sorted(DISABLED_INVENTORY_SKUS), *sorted(DISABLED_INVENTORY_NAMES)]
+    conn.execute(
+        f"""
+        DELETE FROM products
+        WHERE sku IN ({sku_placeholders})
+           OR name IN ({name_placeholders})
+        """,
+        params,
+    )
 
 
 def recent_imports(limit: int = 20) -> list[dict]:
