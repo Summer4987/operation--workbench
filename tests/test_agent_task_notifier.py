@@ -61,6 +61,47 @@ class AgentTaskNotifierTests(unittest.TestCase):
         self.assertNotIn("ID task.example", message)
         self.assertNotIn("[失败]", message)
 
+    def test_morning_failure_message_separates_budget_success_from_failed_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            status_path = Path(tmp) / "morning.json"
+            status_path.write_text(
+                json.dumps(
+                    {
+                        "finished_at": "2026-09-01 08:40:45",
+                        "failed_steps": [
+                            {"name": "直营美团日报下载"},
+                            {"name": "巡检证据上传云端"},
+                            {"name": "汇总"},
+                        ],
+                        "successful_steps": [
+                            {"name": "饿了么午餐预算真实提交"},
+                            {"name": "美团午餐预算真实提交"},
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            original_path = self.notifier.DEFAULT_MORNING_STATUS_PATH
+            try:
+                self.notifier.DEFAULT_MORNING_STATUS_PATH = status_path
+                message = self.notifier.build_message(
+                    "ops.morning_collection",
+                    {
+                        "status": "failed",
+                        "message": "上午运营一键采集异常结束，退出码：1。",
+                        "step": "launchd 包装器",
+                        "finished_at": "2026-09-01 08:40:45",
+                    },
+                    self.notifier.DIRECT_TASK_ROWS["ops.morning_collection"],
+                )
+            finally:
+                self.notifier.DEFAULT_MORNING_STATUS_PATH = original_path
+
+        self.assertIn("实际失败项：直营美团日报下载、巡检证据上传云端", message)
+        self.assertIn("饿了么午餐预算真实提交、美团午餐预算真实提交", message)
+        self.assertIn("本次告警不代表推广预算失败", message)
+
     def test_notify_deduplicates_terminal_task_signatures(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
