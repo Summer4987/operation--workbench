@@ -64,8 +64,8 @@ cd "$ROOT"
 SOURCE_DIR="outputs/store_inspection"
 MANIFEST_PATH="outputs/store_inspection_evidence_manifest/latest.json"
 if [[ ! -d "$SOURCE_DIR" ]]; then
-  echo "没有找到巡检证据目录：$SOURCE_DIR"
-  exit 1
+  echo "今天没有生成巡检证据目录，跳过上传：$SOURCE_DIR"
+  exit 0
 fi
 
 if [[ ! -x "$SSH_BIN" || ! -x "$RSYNC_BIN" || ! -x "$PYTHON_BIN" ]]; then

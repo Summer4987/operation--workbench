@@ -383,52 +383,6 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
                 context.close()
 
 
-def report_is_still_generating(exc: Exception) -> bool:
-    text = str(exc)
-    return (
-        isinstance(exc, TimeoutError)
-        and "直营美团下载列表没有可下载文件" in text
-        and ("'status': 0" in text or '"status": 0' in text)
-    )
-
-
-def run_accounts(
-    account_ids: list[str],
-    target_date: str,
-    submit: bool,
-    visible: bool,
-    wait_seconds: int,
-    browser_executable: str | None,
-) -> list[str]:
-    failures: list[str] = []
-    deferred: list[str] = []
-    for account_id in account_ids:
-        try:
-            account = load_account(account_id)
-            pause = daily_report_pause(account)
-            if pause:
-                print(pause_message(pause))
-                continue
-            path = run(account_id, target_date, submit, visible, wait_seconds, browser_executable)
-            print(path)
-        except Exception as exc:
-            if submit and len(account_ids) > 1 and report_is_still_generating(exc):
-                deferred.append(account_id)
-                print(f"直营美团报表仍在生成，完成其它账号后再复查：{account_id}", file=sys.stderr)
-                continue
-            failures.append(f"{account_id}: {exc}")
-            print(f"直营美团日报下载失败：{account_id}: {exc}", file=sys.stderr)
-
-    for account_id in deferred:
-        try:
-            path = run(account_id, target_date, False, visible, max(wait_seconds, 180), browser_executable)
-            print(f"直营美团延迟报表已补下载：{account_id}: {path}")
-        except Exception as exc:
-            failures.append(f"{account_id}: 延迟复查仍失败：{exc}")
-            print(f"直营美团日报下载失败：{account_id}: 延迟复查仍失败：{exc}", file=sys.stderr)
-    return failures
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="下载直营美团临时账号经营日报 CSV。")
     parser.add_argument("--account", default="direct_chaoyangmen", help="账号 ID。")
@@ -441,14 +395,19 @@ def main() -> None:
     args = parser.parse_args()
 
     account_ids = enabled_account_ids() if args.all else [args.account]
-    failures = run_accounts(
-        account_ids,
-        args.target_date,
-        args.submit,
-        args.visible,
-        args.wait_seconds,
-        args.browser_executable,
-    )
+    failures: list[str] = []
+    for account_id in account_ids:
+        try:
+            account = load_account(account_id)
+            pause = daily_report_pause(account)
+            if pause:
+                print(pause_message(pause))
+                continue
+            path = run(account_id, args.target_date, args.submit, args.visible, args.wait_seconds, args.browser_executable)
+            print(path)
+        except Exception as exc:
+            failures.append(f"{account_id}: {exc}")
+            print(f"直营美团日报下载失败：{account_id}: {exc}", file=sys.stderr)
     if failures:
         raise SystemExit("；".join(failures))
 

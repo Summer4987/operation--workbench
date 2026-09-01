@@ -22,7 +22,6 @@ DEFAULT_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 DEFAULT_STATE_PATH = ROOT / "outputs" / "agent_task_notifications" / "state.json"
 DEFAULT_LOG_PATH = ROOT / "outputs" / "agent_task_notifications" / "latest.log"
 DEFAULT_PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
-DEFAULT_MORNING_STATUS_PATH = ROOT / "outputs" / "morning_collection_status" / "latest.json"
 DEFAULT_TARGET = "weixin"
 MAX_BATCH_MESSAGE_CHARS = 3600
 MIN_COOLDOWN_SECONDS = 180
@@ -325,31 +324,6 @@ def compact_message(message: str) -> str:
     return " ".join(str(message or "").split())
 
 
-def morning_collection_notification_context(
-    task: dict[str, Any],
-    path: Path | None = None,
-) -> tuple[list[str], list[str]]:
-    path = path or DEFAULT_MORNING_STATUS_PATH
-    payload = read_json(path, {})
-    task_day = str(task.get("finished_at") or task.get("updated_at") or "")[:10]
-    status_day = str(payload.get("finished_at") or payload.get("updated_at") or payload.get("generated_at") or "")[:10]
-    if task_day and status_day and task_day != status_day:
-        return [], []
-    failed = [
-        str(item.get("name") or "").strip()
-        for item in payload.get("failed_steps") or []
-        if isinstance(item, dict) and str(item.get("name") or "").strip() not in {"汇总", "launchd 包装器"}
-    ]
-    budget_success = [
-        str(item.get("name") or "").strip()
-        for item in payload.get("successful_steps") or []
-        if isinstance(item, dict)
-        and "预算真实提交" in str(item.get("name") or "")
-        and str(item.get("name") or "").strip()
-    ]
-    return list(dict.fromkeys(failed)), list(dict.fromkeys(budget_success))
-
-
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> str:
     status = str(task.get("status") or "")
     status_label = STATUS_LABELS.get(status, status or "未知")
@@ -386,12 +360,6 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> st
             lines.append(f"需核实：{message}")
         else:
             lines.append(f"说明：{message}")
-    if task_id == "ops.morning_collection" and status == "failed":
-        failed_steps, budget_success = morning_collection_notification_context(task)
-        if failed_steps:
-            lines.append(f"实际失败项：{'、'.join(failed_steps)}。")
-        if budget_success:
-            lines.append(f"推广预算验收：{'、'.join(budget_success)}；本次告警不代表推广预算失败。")
     if failure_type and status == "failed":
         lines.append(f"失败分类是 {failure_type}。")
 
