@@ -78,6 +78,35 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
         download_latest.assert_called_once_with(fake_page, fake_context, {"id": "direct_chaoyangmen"}, "20260706")
         fake_context.close.assert_not_called()
 
+    def test_all_accounts_rechecks_report_that_is_still_generating(self) -> None:
+        timeout = TimeoutError(
+            "等待直营美团报表超时：直营美团下载列表没有可下载文件："
+            "{'data': {'list': [{'status': 0, 'url': ''}]}}"
+        )
+        recovered = Path("/tmp/yintaicheng.csv")
+        with mock.patch.object(
+            self.module,
+            "load_account",
+            side_effect=lambda account_id: {"id": account_id},
+        ), mock.patch.object(
+            self.module,
+            "run",
+            side_effect=[timeout, Path("/tmp/wanxiangcheng.csv"), recovered],
+        ) as run:
+            failures = self.module.run_accounts(
+                ["direct_yintaicheng", "direct_wanxiangcheng"],
+                "20260831",
+                True,
+                False,
+                1,
+                None,
+            )
+
+        self.assertEqual(failures, [])
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(run.call_args_list[-1].args[0], "direct_yintaicheng")
+        self.assertFalse(run.call_args_list[-1].args[2])
+
 
 if __name__ == "__main__":
     unittest.main()
