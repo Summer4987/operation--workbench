@@ -157,6 +157,8 @@ def test_daily_order_submit_catalog_filters_non_public_inventory_items(tmp_path)
     assert "LDXXX00014" not in product_skus
     assert "打包袋" not in product_names
     assert "CWXXX0004" not in product_skus
+    assert "冷冻西兰花（冻）" not in product_names
+    assert "LDXXX0005" not in product_skus
 
 
 def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypatch):
@@ -171,6 +173,7 @@ def test_inventory_seed_catalog_ignores_public_order_metadata(tmp_path, monkeypa
     assert rows["LDXXX00013"]["balance"] == 0
     assert rows["LDXXX00014"]["balance"] == 0
     assert "CWXXX0004" not in rows
+    assert "LDXXX0005" not in rows
     assert rows["CWXXX0005"]["name"] == "熊小小牛排饭-定制大米"
     assert rows["CWXXX0005"]["spec"] == "25kg/袋"
     assert rows["CWXXX0005"]["unit"] == "袋"
@@ -200,6 +203,14 @@ def test_inventory_db_rejects_disabled_packaging_bag(tmp_path, monkeypatch):
         )
         module.upsert_product(
             conn,
+            sku="LDXXX0005",
+            name="熊小小牛排饭-冷冻西兰花（冻）",
+            spec="10kg/箱",
+            unit="件",
+            warehouse="成都易代仓",
+        )
+        module.upsert_product(
+            conn,
             sku="TEST-001",
             name="正常物料",
             spec="1件",
@@ -209,6 +220,7 @@ def test_inventory_db_rejects_disabled_packaging_bag(tmp_path, monkeypatch):
 
     rows = {item["sku"]: item for item in module.inventory_summary()}
     assert "CWXXX0004" not in rows
+    assert "LDXXX0005" not in rows
     assert rows["TEST-001"]["name"] == "正常物料"
 
 

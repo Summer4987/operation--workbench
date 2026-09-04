@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "inventory.sqlite3"
-DISABLED_INVENTORY_SKUS = {"CWXXX0004"}
-DISABLED_INVENTORY_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC"}
+DISABLED_INVENTORY_SKUS = {"CWXXX0004", "LDXXX0005"}
+DISABLED_INVENTORY_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）"}
 
 
 @contextmanager
@@ -72,18 +72,20 @@ def init_db() -> None:
                 FOREIGN KEY(import_file_id) REFERENCES import_files(id)
             );
 
-            CREATE TRIGGER IF NOT EXISTS ignore_disabled_inventory_product_insert
+            DROP TRIGGER IF EXISTS ignore_disabled_inventory_product_insert;
+            CREATE TRIGGER ignore_disabled_inventory_product_insert
             BEFORE INSERT ON products
-            WHEN NEW.sku = 'CWXXX0004'
-              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            WHEN NEW.sku IN ('CWXXX0004', 'LDXXX0005')
+              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             BEGIN
                 SELECT RAISE(IGNORE);
             END;
 
-            CREATE TRIGGER IF NOT EXISTS ignore_disabled_inventory_product_update
+            DROP TRIGGER IF EXISTS ignore_disabled_inventory_product_update;
+            CREATE TRIGGER ignore_disabled_inventory_product_update
             BEFORE UPDATE ON products
-            WHEN NEW.sku = 'CWXXX0004'
-              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            WHEN NEW.sku IN ('CWXXX0004', 'LDXXX0005')
+              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             BEGIN
                 SELECT RAISE(IGNORE);
             END;
@@ -192,8 +194,8 @@ def inventory_summary() -> list[dict]:
                 MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
-            WHERE p.sku NOT IN ('CWXXX0004')
-              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            WHERE p.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             GROUP BY p.sku
             ORDER BY
                 CASE
@@ -229,8 +231,8 @@ def inventory_warning_items(skus: list[str] | set[str] | tuple[str, ...]) -> lis
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
             WHERE p.sku IN ({placeholders})
-              AND p.sku NOT IN ('CWXXX0004')
-              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+              AND p.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             GROUP BY p.sku
             HAVING balance <= p.warning_threshold
             ORDER BY balance ASC, p.sku
@@ -268,8 +270,12 @@ def recent_imports(limit: int = 20) -> list[dict]:
             FROM import_files
             WHERE filename NOT LIKE '%打包袋%'
               AND filename NOT LIKE '%CWXXX0004%'
+              AND filename NOT LIKE '%冷冻西兰花%'
+              AND filename NOT LIKE '%LDXXX0005%'
               AND message NOT LIKE '%打包袋%'
               AND message NOT LIKE '%CWXXX0004%'
+              AND message NOT LIKE '%冷冻西兰花%'
+              AND message NOT LIKE '%LDXXX0005%'
             ORDER BY id DESC
             LIMIT ?
             """,
@@ -294,8 +300,8 @@ def recent_movements(limit: int = 50) -> list[dict]:
                 movements.created_at
             FROM movements
             JOIN import_files ON import_files.id = movements.import_file_id
-            WHERE movements.sku NOT IN ('CWXXX0004')
-              AND movements.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            WHERE movements.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+              AND movements.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             ORDER BY movements.id DESC
             LIMIT ?
             """,
@@ -312,8 +318,8 @@ def delivery_months() -> list[str]:
             FROM movements
             WHERE movement_type = 'outbound'
               AND created_at != ''
-              AND sku NOT IN ('CWXXX0004')
-              AND name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+              AND sku NOT IN ('CWXXX0004', 'LDXXX0005')
+              AND name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             ORDER BY month DESC
             """
         ).fetchall()
@@ -340,8 +346,8 @@ def store_delivery_summary(month: str | None = None) -> list[dict]:
             FROM movements m
             LEFT JOIN products p ON p.sku = m.sku
             WHERE m.movement_type = 'outbound'
-            AND m.sku NOT IN ('CWXXX0004')
-            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             {month_filter}
             GROUP BY store_name, delivery_date, m.sku
             ORDER BY
@@ -418,8 +424,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
                 MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
-            WHERE p.sku NOT IN ('CWXXX0004')
-              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            WHERE p.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             GROUP BY p.sku
             HAVING inbound_quantity > 0 OR outbound_quantity > 0 OR current_balance != 0
             ORDER BY outbound_quantity DESC, inbound_quantity DESC, current_value DESC, p.sku
@@ -436,8 +442,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
                 SUM(m.quantity) AS quantity
             FROM movements m
             WHERE m.movement_type = 'outbound'
-            AND m.sku NOT IN ('CWXXX0004')
-            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             {movement_filter}
             GROUP BY m.sku, destination
             ORDER BY m.sku, quantity DESC
@@ -461,8 +467,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
             FROM movements m
             JOIN import_files f ON f.id = m.import_file_id
             WHERE 1 = 1
-            AND m.sku NOT IN ('CWXXX0004')
-            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC')
+            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）')
             {movement_filter}
             ORDER BY m.id DESC
             LIMIT 40

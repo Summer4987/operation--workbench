@@ -22,6 +22,19 @@ def test_chengdu_order_catalog_removes_rice_skus():
     assert all(item.get("sku") not in removed_skus for item in catalog["items"])
 
 
+def test_chengdu_daily_order_adds_fresh_broccoli_to_kuailv_vegetables():
+    root = Path(__file__).resolve().parents[1]
+    catalog = json.loads((root / "daily-order" / "app" / "catalog.json").read_text(encoding="utf-8"))
+    broccoli = next(item for item in catalog["items"] if item.get("name") == "西兰花")
+
+    assert broccoli["sku"] == "KL-010"
+    assert broccoli["category"] == "蔬菜"
+    assert broccoli["source"] == "快驴配送"
+    assert broccoli["purchase_channel"] == "快驴"
+    assert broccoli["unit"] == "斤"
+    assert (root / broccoli["image"].removeprefix("/")).exists()
+
+
 def test_beijing_daily_order_adds_broccoli_and_spinach_between_potato_and_tomato():
     root = Path(__file__).resolve().parents[1]
     catalog_path = root / "daily-order" / "app" / "catalog-beijing.json"

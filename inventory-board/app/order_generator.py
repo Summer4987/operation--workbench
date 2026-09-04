@@ -22,8 +22,8 @@ SERVER_TEMPLATE_DIR = SERVER_DATA_DIR / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
-DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004"}
-DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC"}
+DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004", "LDXXX0005"}
+DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）"}
 
 
 def _env_path(name: str) -> Path | None:
