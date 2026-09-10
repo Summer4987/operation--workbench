@@ -35,3 +35,13 @@ def test_final_message_always_contains_both_platform_counts():
 
     assert "饿了么：成功；成功 15/15 家" in message
     assert "美团：有失败；成功 11/15 家；失败 4 家（A、B、C、D）" in message
+
+
+def test_expected_tasks_accepts_eleme_scheduled_and_meituan_auto():
+    preview = {
+        "eleme_dinner": [{"store": "饿A", "status": "scheduled"}, {"store": "已停", "status": "disabled"}],
+        "meituan_dinner": [{"store": "美A", "status": "auto"}],
+    }
+
+    assert [item["store"] for item in result.expected_tasks(preview, "eleme", "晚餐")] == ["饿A"]
+    assert [item["store"] for item in result.expected_tasks(preview, "meituan", "晚餐")] == ["美A"]

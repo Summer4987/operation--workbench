@@ -25,7 +25,11 @@ def read_json(path: Path) -> dict[str, Any]:
 def expected_tasks(preview: dict[str, Any], platform: str, period: str) -> list[dict[str, Any]]:
     suffix = "dinner" if period == "晚餐" else "lunch"
     key = f"{platform}_{suffix}"
-    return [item for item in preview.get(key, []) if isinstance(item, dict) and item.get("status") == "auto"]
+    return [
+        item
+        for item in preview.get(key, [])
+        if isinstance(item, dict) and item.get("status") in {"auto", "scheduled"}
+    ]
 
 
 def task_key(item: dict[str, Any], platform: str) -> str:
