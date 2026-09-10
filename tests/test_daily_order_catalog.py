@@ -205,15 +205,19 @@ def test_chengdu_order_catalog_moves_packaging_bag_to_songli_packaging():
     assert item["sku"] == "CJ-044"
 
 
-def test_beijing_order_catalog_routes_packaging_bag_to_songli_group():
+def test_beijing_order_catalog_keeps_only_current_wechat_groups():
     root = Path(__file__).resolve().parents[1]
     catalog = json.loads((root / "daily-order" / "app" / "catalog-beijing.json").read_text(encoding="utf-8"))
-    item = next(item for item in catalog["items"] if item.get("sku") == "CJ-044")
+    by_sku = {item["sku"]: item for item in catalog["items"]}
+    wechat_groups = {item["purchase_channel"] for item in catalog["items"] if "群" in item.get("purchase_channel", "")}
 
-    assert item["name"] == "打包袋"
-    assert item["purchase_channel"] == "颂李包装群"
-    assert item["force_purchase_channel"] is True
-    assert item["vendor_group"] == "A"
+    assert wechat_groups == {"北京大米群", "颂李包装群"}
+    for sku, name in (("CJ-038", "餐盒"), ("CJ-044", "打包袋")):
+        item = by_sku[sku]
+        assert item["name"] == name
+        assert item["purchase_channel"] == "颂李包装群"
+        assert item["force_purchase_channel"] is True
+        assert item["vendor_group"] == "A"
 
 
 def test_store_order_vendor_badge_hides_internal_vendor_name():

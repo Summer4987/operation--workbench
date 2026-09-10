@@ -414,9 +414,9 @@
       "unit": "箱",
       "note": "",
       "image": "/daily-order/static/images/CJ-038.svg",
-      "purchase_channel": "四川鸿鹄微信群",
+      "purchase_channel": "颂李包装群",
       "force_purchase_channel": true,
-      "vendor_group": "B"
+      "vendor_group": "A"
     },
     {
       "sku": "CJ-044",
