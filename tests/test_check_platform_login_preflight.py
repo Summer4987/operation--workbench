@@ -1,6 +1,13 @@
+import subprocess
+from unittest import mock
+
+import scripts.check_platform_login_preflight as preflight
 from scripts.check_platform_login_preflight import (
     ELEME_BUDGET_URL,
     ELEME_REALTIME_URL,
+    MEITUAN_BUDGET_URL,
+    build_notice,
+    check_direct_meituan_accounts,
     classify_page,
     direct_failures_can_be_isolated,
 )
@@ -50,6 +57,44 @@ def test_eleme_group_account_routes_do_not_use_legacy_chain_path():
     assert "/app/unit/" in ELEME_BUDGET_URL
     assert "/app/chain/" not in ELEME_REALTIME_URL
     assert "/app/chain/" not in ELEME_BUDGET_URL
+
+
+def test_meituan_budget_preflight_uses_real_promo_route():
+    assert "ad/v1/rpc" in MEITUAN_BUDGET_URL
+
+
+def test_direct_meituan_preflight_checks_promo_page_and_isolates_timeout():
+    with mock.patch.object(preflight, "direct_accounts_enabled", return_value=["direct_test"]):
+        with mock.patch.object(
+            preflight.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(["checker"], 45),
+        ) as run:
+            results = check_direct_meituan_accounts(1200)
+
+    assert "home,promo_balance" in run.call_args.args[0]
+    assert results[0]["account_id"] == "direct_test"
+    assert results[0]["status"] == "auth_block"
+    assert "登录态检查超过" in results[0]["message"]
+    assert "已按掉线/页面异常处理" in results[0]["message"]
+
+
+def test_login_notice_identifies_direct_account_and_reason():
+    notice = build_notice(
+        "budget",
+        [
+            {
+                "platform": "直营美团",
+                "account_id": "direct_wanxiangcheng",
+                "status": "auth_block",
+                "message": "推广页要求扫码登录",
+            }
+        ],
+        True,
+    )
+
+    assert "直营美团（direct_wanxiangcheng）" in notice
+    assert "推广页要求扫码登录" in notice
 
 
 def test_only_direct_meituan_login_failures_can_continue_to_store_isolation():

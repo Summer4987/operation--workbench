@@ -45,6 +45,8 @@ LOGIN_BLOCKERS = [
 
 ELEME_REALTIME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
 ELEME_BUDGET_URL = "https://melody.shop.ele.me/app/unit/vas__bid#app.unit.vas.bid"
+MEITUAN_BUDGET_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
+MEITUAN_BUDGET_READY_TEXTS = ["点金推广", "推广设置", "推广预算", "每日预算"]
 
 
 def require_playwright():
@@ -120,6 +122,11 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                 url = ELEME_REALTIME_URL
             elif scope == "budget" and key == "eleme":
                 url = ELEME_BUDGET_URL
+            elif scope == "budget" and key == "meituan":
+                url = MEITUAN_BUDGET_URL
+            ready_texts = [str(item) for item in platform.get("ready_texts") or []]
+            if scope == "budget" and key == "meituan":
+                ready_texts = MEITUAN_BUDGET_READY_TEXTS
             try:
                 cdp.goto_backend_page(page, url, timeout=90_000)
                 page.wait_for_timeout(wait_ms)
@@ -129,7 +136,7 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                         page.title(),
                         page.url,
                         page_text(page),
-                        [str(item) for item in platform.get("ready_texts") or []],
+                        ready_texts,
                     )
                 )
             except Exception as exc:
@@ -168,24 +175,33 @@ def check_direct_meituan_accounts(wait_ms: int) -> list[dict[str, Any]]:
             "--account",
             account_id,
             "--pages",
-            "home",
+            "home,promo_balance",
             "--wait-ms",
             str(wait_ms),
         ]
-        completed = subprocess.run(
-            cmd,
-            cwd=ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=max(45, int(wait_ms / 1000) + 45),
-        )
-        output = completed.stdout or ""
+        timeout_seconds = max(45, int(wait_ms / 1000) + 45)
+        try:
+            completed = subprocess.run(
+                cmd,
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=timeout_seconds,
+            )
+            output = completed.stdout or ""
+            status = "ok" if completed.returncode == 0 else "auth_block"
+        except subprocess.TimeoutExpired as exc:
+            output = f"登录态检查超过 {timeout_seconds} 秒，已按掉线/页面异常处理：{exc}"
+            status = "auth_block"
+        except Exception as exc:
+            output = f"登录态检查异常，已按掉线/页面异常处理：{exc}"
+            status = "auth_block"
         results.append(
             {
                 "platform": "直营美团",
                 "account_id": account_id,
-                "status": "ok" if completed.returncode == 0 else "auth_block",
+                "status": status,
                 "message": compact_text(output, 600),
             }
         )
@@ -222,8 +238,15 @@ def build_notice(scope: str, failed: list[dict[str, Any]], continue_on_direct_fa
     ]
     for item in failed[:6]:
         platform = item.get("platform") or item.get("account_id") or "未知平台"
-        blockers = "、".join(item.get("blocking_texts") or []) or item.get("status") or "needs_manual"
-        lines.append(f"- {platform}：{blockers}")
+        account_id = item.get("account_id")
+        label = f"{platform}（{account_id}）" if account_id else platform
+        blockers = (
+            "、".join(item.get("blocking_texts") or [])
+            or compact_text(str(item.get("message") or ""), 160)
+            or item.get("status")
+            or "needs_manual"
+        )
+        lines.append(f"- {label}：{blockers}")
     lines.append("请在 Mac mini 对应 Chrome 页面完成登录、验证码或安全验证后再补跑失败门店。")
     return "\n".join(lines)
 
