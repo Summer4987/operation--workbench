@@ -205,6 +205,17 @@ def test_chengdu_order_catalog_moves_packaging_bag_to_songli_packaging():
     assert item["sku"] == "CJ-044"
 
 
+def test_beijing_order_catalog_routes_packaging_bag_to_songli_group():
+    root = Path(__file__).resolve().parents[1]
+    catalog = json.loads((root / "daily-order" / "app" / "catalog-beijing.json").read_text(encoding="utf-8"))
+    item = next(item for item in catalog["items"] if item.get("sku") == "CJ-044")
+
+    assert item["name"] == "打包袋"
+    assert item["purchase_channel"] == "颂李包装群"
+    assert item["force_purchase_channel"] is True
+    assert item["vendor_group"] == "A"
+
+
 def test_store_order_vendor_badge_hides_internal_vendor_name():
     root = Path(__file__).resolve().parents[1]
     app_js = (root / "daily-order" / "static" / "app.js").read_text(encoding="utf-8")

@@ -427,9 +427,9 @@
       "unit": "袋",
       "note": "",
       "image": "/daily-order/static/images/CJ-044.svg",
-      "purchase_channel": "易代仓微信群",
+      "purchase_channel": "颂李包装群",
       "force_purchase_channel": true,
-      "vendor_group": "C"
+      "vendor_group": "A"
     },
     {
       "sku": "KD-002",
