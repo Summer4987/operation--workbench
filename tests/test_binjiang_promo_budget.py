@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import unittest
 
 
@@ -18,8 +20,8 @@ class BinjiangPromoBudgetTests(unittest.TestCase):
         self.assertEqual(store["shopId"], 545055537)
         self.assertEqual((store["lunchBudget"], store["dinnerBudget"]), (100, 150))
         self.assertEqual(store["elemeFullName"], "熊小小牛排饭POKEBEAR(滨江店)")
-        self.assertIs(store["meituanPromoEnabled"], False)
-        self.assertIn("未开放门店推广入口", store["meituanPromoDisabledReason"])
+        self.assertIsNot(store.get("meituanPromoEnabled"), False)
+        self.assertNotIn("meituanPromoDisabledReason", store)
 
         overrides = json.loads((ROOT / "config" / "promo_budget_overrides.json").read_text(encoding="utf-8"))
         self.assertEqual(overrides["stores"]["滨江店"]["饿了么"]["lunchBudget"], 100)
@@ -36,6 +38,28 @@ class BinjiangPromoBudgetTests(unittest.TestCase):
         self.assertIn('"滨江": ["滨江"]', spend)
         self.assertIn('"滨江店": "熊小小牛排饭POKEBEAR(滨江店)"', preview)
         self.assertIn('"滨江店": "滨江"', preview)
+
+    def test_binjiang_is_an_automatic_meituan_budget_task(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is required to build the promo budget preview")
+        preview_path = ROOT / "outputs" / "promo_budget_preview" / "latest.json"
+        if preview_path.exists():
+            preview_path.unlink()
+
+        subprocess.run(
+            [node, str(ROOT / "scripts" / "build_promo_budget_preview.mjs")],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(preview_path.read_text(encoding="utf-8"))
+        lunch = next(item for item in payload["meituan_lunch"] if item["sourceStore"] == "滨江店")
+        dinner = next(item for item in payload["meituan_dinner"] if item["sourceStore"] == "滨江店")
+
+        self.assertEqual((lunch["status"], lunch["targetBudget"]), ("auto", 100))
+        self.assertEqual((dinner["status"], dinner["targetBudget"]), ("auto", 150))
 
 
 if __name__ == "__main__":
