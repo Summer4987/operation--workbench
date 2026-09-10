@@ -45,8 +45,8 @@ LOGIN_BLOCKERS = [
 
 ELEME_REALTIME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
 ELEME_BUDGET_URL = "https://melody.shop.ele.me/app/unit/vas__bid#app.unit.vas.bid"
-MEITUAN_BUDGET_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc"
-MEITUAN_BUDGET_READY_TEXTS = ["点金推广", "推广设置", "推广预算", "每日预算"]
+MEITUAN_BUDGET_URL = "https://e.waimai.meituan.com/"
+MEITUAN_BUDGET_READY_TEXTS = ["美团外卖商家版", "全部门店", "门店推广"]
 
 
 def require_playwright():

@@ -59,8 +59,9 @@ def test_eleme_group_account_routes_do_not_use_legacy_chain_path():
     assert "/app/chain/" not in ELEME_BUDGET_URL
 
 
-def test_meituan_budget_preflight_uses_real_promo_route():
-    assert "ad/v1/rpc" in MEITUAN_BUDGET_URL
+def test_meituan_budget_login_preflight_uses_headquarters_shell():
+    assert MEITUAN_BUDGET_URL == "https://e.waimai.meituan.com/"
+    assert "--preflight" in open("scripts/run_current_budget.zsh", encoding="utf-8").read()
 
 
 def test_direct_meituan_preflight_checks_promo_page_and_isolates_timeout():
