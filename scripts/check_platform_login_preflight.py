@@ -228,6 +228,12 @@ def build_notice(scope: str, failed: list[dict[str, Any]], continue_on_direct_fa
     return "\n".join(lines)
 
 
+def direct_failures_can_be_isolated(failed: list[dict[str, Any]], continue_on_direct_failure: bool) -> bool:
+    return bool(continue_on_direct_failure and failed) and all(
+        item.get("platform") == "直营美团" for item in failed
+    )
+
+
 def build_payload(scope: str, include_direct: bool, wait_ms: int, platform_filter: str = "") -> dict[str, Any]:
     checks = check_common_platforms(scope, wait_ms, platform_filter)
     if should_check_direct(scope, include_direct):
@@ -276,6 +282,9 @@ def main() -> int:
         print(notice)
         if args.notify:
             notify(notice)
+        if direct_failures_can_be_isolated(payload["failed_checks"], args.continue_on_direct_failure):
+            print("直营美团失败账号已告警，由后续单店预检隔离；总部及其它账号继续。")
+            return 0
         return 66
     return 0
 

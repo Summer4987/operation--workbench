@@ -49,10 +49,13 @@ def test_budget_intermediate_steps_are_not_terminal_and_failures_notify_immediat
 
     assert '${step}完成，继续执行后续步骤。' in text
     assert 'record_task_run "$TASK_ID" success --message "${step}完成。"' not in text
+    assert 'record_task_run "$TASK_ID" failed --message "${step}失败' not in text
     assert "trap finalize_interrupted_budget EXIT" in text
     assert "trap 'exit 143' TERM" in text
-    assert '预算在${CURRENT_TASK_STEP}异常中断' in text
+    assert '任务在${CURRENT_TASK_STEP}异常中断' in text
     assert text.count("notify_task_result") >= 4
+    assert "build_promo_budget_result.py" in text
+    assert '--period "$PERIOD" --since-epoch "$RUN_STARTED_EPOCH" --print-message' in text
 
 
 def test_realtime_runner_preserves_collect_failure_after_followup_failure():
@@ -135,7 +138,7 @@ def test_production_entrypoints_run_login_preflight_before_platform_work():
     realtime_text = REALTIME_SCRIPT.read_text(encoding="utf-8")
 
     assert "--scope budget --platform eleme --notify" in budget_text
-    assert "--scope budget --platform meituan --notify" in budget_text
+    assert "--scope budget --platform meituan --include-direct --continue-on-direct-failure --notify" in budget_text.replace("\\\n", "")
     assert "饿了么预检失败，已隔离跳过；继续执行美团" in budget_text
     assert 'if [[ "$MODE" != "commit" || "$ELEME_LOGIN_OK" -eq 1 ]]; then' in budget_text
     assert 'budget_preflight_args = [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--notify"]' in morning_text
@@ -213,7 +216,7 @@ def test_budget_support_failures_do_not_report_budget_setting_failed():
     assert 'run_support_step "运营总看板发布"' in text
     assert 'run_support_step "推广预算重试策略刷新"' in text
     assert "附属步骤失败（不代表预算设置失败）" in text
-    assert "预算设置成功；附属步骤失败" in text
+    assert "附属步骤失败：" in text
 
 
 def test_inventory_warning_is_installed_as_separate_4pm_notification():

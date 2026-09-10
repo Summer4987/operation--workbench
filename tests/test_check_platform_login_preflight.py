@@ -1,4 +1,9 @@
-from scripts.check_platform_login_preflight import ELEME_BUDGET_URL, ELEME_REALTIME_URL, classify_page
+from scripts.check_platform_login_preflight import (
+    ELEME_BUDGET_URL,
+    ELEME_REALTIME_URL,
+    classify_page,
+    direct_failures_can_be_isolated,
+)
 
 
 def test_eleme_security_center_menu_is_not_auth_block():
@@ -45,3 +50,12 @@ def test_eleme_group_account_routes_do_not_use_legacy_chain_path():
     assert "/app/unit/" in ELEME_BUDGET_URL
     assert "/app/chain/" not in ELEME_REALTIME_URL
     assert "/app/chain/" not in ELEME_BUDGET_URL
+
+
+def test_only_direct_meituan_login_failures_can_continue_to_store_isolation():
+    direct_failed = [{"platform": "直营美团", "status": "auth_block"}]
+    mixed_failed = direct_failed + [{"platform": "美团", "status": "auth_block"}]
+
+    assert direct_failures_can_be_isolated(direct_failed, True)
+    assert not direct_failures_can_be_isolated(direct_failed, False)
+    assert not direct_failures_can_be_isolated(mixed_failed, True)

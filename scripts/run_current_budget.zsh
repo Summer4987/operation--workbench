@@ -7,6 +7,8 @@ ELEME_RUNNER="${ELEME_AUTOMATION_RUNNER:-scripts/run_eleme_automation.zsh}"
 DEPLOY_RUNNER="${WORKBENCH_DEPLOY_RUNNER:-scripts/deploy_workbench_to_cloud.zsh}"
 CHROME_CLEANUP_RUNNER="$ROOT/scripts/cleanup_chrome_tabs.py"
 LOGIN_PREFLIGHT_RUNNER="$ROOT/scripts/check_platform_login_preflight.py"
+PROMO_RESULT_RUNNER="$ROOT/scripts/build_promo_budget_result.py"
+RUN_STARTED_EPOCH="$(date +%s)"
 
 PERIOD="auto"
 MODE="commit"
@@ -100,6 +102,11 @@ notify_task_result() {
   "$PYTHON" "$ROOT/scripts/agent_task_notifier.py" || true
 }
 
+build_promo_result_message() {
+  "$PYTHON" "$PROMO_RESULT_RUNNER" --period "$PERIOD" --since-epoch "$RUN_STARTED_EPOCH" --print-message 2>/dev/null || \
+    echo "${PERIOD}推广预算执行结束，但双平台门店结果汇总生成失败，请查看日志：$RUN_LOG"
+}
+
 finalize_interrupted_budget() {
   local rc=$?
   set +e
@@ -109,8 +116,9 @@ finalize_interrupted_budget() {
     if (( failure_rc == 0 )); then
       failure_rc=1
     fi
+    local result_message="$(build_promo_result_message)"
     record_task_run "$TASK_ID" failed \
-      --message "${PERIOD}预算在${CURRENT_TASK_STEP}异常中断，退出码 ${failure_rc}。" \
+      --message "${result_message}"$'\n'"任务在${CURRENT_TASK_STEP}异常中断，退出码 ${failure_rc}。" \
       --step "$CURRENT_TASK_STEP" --log-path "$RUN_LOG" --returncode "$failure_rc"
     notify_task_result
   fi
@@ -213,7 +221,7 @@ run_budget_step() {
     record_task_run "$TASK_ID" running --message "${step}完成，继续执行后续步骤。" --step "$step" --log-path "$RUN_LOG" --returncode 0
     return 0
   fi
-  record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
+  record_task_run "$TASK_ID" running --message "${step}失败，已记录并继续后续门店/步骤；最终将统一汇总。" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
   FAILED_STEPS+=("$step")
   return "$rc"
 }
@@ -256,7 +264,7 @@ run_required_step() {
     record_task_run "$TASK_ID" running --message "${step}完成，继续执行后续步骤。" --step "$step" --log-path "$RUN_LOG" --returncode 0
     return 0
   fi
-  record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
+  record_task_run "$TASK_ID" running --message "${step}失败，已记录并继续其它平台/步骤；最终将统一汇总。" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
   return "$rc"
 }
 
@@ -317,7 +325,7 @@ if [[ "$MODE" == "commit" ]]; then
     FAILED_STEPS+=("饿了么登录态预检")
     echo "饿了么预检失败，已隔离跳过；继续执行美团。"
   fi
-  if ! run_required_step "美团开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$REPORT_PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --platform meituan --notify; then
+  if ! run_required_step "美团开跑前登录态预检" "${BUDGET_LOGIN_PREFLIGHT_TIMEOUT_SECONDS:-300}" "$REPORT_PYTHON" "$LOGIN_PREFLIGHT_RUNNER" --scope budget --platform meituan --include-direct --continue-on-direct-failure --notify; then
     MEITUAN_LOGIN_OK=0
     FAILED_STEPS+=("美团登录态预检")
     echo "美团预检失败，已隔离跳过；不影响饿了么。"
@@ -431,19 +439,22 @@ echo "完成：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "日志：$RUN_LOG"
 if (( ${#FAILED_STEPS[@]} > 0 )); then
   echo "失败步骤：${(j:、:)FAILED_STEPS}"
-  record_task_run "$TASK_ID" failed --message "${PERIOD}预算失败步骤：${(j:、:)FAILED_STEPS}" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 70
+  PROMO_RESULT_MESSAGE="$(build_promo_result_message)"
+  record_task_run "$TASK_ID" failed --message "${PROMO_RESULT_MESSAGE}"$'\n'"失败步骤：${(j:、:)FAILED_STEPS}" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 70
   TASK_FINALIZED=1
   notify_task_result
   exit 70
 fi
 if (( ${#SUPPORT_FAILED_STEPS[@]} > 0 )); then
   echo "预算设置成功，附属步骤失败：${(j:、:)SUPPORT_FAILED_STEPS}"
+  PROMO_RESULT_MESSAGE="$(build_promo_result_message)"
   record_task_run "$TASK_ID" success \
-    --message "${PERIOD}预算设置成功；附属步骤失败：${(j:、:)SUPPORT_FAILED_STEPS}。" \
+    --message "${PROMO_RESULT_MESSAGE}"$'\n'"附属步骤失败：${(j:、:)SUPPORT_FAILED_STEPS}。" \
     --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0 \
     --extra "support_failures=${(j:、:)SUPPORT_FAILED_STEPS}"
 else
-  record_task_run "$TASK_ID" success --message "${PERIOD}预算全部步骤完成。" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0
+  PROMO_RESULT_MESSAGE="$(build_promo_result_message)"
+  record_task_run "$TASK_ID" success --message "$PROMO_RESULT_MESSAGE" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0
 fi
 TASK_FINALIZED=1
 notify_task_result
