@@ -40,6 +40,19 @@ def test_meituan_budget_isolates_failed_preflight_stores():
     assert '--mode commit --stores "$MEITUAN_PASSED_STORES"' in text
     assert "单店预检失败，已隔离跳过" in text
     assert "没有任何门店通过预检，已跳过真实提交" in text
+    assert "MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-900" in text
+    assert "MEITUAN_BUDGET_PREFLIGHT_RETRIES:-1" in text
+
+
+def test_budget_intermediate_steps_are_not_terminal_and_failures_notify_immediately():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert '${step}完成，继续执行后续步骤。' in text
+    assert 'record_task_run "$TASK_ID" success --message "${step}完成。"' not in text
+    assert "trap finalize_interrupted_budget EXIT" in text
+    assert "trap 'exit 143' TERM" in text
+    assert '预算在${CURRENT_TASK_STEP}异常中断' in text
+    assert text.count("notify_task_result") >= 4
 
 
 def test_realtime_runner_preserves_collect_failure_after_followup_failure():

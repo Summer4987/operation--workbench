@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import re
+import signal
 import time
 from pathlib import Path
 from urllib.error import URLError
@@ -32,6 +34,7 @@ MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 INPUT_RETRY_ATTEMPTS = int(os.environ.get("MEITUAN_BUDGET_INPUT_RETRY_ATTEMPTS", "3"))
 STORE_RETRY_ATTEMPTS = int(os.environ.get("MEITUAN_BUDGET_STORE_RETRY_ATTEMPTS", "2"))
 PROMO_ENTRY_LOAD_TIMEOUT_SECONDS = int(os.environ.get("MEITUAN_PROMO_ENTRY_LOAD_TIMEOUT_SECONDS", "90"))
+STORE_HARD_TIMEOUT_SECONDS = int(os.environ.get("MEITUAN_BUDGET_STORE_HARD_TIMEOUT_SECONDS", "240"))
 
 WM_POI_IDS = {
     "第3档口": "30703865",
@@ -170,6 +173,28 @@ def classify_failure(message: str) -> str:
     if "timeout" in body.lower() or "超时" in body:
         return "timeout"
     return "execution_failed"
+
+
+@contextmanager
+def store_hard_timeout(task: dict):
+    """Stop one stuck store from preventing every later store from running."""
+    seconds = max(0, STORE_HARD_TIMEOUT_SECONDS)
+    if seconds == 0 or not hasattr(signal, "SIGALRM"):
+        yield
+        return
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def raise_timeout(_signum, _frame):
+        keyword = task.get("keyword") or task.get("store") or "未知门店"
+        raise TimeoutError(f"单店执行超时：{keyword}，超过 {seconds} 秒")
+
+    signal.signal(signal.SIGALRM, raise_timeout)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def store_slug(task: dict) -> str:
@@ -1293,6 +1318,32 @@ def write_run_log(output: Path, period: str, requested_period: str, mode: str, r
     )
 
 
+def write_preflight_result(output: Path, period: str, results: list[dict]) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(
+            {
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "period": period,
+                "successfulKeywords": [item.get("keyword") for item in results if item.get("ok") and item.get("keyword")],
+                "failed": [
+                    {
+                        "keyword": item.get("keyword"),
+                        "store": item.get("store"),
+                        "failure_type": item.get("failure_type") or "execution_failed",
+                        "error": item.get("error") or item.get("message") or "",
+                    }
+                    for item in results
+                    if not item.get("ok") and not item.get("skipped")
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", default="auto", choices=["auto", "午餐", "晚餐"])
@@ -1339,9 +1390,10 @@ def main() -> int:
                     account_id = task.get("directMeituanAccountId") or ""
                     account_label = f" [{account_id}]" if account_id else ""
                     print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
-                    context = context_for_task(playwright, contexts, launched_contexts, task, direct_accounts)
-                    task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
-                    result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
+                    with store_hard_timeout(task):
+                        context = context_for_task(playwright, contexts, launched_contexts, task, direct_accounts)
+                        task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
+                        result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
                     results.append(result)
                     if not result.get("ok"):
                         print(
@@ -1361,6 +1413,8 @@ def main() -> int:
                     print(f"失败：{task.get('keyword')}：{exc}", flush=True)
                 finally:
                     write_run_log(partial_output, period, args.period, args.mode, results, partial=True, preflight=args.preflight)
+                    if args.preflight_result_output:
+                        write_preflight_result(Path(args.preflight_result_output).expanduser(), period, results)
         finally:
             for context in launched_contexts:
                 try:
@@ -1370,30 +1424,7 @@ def main() -> int:
 
     write_run_log(output, period, args.period, args.mode, results, partial=False, preflight=args.preflight)
     if args.preflight_result_output:
-        preflight_result_path = Path(args.preflight_result_output).expanduser()
-        preflight_result_path.parent.mkdir(parents=True, exist_ok=True)
-        preflight_result_path.write_text(
-            json.dumps(
-                {
-                    "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "period": period,
-                    "successfulKeywords": [item.get("keyword") for item in results if item.get("ok") and item.get("keyword")],
-                    "failed": [
-                        {
-                            "keyword": item.get("keyword"),
-                            "store": item.get("store"),
-                            "failure_type": item.get("failure_type") or "execution_failed",
-                            "error": item.get("error") or item.get("message") or "",
-                        }
-                        for item in results
-                        if not item.get("ok") and not item.get("skipped")
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            ) + "\n",
-            encoding="utf-8",
-        )
+        write_preflight_result(Path(args.preflight_result_output).expanduser(), period, results)
     ok_count = sum(1 for item in results if item.get("ok"))
     skipped_count = sum(1 for item in results if item.get("skipped"))
     fail_count = sum(1 for item in results if not item.get("ok") and not item.get("skipped"))

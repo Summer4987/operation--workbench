@@ -88,12 +88,37 @@ cleanup_chrome_sessions() {
   "$PYTHON" "$CHROME_CLEANUP_RUNNER" || true
 }
 
-trap 'cleanup_chrome_sessions "== 预算任务退出时 Chrome 会话清理 ==" ' EXIT
-
 TASK_ID="growth.promo_budget"
+TASK_STARTED=0
+TASK_FINALIZED=0
+CURRENT_TASK_STEP="预算初始化"
 record_task_run() {
   "$PYTHON" "$ROOT/scripts/record_task_run.py" "$@" || true
 }
+
+notify_task_result() {
+  "$PYTHON" "$ROOT/scripts/agent_task_notifier.py" || true
+}
+
+finalize_interrupted_budget() {
+  local rc=$?
+  set +e
+  cleanup_chrome_sessions "== 预算任务退出时 Chrome 会话清理 =="
+  if (( TASK_STARTED == 1 && TASK_FINALIZED == 0 )); then
+    local failure_rc="$rc"
+    if (( failure_rc == 0 )); then
+      failure_rc=1
+    fi
+    record_task_run "$TASK_ID" failed \
+      --message "${PERIOD}预算在${CURRENT_TASK_STEP}异常中断，退出码 ${failure_rc}。" \
+      --step "$CURRENT_TASK_STEP" --log-path "$RUN_LOG" --returncode "$failure_rc"
+    notify_task_result
+  fi
+}
+
+trap finalize_interrupted_budget EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 CURRENT_HOUR="$(date +%H)"
 CURRENT_MINUTE="$(date +%M)"
@@ -117,6 +142,7 @@ echo "数量：$LIMIT"
 echo "允许窗口：${ALLOWED_WINDOW_LABEL}"
 cleanup_chrome_sessions "== 预算任务开始前 Chrome 会话清理 =="
 record_task_run "$TASK_ID" running --message "${PERIOD}预算执行开始。" --step "${PERIOD}预算初始化" --log-path "$RUN_LOG"
+TASK_STARTED=1
 FAILED_STEPS=()
 SUPPORT_FAILED_STEPS=()
 ELEME_LOGIN_OK=1
@@ -176,6 +202,7 @@ run_budget_step() {
   local seconds="$2"
   local attempts="$3"
   shift 3
+  CURRENT_TASK_STEP="$step"
   record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
   local rc=0
   set +e
@@ -183,7 +210,7 @@ run_budget_step() {
   rc=$?
   set -e
   if (( rc == 0 )); then
-    record_task_run "$TASK_ID" success --message "${step}完成。" --step "$step" --log-path "$RUN_LOG" --returncode 0
+    record_task_run "$TASK_ID" running --message "${step}完成，继续执行后续步骤。" --step "$step" --log-path "$RUN_LOG" --returncode 0
     return 0
   fi
   record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
@@ -196,6 +223,7 @@ run_support_step() {
   local seconds="$2"
   local attempts="$3"
   shift 3
+  CURRENT_TASK_STEP="$step"
   record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
   local rc=0
   set +e
@@ -217,6 +245,7 @@ run_required_step() {
   local step="$1"
   local seconds="$2"
   shift 2
+  CURRENT_TASK_STEP="$step"
   record_task_run "$TASK_ID" running --message "${step}开始。" --step "$step" --log-path "$RUN_LOG"
   local rc=0
   set +e
@@ -224,7 +253,7 @@ run_required_step() {
   rc=$?
   set -e
   if (( rc == 0 )); then
-    record_task_run "$TASK_ID" success --message "${step}完成。" --step "$step" --log-path "$RUN_LOG" --returncode 0
+    record_task_run "$TASK_ID" running --message "${step}完成，继续执行后续步骤。" --step "$step" --log-path "$RUN_LOG" --returncode 0
     return 0
   fi
   record_task_run "$TASK_ID" failed --message "${step}失败，查看日志：$RUN_LOG" --step "$step" --log-path "$RUN_LOG" --returncode "$rc"
@@ -333,7 +362,7 @@ elif [[ "$MODE" == "commit" ]]; then
   MEITUAN_PREFLIGHT_RESULT="$ROOT/outputs/current_budget/meituan_preflight_${PERIOD}.json"
   /bin/rm -f "$MEITUAN_PREFLIGHT_RESULT"
   set +e
-  run_with_retry "美团${PERIOD}预算提交前预检" "${MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-1800}" "${MEITUAN_BUDGET_PREFLIGHT_RETRIES:-3}" \
+  run_with_retry "美团${PERIOD}预算提交前预检" "${MEITUAN_BUDGET_PREFLIGHT_TIMEOUT_SECONDS:-900}" "${MEITUAN_BUDGET_PREFLIGHT_RETRIES:-1}" \
     "$REPORT_PYTHON" store-inspection/meituan_budget_cdp.py --period "$PERIOD" --mode preview --limit "$LIMIT" --preflight \
     --preflight-result-output "$MEITUAN_PREFLIGHT_RESULT"
   MEITUAN_PREFLIGHT_RC=$?
@@ -358,9 +387,9 @@ PY
   fi
   if [[ -n "$MEITUAN_PASSED_STORES" ]]; then
     if (( MEITUAN_PREFLIGHT_RC == 0 )); then
-      record_task_run "$TASK_ID" success --message "美团${PERIOD}预算提交前预检全部通过。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode 0
+      record_task_run "$TASK_ID" running --message "美团${PERIOD}预算提交前预检全部通过，继续真实提交。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode 0
     else
-      record_task_run "$TASK_ID" success --message "美团${PERIOD}预算提交前预检部分通过；失败门店已隔离，其余继续。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode 0
+      record_task_run "$TASK_ID" running --message "美团${PERIOD}预算提交前预检部分通过；失败门店已隔离，其余继续真实提交。" --step "美团${PERIOD}预算提交前预检" --log-path "$RUN_LOG" --returncode 0
     fi
     echo
     echo "执行美团${PERIOD}预算真实提交（仅预检通过门店）..."
@@ -403,6 +432,8 @@ echo "日志：$RUN_LOG"
 if (( ${#FAILED_STEPS[@]} > 0 )); then
   echo "失败步骤：${(j:、:)FAILED_STEPS}"
   record_task_run "$TASK_ID" failed --message "${PERIOD}预算失败步骤：${(j:、:)FAILED_STEPS}" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 70
+  TASK_FINALIZED=1
+  notify_task_result
   exit 70
 fi
 if (( ${#SUPPORT_FAILED_STEPS[@]} > 0 )); then
@@ -414,3 +445,5 @@ if (( ${#SUPPORT_FAILED_STEPS[@]} > 0 )); then
 else
   record_task_run "$TASK_ID" success --message "${PERIOD}预算全部步骤完成。" --step "${PERIOD}预算汇总" --log-path "$RUN_LOG" --returncode 0
 fi
+TASK_FINALIZED=1
+notify_task_result

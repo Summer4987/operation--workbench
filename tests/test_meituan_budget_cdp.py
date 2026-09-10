@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import signal
 import sys
 import types
 import unittest
@@ -175,6 +176,14 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                     self.module.resolve_default_base_url(),
                     self.module.MEITUAN_PROMO_FALLBACK_URL,
                 )
+
+    def test_store_hard_timeout_is_classified_as_timeout(self) -> None:
+        task = {"keyword": "卡住门店"}
+        with mock.patch.object(self.module, "STORE_HARD_TIMEOUT_SECONDS", 1):
+            with self.assertRaisesRegex(TimeoutError, "单店执行超时：卡住门店"):
+                with self.module.store_hard_timeout(task):
+                    signal.pause()
+        self.assertEqual(self.module.classify_failure("单店执行超时"), "timeout")
 
     def test_base_url_for_non_direct_task_prefers_current_cdp_page(self) -> None:
         current_url = "https://waimaieapp.meituan.com/ad/v1/rpc?token=abc&acctId=123"
