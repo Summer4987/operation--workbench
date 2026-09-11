@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -146,11 +148,22 @@ def main() -> int:
     parser.add_argument("--since-epoch", type=float, required=True)
     parser.add_argument("--output", default=str(OUTPUT_PATH))
     parser.add_argument("--print-message", action="store_true")
+    parser.add_argument("--record", action="store_true", help="把真实结果写入预算任务账本，不执行预算")
+    parser.add_argument("--log-path", default="")
     args = parser.parse_args()
     payload = build_result(args.period, args.since_epoch)
     output = Path(args.output).expanduser()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if args.record:
+        subprocess.run([
+            sys.executable, str(ROOT / "scripts" / "record_task_run.py"),
+            "growth.promo_budget", payload["status"],
+            "--message", payload["message"],
+            "--step", f"{args.period}推广预算双平台汇总",
+            "--log-path", args.log_path or str(output),
+            "--returncode", "0" if payload["status"] == "success" else "1",
+        ], check=True, timeout=30)
     if args.print_message:
         print(payload["message"])
     else:

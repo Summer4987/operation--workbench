@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 from datetime import datetime
 import json
 import re
@@ -459,7 +460,10 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     pending_signatures: dict[str, str] = {}
     now_sent = dict(sent)
 
+    selected_ids = set(getattr(args, "task_id", None) or [])
     for task_id, task in sorted(task_candidates.items()):
+        if selected_ids and task_id not in selected_ids:
+            continue
         if not isinstance(task, dict):
             continue
         if task_id not in policy_rows and not args.include_unconfigured and not task_id.startswith("schedule."):
@@ -543,6 +547,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="按任务完成状态向 Hermes 微信发送自动化结果通知")
+    parser.add_argument("--task-id", action="append", help="仅发送指定任务，可重复传入")
     parser.add_argument("--runs", default=str(DEFAULT_RUNS_PATH), help="任务运行状态 JSON")
     parser.add_argument("--state", default=str(DEFAULT_STATE_PATH), help="去重状态文件")
     parser.add_argument("--log", default=str(DEFAULT_LOG_PATH), help="最近一次通知器运行日志")
@@ -560,7 +565,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    payload = notify(args)
+    # The scheduler and task-finalization hooks share deduplication state.
+    lock_path = Path(args.state).expanduser().with_suffix(".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("通知器正在运行，待发送结果由当前进程或下次定时检查处理。")
+            return 0
+        payload = notify(args)
     if args.seed:
         print(f"已记录当前任务状态，未发送历史通知：{len(payload['sent'])} 个任务。")
     else:

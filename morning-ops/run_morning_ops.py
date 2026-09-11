@@ -348,6 +348,36 @@ def refresh_final_status() -> None:
             print(f"{label}失败，已跳过：{exc}", file=sys.stderr, flush=True)
 
 
+def publish_budget_result(period: str, since_epoch: float, log_path: Path) -> bool:
+    """Record business results independently from the collection task."""
+    try:
+        result = subprocess.run([
+            sys.executable, str(WORKSPACE / "scripts" / "build_promo_budget_result.py"),
+            "--period", period, "--since-epoch", str(since_epoch),
+            "--record", "--log-path", str(log_path),
+        ], cwd=WORKSPACE, timeout=60)
+        if result.returncode:
+            print("预算结果汇总写入失败，将在收尾重试。", file=sys.stderr, flush=True)
+        return result.returncode == 0
+    except Exception as exc:
+        print(f"预算结果汇总失败：{exc}", file=sys.stderr, flush=True)
+        return False
+
+
+def flush_result_notifications(*task_ids: str) -> None:
+    """Deliver now; persisted signatures retain failed sends for scheduled retry."""
+    try:
+        result = subprocess.run(
+            [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER),
+             *[part for task_id in task_ids for part in ("--task-id", task_id)]],
+            cwd=WORKSPACE, timeout=90,
+        )
+        if result.returncode:
+            print("结果通知发送器异常，保留账本供定时重试。", file=sys.stderr, flush=True)
+    except Exception as exc:
+        print(f"结果通知未完成，保留待发送记录：{exc}", file=sys.stderr, flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="运营一键采集")
     parser.add_argument(
@@ -369,6 +399,8 @@ def main() -> int:
     )
     args = parser.parse_args()
     with morning_ops_lock(args.source):
+        run_started_epoch = time.time()
+        budget_result_recorded = False
         log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
         budget_period = resolve_budget_period(args.budget_period)
         budget_time = BUDGET_PERIODS[budget_period]["time"]
@@ -511,6 +543,8 @@ def main() -> int:
                 )
                 if result.returncode != 0:
                     add_failure(failures, f"美团{budget_period}预算", result)
+                budget_result_recorded = publish_budget_result(budget_period, run_started_epoch, log_path)
+                flush_result_notifications("growth.promo_budget")
                 run_step(
                     "上午推广低余额通知",
                     [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER), "--promo-balance-period", "上午"],
@@ -573,6 +607,12 @@ def main() -> int:
             )
             refresh_final_status()
             return 1
+
+        finally:
+            if args.mode == "commit":
+                if not budget_result_recorded:
+                    publish_budget_result(budget_period, run_started_epoch, log_path)
+                flush_result_notifications("growth.promo_budget", TASK_ID)
 
 
 if __name__ == "__main__":
