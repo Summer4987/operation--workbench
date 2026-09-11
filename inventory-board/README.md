@@ -108,65 +108,15 @@ http://139.155.148.169/order-submit?token=xiongxiaoxiao-order
 
 ## 门店提交通知
 
-服务器支持 Mac mini 普通微信自动发送、Hermes、企业微信或飞书机器人通知。生产环境要把“熊小小日配订货”生成的 Excel 直接发到普通微信群时，推荐让 Mac mini 从云端拉取新 Excel，再通过已登录的本机微信窗口搜索群名并发送。这样普通微信登录态和附件文件都在 Mac mini 本地，不依赖企业微信 webhook。
+日配订单普通微信群自动投递已于 2026-09-11 取消，不再定时发送、重试或发送该任务的失败提醒。安装器会自动卸载旧任务；已有生产环境可单独执行：
 
 ```bash
-sudo nano /etc/inventory-board.env
+/bin/zsh scripts/uninstall_daily_order_wechat_delivery.zsh
 ```
 
-云端不再推企业微信时，移除 `ORDER_NOTIFY_WEBHOOK` 或把通知类型改成不使用 webhook。Mac mini 上先把历史文件标记为基线，避免首次安装时群发旧单：
+门店下单、扣减库存、生成 Excel 表格和企业微信推送维持原流程。保留历史订单文件、投递状态和日志供核对，不补发历史队列。普通微信 GUI/Hermes 投递脚本仅保留为历史工具，不再作为生产任务使用。
 
-```bash
-python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --init-baseline
-```
-
-之后由 Mac mini 定时运行。正式排程是 09:00 到 20:00 之间每个整点和半点检查一次最近 20 个订单；20:00 后到第二天 09:00 前的新订单会在第二天 09:00 统一补发：
-
-```bash
-python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py \
-  --sender wechat-gui \
-  --target 熊小小牛排饭-易代仓仓储配送群
-```
-
-默认发送到：
-
-```text
-熊小小牛排饭-易代仓仓储配送群
-```
-
-可选环境/参数：
-
-```text
---hermes-bin /Users/summer/.local/bin/hermes
---sender wechat-gui
---wechat-gui-bin /Users/summer/HermesPrivate/bin/wechat_gui_sender.py
---target 熊小小牛排饭-易代仓仓储配送群
---state-path ~/HermesPrivate/state/daily_order_hermes_delivery.json
-```
-
-`wechat-gui` 发送方式需要 Mac mini 已登录微信，并且运行脚本的进程具备 macOS“辅助功能”权限。可先做健康检查：
-
-```bash
-python3 inventory-board/scripts/wechat_gui_sender.py --health-check --json
-```
-
-如果只想做健康检查、不真实发群，临时加：
-
-```bash
-python3 inventory-board/scripts/deliver_order_outputs_with_hermes.py --sender wechat-gui --dry-run
-```
-
-发送失败时不会标记为已发送，下次排程会继续重试。兜底手动补发目录：
-
-```text
-~/Desktop/库存管理/出库记录
-```
-
-发送日志目录：
-
-```text
-~/HermesPrivate/logs/daily_order_hermes_delivery
-```
+企业微信配置仍使用 `/etc/inventory-board.env`，不要移除 `ORDER_NOTIFY_WEBHOOK`。
 
 企业微信机器人新增：
 
