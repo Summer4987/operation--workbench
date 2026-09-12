@@ -209,6 +209,20 @@
         "weekendLunchBudget": 80,
         "weekendDinnerBudget": 120
       }
+    },
+    "万松园店": {
+      "饿了么": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150,
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 120
+      },
+      "美团": {
+        "lunchBudget": 100,
+        "dinnerBudget": 150,
+        "weekendLunchBudget": 80,
+        "weekendDinnerBudget": 120
+      }
     }
   }
 }
