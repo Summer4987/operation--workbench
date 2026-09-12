@@ -486,3 +486,18 @@ def test_meituan_realtime_switch_diagnostics_includes_control_state():
 
     assert "今日实时" in diagnostics
     assert "ant-radio-button-wrapper-checked" in diagnostics
+
+
+def test_wansongyuan_platform_records_are_included_and_missing_platform_is_reported():
+    records = [build_api_record({
+        "shopName": "熊小小牛排饭POKEBEAR（万松园店）",
+        "valid_ord_cnt": 12,
+        "营业收入": 240,
+    }, platform, "test") for platform in ("美团", "饿了么")]
+    assert all(record and record["store"] == "万松园" for record in records)
+    payload = build_payload(records, [])
+    store = next(row for row in payload["stores"] if row["store"] == "万松园")
+    assert store["orders"] == 24
+    assert set(store["platforms"]) == {"美团", "饿了么"}
+    partial = build_payload(records[:1], [])
+    assert {"platform": "饿了么", "store": "万松园"} in partial["missing"]

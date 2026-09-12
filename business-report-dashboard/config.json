@@ -9,9 +9,20 @@
     "光谷",
     "五一广场",
     "望京",
-    "滨江店"
+    "滨江店",
+    "万松园店"
   ],
   "store_aliases": [
+    {
+      "platform": "饿了么",
+      "short_name": "万松园店",
+      "aliases": ["万松园", "万松园店"]
+    },
+    {
+      "platform": "美团",
+      "short_name": "万松园店",
+      "aliases": ["万松园", "万松园店"]
+    },
     {
       "platform": "饿了么",
       "short_name": "安贞",
