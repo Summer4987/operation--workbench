@@ -189,10 +189,8 @@ run_with_retry() {
   local exit_status=0
   while (( attempt <= attempts )); do
     echo "${label}：第 ${attempt}/${attempts} 次执行..."
-    set +e
-    run_with_timeout "$seconds" "$@"
-    exit_status=$?
-    set -e
+    exit_status=0
+    run_with_timeout "$seconds" "$@" || exit_status=$?
     if (( exit_status == 0 )); then
       return 0
     fi

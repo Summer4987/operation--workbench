@@ -468,6 +468,20 @@ def open_headquarters_budget_page(context, task: dict):
     raise RuntimeError(f"总部账号已切到分门店 {selected}，但门店推广预算页没有加载")
 
 
+def hide_promo_invitation_overlay(page) -> None:
+    """Hide only the marketing invitation locally, without accepting or declining it."""
+    for frame in page.frames:
+        frame.evaluate("""() => {
+            for (const overlay of document.querySelectorAll('[class*="backdrop_"]')) {
+                const text = overlay.innerText || '';
+                if (text.includes('站外推广活动邀请您参加')
+                    && text.includes('放弃资格') && text.includes('立即领取')) {
+                    overlay.style.setProperty('display', 'none', 'important');
+                }
+            }
+        }""")
+
+
 def enter_dianjin(page) -> None:
     text = ""
     # The headquarters promo iframe can remain blank while its parent shell
@@ -480,6 +494,8 @@ def enter_dianjin(page) -> None:
         time.sleep(1)
     if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
         return
+    hide_promo_invitation_overlay(page)
+    dismiss_common_modals(page)
     if not click_visible_text(page, "点金推广"):
         raise RuntimeError("没有可见的点金推广入口")
     for _ in range(15):

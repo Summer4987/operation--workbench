@@ -20,7 +20,7 @@ def test_current_budget_does_not_read_step_rc_after_fi():
     assert "if run_with_timeout \"$seconds\" \"$@\"; then" not in text
     assert "if run_with_retry \"$step\" \"$seconds\" \"$attempts\" \"$@\"; then" not in text
 
-    assert "run_with_timeout \"$seconds\" \"$@\"\n    exit_status=$?" in text
+    assert 'run_with_timeout "$seconds" "$@" || exit_status=$?' in text
     assert "run_with_retry \"$step\" \"$seconds\" \"$attempts\" \"$@\"\n  rc=$?" in text
     assert "run_with_timeout \"$seconds\" \"$@\"\n  rc=$?" in text
 
@@ -225,3 +225,22 @@ def test_inventory_warning_is_installed_as_separate_4pm_notification():
     assert 'run_inventory_warning_daily.zsh' in installer
     assert 'write_plist "com.summer.operation.inventory-warning-daily" 16 0' in installer
     assert 'scripts/send_inventory_warning_daily.py' in installer
+
+
+def test_retry_failure_preserves_caller_errexit_for_partial_preflight():
+    import subprocess
+
+    source = SCRIPT.read_text(encoding="utf-8")
+    retry = source.split("run_with_retry() {", 1)[1].split("\nrun_budget_step()", 1)[0]
+    script = '''set -e
+run_with_timeout() { return 1; }
+run_with_retry() {''' + retry + '''
+set +e
+run_with_retry preflight 1 1 false
+rc=$?
+set -e
+print "continue-passed-stores:$rc"
+'''
+    result = subprocess.run(["/bin/zsh", "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "continue-passed-stores:1" in result.stdout
