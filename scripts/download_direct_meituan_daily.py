@@ -109,6 +109,32 @@ def cdp_available(debug_port: int) -> bool:
         return False
 
 
+def hide_report_marketing_invitation(page) -> None:
+    """Hide the known invitation locally; never accept or decline an offer."""
+    page.evaluate("""() => {
+        for (const overlay of document.querySelectorAll('[class*="backdrop_"]')) {
+            const text = overlay.innerText || '';
+            if (text.includes('站外推广活动邀请您参加')
+                && text.includes('放弃资格') && text.includes('立即领取')) {
+                overlay.style.setProperty('display', 'none', 'important');
+            }
+        }
+    }""")
+
+
+def click_report_navigation(page, locator) -> None:
+    hide_report_marketing_invitation(page)
+    try:
+        locator.click(timeout=15_000)
+    except Exception as exc:
+        # The invitation can arrive asynchronously after the initial check.
+        # Retry only an intercepted click, retaining normal actionability checks.
+        if "intercepts pointer events" not in str(exc):
+            raise
+        hide_report_marketing_invitation(page)
+        locator.click(timeout=15_000)
+
+
 def goto_report_page(page, account: dict):
     # The outer Meituan shell injects acctId/wmPoiId/token only after entering
     # 经营分析 -> 报表下载. Reuse that initialized iframe when it already exists.
@@ -130,12 +156,12 @@ def goto_report_page(page, account: dict):
         analysis = page.locator("text=经营分析")
         if analysis.count() == 0:
             raise RuntimeError("直营美团外层后台没有找到“经营分析”，登录态可能已失效。")
-        analysis.first.click(timeout=15_000)
+        click_report_navigation(page, analysis.first)
         page.wait_for_timeout(2500)
         report_download = page.get_by_text("报表下载", exact=True)
         if report_download.count() == 0:
             raise RuntimeError("直营美团外层后台没有找到“报表下载”入口。")
-        report_download.first.click(timeout=15_000)
+        click_report_navigation(page, report_download.first)
         page.wait_for_timeout(9000)
     frame = meituan_report_frame(page)
     if not report_params_ready(page, frame):

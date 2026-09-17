@@ -38,6 +38,31 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.module = load_module()
 
+    def test_navigation_recovers_late_invitation_without_forced_click(self) -> None:
+        page = mock.Mock()
+        locator = mock.Mock()
+        locator.click.side_effect = [RuntimeError("backdrop intercepts pointer events"), None]
+        with mock.patch.object(self.module, "hide_report_marketing_invitation") as hide:
+            self.module.click_report_navigation(page, locator)
+        self.assertEqual(hide.call_count, 2)
+        self.assertEqual(locator.click.call_args_list, [mock.call(timeout=15_000)] * 2)
+
+    def test_navigation_preserves_unrelated_errors(self) -> None:
+        page = mock.Mock()
+        locator = mock.Mock()
+        locator.click.side_effect = RuntimeError("Target page has been closed")
+        with mock.patch.object(self.module, "hide_report_marketing_invitation"), self.assertRaisesRegex(RuntimeError, "closed"):
+            self.module.click_report_navigation(page, locator)
+        locator.click.assert_called_once()
+
+    def test_navigation_stops_if_unknown_overlay_remains(self) -> None:
+        page = mock.Mock()
+        locator = mock.Mock()
+        locator.click.side_effect = RuntimeError("unknown modal intercepts pointer events")
+        with mock.patch.object(self.module, "hide_report_marketing_invitation"), self.assertRaisesRegex(RuntimeError, "unknown modal"):
+            self.module.click_report_navigation(page, locator)
+        self.assertEqual(locator.click.call_count, 2)
+
     def test_report_generation_maintenance_is_temporary(self) -> None:
         result = {"success": False, "code": 100045, "message": "维护中"}
         self.assertTrue(self.module.report_generation_temporarily_unavailable(result))
