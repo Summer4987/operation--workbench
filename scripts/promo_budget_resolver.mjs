@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+
+const temporaryAdjustments = JSON.parse(readFileSync(new URL("../config/promo_budget_temporary.json", import.meta.url), "utf8"));
+
 export function canonicalStoreName(storeName) {
   const text = String(storeName || "").trim();
   return /第13档口|熙悦美食城|熙悦|丽泽/.test(text) ? "丽泽门店" : text;
@@ -247,6 +251,9 @@ export function buildWeekendPreset(config, dateContext = budgetDateContext()) {
         : `${name}已配置但未启用，当前不会改变任何门店预算。`
       : "周末预设待配置，当前不会改变任何门店预算。";
   return {
+    temporary_adjustment: temporaryAdjustments.adjustments.find((item) =>
+      item.enabled === true && dateContext.date >= item.startDate && dateContext.date <= item.endDate
+    ) || null,
     enabled,
     configured,
     enabled_setting: enabledSetting,
@@ -272,10 +279,17 @@ export function buildWeekendPreset(config, dateContext = budgetDateContext()) {
 }
 
 export function applyWeekendPresetIfNeeded(budget, period, resolution, weekendPreset) {
-  if (!weekendPreset?.enabled || resolution?.source_type !== "default") return budget;
-  const multiplier = period === "午餐" ? weekendPreset.lunch_multiplier : weekendPreset.dinner_multiplier;
-  const roundTo = weekendPreset.round_to > 0 ? weekendPreset.round_to : 1;
-  const minBudget = Math.max(0, weekendPreset.min_budget || 0);
-  const adjusted = Math.max(minBudget, Number(budget || 0) * multiplier);
-  return Math.round(adjusted / roundTo) * roundTo;
+  let adjusted = Number(budget || 0);
+  if (weekendPreset?.enabled && resolution?.source_type === "default") {
+    const multiplier = period === "午餐" ? weekendPreset.lunch_multiplier : weekendPreset.dinner_multiplier;
+    const roundTo = weekendPreset.round_to > 0 ? weekendPreset.round_to : 1;
+    adjusted = Math.round(Math.max(weekendPreset.min_budget || 0, adjusted * multiplier) / roundTo) * roundTo;
+  }
+  const temporary = weekendPreset?.temporary_adjustment;
+  if (temporary && ["午餐", "晚餐"].includes(period)) {
+    const multiplier = Number(period === "午餐" ? temporary.lunchMultiplier : temporary.dinnerMultiplier);
+    if (!Number.isFinite(multiplier) || multiplier <= 0) throw new Error("临时预算倍率必须为正数");
+    adjusted = Math.round(adjusted * multiplier);
+  }
+  return adjusted;
 }

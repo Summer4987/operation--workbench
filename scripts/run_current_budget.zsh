@@ -274,6 +274,7 @@ prepare_budget_node_runtime() {
     "dianjin-prototype/rules.js" \
     "dianjin-prototype/logic.js" \
     "config/promo_budget_overrides.json" \
+    "config/promo_budget_temporary.json" \
     "config/direct_meituan_accounts.json"; do
     if [ ! -r "$NODE_RUNTIME_ROOT/$relative" ]; then
       missing+=("$relative")

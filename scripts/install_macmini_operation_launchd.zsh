@@ -556,6 +556,7 @@ mkdir -p \
 /bin/cp "$SOURCE_ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
 /bin/cp "$SOURCE_ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
 /bin/cp "$SOURCE_ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
+/bin/cp "$SOURCE_ROOT/config/promo_budget_temporary.json" "$NODE_RUNTIME_ROOT/config/promo_budget_temporary.json"
 /bin/cp "$SOURCE_ROOT/config/direct_meituan_accounts.json" "$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
 
 cat > "$SCRIPT_DIR/run_evening_budget.zsh" <<EOF

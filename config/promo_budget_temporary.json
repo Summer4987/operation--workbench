@@ -1,0 +1,12 @@
+{
+  "adjustments": [
+    {
+      "enabled": true,
+      "name": "2026中秋三天临时预算70%",
+      "startDate": "2026-09-25",
+      "endDate": "2026-09-27",
+      "lunchMultiplier": 0.7,
+      "dinnerMultiplier": 0.7
+    }
+  ]
+}
