@@ -99,7 +99,7 @@ def read_remote_ssh() -> dict:
     if ":" not in SSH_SOURCE:
         raise RuntimeError(f"SSH 来源格式错误：{SSH_SOURCE}")
     host, path = SSH_SOURCE.split(":", 1)
-    command = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+    command = ["ssh", "-n", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
     if SSH_IDENTITY.is_file():
         command += ["-i", str(SSH_IDENTITY)]
     command += [host, "cat", path]
