@@ -5,12 +5,14 @@ const start=source.indexOf('          // Recheck spend immediately');
 const end=source.indexOf('          const checkbox',start);
 assert.ok(start>0 && end>start);
 const guard=new Function('row','targetRow','textOf','rowText',source.slice(start,end));
-const check=(spend,target=35,type='budget')=>guard({type,targetBudget:target,store:'test',shopId:1},{querySelectorAll:()=>[null,null,null,null,null,{text:spend}]},x=>x.text,'row');
-assert.equal(check('35'),undefined);
-assert.equal(check('35.01').skipped,true);
-assert.equal(check('34.99'),undefined);
+const check=(spend,target=42,type='budget')=>guard({type,targetBudget:target,store:'test',shopId:1},{querySelectorAll:()=>[null,null,null,null,null,{text:spend}]},x=>x.text,'row');
+assert.equal(check('42'),undefined);
+assert.equal(check('42.01').skipped,true);
+assert.equal(check('41.99'),undefined);
 assert.equal(check('').ok,false);
 assert.equal(check('unknown').ok,false);
 assert.equal(check('1,000',900).skipped,true);
 assert.equal(check('100',35,'bid'),undefined);
 console.log('Live spend guard tests passed');
+
+assert.equal(check('10',35).skipped,true);

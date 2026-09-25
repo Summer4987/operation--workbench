@@ -1109,6 +1109,11 @@ async function runExecutionPreview(config, args) {
           const rowText = textOf(targetRow).slice(0, 1000);
           // Recheck spend immediately before saving a lower daily budget.
           if (row.type === 'budget') {
+            if (Number(row.targetBudget) < 40) {
+              return { ok: true, skipped: true, saved: false, store: row.store, shopId: row.shopId,
+                type: row.type, targetBudget: row.targetBudget, rowText,
+                message: '目标预算低于平台最低40元，保留原预算，下一时段再按预设执行' };
+            }
             const spendCell = targetRow.querySelectorAll('td')[5];
             const spendText = spendCell ? textOf(spendCell).replace(/,/g, '') : '';
             const todaySpend = Number(spendText);
