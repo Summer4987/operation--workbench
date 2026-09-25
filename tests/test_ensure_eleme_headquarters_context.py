@@ -36,3 +36,21 @@ class ExpectedShopIdsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ModernContextTest(unittest.TestCase):
+    def test_modern_brand_region_shop_and_all(self):
+        from unittest.mock import Mock, patch
+        from scripts.ensure_eleme_headquarters_context import choose_context
+        brand = '/ACCOUNT_ROOT:6152949092/BRAND_ROOT:93331264'
+        region = brand + '__RC_CASCADER_SPLIT__' + brand + '/BRANCH:95560305'
+        for target in ['524321320', '93331264']:
+            page = Mock()
+            group, option = Mock(), Mock()
+            group.get_attribute.return_value = brand
+            page.locator.return_value.evaluate_all.return_value = [region]
+            visible = [None, group, option] if target == '93331264' else [None, group, None, option]
+            with patch('scripts.ensure_eleme_headquarters_context.open_switcher'), patch('scripts.ensure_eleme_headquarters_context.visible_locator', side_effect=visible):
+                choose_context(page, '93331264__RC_CASCADER_SPLIT__' + target, '**/expected/**')
+            group.click.assert_called_once()
+            option.click.assert_called_once()
+            page.wait_for_url.assert_called_once_with('**/expected/**', timeout=30000)

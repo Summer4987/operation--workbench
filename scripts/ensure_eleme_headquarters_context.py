@@ -89,11 +89,31 @@ def choose_context(page, value: str, expected_url_pattern: str) -> None:
     # nationwide group in the left column first so its store options are
     # actually populated in the right column.
     group = visible_locator(page.locator(f'li[data-value="{GROUP_ID}"]'))
+    modern = group is None
+    if modern:
+        group = visible_locator(page.locator(f'li[data-value$="/BRAND_ROOT:{GROUP_ID}"]'))
     if group is None:
         raise RuntimeError(f"门店切换器没有找到全国集团：{GROUP_ID}")
+    group_value = group.get_attribute("data-value")
     group.click()
     page.wait_for_timeout(700)
-    option = visible_locator(page.locator(f'li[data-value="{value}"]'))
+    if modern:
+        target_id = value.rsplit("__RC_CASCADER_SPLIT__", 1)[-1]
+        if target_id == GROUP_ID:
+            option = visible_locator(page.locator(f'li[data-value="{group_value}__RC_CASCADER_SPLIT__{group_value}:all"]'))
+        else:
+            option = visible_locator(page.locator(f'li[data-value$="/SHOP:{target_id}"]'))
+            regions = page.locator('li[data-value]').evaluate_all(
+                "els => els.map(x => x.getAttribute('data-value')).filter(v => /\\/BRANCH:\\d+$/.test(v))"
+            )
+            for region in regions:
+                if option is not None:
+                    break
+                page.locator(f'li[data-value="{region}"]').click()
+                page.wait_for_timeout(700)
+                option = visible_locator(page.locator(f'li[data-value$="/SHOP:{target_id}"]'))
+    else:
+        option = visible_locator(page.locator(f'li[data-value="{value}"]'))
     if option is None:
         raise RuntimeError(f"门店切换器没有找到上下文：{value}")
     option.click()
