@@ -994,6 +994,13 @@ def confirm_budget_with_recovery(page, target: float, target_url: str = "") -> t
 
 def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight: bool = False) -> dict:
     target = float(task["targetBudget"])
+    if target < 50:
+        return {
+            "store": task.get("store"), "keyword": task.get("keyword"),
+            "targetBudget": target, "ok": True, "skipped": True,
+            "failure_type": "below_platform_minimum",
+            "message": f"目标预算{target:g}元低于平台最低50元，保留原预算，下一时段再按预设执行。",
+        }
     try:
         wm_id = wm_poi_id(task)
     except RuntimeError:

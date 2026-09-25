@@ -1107,6 +1107,21 @@ async function runExecutionPreview(config, args) {
             return { ok: false, store: row.store, shopId: row.shopId, error };
           }
           const rowText = textOf(targetRow).slice(0, 1000);
+          // Recheck spend immediately before saving a lower daily budget.
+          if (row.type === 'budget') {
+            const spendCell = targetRow.querySelectorAll('td')[5];
+            const spendText = spendCell ? textOf(spendCell).replace(/,/g, '') : '';
+            const todaySpend = Number(spendText);
+            if (!spendText || !Number.isFinite(todaySpend)) {
+              return { ok: false, store: row.store, shopId: row.shopId, error: '无法识别今日花费，保留原预算', saved: false };
+            }
+            if (todaySpend > Number(row.targetBudget)) {
+              return { ok: true, skipped: true, saved: false, store: row.store, shopId: row.shopId,
+                type: row.type, targetBudget: row.targetBudget, todaySpend, rowText,
+                message: '今日花费超过目标预算，保留原预算，下一时段再按预设执行' };
+            }
+          }
+
           const checkbox = targetRow.querySelector('input[type="checkbox"]');
           if (!checkbox) return { ok: false, store: row.store, shopId: row.shopId, rowText, error: '没有找到行选择框' };
           if (!checkbox.checked) {
