@@ -14,7 +14,8 @@ URL = os.environ.get("PROMO_BUDGET_OVERRIDES_URL", "http://139.155.148.169/api/p
 COPY_PATH = os.environ.get("PROMO_BUDGET_OVERRIDES_COPY_PATH", "").strip()
 AUTH_USERNAME = os.environ.get("PROMO_BUDGET_AUTH_USERNAME", os.environ.get("OPERATION_AUTH_USERNAME", "summer"))
 AUTH_PASSWORD = os.environ.get("PROMO_BUDGET_AUTH_PASSWORD", os.environ.get("INVENTORY_PASSWORD", ""))
-SSH_SOURCE = os.environ.get("PROMO_BUDGET_OVERRIDES_SSH_SOURCE", "").strip()
+SSH_SOURCE = os.environ.get("PROMO_BUDGET_OVERRIDES_SSH_SOURCE", "ubuntu@139.155.148.169:/opt/inventory-board/data/promo_budget_overrides.json").strip()
+SSH_IDENTITY = Path(os.environ.get("OPERATION_CLOUD_IDENTITY_FILE", str(Path.home() / ".ssh/xiong_operation_cloud_ed25519")))
 
 
 def canonical_store_name(name: str) -> str:
@@ -98,8 +99,12 @@ def read_remote_ssh() -> dict:
     if ":" not in SSH_SOURCE:
         raise RuntimeError(f"SSH 来源格式错误：{SSH_SOURCE}")
     host, path = SSH_SOURCE.split(":", 1)
+    command = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+    if SSH_IDENTITY.is_file():
+        command += ["-i", str(SSH_IDENTITY)]
+    command += [host, "cat", path]
     result = subprocess.run(
-        ["ssh", "-o", "ConnectTimeout=8", host, "cat", path],
+        command,
         check=True,
         capture_output=True,
         text=True,
