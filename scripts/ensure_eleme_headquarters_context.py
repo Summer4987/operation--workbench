@@ -73,6 +73,8 @@ def has_visible_switcher(page) -> bool:
 
 
 def open_switcher(page):
+    if visible_locator(page.locator(f'li[data-value="{GROUP_ID}"], li[data-value$="/BRAND_ROOT:{GROUP_ID}"]')) is not None:
+        return
     switchers = page.locator('div[class*="shopSwitcher"]')
     switchers.first.wait_for(state="visible", timeout=45_000)
     switcher = visible_locator(switchers)
