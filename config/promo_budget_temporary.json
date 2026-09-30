@@ -7,6 +7,14 @@
       "endDate": "2026-09-27",
       "lunchMultiplier": 0.7,
       "dinnerMultiplier": 0.7
+    },
+    {
+      "enabled": true,
+      "name": "2026国庆七天沿用上周末预算70%",
+      "startDate": "2026-10-01",
+      "endDate": "2026-10-07",
+      "lunchMultiplier": 0.7,
+      "dinnerMultiplier": 0.7
     }
   ]
 }
