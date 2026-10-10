@@ -22,8 +22,8 @@ SERVER_TEMPLATE_DIR = SERVER_DATA_DIR / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
-DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004", "LDXXX0005"}
-DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）"}
+DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004", "LDXXX0005", "LDXXX0006"}
+DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）", "熊小小牛排饭-冷冻菠菜（冻）", "冷冻菠菜段", "熊小小牛排饭-冷冻菠菜段（冻）"}
 
 
 def _env_path(name: str) -> Path | None:
@@ -85,7 +85,6 @@ FIXED_CUSTOMERS = [
 
 PRODUCT_ALIAS_OVERRIDES = {
     "熊小小牛排饭-冷冻西兰花（冻）": ("西兰花", "西蓝花"),
-    "熊小小牛排饭-冷冻菠菜（冻）": ("菠菜",),
     "熊小小牛排饭-牛五花牛排（冻）": ("牛五花", "五花"),
     "熊小小牛排饭-调理鸡胸肉（冻）": ("鸡胸", "鸡胸肉"),
     "熊小小牛排饭-调理手枪腿（冻）": ("手枪腿", "鸡腿"),
