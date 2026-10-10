@@ -4,7 +4,7 @@ import os
 import re
 import shutil
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -22,6 +22,7 @@ SERVER_TEMPLATE_DIR = SERVER_DATA_DIR / "templates"
 LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
+PRODUCT_SPEC_OVERRIDES = {"LDXXX0003": "15kg/箱", "LDXXX00013": "15kg/箱"}
 DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004", "LDXXX0005", "LDXXX0006"}
 DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）", "熊小小牛排饭-冷冻菠菜（冻）", "冷冻菠菜段", "熊小小牛排饭-冷冻菠菜段（冻）"}
 
@@ -137,6 +138,7 @@ def load_catalogs(template_path: Path = TEMPLATE_PATH) -> tuple[list[Product], l
 
     workbook = load_workbook(template_path, data_only=True)
     products = _merge_products(_load_products(workbook), _load_project_catalog_products())
+    products = [replace(p, spec=PRODUCT_SPEC_OVERRIDES.get(p.sku, p.spec)) for p in products]
     customers = _merge_customers(_fixed_customers(), _load_customers(workbook))
     if not products:
         raise OrderParseError("模板里没有读到货品信息")

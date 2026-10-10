@@ -122,6 +122,8 @@ def upsert_product(
     if _is_disabled_inventory_product(sku=sku, name=name):
         prune_disabled_inventory_products(conn)
         return
+    if sku in {"LDXXX0003", "LDXXX00013"}:
+        spec = "15kg/箱"
     existing = conn.execute("SELECT sku, name, spec, unit, warehouse, unit_cost FROM products WHERE sku = ?", (sku,)).fetchone()
     parsed_cost = _to_float(unit_cost)
     if existing:
@@ -129,7 +131,7 @@ def upsert_product(
             """
             UPDATE products
             SET name = CASE WHEN name = '' OR name = sku THEN COALESCE(NULLIF(?, ''), name) ELSE name END,
-                spec = CASE WHEN spec = '' THEN COALESCE(NULLIF(?, ''), spec) ELSE spec END,
+                spec = CASE WHEN sku IN ('LDXXX0003', 'LDXXX00013') OR spec = '' THEN COALESCE(NULLIF(?, ''), spec) ELSE spec END,
                 unit = CASE WHEN unit = '' THEN COALESCE(NULLIF(?, ''), unit) ELSE unit END,
                 warehouse = CASE WHEN warehouse = '' THEN COALESCE(NULLIF(?, ''), warehouse) ELSE warehouse END,
                 unit_cost = CASE WHEN ? > 0 THEN ? ELSE unit_cost END,
