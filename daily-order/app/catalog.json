@@ -1,6 +1,6 @@
 {
   "source_file": "日常订货sku.xlsx",
-  "updated_at": "2026-09-04",
+  "updated_at": "2026-10-10",
   "stores": [
     "银泰城店",
     "万象城店",
@@ -61,6 +61,17 @@
       "unit": "斤",
       "note": "",
       "image": "/daily-order/static/images/KL-010.svg",
+      "purchase_channel": "快驴"
+    },
+    {
+      "sku": "KL-010B",
+      "source": "快驴配送",
+      "category": "蔬菜",
+      "name": "菠菜",
+      "spec": "",
+      "unit": "斤",
+      "note": "",
+      "image": "/daily-order/static/images/KL-010B.svg",
       "purchase_channel": "快驴"
     },
     {
