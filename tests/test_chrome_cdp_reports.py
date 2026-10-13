@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,6 +30,50 @@ class ChromeCdpReportsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.module = load_module()
+
+    def run_paid_field_metadata(self, metadata):
+        frame = mock.Mock()
+        self.module.meituan_customer_paid_field(frame)
+        javascript = frame.evaluate.call_args.args[0]
+        harness = """
+const metadata = """ + json.dumps(metadata, ensure_ascii=False) + """;
+global.performance = {getEntriesByType: () => [{name: 'https://example.test/gw/bizdata/report/download/tab?acctId=test&wmPoiId=-1'}]};
+global.fetch = async (url, options) => {
+  if (new URL(url).pathname !== '/gw/bizdata/report/data') throw Error('wrong endpoint');
+  if (options.method !== 'POST' || new URLSearchParams(options.body).get('type') !== '1') throw Error('wrong report type');
+  return {json: async () => metadata};
+};
+(""" + javascript + """)().then(value => process.stdout.write(JSON.stringify({value}))).catch(error => process.stdout.write(JSON.stringify({error: error.message})));
+"""
+        result = subprocess.run(['/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node', '-e', harness], text=True, capture_output=True, check=True)
+        return json.loads(result.stdout)
+
+    def test_store_metadata_selects_total_paid_not_average_or_no_coupon(self):
+        result = self.run_paid_field_metadata({'success': True, 'data': {'modules': [{'list': [
+            {'id': 32319, 'name': '顾客实付（不含券）'},
+            {'id': 12033, 'name': '实付单均价'},
+            {'id': 12031, 'name': '顾客实付'},
+        ]}]}})
+        self.assertEqual(result, {'value': '12031'})
+
+    def test_missing_total_paid_does_not_substitute_other_metric(self):
+        result = self.run_paid_field_metadata({'success': True, 'data': {'modules': [{'list': [
+            {'id': 32319, 'name': '顾客实付（不含券）'},
+            {'id': 12033, 'name': '实付单均价'},
+        ]}]}})
+        self.assertIn('缺少顾客实付总额', result['error'])
+
+    def test_maintenance_metadata_preserves_download_fallback(self):
+        self.assertEqual(self.run_paid_field_metadata({'success': False, 'code': 100045, 'message': '维护中'}), {'value': None})
+
+    def test_old_report_without_paid_column_is_not_accepted_as_new_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'report.csv'
+            path.write_text('日期,营业收入,有效订单\n20261012,1539.99,57\n', encoding='gb18030')
+            with self.assertRaisesRegex(RuntimeError, '未包含顾客实付'):
+                self.module.validate_meituan_customer_paid_file(path)
+            path.write_text('日期,营业收入,有效订单,顾客实付\n20261012,1539.99,57,1800\n', encoding='gb18030')
+            self.module.validate_meituan_customer_paid_file(path)
 
     def test_meituan_report_date_ignores_export_timestamp(self):
         matches = self.module.meituan_report_name_matches_target

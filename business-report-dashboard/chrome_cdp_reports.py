@@ -967,6 +967,42 @@ def download_meituan_latest(target_date: str | None = None) -> Path:
         disconnect_browser(playwright, browser)
 
 
+def meituan_customer_paid_field(frame) -> str | None:
+    """Read store-report metadata, keeping the inclusive total-paid metric."""
+    return frame.evaluate(
+        """async () => {
+          const tabUrl = performance.getEntriesByType('resource')
+            .map(entry => entry.name)
+            .find(url => url.includes('/gw/bizdata/report/download/tab'));
+          if (!tabUrl) throw new Error('没有拿到美团报表参数');
+          const url = new URL(tabUrl);
+          url.pathname = '/gw/bizdata/report/data';
+          const body = new URLSearchParams({
+            type: '1', acctId: url.searchParams.get('acctId') || '',
+            wmPoiId: url.searchParams.get('wmPoiId') || '-1',
+            poiType: '1', ignoreSetRouterProxy: 'true'
+          });
+          const response = await fetch(url.toString(), {
+            method: 'POST', credentials: 'include',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: body.toString()
+          });
+          const metadata = await response.json();
+          if (!metadata.success) {
+            if (String(metadata.code) === '100045' || String(metadata.message || '').includes('维护中')) return null;
+            throw new Error('美团门店报表字段读取失败：' + (metadata.message || metadata.code));
+          }
+          const names = ['顾客实付', '顾客实付总额', '顾客实付金额', '顾客实际支付', '顾客支付'];
+          const items = (metadata.data?.modules || []).flatMap(module => module.list || []);
+          for (const name of names) {
+            const field = items.find(item => item.name === name && item.id != null);
+            if (field) return String(field.id);
+          }
+          throw new Error('美团门店报表缺少顾客实付总额字段，停止导出不完整报表');
+        }"""
+    )
+
+
 def generate_meituan_report(target_date: str) -> None:
     config = load_config()
     fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
@@ -976,59 +1012,15 @@ def generate_meituan_report(target_date: str) -> None:
         page = reusable_page(context)
         goto_backend_page(page, "https://waimaieapp.meituan.com/bizdata_pc/report/download")
         page.wait_for_timeout(9000)
-        result = page.evaluate(
-            """async ({ targetDate, fields }) => {
-              const findField = (value, keywords) => {
-                const stack = [value];
-                const seen = new Set();
-                const candidates = [];
-                while (stack.length) {
-                  const item = stack.pop();
-                  if (!item || typeof item !== 'object' || seen.has(item)) continue;
-                  seen.add(item);
-                  const label = [
-                    item.name, item.title, item.label, item.fieldName, item.showName,
-                    item.cnName, item.displayName, item.text, item.desc,
-                    ...Object.values(item).filter((part) => typeof part === 'string' || typeof part === 'number')
-                  ].filter(Boolean).join(' ');
-                  if (keywords.some((keyword) => label.includes(keyword))) {
-                    const id = item.id ?? item.fieldId ?? item.field ?? item.fieldCode ?? item.fieldKey ??
-                      item.columnId ?? item.metricId ?? item.reportFieldId ?? item.key ?? item.dataIndex ??
-                      item.value ?? item.code;
-                    if (id !== undefined && id !== null && String(id).trim()) {
-                      const score =
-                        (label.includes('顾客实付') ? 100 : 0) +
-                        (label.includes('顾客支付') ? 90 : 0) +
-                        (label.includes('实付金额') ? 80 : 0) +
-                        (label.includes('用户实付') ? 70 : 0) +
-                        (label.includes('订单实付') ? 60 : 0) +
-                        (label.includes('实付') ? 30 : 0) -
-                        (label.includes('单均') ? 50 : 0);
-                      candidates.push({ id: String(id).trim(), label, score });
-                    }
-                  }
-                  if (Array.isArray(item)) {
-                    for (const child of item) stack.push(child);
-                  } else {
-                    for (const child of Object.values(item)) {
-                      if (child && typeof child === 'object') stack.push(child);
-                    }
-                  }
-                }
-                candidates.sort((a, b) => b.score - a.score || a.label.length - b.label.length);
-                return candidates[0]?.id || null;
-              };
+        frame = meituan_report_frame(page)
+        customer_paid_field = meituan_customer_paid_field(frame)
+        result = frame.evaluate(
+            """async ({ targetDate, fields, customerPaidField }) => {
               const tabUrl = performance.getEntriesByType('resource')
                 .map((entry) => entry.name)
                 .find((url) => url.includes('/gw/bizdata/report/download/tab'));
               if (!tabUrl) throw new Error('没有拿到美团报表参数');
               const url = new URL(tabUrl);
-              const tabResponse = await fetch(tabUrl, { credentials: 'include' });
-              const tabData = await tabResponse.json();
-              const customerPaidField = findField(tabData, [
-                '顾客实付总额', '顾客实付', '顾客实付金额', '顾客实际支付', '顾客支付',
-                '用户实付', '用户支付', '订单实付', '实付金额', '实付'
-              ]);
               const fieldSet = new Set(fields.split(',').map((field) => field.trim()).filter(Boolean));
               if (customerPaidField) fieldSet.add(customerPaidField);
               const finalFields = Array.from(fieldSet).join(',');
@@ -1059,7 +1051,7 @@ def generate_meituan_report(target_date: str) -> None:
               result.finalFields = finalFields;
               return result;
             }""",
-            {"targetDate": target_date, "fields": fields},
+            {"targetDate": target_date, "fields": fields, "customerPaidField": customer_paid_field},
         )
         if not result.get("success"):
             raise RuntimeError(f"美团生成报表失败：{result}")
@@ -1070,12 +1062,21 @@ def generate_meituan_report(target_date: str) -> None:
         disconnect_browser(playwright, browser)
 
 
+def validate_meituan_customer_paid_file(path: Path) -> None:
+    with path.open(encoding="gb18030", newline="") as report:
+        columns = next(csv.reader(report), [])
+    if not any(name in columns for name in ("顾客实付", "顾客实付总额", "顾客实付金额", "顾客实际支付", "顾客支付")):
+        raise RuntimeError("美团下载报表未包含顾客实付字段，等待新报表生成")
+
+
 def wait_for_meituan_report(target_date: str, timeout_seconds: int = 180) -> Path:
     deadline = time.time() + timeout_seconds
     last_error: Exception | None = None
     while time.time() < deadline:
         try:
-            return download_meituan_latest(target_date)
+            path = download_meituan_latest(target_date)
+            validate_meituan_customer_paid_file(path)
+            return path
         except Exception as exc:
             last_error = exc
             time.sleep(10)

@@ -19,7 +19,7 @@ if Path(WORKING_NODE).exists():
     os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
 
 sys.path.insert(0, str(ROOT / "business-report-dashboard"))
-from chrome_cdp_reports import date_with_dashes, meituan_history, meituan_report_frame, safe_filename  # noqa: E402
+from chrome_cdp_reports import validate_meituan_customer_paid_file, meituan_customer_paid_field, date_with_dashes, meituan_history, meituan_report_frame, safe_filename  # noqa: E402
 from check_direct_meituan_account import MAC_CHROME, load_account, resolve_browser_executable  # noqa: E402
 
 
@@ -212,59 +212,14 @@ def report_generation_temporarily_unavailable(result: dict) -> bool:
 def generate_report(page, account: dict, target_date: str) -> bool:
     fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
     frame = goto_report_page(page, account)
+    customer_paid_field = meituan_customer_paid_field(frame)
     result = frame.evaluate(
-        """async ({ targetDate, fields }) => {
-          const findField = (value, keywords) => {
-            const stack = [value];
-            const seen = new Set();
-            const candidates = [];
-            while (stack.length) {
-              const item = stack.pop();
-              if (!item || typeof item !== 'object' || seen.has(item)) continue;
-              seen.add(item);
-              const label = [
-                item.name, item.title, item.label, item.fieldName, item.showName,
-                item.cnName, item.displayName, item.text, item.desc,
-                ...Object.values(item).filter((part) => typeof part === 'string' || typeof part === 'number')
-              ].filter(Boolean).join(' ');
-              if (keywords.some((keyword) => label.includes(keyword))) {
-                const id = item.id ?? item.fieldId ?? item.field ?? item.fieldCode ?? item.fieldKey ??
-                  item.columnId ?? item.metricId ?? item.reportFieldId ?? item.key ?? item.dataIndex ??
-                  item.value ?? item.code;
-                if (id !== undefined && id !== null && String(id).trim()) {
-                  const score =
-                    (label.includes('顾客实付') ? 100 : 0) +
-                    (label.includes('顾客支付') ? 90 : 0) +
-                    (label.includes('实付金额') ? 80 : 0) +
-                    (label.includes('用户实付') ? 70 : 0) +
-                    (label.includes('订单实付') ? 60 : 0) +
-                    (label.includes('实付') ? 30 : 0) -
-                    (label.includes('单均') ? 50 : 0);
-                  candidates.push({ id: String(id).trim(), label, score });
-                }
-              }
-              if (Array.isArray(item)) {
-                for (const child of item) stack.push(child);
-              } else {
-                for (const child of Object.values(item)) {
-                  if (child && typeof child === 'object') stack.push(child);
-                }
-              }
-            }
-            candidates.sort((a, b) => b.score - a.score || a.label.length - b.label.length);
-            return candidates[0]?.id || null;
-          };
+        """async ({ targetDate, fields, customerPaidField }) => {
           const tabUrl = performance.getEntriesByType('resource')
             .map((entry) => entry.name)
             .find((url) => url.includes('/gw/bizdata/report/download/tab'));
           if (!tabUrl) throw new Error('没有拿到美团报表参数');
           const url = new URL(tabUrl);
-          const tabResponse = await fetch(tabUrl, { credentials: 'include' });
-          const tabData = await tabResponse.json();
-          const customerPaidField = findField(tabData, [
-            '顾客实付总额', '顾客实付', '顾客实付金额', '顾客实际支付', '顾客支付',
-            '用户实付', '用户支付', '订单实付', '实付金额', '实付'
-          ]);
           const fieldSet = new Set(fields.split(',').map((field) => field.trim()).filter(Boolean));
           if (customerPaidField) fieldSet.add(customerPaidField);
           const finalFields = Array.from(fieldSet).join(',');
@@ -295,7 +250,7 @@ def generate_report(page, account: dict, target_date: str) -> bool:
           result.finalFields = finalFields;
           return result;
         }""",
-        {"targetDate": target_date, "fields": fields},
+        {"targetDate": target_date, "fields": fields, "customerPaidField": customer_paid_field},
     )
     if not result.get("success") and report_generation_temporarily_unavailable(result):
         print(f"直营美团报表生成接口暂不可用，继续尝试下载中心已有报表：{result}")
@@ -391,13 +346,15 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
             default=context.pages[0] if context.pages else context.new_page(),
         )
         try:
-            if submit:
-                generate_report(page, account, target_date)
+            generated = generate_report(page, account, target_date) if submit else False
             deadline = time.time() + wait_seconds
             last_error: Exception | None = None
             while time.time() < deadline:
                 try:
-                    return download_latest(page, context, account, target_date)
+                    path = download_latest(page, context, account, target_date)
+                    if generated:
+                        validate_meituan_customer_paid_file(path)
+                    return path
                 except Exception as exc:
                     if "缺少 acctId/wmPoiId/token 参数" in str(exc):
                         raise

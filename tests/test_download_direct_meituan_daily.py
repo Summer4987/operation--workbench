@@ -63,6 +63,14 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
             self.module.click_report_navigation(page, locator)
         self.assertEqual(locator.click.call_count, 2)
 
+    def test_generation_passes_store_customer_paid_field_to_export(self):
+        frame = mock.Mock()
+        frame.evaluate.return_value = {'success': True, 'customerPaidField': '12031'}
+        with mock.patch.object(self.module, 'goto_report_page', return_value=frame), mock.patch.object(self.module, 'meituan_customer_paid_field', return_value='12031'):
+            self.assertTrue(self.module.generate_report(mock.Mock(), {}, '20261012'))
+        self.assertEqual(frame.evaluate.call_args.args[1]['customerPaidField'], '12031')
+        self.assertIn('fieldSet.add(customerPaidField)', frame.evaluate.call_args.args[0])
+
     def test_report_generation_maintenance_is_temporary(self) -> None:
         result = {"success": False, "code": 100045, "message": "维护中"}
         self.assertTrue(self.module.report_generation_temporarily_unavailable(result))
