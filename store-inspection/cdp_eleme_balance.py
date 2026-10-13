@@ -55,7 +55,14 @@ def parse_shop_rows(payload: dict) -> list[dict]:
         if not store_name:
             continue
         shop_id = row.get("shopId") or detail.get("shopId") or ""
-        balance = yuan_from_cents(balance_cents)
+        # Missing or malformed API amounts must not become a confirmed zero.
+        try:
+            cents = float(balance_cents)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(cents):
+            continue
+        balance = yuan_from_cents(cents)
         items.append(
             {
                 "platform": "饿了么",
@@ -64,6 +71,7 @@ def parse_shop_rows(payload: dict) -> list[dict]:
                 "balance": balance,
                 "status": "warning" if balance < THRESHOLD else "normal",
                 "source": "Chrome CDP接口读取",
+                "confirmed_zero": cents == 0,
             }
         )
     return items

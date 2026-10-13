@@ -32,6 +32,18 @@ class CdpElemeBalanceTests(unittest.TestCase):
             self.assertIs(self.module.open_leaf_balance_detail(mock.Mock()), frame)
         wait.assert_called_once_with(mock.ANY, frame, "分店账户", timeout_seconds=30)
 
+    def test_api_zero_is_confirmed_but_missing_or_invalid_is_not_zero(self):
+        payload = {'result': [
+            {'shopName': '零余额店', 'adBalance': {'detail': {'balance': 0}}},
+            {'shopName': '未返回余额店', 'adBalance': {}},
+            {'shopName': '错误余额店', 'adBalance': {'balance': 'invalid'}},
+            {'shopName': '非数值店', 'adBalance': {'balance': 'NaN'}},
+        ]}
+        items = self.module.parse_shop_rows(payload)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['balance'], 0)
+        self.assertTrue(items[0]['confirmed_zero'])
+
     def test_parse_dom_balance_rows(self) -> None:
         items = self.module.parse_dom_balance_rows(
             [
