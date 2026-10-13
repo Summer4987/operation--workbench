@@ -186,7 +186,9 @@ def open_leaf_balance_detail(page):
     except Exception:
         pass
 
-    body = frame.locator("body").inner_text(timeout=10_000)
+    # The iframe exists before React has rendered its account tabs.
+    # Wait for the tab instead of treating an empty/loading body as a missing entry.
+    frame, body = wait_for_account_frame_text(page, frame, "分店账户", timeout_seconds=30)
     if "分店账户明细及转账" in body:
         return frame
 

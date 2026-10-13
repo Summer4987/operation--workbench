@@ -29,6 +29,12 @@ class ChromeCdpReportsTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.module = load_module()
 
+    def test_meituan_report_date_ignores_export_timestamp(self):
+        matches = self.module.meituan_report_name_matches_target
+        self.assertFalse(matches("门店_全部门店_20261011_20261011_xxx_2026-10-12+08_13_29.csv", "20261012"))
+        self.assertTrue(matches("门店_全部门店_20261012_20261012_xxx_2026-10-13+08_13_29.csv", "20261012"))
+        self.assertFalse(matches("门店_全部门店_20261011_20261012_xxx.csv", "20261012"))
+
     def test_process_reports_without_explicit_inputs_auto_discovers_daily_files(self) -> None:
         with mock.patch.object(self.module.subprocess, "run") as run:
             self.module.process_reports()

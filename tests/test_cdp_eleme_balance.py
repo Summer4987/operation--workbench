@@ -4,6 +4,7 @@ import importlib.util
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -24,6 +25,12 @@ class CdpElemeBalanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.module = load_module()
+
+    def test_waits_for_account_tabs_before_reading_entry(self):
+        frame = mock.Mock()
+        with mock.patch.object(self.module, "find_account_frame", return_value=frame), mock.patch.object(self.module, "click_exact_text"), mock.patch.object(self.module, "wait_for_account_frame_text", return_value=(frame, "分店账户明细及转账")) as wait:
+            self.assertIs(self.module.open_leaf_balance_detail(mock.Mock()), frame)
+        wait.assert_called_once_with(mock.ANY, frame, "分店账户", timeout_seconds=30)
 
     def test_parse_dom_balance_rows(self) -> None:
         items = self.module.parse_dom_balance_rows(

@@ -927,6 +927,16 @@ def wait_for_eleme_report(target_date: str, timeout_seconds: int = 180) -> Path:
     raise TimeoutError(f"等待饿了么报表超时：{last_error}")
 
 
+def meituan_report_name_matches_target(name: str, target_date: str) -> bool:
+    """Match the report range, never the export timestamp suffix."""
+    dashed = date_with_dashes(target_date)
+    normalized = f"_{name or ''}_"
+    return (
+        f"_{target_date}_{target_date}_" in normalized
+        or f"_{dashed}_{dashed}_" in normalized
+    )
+
+
 def download_meituan_latest(target_date: str | None = None) -> Path:
     config = load_config()
     platform = config["platforms"]["meituan"]
@@ -942,10 +952,9 @@ def download_meituan_latest(target_date: str | None = None) -> Path:
         rows = history.get("data", {}).get("list", [])
         ready_rows = [row for row in rows if row.get("status") == 2 and row.get("url")]
         if target_date:
-            dashed = date_with_dashes(target_date)
             ready_rows = [
                 row for row in ready_rows
-                if target_date in (row.get("name") or "") or dashed in (row.get("name") or "")
+                if meituan_report_name_matches_target(row.get("name") or "", target_date)
             ]
         if not ready_rows:
             raise RuntimeError(f"美团下载列表没有可下载文件：{history}")
