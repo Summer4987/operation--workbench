@@ -66,6 +66,7 @@ def summarize_platform(
                 latest[key] = result
 
     success_names: list[str] = []
+    skipped_names: list[str] = []
     failed_names: list[str] = []
     failure_details: list[dict[str, str]] = []
     for task in expected:
@@ -74,6 +75,8 @@ def summarize_platform(
         name = task_name(task)
         if result and result.get("ok"):
             success_names.append(name)
+            if result.get("skipped"):
+                skipped_names.append(name)
             continue
         failed_names.append(name)
         if result:
@@ -96,6 +99,8 @@ def summarize_platform(
         "success_count": success_count,
         "failed_count": failed_count,
         "success_stores": success_names,
+        "skipped_stores": skipped_names,
+        "skipped_count": len(skipped_names),
         "failed_stores": failed_names,
         "failure_details": failure_details,
     }
@@ -109,9 +114,13 @@ def build_message(period: str, platforms: dict[str, dict[str, Any]]) -> str:
         line = f"{label}：{status}；成功 {row['success_count']}/{row['total']} 家"
         if row["failed_count"]:
             line += f"；失败 {row['failed_count']} 家（{'、'.join(row['failed_stores'])}）"
+        if row.get("skipped_count"):
+            line += f"；其中按规则跳过 {row['skipped_count']} 家（{'、'.join(row['skipped_stores'])}）"
         lines.append(line)
     if any(row["failed_count"] for row in platforms.values()):
         lines.append("失败门店已隔离，不影响后续其他门店；请处理登录态或页面异常后再单店补跑。")
+    elif any(row.get("skipped_count") for row in platforms.values()):
+        lines.append("其余门店已完成；按规则跳过的门店未提交预算。")
     else:
         lines.append("两平台全部门店均已完成真实提交并读回验证。")
     return "\n".join(lines)

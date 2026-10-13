@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import json
+from datetime import datetime, timezone, timedelta
 import os
 import re
 import signal
@@ -77,10 +78,39 @@ def cdp_available(debug_port: int) -> bool:
         return False
 
 
+TASK_CONTROLS_PATH = WORKSPACE / "config" / "promo_budget_task_controls.json"
+
+
+def task_control(task: dict) -> dict:
+    controls = json.loads(TASK_CONTROLS_PATH.read_text(encoding="utf-8"))
+    for store, control in controls.get("meituanStores", {}).items():
+        if task.get("sourceStore") == store or (
+            task.get("directMeituanAccountId") and task.get("directMeituanAccountId") == control.get("directAccountId")
+        ) or task.get("keyword") in control.get("keywords", []):
+            return control
+    return {}
+
+
+def task_paused(task: dict, date: str = "") -> bool:
+    control = task_control(task)
+    date = date or datetime.now(timezone(timedelta(hours=8))).date().isoformat()
+    return bool(control.get("pausedFrom") and date >= control["pausedFrom"])
+
+
+class PromotionRestricted(RuntimeError):
+    pass
+
+
+def check_promotion_restriction(text: str) -> None:
+    for token in ("限流", "推广受限", "限制推广", "访问过于频繁", "访问频繁", "操作过于频繁", "请求过于频繁", "Too Many Requests", "HTTP 429", "HTTP ERROR 429"):
+        if token in text:
+            raise PromotionRestricted(f"按用户规则跳过限流门店：页面提示{token}")
+
+
 def load_tasks(period: str) -> list[dict]:
     payload = json.loads(PREVIEW_PATH.read_text(encoding="utf-8"))
     key = "meituan_dinner" if period == "晚餐" else "meituan_lunch"
-    return [item for item in payload.get(key, []) if item.get("status") == "auto"]
+    return [item for item in payload.get(key, []) if item.get("status") == "auto" and not task_paused(item)]
 
 
 def resolve_period(period: str) -> str:
@@ -503,13 +533,15 @@ def hide_promo_invitation_overlay(page) -> None:
         }""")
 
 
-def enter_dianjin(page) -> None:
+def enter_dianjin(page, *, skip_when_restricted: bool = False) -> None:
     text = ""
     # The headquarters promo iframe can remain blank while its parent shell
     # completes the login handshake. Reloading during that window restarts the
     # handshake and turns a slow load into a persistent white page.
     for _ in range(PROMO_ENTRY_LOAD_TIMEOUT_SECONDS):
         text = page_text(page)
+        if skip_when_restricted:
+            check_promotion_restriction(text)
         if "点金推广" in text or ("推广设置" in text and ("推广预算" in text or "每日预算" in text)):
             break
         time.sleep(1)
@@ -532,6 +564,8 @@ def enter_dianjin(page) -> None:
     for _ in range(15):
         time.sleep(1)
         text = page_text(page)
+        if skip_when_restricted:
+            check_promotion_restriction(text)
         if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
             return
     raise RuntimeError("进入点金推广后没有预算区域")
@@ -549,14 +583,21 @@ def promo_navigation_url(target_url: str) -> str:
     return target_url
 
 
-def enter_dianjin_with_recovery(page, target_url: str) -> None:
+def enter_dianjin_with_recovery(page, target_url: str, *, skip_when_restricted: bool = False) -> None:
     errors: list[str] = []
     recovery_url = promo_navigation_url(target_url)
     for attempt in range(3):
         try:
-            enter_dianjin(page)
+            if skip_when_restricted:
+                enter_dianjin(page, skip_when_restricted=True)
+            else:
+                enter_dianjin(page)
             return
+        except PromotionRestricted:
+            raise
         except Exception as exc:
+            if skip_when_restricted:
+                check_promotion_restriction(str(exc))
             errors.append(str(exc))
             if attempt >= 2:
                 break
@@ -1067,6 +1108,10 @@ def confirm_budget_with_recovery(page, target: float, target_url: str = "") -> t
 
 
 def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight: bool = False) -> dict:
+    if task_paused(task):
+        return {"store": task.get("store"), "keyword": task.get("keyword"), "ok": True,
+                "skipped": True, "failure_type": "user_paused", "message": task_control(task).get("reason")}
+    skip_restricted = task_control(task).get("skipWhenRestricted", False)
     target = float(task["targetBudget"])
     if target < 50:
         return {
@@ -1117,8 +1162,13 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         if created_page:
             page.goto(promo_navigation_url(target_url), wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
-        enter_dianjin_with_recovery(page, target_url)
+        if skip_restricted:
+            enter_dianjin_with_recovery(page, target_url, skip_when_restricted=True)
+        else:
+            enter_dianjin_with_recovery(page, target_url)
         ready = wait_setting_ready(page)
+        if skip_restricted:
+            check_promotion_restriction(page_text(page))
         if read_budget(page) in {None, 0} and ready.get("rangeMax") in {None, 0}:
             page.reload(wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
@@ -1189,6 +1239,14 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     except Exception as exc:
         record["error"] = str(exc)
         record["failure_type"] = classify_failure(str(exc))
+        if skip_restricted:
+            try:
+                check_promotion_restriction(str(exc))
+            except PromotionRestricted as restriction:
+                exc = restriction
+        if isinstance(exc, PromotionRestricted) and skip_restricted:
+            record.update(ok=True, skipped=True, failure_type="promotion_restricted",
+                          message=f"{task.get('keyword')}仍显示限流，按用户要求跳过，继续其他门店。")
         if record["failure_type"] == "platform_budget_locked":
             record["skipped"] = not preflight
             record["message"] = "平台表单限制 0-0 元，本次未保存；需复核平台状态，不能判定为预算耗尽。"

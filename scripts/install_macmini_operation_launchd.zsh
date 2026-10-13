@@ -546,18 +546,7 @@ chmod u+rwX,go+rX \
   "$SCRIPT_DIR/run_evening_budget_entry.zsh"
 
 NODE_RUNTIME_ROOT="$HOME/Library/Application Support/xiong-operation/node-runtime"
-mkdir -p \
-  "$NODE_RUNTIME_ROOT/scripts" \
-  "$NODE_RUNTIME_ROOT/dianjin-prototype" \
-  "$NODE_RUNTIME_ROOT/config" \
-  "$NODE_RUNTIME_ROOT/outputs/promo_budget_preview"
-/bin/cp "$SOURCE_ROOT/scripts/build_promo_budget_preview.mjs" "$NODE_RUNTIME_ROOT/scripts/build_promo_budget_preview.mjs"
-/bin/cp "$SOURCE_ROOT/scripts/promo_budget_resolver.mjs" "$NODE_RUNTIME_ROOT/scripts/promo_budget_resolver.mjs"
-/bin/cp "$SOURCE_ROOT/dianjin-prototype/rules.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/rules.js"
-/bin/cp "$SOURCE_ROOT/dianjin-prototype/logic.js" "$NODE_RUNTIME_ROOT/dianjin-prototype/logic.js"
-/bin/cp "$SOURCE_ROOT/config/promo_budget_overrides.json" "$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json"
-/bin/cp "$SOURCE_ROOT/config/promo_budget_temporary.json" "$NODE_RUNTIME_ROOT/config/promo_budget_temporary.json"
-/bin/cp "$SOURCE_ROOT/config/direct_meituan_accounts.json" "$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"
+OPERATION_BUDGET_RUNTIME_ROOT="$NODE_RUNTIME_ROOT" /bin/zsh "$SOURCE_ROOT/scripts/install_promo_budget_runtime.zsh"
 
 cat > "$SCRIPT_DIR/run_evening_budget.zsh" <<EOF
 #!/bin/zsh

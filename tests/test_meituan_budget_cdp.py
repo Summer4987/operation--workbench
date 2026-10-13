@@ -486,6 +486,50 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                                 with self.assertRaisesRegex(RuntimeError, "平台预算锁定"):
                                     self.module.confirm_budget_with_recovery(page, 70.0)
 
+    def test_wanxiangcheng_pause_is_platform_and_store_scoped_and_has_no_expiry(self) -> None:
+        paused = {"sourceStore": "万象城店", "keyword": "万象城"}
+        self.assertFalse(self.module.task_paused(paused, "2026-10-13"))
+        self.assertTrue(self.module.task_paused(paused, "2026-10-14"))
+        self.assertTrue(self.module.task_paused(paused, "2027-10-14"))
+        self.assertFalse(self.module.task_paused({"keyword": "金融城"}, "2026-10-14"))
+        self.assertFalse(self.module.task_control({"keyword": "万象城"}).get("skipWhenRestricted", False))
+        self.assertTrue(self.module.task_control({"keyword": "雅宝"})["skipWhenRestricted"])
+
+    def test_paused_task_cannot_open_browser_even_with_stale_preview(self) -> None:
+        context = mock.Mock()
+        with mock.patch.object(self.module, "task_paused", return_value=True):
+            result = self.module.execute_task(context, "", {"keyword": "万象城"}, commit=True)
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["failure_type"], "user_paused")
+        context.new_page.assert_not_called()
+
+    def test_restricted_chaoyangmen_skips_without_budget_input_or_retry(self) -> None:
+        page = FakePage("https://e.waimai.meituan.com/")
+        context = FakeContext([page])
+        task = {"keyword": "雅宝", "targetBudget": 120, "directMeituanAccountId": "direct_chaoyangmen"}
+        with mock.patch.object(self.module, "enter_dianjin_with_recovery", side_effect=self.module.PromotionRestricted("限流")) as enter, \
+             mock.patch.object(self.module, "close_budget_modal"), \
+             mock.patch.object(self.module, "save_failure_evidence"), \
+             mock.patch.object(self.module, "fill_budget_with_recovery") as fill, \
+             mock.patch.object(self.module, "confirm_budget_with_recovery") as save, \
+             mock.patch.object(self.module.time, "sleep"):
+            result = self.module.execute_task_with_store_retries(context, "https://test", task, commit=True, preflight=False)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["skipped"])
+        self.assertEqual(result["failure_type"], "promotion_restricted")
+        enter.assert_called_once()
+        fill.assert_not_called()
+        save.assert_not_called()
+
+    def test_restricted_entry_does_not_reload_or_retry(self) -> None:
+        page = mock.Mock()
+        with mock.patch.object(self.module, "enter_dianjin", side_effect=self.module.PromotionRestricted("限流")) as enter:
+            with self.assertRaises(self.module.PromotionRestricted):
+                self.module.enter_dianjin_with_recovery(page, "https://test", skip_when_restricted=True)
+        enter.assert_called_once()
+        page.reload.assert_not_called()
+        page.goto.assert_not_called()
+
     def test_zero_range_reloads_and_revalidates_without_saving(self) -> None:
         page = mock.Mock()
         with mock.patch.object(self.module, "open_budget_modal"), \

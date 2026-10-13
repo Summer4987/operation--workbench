@@ -275,6 +275,7 @@ prepare_budget_node_runtime() {
     "dianjin-prototype/logic.js" \
     "config/promo_budget_overrides.json" \
     "config/promo_budget_temporary.json" \
+    "config/promo_budget_task_controls.json" \
     "config/direct_meituan_accounts.json"; do
     if [ ! -r "$NODE_RUNTIME_ROOT/$relative" ]; then
       missing+=("$relative")
@@ -297,6 +298,7 @@ run_node_runtime_script() {
 }
 
 sync_budget_config() {
+  /bin/cp "$ROOT/config/promo_budget_task_controls.json" "$NODE_RUNTIME_ROOT/config/promo_budget_task_controls.json"
   PROMO_BUDGET_OVERRIDES_COPY_PATH="$NODE_RUNTIME_ROOT/config/promo_budget_overrides.json" "$PYTHON" "$ROOT/scripts/sync_promo_budget_overrides.py"
   local direct_accounts_source="$ROOT/config/direct_meituan_accounts.json"
   local direct_accounts_target="$NODE_RUNTIME_ROOT/config/direct_meituan_accounts.json"

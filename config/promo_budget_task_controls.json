@@ -1,0 +1,21 @@
+{
+  "meituanStores": {
+    "万象城店": {
+      "directAccountId": "direct_wanxiangcheng",
+      "keywords": [
+        "万象城"
+      ],
+      "pausedFrom": "2026-10-14",
+      "reason": "用户要求暂停美团预算设置，等待用户通知恢复，无自动恢复日期"
+    },
+    "朝阳门店": {
+      "directAccountId": "direct_chaoyangmen",
+      "keywords": [
+        "朝阳门",
+        "雅宝",
+        "B2档口"
+      ],
+      "skipWhenRestricted": true
+    }
+  }
+}

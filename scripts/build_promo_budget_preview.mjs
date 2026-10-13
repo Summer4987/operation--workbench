@@ -57,6 +57,7 @@ globalThis.__files = {
 
 const { rules, logic } = loadRuntime();
 const overrides = await loadOverrides();
+const taskControls = JSON.parse(await fs.readFile(path.join(repoRoot, "config/promo_budget_task_controls.json"), "utf8"));
 const directMeituanAccounts = await loadDirectMeituanAccounts();
 const dateContext = budgetDateContext(undefined, overrides);
 const weekendPreset = buildWeekendPreset(overrides, dateContext);
@@ -73,6 +74,8 @@ const meituanDinner = rules.stores
 function meituanTask(store, period) {
   const directAccount = directMeituanAccountForStore(store.name);
   const meituanName = matchMeituanName(store.name);
+  const control = taskControls.meituanStores?.[store.name] || {};
+  const paused = Boolean(control.pausedFrom && dateContext.date >= control.pausedFrom);
   const promoEnabled = store.meituanPromoEnabled !== false;
   const targetBudget = budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
   return {
@@ -84,10 +87,12 @@ function meituanTask(store, period) {
     time: period === "午餐" ? "上午运营按钮" : "16:30",
     type: "budget",
     targetBudget,
-    status: meituanName ? (promoEnabled ? "auto" : "platform_unavailable") : "unmatched",
+    status: meituanName ? (paused ? "paused" : promoEnabled ? "auto" : "platform_unavailable") : "unmatched",
+    skipWhenRestricted: control.skipWhenRestricted === true,
+    pauseReason: paused ? control.reason : "",
     unavailableReason: promoEnabled ? "" : (store.meituanPromoDisabledReason || "美团尚未开放推广入口"),
     directMeituanAccountId: directAccount?.id || "",
-    action: meituanName && promoEnabled
+    action: paused ? control.reason : meituanName && promoEnabled
       ? `自动设置${period}预算 ${targetBudget} 元`
       : meituanName
         ? (store.meituanPromoDisabledReason || "美团尚未开放推广入口")
