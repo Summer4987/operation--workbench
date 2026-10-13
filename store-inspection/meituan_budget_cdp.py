@@ -351,19 +351,30 @@ def click_visible_text(page, label: str) -> bool:
 
 
 def dismiss_common_modals(page) -> None:
-    for label in ("稍后处理", "我知道了", "知道了"):
-        try:
-            locator = page.get_by_text(label)
-            for index in range(min(locator.count(), 4)):
-                item = locator.nth(index)
-                try:
+    # Close informational prompts in both the merchant shell and promo iframe.
+    # Never click confirmation, enrolment, payment or security actions.
+    for frame in page.frames:
+        for label in ("稍后处理", "我知道了", "知道了"):
+            try:
+                locator = frame.get_by_text(label, exact=True)
+                for index in range(min(locator.count(), 4)):
+                    item = locator.nth(index)
                     if item.is_visible():
-                        item.click(timeout=3000)
-                        time.sleep(0.5)
-                except Exception:
-                    continue
+                        item.click(timeout=1500)
+            except Exception:
+                continue
+        try:
+            frame.evaluate(r"""() => {
+                for (const modal of document.querySelectorAll('.roo-modal, [role="dialog"]')) {
+                    const text = modal.innerText || '';
+                    if (!text.includes('不准时出餐订单可豁免')) continue;
+                    const cancel = [...modal.querySelectorAll('button, [role="button"]')]
+                        .find(el => (el.innerText || '').replace(/\s/g, '') === '取消');
+                    if (cancel) cancel.click();
+                }
+            }""")
         except Exception:
-            continue
+            pass
 
 
 def task_store_aliases(task: dict) -> list[str]:
@@ -388,6 +399,8 @@ def select_headquarters_store(page, task: dict) -> str:
     aliases = task_store_aliases(task)
     if not aliases:
         raise RuntimeError("总部美团账号缺少可匹配的分门店关键词")
+    close_budget_modal(page)
+    hide_promo_invitation_overlay(page)
     dismiss_common_modals(page)
     selector = page.locator(".current-poi_31GHxd").first
     if selector.count() == 0:
@@ -505,7 +518,17 @@ def enter_dianjin(page) -> None:
     hide_promo_invitation_overlay(page)
     dismiss_common_modals(page)
     if not click_visible_text(page, "点金推广"):
-        raise RuntimeError("没有可见的点金推广入口")
+        # New promo home also exposes the product through a hover submenu.
+        for frame in page.frames:
+            try:
+                menu = frame.get_by_text("曝光进店", exact=True).first
+                if menu.is_visible():
+                    menu.hover(timeout=3000)
+            except Exception:
+                continue
+        dismiss_common_modals(page)
+        if not click_visible_text(page, "点金推广"):
+            raise RuntimeError("没有可见的点金推广入口")
     for _ in range(15):
         time.sleep(1)
         text = page_text(page)
@@ -629,6 +652,9 @@ def open_budget_modal(page) -> None:
             boxes.extend(frame_boxes or [])
         return boxes
 
+    if opened():
+        return
+
     for selector in [
         ".isomor-cpc-fresh-budget-number",
         ".isomor-cpc-fresh-used-wrapper",
@@ -738,9 +764,25 @@ def set_budget_input(input_box, value: str) -> tuple[str, str]:
 
 
 def close_budget_modal(page) -> None:
+    # Escape does not dismiss Meituan's budget dialog. Use its own Cancel;
+    # leaving it open blocks the next store selector and reuses stale form state.
+    for frame in page.frames:
+        try:
+            dialogs = frame.locator('[role="dialog"], .roo-modal, [class*="modal"], [class*="dialog"]')
+            for index in range(dialogs.count()):
+                dialog = dialogs.nth(index)
+                if not dialog.is_visible() or "预算设置" not in dialog.inner_text(timeout=1000):
+                    continue
+                cancel = dialog.get_by_text("取消", exact=True)
+                for i in range(cancel.count()):
+                    if cancel.nth(i).is_visible():
+                        cancel.nth(i).click(timeout=3000)
+                        time.sleep(0.3)
+                        return
+        except Exception:
+            continue
     try:
         page.keyboard.press("Escape")
-        time.sleep(1)
     except Exception:
         pass
 
@@ -968,6 +1010,29 @@ def read_committed_budget_after_save(page, target_url: str) -> float | None:
     return wait_budget(page)
 
 
+def prepare_budget_form(page, target: float, target_url: str) -> tuple[str, str, int]:
+    for attempt in range(2):
+        open_budget_modal(page)
+        values = fill_budget_with_recovery(page, target)
+        button = confirm_button_locator(page)
+        if button is None:
+            raise RuntimeError("预算弹窗没有确定按钮")
+        if confirm_button_enabled(button):
+            return values
+        compact = re.sub(r"\s+", "", page_text(page))
+        if "0-0元" not in compact:
+            raise RuntimeError("确定按钮禁用，目标预算未通过平台校验")
+        if attempt == 0:
+            close_budget_modal(page)
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+            enter_dianjin_with_recovery(page, target_url)
+            wait_setting_ready(page)
+        else:
+            raise RuntimeError("平台预算锁定：刷新并重新打开后仍提示请输入0-0元；需复核平台限制，不能判定为预算耗尽")
+    raise RuntimeError("预算表单校验失败")
+
+
 def confirm_budget_with_recovery(page, target: float, target_url: str = "") -> tuple[float | None, str]:
     confirm_button = confirm_button_locator(page)
     if confirm_button is None:
@@ -1048,6 +1113,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         "ok": False,
     }
     try:
+        close_budget_modal(page)
         if created_page:
             page.goto(promo_navigation_url(target_url), wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
@@ -1067,9 +1133,14 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
                 record["beforeInput"] = input_box.input_value(timeout=3000)
                 if confirm_button_locator(page) is None:
                     raise RuntimeError("预算弹窗没有确定按钮")
-                close_budget_modal(page)
+                if record["beforeBudget"] is None or abs(record["beforeBudget"] - target) > 0.01:
+                    blocked, _ = spent_exceeds_target(page, target)
+                    if not blocked:
+                        prepare_budget_form(page, target, target_url)
             except Exception as exc:
                 raise RuntimeError(f"预算前预检失败：{exc}") from exc
+            finally:
+                close_budget_modal(page)
             record["ok"] = True
             record["message"] = "预算前预检通过：点金页、预算弹窗和输入框可用，未保存修改"
             return record
@@ -1099,7 +1170,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             enter_dianjin_with_recovery(page, target_url)
             wait_setting_ready(page)
             open_budget_modal(page)
-        record["beforeInput"], record["afterInput"], record["inputAttempts"] = fill_budget_with_recovery(page, target)
+        record["beforeInput"], record["afterInput"], record["inputAttempts"] = prepare_budget_form(page, target, target_url)
         final_budget, message = confirm_budget_with_recovery(page, target, target_url)
         assert_promo_page_targets_task(page, task)
         record["afterBudget"] = final_budget
@@ -1119,11 +1190,13 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         record["error"] = str(exc)
         record["failure_type"] = classify_failure(str(exc))
         if record["failure_type"] == "platform_budget_locked":
-            record["skipped"] = True
-            record["message"] = "平台预算已耗尽且限制 0-0 元，本次自动预算跳过，需人工复核平台状态。"
+            record["skipped"] = not preflight
+            record["message"] = "平台表单限制 0-0 元，本次未保存；需复核平台状态，不能判定为预算耗尽。"
         if page is not None:
             record["evidence"] = save_failure_evidence(page, task, record["failure_type"])
     finally:
+        if page is not None:
+            close_budget_modal(page)
         if created_page:
             try:
                 page.close()
@@ -1133,7 +1206,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
 
 
 def execute_task_with_store_retries(context, base_url: str, task: dict, *, commit: bool, preflight: bool) -> dict:
-    attempts = 1 if preflight or not commit else max(1, STORE_RETRY_ATTEMPTS)
+    attempts = max(2, STORE_RETRY_ATTEMPTS) if preflight or commit else 1
     last_record: dict | None = None
     for attempt in range(1, attempts + 1):
         record = execute_task(context, base_url, task, commit=commit, preflight=preflight)

@@ -486,6 +486,40 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                                 with self.assertRaisesRegex(RuntimeError, "平台预算锁定"):
                                     self.module.confirm_budget_with_recovery(page, 70.0)
 
+    def test_zero_range_reloads_and_revalidates_without_saving(self) -> None:
+        page = mock.Mock()
+        with mock.patch.object(self.module, "open_budget_modal"), \
+             mock.patch.object(self.module, "fill_budget_with_recovery", return_value=("80", "120", 1)), \
+             mock.patch.object(self.module, "confirm_button_locator", return_value=mock.Mock()), \
+             mock.patch.object(self.module, "confirm_button_enabled", side_effect=[False, True]), \
+             mock.patch.object(self.module, "page_text", return_value="请输入 0-0 元"), \
+             mock.patch.object(self.module, "close_budget_modal") as cancel, \
+             mock.patch.object(self.module, "enter_dianjin_with_recovery"), \
+             mock.patch.object(self.module, "wait_setting_ready"), \
+             mock.patch.object(self.module.time, "sleep"), \
+             mock.patch.object(self.module, "click_confirm_button") as save:
+            self.assertEqual(self.module.prepare_budget_form(page, 120.0, "test"), ("80", "120", 1))
+        page.reload.assert_called_once()
+        cancel.assert_called_once()
+        save.assert_not_called()
+
+    def test_persistent_zero_range_stops_without_saving(self) -> None:
+        page = mock.Mock()
+        with mock.patch.object(self.module, "open_budget_modal"), \
+             mock.patch.object(self.module, "fill_budget_with_recovery", return_value=("80", "120", 1)), \
+             mock.patch.object(self.module, "confirm_button_locator", return_value=mock.Mock()), \
+             mock.patch.object(self.module, "confirm_button_enabled", return_value=False), \
+             mock.patch.object(self.module, "page_text", return_value="请输入0-0元"), \
+             mock.patch.object(self.module, "close_budget_modal"), \
+             mock.patch.object(self.module, "enter_dianjin_with_recovery"), \
+             mock.patch.object(self.module, "wait_setting_ready"), \
+             mock.patch.object(self.module.time, "sleep"), \
+             mock.patch.object(self.module, "click_confirm_button") as save:
+            with self.assertRaisesRegex(RuntimeError, "不能判定为预算耗尽"):
+                self.module.prepare_budget_form(page, 120.0, "test")
+        page.reload.assert_called_once()
+        save.assert_not_called()
+
     def test_confirm_budget_verifies_committed_budget_after_reload(self) -> None:
         page = FakeConfirmPage()
 
