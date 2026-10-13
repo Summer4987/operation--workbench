@@ -472,6 +472,14 @@ def hide_promo_invitation_overlay(page) -> None:
     """Hide only the marketing invitation locally, without accepting or declining it."""
     for frame in page.frames:
         frame.evaluate("""() => {
+            // This image-only promotion invitation contains just “去看看”.
+            // Restrict suppression to its known wrapper; preserve budget and
+            // security dialogs and do not accept the promoted product.
+            for (const invitation of document.querySelectorAll('.plant-type-modal-wrapper')) {
+                if ((invitation.innerText || '').trim() !== '去看看') continue;
+                const overlay = invitation.closest('.roo-modal.backdrop');
+                if (overlay) overlay.style.setProperty('display', 'none', 'important');
+            }
             for (const overlay of document.querySelectorAll('[class*="backdrop_"]')) {
                 const text = overlay.innerText || '';
                 if (text.includes('站外推广活动邀请您参加')
@@ -540,6 +548,7 @@ def enter_dianjin_with_recovery(page, target_url: str) -> None:
 
 
 def open_budget_modal(page) -> None:
+    hide_promo_invitation_overlay(page)
     suppress_click_blocking_overlays(page)
     dismiss_budget_onboarding(page)
     suppress_click_blocking_overlays(page)
