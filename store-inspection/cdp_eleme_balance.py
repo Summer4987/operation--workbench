@@ -48,9 +48,17 @@ def parse_shop_rows(payload: dict) -> list[dict]:
             continue
         ad_balance = row.get("adBalance") if isinstance(row.get("adBalance"), dict) else {}
         detail = ad_balance.get("detail") if isinstance(ad_balance.get("detail"), dict) else {}
-        balance_cents = detail.get("balance")
+        # The leaf-account UI shows cash/red-packet funds excluding cards.
+        # Some new accounts leave detail.balance at zero despite funded cash.
+        # totalWithoutCard is the UI account balance; total includes coupons.
+        balance_cents = ad_balance.get("totalWithoutCard")
+        balance_field = "adBalance.totalWithoutCard"
+        if balance_cents is None:
+            balance_cents = detail.get("balance")
+            balance_field = "adBalance.detail.balance"
         if balance_cents is None:
             balance_cents = ad_balance.get("balance")
+            balance_field = "adBalance.balance"
         store_name = str(row.get("shopName") or "").strip()
         if not store_name:
             continue
@@ -72,6 +80,7 @@ def parse_shop_rows(payload: dict) -> list[dict]:
                 "status": "warning" if balance < THRESHOLD else "normal",
                 "source": "Chrome CDP接口读取",
                 "confirmed_zero": cents == 0,
+                "balance_field": balance_field,
             }
         )
     return items

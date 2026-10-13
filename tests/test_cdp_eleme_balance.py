@@ -32,6 +32,25 @@ class CdpElemeBalanceTests(unittest.TestCase):
             self.assertIs(self.module.open_leaf_balance_detail(mock.Mock()), frame)
         wait.assert_called_once_with(mock.ANY, frame, "分店账户", timeout_seconds=30)
 
+    def test_leaf_ui_balance_overrides_legacy_zero_and_excludes_cards(self):
+        items = self.module.parse_shop_rows({'result': [{
+            'shopId': 545830793, 'shopName': '熊小小牛排饭POKEBEAR(万松园店)',
+            'adBalance': {'detail': {'balance': 0, 'totalBalance': 117785},
+                          'totalWithoutCard': 95799, 'totalCash': 95799,
+                          'totalCard': 21986, 'total': 117785}
+        }]})
+        self.assertEqual(items[0]['balance'], 957.99)
+        self.assertEqual(items[0]['status'], 'normal')
+        self.assertFalse(items[0]['confirmed_zero'])
+        self.assertEqual(items[0]['balance_field'], 'adBalance.totalWithoutCard')
+
+    def test_current_account_zero_does_not_use_stale_legacy_balance(self):
+        items = self.module.parse_shop_rows({'result': [{
+            'shopName': '测试店', 'adBalance': {'totalWithoutCard': 0, 'detail': {'balance': 90000}}
+        }]})
+        self.assertEqual(items[0]['balance'], 0)
+        self.assertTrue(items[0]['confirmed_zero'])
+
     def test_api_zero_is_confirmed_but_missing_or_invalid_is_not_zero(self):
         payload = {'result': [
             {'shopName': '零余额店', 'adBalance': {'detail': {'balance': 0}}},
