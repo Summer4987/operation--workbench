@@ -1081,6 +1081,7 @@ def write_dashboard(payload: dict) -> Path:
         <select id="dateSelect"></select>
       </div>
     </header>
+    <div id="fallbackNotice" class="muted" style="margin-bottom:14px;line-height:1.6"></div>
 
     <section class="kpis">
       <div class="card"><div class="label">总收入</div><div class="value" id="kpiIncome"></div><div class="delta" id="incomeDelta"></div></div>
@@ -1286,6 +1287,11 @@ def write_dashboard(payload: dict) -> Path:
       }});
     }}
 
+    function comparableRecords(current, previous) {{
+      const keys = new Set(previous.map((row) => row.store + '|' + row.platform));
+      return current.filter((row) => keys.has(row.store + '|' + row.platform));
+    }}
+
     function platformNames(dayRecords) {{
       return [...new Set(dayRecords.map((row) => row.platform).filter(Boolean))];
     }}
@@ -1467,9 +1473,11 @@ def write_dashboard(payload: dict) -> Path:
       const prevDate = previousDate(date);
       const prevRecords = prevDate ? records.filter((row) => row.date === prevDate) : [];
       const sharedPlatforms = commonPlatforms(dayRecords, prevRecords);
-      const currentCompareRecords = filterPlatforms(dayRecords, sharedPlatforms);
-      const previousCompareRecords = filterPlatforms(prevRecords, sharedPlatforms);
-      const compareScope = sharedPlatforms.length ? `较前日（${{sharedPlatforms.join('、')}}）` : '较前日';
+      const currentCompareRecords = comparableRecords(dayRecords, prevRecords);
+      const previousCompareRecords = comparableRecords(prevRecords, dayRecords);
+      const fallbackRows = dayRecords.filter((row) => row.source === 'business_page_fallback');
+      document.getElementById('fallbackNotice').textContent = fallbackRows.map((row) => `${{row.store}} ${{row.platform}}：经营数据页兜底；未提供的新老客各自下单转化率不按0处理。`).join('；');
+      const compareScope = sharedPlatforms.length ? `较前日（同店同平台：${{sharedPlatforms.join('、')}}）` : '较前日';
       const stores = attachPrevious(storeSummary(dayRecords), storeSummary(currentCompareRecords), storeSummary(previousCompareRecords));
       const totals = totalsFromStores(stores);
       const compareTotals = totalsFromStores(storeSummary(currentCompareRecords));

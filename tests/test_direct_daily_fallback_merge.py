@@ -26,6 +26,18 @@ class DirectFallbackMergeTests(unittest.TestCase):
         self.assertEqual(latest['source'],'business_page_fallback')
         self.assertTrue(pd.isna(latest['old_customer_order_conversion']))
 
+    def test_newly_recovered_platform_is_excluded_from_growth_comparison(self):
+        import json, re, subprocess, shutil
+        source=(Path(__file__).resolve().parents[1]/"business-report-dashboard/process_reports.py").read_text()
+        function=re.search(r"    function comparableRecords\(current, previous\) \{\{.*?\n    \}\}",source,re.S).group(0).replace("{{","{").replace("}}","}")
+        current=[dict(store="A",platform="美团",income=100),dict(store="A",platform="饿了么",income=110),dict(store="B",platform="美团",income=50)]
+        previous=[dict(store="A",platform="饿了么",income=100),dict(store="B",platform="美团",income=50)]
+        node=shutil.which("node") or str(Path.home()/".cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node")
+        result=subprocess.check_output([node,"-e",function+";console.log(JSON.stringify(comparableRecords("+json.dumps(current)+","+json.dumps(previous)+")));"],text=True)
+        rows=json.loads(result)
+        self.assertEqual(sum(r["income"] for r in rows),160)
+        self.assertFalse(any(r["store"]=="A" and r["platform"]=="美团" for r in rows))
+
     def test_empty_report_never_overwrites_fallback_with_zero(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'empty.csv';path.write_text('日期,门店名称,营业收入,有效订单\n2026-10-14,银泰城店,,\n',encoding='utf-8-sig')
