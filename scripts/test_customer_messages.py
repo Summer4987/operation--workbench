@@ -7,6 +7,7 @@ from render_customer_messages import page
 class DataTests(unittest.TestCase):
  def test_dates_and_rollover(self):
   today=date(2026,10,15)
+  self.assertEqual(stamp('昨天',today),'2026-10-14')
   self.assertEqual(stamp('昨天 14:34',today),'2026-10-14 14:34:00')
   self.assertEqual(stamp('10月14日 17:05',today),'2026-10-14 17:05:00')
   self.assertEqual(stamp('2026年10月14日 17:05',today),'2026-10-14 17:05:00')

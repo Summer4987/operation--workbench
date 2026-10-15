@@ -30,6 +30,7 @@ def stamp(raw, today=None):
         month=int(raw[5:].split('-')[0])
         if month>today.month+1:raw=str(today.year-1)+raw[4:]
     elif re.fullmatch(r'\d{1,2}:\d{2}(?::\d{2})?',raw):raw=f'{today} {raw}'
+    raw=raw.strip()
     for fmt in ['%Y-%m-%d %H:%M:%S','%Y-%m-%d %H:%M','%Y-%m-%d']:
         try:
             dt=datetime.strptime(raw,fmt)
