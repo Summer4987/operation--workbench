@@ -148,7 +148,10 @@ def meituan(pw,scope,account,keyword):
 
 
 def el_list(page,frame):
-    frame.get_by_role('tab',name='顾客消息',exact=True).dispatch_event('click')
+    tab=frame.get_by_role('tab',name='顾客消息',exact=True)
+    tab.dispatch_event('click')
+    wait(page,lambda:tab.get_attribute('aria-selected')=='true' and frame.locator('.custom_detail_tab').count(),'淘宝全部顾客消息筛选')
+    page.wait_for_timeout(700)
     wait(page,lambda:frame.locator('.conv_item_plugin').count() or '暂无会话' in frame.locator('#root').inner_text(),'淘宝顾客消息列表')
     # Leave both 顾客单聊 / 三方群聊 unfiltered and unread-only off.
     for btn in frame.locator('.custom_detail_tab .button').all():
@@ -221,10 +224,15 @@ def el_history(page,frame,item,target,window_start=None):
 
 def eleme(pw,scope,config):
     browser=pw.chromium.connect_over_cdp('http://127.0.0.1:9222',timeout=10000)
-    page=browser.contexts[0].new_page();page.set_default_timeout(12000)
+    # The merchant shell shares store context across tabs. Switch inside a valid existing shell.
+    page=next((pg for context in browser.contexts for pg in context.pages if 'melody.shop.ele.me/app/' in pg.url and pg.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]').count()),None)
+    owned=page is None
+    if owned:
+        page=browser.contexts[0].new_page()
+        page.goto('https://melody.shop.ele.me/',wait_until='domcontentloaded',timeout=60000)
+    page.set_default_timeout(12000)
     try:
         sid=config['eleme_shop_id']
-        page.goto('https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center',wait_until='domcontentloaded',timeout=60000)
         header=page.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]')
         wait(page,lambda:header.count(),'淘宝原生门店选择器')
         header.dispatch_event('click')
@@ -240,8 +248,12 @@ def eleme(pw,scope,config):
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
         wait(page,lambda:page.locator('[class*=imIcon__]').count(),'淘宝消息入口')
-        page.locator('[class*=imIcon__]').dispatch_event('click')
         frame=wait(page,lambda:next((f for f in page.frames if f.url.startswith('https://im.ele.me/napos') and f'shopId={sid}' in f.url),None),'淘宝单店聊天窗口')
+        wait(page,lambda:frame.get_by_role('tab',name='顾客消息',exact=True).count(),'淘宝聊天组件加载')
+        page.wait_for_timeout(600)
+        if 'web_im_visually_hidden' in (page.locator('#web_im_iframe_container').get_attribute('class') or ''):
+            page.locator('[class*=imIcon__]').dispatch_event('click')
+        wait(page,lambda:frame.locator('#im_conversation_list_body').evaluate('e=>e.clientHeight>100'),'淘宝聊天窗口展开')
         sessions,complete,expected=el_list(page,frame)
         scope.update(list_complete=complete,scanned_sessions=len(sessions),expected_sessions=expected,sessions=[],errors=[],list_basis='虚拟列表逐屏去重并核对总高度/行高对应的会话数')
         for item in sessions:
@@ -255,7 +267,8 @@ def eleme(pw,scope,config):
                 elif not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['title'])
             except Exception as e:scope['errors'].append(safe_error(e))
     finally:
-        page.close();browser.close()
+        if owned:page.close()
+        browser.close()
 
 
 def main():
