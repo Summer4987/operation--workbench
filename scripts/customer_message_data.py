@@ -130,3 +130,19 @@ def reconcile_hidden_cards(scope):
             m.pop('capture_error',None);count+=1
     scope['status']=scope_status(scope)
     return count
+
+
+def media_type(declared,content):
+    """Platform CDNs sometimes label valid images as application/octet-stream."""
+    if content.startswith(b'\x89PNG\r\n\x1a\n'):return 'image/png'
+    if content.startswith(b'\xff\xd8\xff'):return 'image/jpeg'
+    if content.startswith((b'GIF87a',b'GIF89a')):return 'image/gif'
+    if content.startswith(b'RIFF') and content[8:12]==b'WEBP':return 'image/webp'
+    if content.startswith(b'OggS'):return 'audio/ogg'
+    if content.startswith(b'#!AMR'):return 'audio/amr'
+    if content.startswith(b'ID3'):return 'audio/mpeg'
+    if content[4:8]==b'ftyp':
+        return 'image/avif' if content[8:12] in [b'avif',b'avis'] else 'video/mp4'
+    declared=declared.lower().split(';')[0]
+    if declared.startswith(('image/','audio/','video/')) and not content.lstrip().lower().startswith((b'<!doctype html',b'<html')):return declared
+    return ''

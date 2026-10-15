@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from unittest.mock import patch
-from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards
+from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards,media_type
 from render_customer_messages import page
 
 class DataTests(unittest.TestCase):
@@ -54,6 +54,11 @@ class DataTests(unittest.TestCase):
   m=scope['sessions'][0]['messages'][0]
   self.assertEqual(m['id'],'same-id');self.assertEqual(m['timestamp'],'2026-10-14 19:36:00')
   self.assertEqual(scope['status'],'ready');self.assertTrue(m['unavailable_text'])
+ def test_cdn_octet_stream_image_and_login_html(self):
+  self.assertEqual(media_type('application/octet-stream',bytes.fromhex('ffd8ffe00010')),'image/jpeg')
+  self.assertEqual(media_type('binary/octet-stream',b'\x89PNG\r\n\x1a\nrest'),'image/png')
+  self.assertEqual(media_type('text/html',b'<html>login</html>'),'')
+  self.assertEqual(media_type('image/jpeg',b'<html>login</html>'),'')
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

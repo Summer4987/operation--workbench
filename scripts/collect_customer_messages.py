@@ -15,7 +15,7 @@ import shutil
 import time
 from datetime import datetime,timedelta
 from urllib.parse import urlparse
-from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name
+from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type
 
 MT_URL='https://e.waimai.meituan.com/imworkbench/home?appId=4&clientType=140006#/im/page/workbench/reception'
 MT_ROWS="""els=>els.map(e=>{
@@ -92,11 +92,13 @@ def save_media(page,scope,session,frame=None):
                     head,body=encoded.split(',',1);mime=head.split(':',1)[1].split(';')[0];content=base64.b64decode(body)
                 else:
                     if parsed.scheme not in ['http','https']:raise RuntimeError('附件地址不可下载')
-                    response=page.request.get(url,timeout=20000)
+                    response=page.request.get(url,timeout=20000,headers={'Referer':page.url})
                     if not response.ok:raise RuntimeError('附件读取失败')
                     mime=response.headers.get('content-type','').split(';')[0];content=response.body()
-                if not mime.startswith(('image/','audio/','video/')):raise RuntimeError('附件类型未识别')
-                ext={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','image/gif':'.gif','audio/mpeg':'.mp3','audio/amr':'.amr','video/mp4':'.mp4','audio/ogg':'.ogg'}.get(mime,'.bin')
+                mime=media_type(mime,content)
+                if not mime:raise RuntimeError('附件类型未识别')
+                a['kind']=mime.split('/')[0]
+                ext={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','image/gif':'.gif','audio/mpeg':'.mp3','audio/amr':'.amr','video/mp4':'.mp4','audio/ogg':'.ogg','image/avif':'.avif'}.get(mime,'.bin')
                 if len(content)>30*1024*1024:raise RuntimeError('附件超过30MB，需人工复查')
                 name=media_name(url)+ext
                 local=OUT/scope['date']/'attachments'/name
@@ -425,6 +427,7 @@ def main():
         if not args.platform or '淘宝闪购' in args.platform:
             try:
                 snapshot['context_restored']=restore_eleme_headquarters(pw)
+                snapshot.pop('context_error',None)
                 print('淘宝已恢复全国全部门店范围',flush=True)
             except Exception as exc:
                 snapshot['context_error']=safe_error(exc)
