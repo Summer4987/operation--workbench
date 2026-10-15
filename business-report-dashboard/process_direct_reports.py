@@ -233,7 +233,7 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     payload["store_report_files"] = {store: f"stores/{base.store_slug(store)}.html" for store in config["target_stores"]}
     latest_date = base.latest_report_date(payload)
     review_df = base.read_review_files(alias_lookup)
-    if review_df.empty and legacy_output_path("direct_unified_reviews.csv"):
+    if review_df.empty and base.page_review_summary(config["target_stores"]) is None and legacy_output_path("direct_unified_reviews.csv"):
         review_df = pd.read_csv(legacy_output_path("direct_unified_reviews.csv"))
     if review_df.empty:
         review_df = pd.DataFrame(columns=REVIEW_COLUMNS)

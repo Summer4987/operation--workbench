@@ -130,7 +130,7 @@ def build_action_items(review: dict[str, Any], completed: list[dict[str, Any]]) 
     completed_index = completion_index(completed)
     completed_negative_count = 0
     for store, payload in (review.get("stores") or {}).items():
-        negative_count = int(payload.get("negative_count") or 0)
+        negative_count = int(payload.get("pending_count" if review.get("source") == "review_pages" else "negative_count") or 0)
         if negative_count <= 0:
             continue
         completion = completed_index.get(store) or {}
@@ -139,7 +139,7 @@ def build_action_items(review: dict[str, Any], completed: list[dict[str, Any]]) 
             continue
         platforms = []
         for platform, detail in (payload.get("platforms") or {}).items():
-            platform_negative = int(detail.get("negative_count") or 0)
+            platform_negative = int(detail.get("pending_count" if review.get("source") == "review_pages" else "negative_count") or 0)
             if platform in (completion.get("platforms") or set()):
                 completed_negative_count += platform_negative
                 continue
@@ -158,6 +158,8 @@ def build_action_items(review: dict[str, Any], completed: list[dict[str, Any]]) 
             continue
         keywords = [str(item) for item in payload.get("top_keywords") or [] if item]
         examples = [str(item) for item in payload.get("bad_review_examples") or payload.get("examples") or [] if item]
+        if review.get("source") == "review_pages":
+            examples = [r["content"] for r in payload.get("bad_reviews", []) if not r.get("replied") and r.get("content")]
         items.append(
             {
                 "store": store,
@@ -739,12 +741,16 @@ def evidence_plan(missing_evidence: list[dict[str, Any]], completed_with_evidenc
 
 
 def build_status(daily: dict[str, Any]) -> dict[str, Any]:
-    review = daily.get("review_summary") or {}
+    from review_page_data import build_summary
+    config = read_json(ROOT / "business-report-dashboard/config.json", {})
+    review = build_summary(config.get("target_stores", [])) or daily.get("review_summary") or {}
     target_date = review.get("used_date") or review.get("target_date") or ""
     records_payload = read_json(REPLY_RECORDS_PATH, {"records": []})
     recap_records_payload = read_json(RECAP_RECORDS_PATH, {"records": []})
     sop_records_payload = read_json(SOP_RECORDS_PATH, {"records": []})
     review_history = read_review_history(REVIEWS_CSV_PATH)
+    if review.get("source") == "review_pages":
+        review_history = [dict(r, keywords=[]) for item in review.get("stores", {}).values() for r in item.get("recent_bad_reviews", [])]
     completed = completed_records(records_payload, target_date)
     completed_with_evidence = enrich_completed_records(completed)
     missing_evidence = [record for record in completed_with_evidence if (record.get("evidence") or {}).get("status") == "missing"]
@@ -756,11 +762,18 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
     sop = build_sop_plan(followup, sop_records_payload)
     sop_closure = build_sop_closure_plan(sop, review_history)
     weekly_recap = build_weekly_recap(review_history, recap, followup, sop, sop_closure, target_date)
+    if review.get("source") == "review_pages":
+        weekly_recap["summary"]["review_count"] = None
+        weekly_recap["summary"]["negative_rate"] = None
+        weekly_recap["summary"]["total_review_count_available"] = False
+        weekly_recap["message"] = f"近7天已采集 {len(review_history)} 条1–3星差评；未采集全部星级评价，不计算差评率。"
+        for row in weekly_recap.get("stores", []):
+            row.update(review_count=None, negative_rate=None, avg_rating=None)
     total_negative = sum(int(item["negative_count"]) for item in items)
     if not review:
         status = "missing"
         message = "评价汇总尚未生成。"
-    elif review.get("status") in {"missing", "stale"}:
+    elif review.get("status") in {"missing", "stale", "partial"}:
         status = "stale" if review.get("status") == "stale" else "missing"
         message = review.get("message") or "评价数据未同步到最新日期。"
     elif total_negative:
@@ -777,7 +790,7 @@ def build_status(daily: dict[str, Any]) -> dict[str, Any]:
         "evidence_status": evidence["status"],
         "overall_status": status,
         "next_action": plan["next_action"] if items else evidence["next_action"],
-        "closed": not items and not missing_evidence and bool(review),
+        "closed": not items and not missing_evidence and review.get("status") == "ready",
     }
     return {
         "generated_at": now_text(),

@@ -2140,3 +2140,24 @@ h2 {
     min-height: calc(100vh - 220px);
   }
 }
+
+/* Platform review-page scores and date-scoped negative reviews. */
+.review-score-box { margin: 20px 0; }
+.review-score-box h3 { margin: 0 0 8px; }
+.review-source-note { color: #67746d; font-size: 13px; line-height: 1.6; }
+.review-score-scroll { overflow-x: auto; }
+.review-score-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.review-score-table th, .review-score-table td { text-align: left; padding: 12px; border-bottom: 1px solid #dce6de; vertical-align: top; }
+.review-score-table thead { background: #f0f5ef; }
+.review-score-table td strong { font-size: 24px; color: #23553b; }
+.review-score-table small { display: block; margin-top: 3px; font-size: 12px; color: #647369; }
+.review-score-table td .review-stale { color: #997327; }
+.review-page-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0 10px; }
+.review-page-filters label { display: grid; gap: 6px; font-size: 13px; }
+.review-page-filters select { min-height: 38px; max-width: 100%; border: 1px solid #ccd9cc; border-radius: 7px; padding: 6px 10px; background: white; color: #233c2c; font: inherit; }
+.review-list .review-detail-card { display: block; padding: 15px 0; border-bottom: 1px solid #dce6de; }
+.review-detail-card > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.review-detail-card span, .review-detail-card small { color: #67746d; font-size: 12px; }
+.review-detail-card p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; line-height: 1.65; }
+.review-list .review-coverage-warning { display: block; padding: 12px; color: #8b5b16; background: #fff5df; line-height: 1.6; font-size: 13px; }
+@media (max-width: 600px) { .review-score-table th, .review-score-table td { padding: 9px 6px; } .review-score-table small { font-size: 11px; } .review-page-filters label { max-width: 100%; } }

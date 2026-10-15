@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen
 
+from review_page_data import build_summary as page_review_summary
 from atomic_io import atomic_write_text
 from build_task_health import build_task_health, write_task_health
 from build_user_action_queue import build_payload as build_user_action_queue_payload
@@ -1379,6 +1380,11 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
 def main() -> None:
     daily = read_json(ROOT / "business-report-dashboard" / "data" / "latest.json", {})
     direct_daily = read_json(ROOT / "business-report-dashboard" / "data" / "direct-latest.json", {})
+    for payload, name in [(daily, "config.json"), (direct_daily, "direct_config.json")]:
+        config = read_json(ROOT / "business-report-dashboard" / name, {})
+        summary = page_review_summary(config.get("target_stores", []))
+        if summary is not None:
+            payload["review_summary"] = summary
     balances = read_json(ROOT / "store-inspection" / "latest.json", {})
     budget = read_json(ROOT / "outputs" / "promo_budget_preview" / "latest.json", {})
     morning_collection = read_json(MORNING_COLLECTION_STATUS_PATH, {})

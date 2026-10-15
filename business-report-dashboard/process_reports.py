@@ -189,7 +189,33 @@ def review_platform_from_file(path: Path, source: pd.Series, store_col: str, ali
     return "饿了么"
 
 
+
+def page_review_summary(target_stores):
+    import sys
+    scripts_dir = str(ROOT.parent / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from review_page_data import build_summary
+    return build_summary(target_stores)
+
 def read_review_files(alias_lookup: dict[str, list[tuple[str, str]]]) -> pd.DataFrame:
+    import sys
+    sys.path.insert(0, str(ROOT.parent / "scripts"))
+    from review_page_data import read_snapshot, scope_fresh, TZ
+    from datetime import datetime
+    snapshot = read_snapshot()
+    if snapshot:
+        # Once page collection is enabled, exports cannot silently reintroduce old reviews.
+        stores = {short for entries in alias_lookup.values() for _, short in entries}
+        today = datetime.now(TZ).strftime("%Y-%m-%d")
+        records = {}
+        for scope in snapshot.get("scopes", {}).values():
+            if scope.get("reviews_status") != "ready" or not scope_fresh(scope, today):
+                continue
+            for row in scope.get("records", []):
+                if row.get("store") in stores:
+                    records[(row["platform"], row["review_id"])] = dict(row, keywords=review_issue_keywords(row.get("content", "")), source_file="review_pages")
+        return pd.DataFrame(list(records.values()), columns=["date", "platform", "store", "store_raw", "rating", "content", "review_id", "negative", "keywords", "source_file", "replied", "appeal_status"])
     rows: list[dict] = []
     for path in review_source_paths():
         df = read_review_table(path)
@@ -253,6 +279,9 @@ def read_review_files(alias_lookup: dict[str, list[tuple[str, str]]]) -> pd.Data
 
 
 def summarize_reviews(review_df: pd.DataFrame, target_stores: list[str], report_date: str) -> dict:
+    page_summary = page_review_summary(target_stores)
+    if page_summary is not None:
+        return page_summary
     if review_df.empty:
         return {
             "status": "missing",
@@ -315,6 +344,18 @@ def summarize_reviews(review_df: pd.DataFrame, target_stores: list[str], report_
 
 
 def store_review_note(review_summary: dict, store: str) -> str:
+    if review_summary.get("source") == "review_pages":
+        item = review_summary.get("stores", {}).get(store, {})
+        parts = []
+        for platform, detail in item.get("platforms", {}).items():
+            label = "淘宝闪购" if platform == "饿了么" else platform
+            rating = detail.get("current_rating")
+            score = f"{rating:.1f}" if rating is not None else "未获取"
+            if detail.get("rating_status") != "ready" and rating is not None:
+                score += f"（上次 {detail.get('rating_collected_at', '')[:16]}）"
+            negative = detail.get("negative_count")
+            parts.append(f"{label} 门店评分 {score}；昨日差评 {negative if negative is not None else '未完成采集'}")
+        return "；".join(parts)
     status = review_summary.get("status")
     if status == "missing":
         return "评价数据未找到：请先在平台导出评价下载文件。"
@@ -1854,6 +1895,10 @@ def process(
     payload["all_store_diagnoses"] = build_all_store_diagnoses(payload, latest_date) if latest_date else []
 
     (DATA_DIR / "latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    summary = page_review_summary(payload.get("target_stores") or load_config()["target_stores"])
+    if summary is not None:
+        payload["review_summary"] = summary
+        payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     dashboard_path = write_dashboard(payload)
     store_report_paths = write_store_reports(payload)
     return {
@@ -1917,6 +1962,10 @@ def render_existing_payload(payload_path: Path = DATA_DIR / "latest.json") -> di
         raise RuntimeError(f"日报数据格式不正确：{payload_path}")
     if not payload.get("generated_at") or not latest_report_date(payload):
         raise RuntimeError(f"日报数据缺少生成时间或有效日期：{payload_path}")
+    summary = page_review_summary(payload.get("target_stores") or load_config()["target_stores"])
+    if summary is not None:
+        payload["review_summary"] = summary
+        payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     dashboard_path = write_dashboard(payload)
     store_report_paths = write_store_reports(payload)
     return {

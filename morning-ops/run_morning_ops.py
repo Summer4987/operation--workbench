@@ -459,18 +459,12 @@ def main() -> int:
                         flush=True,
                     )
                 ensure_backend_chrome(report_python)
-                result = run_step_with_pause("饿了么评价下载", [report_python, str(REPORT_AUTOMATION), "download-eleme-reviews"], required=False, timeout_seconds=240)
+                result = run_step("双平台评价页及门店评分采集", [report_python, str(WORKSPACE / "scripts" / "collect_review_pages.py")], required=False, timeout_seconds=900)
                 if result.returncode != 0:
-                    add_failure(failures, "饿了么评价下载", result)
-                result = run_step_with_pause("美团评价下载", [report_python, str(REPORT_AUTOMATION), "download-meituan-reviews"], required=False, timeout_seconds=240)
-                if result.returncode != 0:
-                    add_failure(failures, "美团评价下载", result)
+                    add_failure(failures, "评价页及门店评分采集", result)
                 result = run_step("评价看板生成", [report_python, str(REPORT_AUTOMATION), "process-downloaded-reviews"], required=False, timeout_seconds=180)
                 if result.returncode != 0:
                     add_failure(failures, "评价看板生成", result)
-                result = run_step_with_pause("直营美团评价下载", [report_python, str(DIRECT_MEITUAN_REVIEW_RUNNER), "--all"], required=False, timeout_seconds=420)
-                if result.returncode != 0:
-                    add_failure(failures, "直营美团评价", result)
                 result = run_step_with_pause("直营美团日报下载", [report_python, str(DIRECT_MEITUAN_DAILY_RUNNER), "--all", "--submit"], required=False, timeout_seconds=600)
                 if result.returncode != 0:
                     add_failure(failures, "直营美团日报", result)

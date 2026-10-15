@@ -1090,6 +1090,70 @@ function renderDirectReviews() {
   });
 }
 
+function renderPageReviews({ review, sectionId, statusId, countId, summaryId, commandRowsId, weeklyRowsId, rowsId }) {
+  const entries = Object.entries(review.stores || {});
+  const platforms = ["美团", "饿了么"];
+  const label = (p) => p === "饿了么" ? "淘宝闪购" : p;
+  const details = entries.flatMap(([store, item]) => platforms.map((p) => ({ store, platform: p, ...(item.platforms[p] || {}) })));
+  const complete = details.filter((d) => d.status === "ready").length;
+  const bad = entries.flatMap(([, item]) => item.bad_reviews || []);
+  const pending = bad.filter((r) => !r.replied).length;
+  text(statusId, review.status === "ready" ? "已核验" : complete ? "部分采集异常" : "采集待恢复");
+  text(countId, `${bad.length} 条昨日差评${review.status === "ready" ? "" : "（已核验范围）"}`);
+  text(summaryId, `${review.target_date} · 满意度 / 商品评价 1–3 星 · 已核验 ${complete}/${details.length} 个门店平台。${review.status === "ready" ? "" : "采集异常的平台不计作零差评。"}`);
+  document.querySelector(`#${sectionId}`)?.classList.toggle("alert", pending > 0 || review.status !== "ready");
+  rows(commandRowsId, [
+    { name: "昨日差评", value: `${bad.length} 条`, note: "按评价发生日期归属" },
+    { name: "昨日未回复", value: `${pending} 条`, note: "按平台实际回复状态" },
+    { name: "近 7 天差评", value: `${entries.reduce((n, [, s]) => n + (s.recent_bad_reviews || []).length, 0)} 条`, note: `${review.start_date} 至 ${review.target_date}` },
+    { name: "采集覆盖", value: `${complete}/${details.length}`, note: "异常或未检查不代表没有差评" },
+  ], (r) => `<div><span>${escapeHtml(r.name)}</span><strong>${escapeHtml(r.value)}</strong><em>${escapeHtml(r.note)}</em></div>`);
+
+  const container = document.getElementById(rowsId);
+  if (!container) return;
+  let ratingBox = document.getElementById(`${rowsId}Ratings`);
+  if (!ratingBox) {
+    ratingBox = document.createElement("div");
+    ratingBox.id = `${rowsId}Ratings`;
+    ratingBox.className = "review-score-box";
+    container.before(ratingBox);
+  }
+  if (weeklyRowsId) document.getElementById(weeklyRowsId).replaceChildren();
+  const scoreCell = (d) => {
+    const value = d.current_rating;
+    const hasRating = typeof value === "number" && Number.isFinite(value);
+    const stale = d.rating_status !== "ready";
+    const delta = typeof d.rating_delta === "number" ? ` · ${d.rating_delta > 0 ? "+" : ""}${d.rating_delta.toFixed(1)}` : " · 首次采集";
+    const collected = String(d.rating_collected_at || "").slice(0, 16).replace("T", " ");
+    const negatives = d.status === "ready" ? `昨日差评 ${d.negative_count} 条` : `昨日差评：${d.status === "stale" ? "数据过期" : "未完成采集"}`;
+    return `<strong class="${stale ? "review-stale" : ""}">${hasRating ? value.toFixed(1) : "—"}</strong><small>${hasRating ? (stale ? "上次评分 · 本次未更新" : escapeHtml(delta)) : "评分未获取"}</small><small>${escapeHtml(collected || "等待采集")}</small><small>${escapeHtml(negatives)}</small>`;
+  };
+  ratingBox.innerHTML = `<h3>门店当前评分</h3><p class="review-source-note">取自平台评价页的门店总评分；各平台独立展示。变化对比上次采集日，首次采集不计算涨跌。</p><div class="review-score-scroll"><table class="review-score-table"><thead><tr><th>门店</th><th>美团</th><th>淘宝闪购</th></tr></thead><tbody>${entries.map(([store, item]) => `<tr><th>${escapeHtml(store)}</th>${platforms.map((p) => `<td>${scoreCell(item.platforms[p] || {})}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+
+  const filterId = `${rowsId}Filters`;
+  let filters = document.getElementById(filterId);
+  if (!filters) {
+    filters = document.createElement("div"); filters.id = filterId; filters.className = "review-page-filters"; container.before(filters);
+  }
+  const previous = Array.from(filters.querySelectorAll("select")).map((x) => x.value);
+  filters.innerHTML = `<label>评价日期<select aria-label="评价日期"><option value="yesterday">昨日 ${escapeHtml(review.target_date)}</option><option value="week">最近 7 天</option></select></label><label>平台<select aria-label="评价平台"><option value="">全部平台</option>${platforms.map((p) => `<option value="${p}">${label(p)}</option>`).join("")}</select></label><label>门店<select aria-label="评价门店"><option value="">全部门店</option>${entries.map(([s]) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("")}</select></label>`;
+  const selects = [...filters.querySelectorAll("select")];
+  selects.forEach((x, i) => { if ([...x.options].some((o) => o.value === previous[i])) x.value = previous[i]; });
+  const render = () => {
+    const [period, platform, store] = selects.map((s) => s.value);
+    const relevant = details.filter((d) => (!platform || d.platform === platform) && (!store || d.store === store));
+    const issues = relevant.filter((d) => d.status !== "ready");
+    const reviews = entries.flatMap(([, s]) => period === "week" ? s.recent_bad_reviews || [] : s.bad_reviews || [])
+      .filter((r) => (!platform || r.platform === platform) && (!store || r.store === store))
+      .sort((a, b) => b.date.localeCompare(a.date) || a.store.localeCompare(b.store));
+    container.innerHTML = `<p class="review-source-note">${period === "week" ? "最近 7 天" : "昨日"} · ${reviews.length} 条差评；${reviews.filter((r) => !r.replied).length} 条未回复。申诉成功或拦截的评价仍保留并标记。</p>` +
+      (issues.length ? `<p class="review-coverage-warning">采集未完成：${issues.map((d) => escapeHtml(`${d.store} ${label(d.platform)}${d.message ? "（" + d.message + "）" : ""}`)).join("；")}。当前列表可能不完整。</p>` : "") +
+      (reviews.length ? reviews.map((r) => `<article class="review-detail-card"><div><b>${escapeHtml(r.store)} · ${label(r.platform)}</b><span>${escapeHtml(r.date)} · ${r.rating} 星 · ${r.replied ? "已回复" : "未回复"}</span></div><p>${escapeHtml(r.content || "无文字评价")}</p>${r.appeal_status ? `<small>${escapeHtml(r.appeal_status)}</small>` : ""}</article>`).join("") : `<p class="review-source-note">${issues.length ? "已核验范围内暂无符合条件的差评，其余平台待完成采集。" : "所选范围已核验，无 1–3 星差评。"}</p>`);
+  };
+  selects.forEach((s) => s.onchange = render);
+  render();
+}
+
 function renderReviewPanel({
   daily,
   reviewActions,
@@ -1103,6 +1167,9 @@ function renderReviewPanel({
   emptyText,
 }) {
   const review = daily.review_summary || {};
+  if (review.source === "review_pages") {
+    return renderPageReviews({ review, sectionId, statusId, countId, summaryId, commandRowsId, weeklyRowsId, rowsId });
+  }
   const panelReviewActions = reviewActions || {};
   const actionSummary = panelReviewActions.summary || {};
   const weeklyRecap = panelReviewActions.weekly_recap || {};
