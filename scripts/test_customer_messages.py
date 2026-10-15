@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from unittest.mock import patch
-from customer_message_data import stamp,normalize,merge_messages,scope_status
+from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope
 from render_customer_messages import page
 
 class DataTests(unittest.TestCase):
@@ -33,6 +33,13 @@ class DataTests(unittest.TestCase):
   self.assertEqual(scope_status(s),'partial')
   s['sessions'][0]['messages'][0]['media'][0]['status']='saved'
   self.assertEqual(scope_status(s),'ready')
+ def test_overlap_projects_calendar_day_and_retains_context(self):
+  raw=dict(store='朝阳门店',date='2026-10-14',list_complete=True,errors=[],sessions=[dict(label='x',history_complete=True,messages=normalize([dict(id='old',role='customer',time='10-13 23:59',content='昨天提问'),dict(id='new',role='merchant',time='10-14 08:00',content='次日回复')],'2026-10-14',date(2026,10,15)))])
+  prior=project_scope(raw,'2026-10-13')
+  self.assertEqual(prior['status'],'ready')
+  self.assertTrue(prior['sessions'][0]['messages'][0]['on_target_date'])
+  self.assertFalse(prior['sessions'][0]['messages'][1]['on_target_date'])
+  self.assertFalse(raw['sessions'][0]['messages'][0]['on_target_date'])
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

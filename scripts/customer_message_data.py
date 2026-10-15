@@ -100,3 +100,16 @@ def safe_error(exc):
 
 
 def media_name(url):return hashlib.sha256(url.encode()).hexdigest()[:32]
+
+
+def project_scope(raw,target):
+    """Materialize one calendar day from overlapping captures, preserving cross-day context."""
+    import copy
+    scope=copy.deepcopy(raw);scope['date']=target
+    retained=[]
+    for session in scope.get('sessions',[]):
+        for m in session['messages']:
+            m['on_target_date']=m.get('timestamp','').startswith(target)
+        if any(m['on_target_date'] or not m.get('timestamp') for m in session['messages']):retained.append(session)
+    scope['sessions']=retained;scope['status']=scope_status(scope)
+    return scope

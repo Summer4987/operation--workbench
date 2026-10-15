@@ -57,7 +57,7 @@ def dismiss(page):
 
 def save_media(page,scope,session):
     for m in session['messages']:
-        if not m['on_target_date']:
+        if not (scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']):
             for a in m.get('media',[]):
                 a.pop('url',None);a['status']='context-not-archived'
             continue
@@ -88,7 +88,7 @@ def mt_list(page):
     panel=page.locator('.infinite-scroll-component').first
     seen={};complete=False
     for _ in range(160):
-        rows=page.locator('[class*=sessionListItemContainer]').evaluate_all("es=>es.map(e=>({id:e.id,label:e.innerText}))")
+        rows=page.locator('[class*=sessionListItemContainer]').evaluate_all("es=>es.map(e=>({id:e.id,label:e.innerText,latest:e.querySelector('[class*=userinfoChattime]')?.textContent?.trim()||''}))")
         for row in rows:
             if row['id'] and not row['id'].startswith('-'):seen[row['id']]=row
         if '已经到底' in panel.inner_text():complete=True;break
@@ -97,7 +97,7 @@ def mt_list(page):
     return list(seen.values()),complete
 
 
-def mt_history(page,item,target):
+def mt_history(page,item,target,window_start=None):
     dismiss(page)
     page.locator(f'[id="{item["id"]}"]').dispatch_event('click')
     panel=page.locator('[class*=sessionDetailPanel]')
@@ -108,13 +108,15 @@ def mt_history(page,item,target):
     for _ in range(120):
         batch=normalize(panel.locator('.message-item').evaluate_all(MT_ROWS),target,newest_first=True)
         for row in batch:merged[row['id']]=row
+        known=[m['timestamp'] for m in merged.values() if m['timestamp']]
+        if known and min(known)[:10]<(window_start or target):complete=True;break
         if '没有更多历史消息' in history.inner_text():complete=True;break
         history.evaluate('e=>{e.scrollTop=-e.scrollHeight;e.dispatchEvent(new Event("scroll"))}')
         page.wait_for_timeout(400)
     # Snowflake message IDs preserve chronology; DOM is reverse chronological.
     messages=sorted(merged.values(),key=lambda m:m['timestamp'] or '9999')
     known=[m for m in messages if m['timestamp']]
-    if not complete and known and min(m['timestamp'][:10] for m in known)<target:complete=True
+    if not complete and known and min(m['timestamp'][:10] for m in known)<(window_start or target):complete=True
     return dict(**item,messages=messages,history_complete=complete,history_basis='平台历史末尾' if '没有更多历史消息' in history.inner_text() else '已越过目标日开始时间')
 
 
@@ -129,10 +131,13 @@ def meituan(pw,scope,account,keyword):
         sessions,complete=mt_list(page)
         scope.update(list_complete=complete,scanned_sessions=len(sessions),sessions=[],errors=[])
         for item in sessions:
+            latest=stamp(item.get('latest'))
+            if not latest:scope['errors'].append('无法识别会话最近日期');continue
+            if latest[:10]<scope.get('window_start',scope['date']):continue
             if account.get('headquarters') and scope['store'].replace('店','') not in item['label']:continue
             try:
-                session=mt_history(page,item,scope['date'])
-                if not any(m['on_target_date'] or m['needs_review'] for m in session['messages']):
+                session=mt_history(page,item,scope['date'],scope.get('window_start'))
+                if not any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
                     if not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['label'].split('\n')[0])
                     continue
                 save_media(page,scope,session);scope['sessions'].append(session)
@@ -187,7 +192,7 @@ def el_find(page,frame,item):
     raise RuntimeError('淘宝虚拟列表中未重新定位到目标会话')
 
 
-def el_history(page,frame,item,target):
+def el_history(page,frame,item,target,window_start=None):
     el_find(page,frame,item)
     wait(page,lambda:frame.locator('.imsdk_msg_list_item').count(),'淘宝会话正文')
     page.wait_for_timeout(600)
@@ -200,7 +205,7 @@ def el_history(page,frame,item,target):
         # EL rows include explicit time for each regular message and nearest preceding system-time label.
         messages=normalize(list(merged.values()),target)
         known=[m['timestamp'] for m in messages if m['timestamp']]
-        if known and min(known)[:10]<target:
+        if known and min(known)[:10]<(window_start or target):
             complete=True;basis='历史已越过目标日开始时间';break
         signature='|'.join(r['id'] for r in rows)
         stable=stable+1 if signature==last else 0;last=signature
@@ -242,10 +247,10 @@ def eleme(pw,scope,config):
         for item in sessions:
             latest=stamp(item['latest'])
             if not latest:scope['errors'].append('无法识别会话日期：'+item['title']);continue
-            if latest[:10]<scope['date']:continue
+            if latest[:10]<scope.get('window_start',scope['date']):continue
             try:
-                session=el_history(page,frame,item,scope['date'])
-                if any(m['on_target_date'] or m['needs_review'] for m in session['messages']):
+                session=el_history(page,frame,item,scope['date'],scope.get('window_start'))
+                if any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
                     save_media(page,scope,session);scope['sessions'].append(session)
                 elif not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['title'])
             except Exception as e:scope['errors'].append(safe_error(e))
@@ -256,6 +261,7 @@ def eleme(pw,scope,config):
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--date',default=(datetime.now(TZ).date()-timedelta(days=1)).isoformat())
+    ap.add_argument('--lookback',type=int,default=3,choices=range(1,8),help='重查最近几天，补获跨天或延迟记录')
     ap.add_argument('--store',action='append')
     ap.add_argument('--platform',choices=['美团','淘宝闪购'],action='append')
     args=ap.parse_args();datetime.strptime(args.date,'%Y-%m-%d')
@@ -273,20 +279,41 @@ def main():
             if args.store and c['store'] not in args.store:continue
             for plat in args.platform or ['美团','淘宝闪购']:
                 key=c['store']+'|'+plat
-                scope=dict(store=c['store'],platform=plat,date=args.date,collected_at=datetime.now(TZ).isoformat(timespec='seconds'),sessions=[],errors=[],list_complete=False)
-                try:
-                    if plat=='美团':
-                        a=accounts.get(c['meituan_account'])
-                        if a:
-                            if not a.get('enabled'):raise RuntimeError('直营账号未启用')
-                            meituan(pw,scope,dict(port=a['debug_port']),a['keyword'])
-                        else:meituan(pw,scope,dict(port=9222,headquarters=True),'总部')
-                    else:eleme(pw,scope,c)
-                except Exception as e:scope['error']=safe_error(e)
-                scope['status']=scope_status(scope)
-                snapshot['scopes'][key]=scope;snapshot['generated_at']=datetime.now(TZ).isoformat(timespec='seconds')
+                for attempt in range(2):
+                    scope=dict(store=c['store'],platform=plat,date=args.date,window_start=(datetime.strptime(args.date,'%Y-%m-%d').date()-timedelta(days=args.lookback-1)).isoformat(),collected_at=datetime.now(TZ).isoformat(timespec='seconds'),sessions=[],errors=[],list_complete=False)
+                    try:
+                        if plat=='美团':
+                            a=accounts.get(c['meituan_account'])
+                            if a:
+                                if not a.get('enabled'):raise RuntimeError('直营账号未启用')
+                                meituan(pw,scope,dict(port=a['debug_port']),a['keyword'])
+                            else:meituan(pw,scope,dict(port=9222,headquarters=True),'总部')
+                        else:eleme(pw,scope,c)
+                    except Exception as e:scope['error']=safe_error(e)
+                    scope['status']=scope_status(scope)
+                    scope['attempts']=attempt+1
+                    if scope['status']=='ready':break
+                    print(f'{key}: 第{attempt+1}次未完整，重新读取失败范围' if attempt==0 else f'{key}: 保留异常状态，等待复查',flush=True)
+                atomic_json(OUT/args.date/'captures'/f'{c["eleme_shop_id"]}-{"meituan" if plat=="美团" else "eleme"}.json',scope)
+                from customer_message_data import project_scope
+                snapshot['scopes'][key]=project_scope(scope,args.date)
+                scope=snapshot['scopes'][key]
+                snapshot['generated_at']=datetime.now(TZ).isoformat(timespec='seconds')
                 atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
                 print(f'{key}: {scope["status"]}, {len(scope["sessions"])} 段, {scope.get("error","")}',flush=True)
+    from customer_message_data import project_scope
+    for offset in range(1,args.lookback):
+        older=(datetime.strptime(args.date,'%Y-%m-%d').date()-timedelta(days=offset)).isoformat()
+        path=OUT/older/'snapshot.json'
+        archive=json.loads(path.read_text()) if path.exists() else dict(schema_version=1,target_date=older,scopes={})
+        archive['generated_at']=snapshot['generated_at']
+        for capture in (OUT/args.date/'captures').glob('*.json'):
+            raw=json.loads(capture.read_text())
+            if raw.get('collected_at','')<snapshot['generated_at'][:10] or raw.get('window_start',args.date)>older:continue
+            key=raw['store']+'|'+raw['platform']; projected=project_scope(raw,older)
+            # Never replace a verified historical capture with a later failed read.
+            if projected['status']=='ready' or archive['scopes'].get(key,{}).get('status')!='ready':archive['scopes'][key]=projected
+        atomic_json(path,archive)
     from render_customer_messages import build
     build()
     failed=[k for k,v in snapshot['scopes'].items() if v['status']!='ready']
