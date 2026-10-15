@@ -462,6 +462,9 @@ def main() -> int:
                 result = run_step("双平台评价页及门店评分采集", [report_python, str(WORKSPACE / "scripts" / "collect_review_pages.py")], required=False, timeout_seconds=900)
                 if result.returncode != 0:
                     add_failure(failures, "评价页及门店评分采集", result)
+                result = run_step("直营双平台客服消息采集", [report_python, str(WORKSPACE / "scripts" / "collect_customer_messages.py")], required=False, timeout_seconds=1500)
+                if result.returncode != 0:
+                    add_failure(failures, "直营双平台客服消息采集", result)
                 result = run_step("评价看板生成", [report_python, str(REPORT_AUTOMATION), "process-downloaded-reviews"], required=False, timeout_seconds=180)
                 if result.returncode != 0:
                     add_failure(failures, "评价看板生成", result)

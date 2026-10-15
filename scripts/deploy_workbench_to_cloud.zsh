@@ -39,6 +39,7 @@ fi
 run_optional "日报重点状态更新" "$PYTHON" scripts/build_daily_focus_status.py
 run_optional "评价待办状态更新" "$PYTHON" scripts/build_review_action_status.py
 run_optional "直营店日报看板生成" "$PYTHON" business-report-dashboard/process_direct_reports.py
+run_optional "客服消息网页生成" "$PYTHON" scripts/render_customer_messages.py
 run_optional "推广余额状态更新" "$PYTHON" scripts/build_promo_balance_status.py
 "$PYTHON" scripts/build_agent_mobile_status.py
 "$PYTHON" scripts/build_workbench_data.py

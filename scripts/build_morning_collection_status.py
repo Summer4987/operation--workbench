@@ -20,6 +20,7 @@ EXPECTED_STEPS = [
     "饿了么评价下载",
     "美团评价下载",
     "评价看板生成",
+    "直营双平台客服消息采集",
     "门店日报采集并发布",
     "直营美团日报下载",
     "推广余额总巡检",
@@ -99,6 +100,8 @@ def platform_for_step(step: str, message: str = "") -> str:
 
 
 def module_for_step(step: str) -> str:
+    if "客服消息" in step:
+        return "客服消息采集"
     if "评价" in step:
         return "评价下载"
     if "日报" in step:
