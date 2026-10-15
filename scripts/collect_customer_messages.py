@@ -21,7 +21,7 @@ MT_URL='https://e.waimai.meituan.com/imworkbench/home?appId=4&clientType=140006#
 MT_ROWS="""els=>els.map(e=>{
  const txt=s=>{let n=e.querySelector(s);return (n?.innerText||n?.textContent||'').trim()};
  let nick=e.querySelector('.sender-nickname')?.cloneNode(true);nick?.querySelector('.message-formattime')?.remove();
- const card=e.querySelector('[data-card-content]');
+ const card=e.querySelector('[data-card-content]')||e.querySelector('.im_card_message-container');
  let media=card&&!card.querySelector('.im-card_order-message')?Array.from(card.querySelectorAll('img,audio,video,source')).filter(x=>!x.closest('[class*=emoji]')).map(x=>({kind:x.tagName==='IMG'?'image':x.tagName==='VIDEO'?'video':'audio',url:x.src,alt:x.alt||''})):[];
  return {id:e.id,time:txt('.message-formattime'),sender:nick?.textContent?.trim()||'',role:e.querySelector('.right-message')?'merchant':e.querySelector('.left-message')?'customer':'system',content:txt('[data-card-content]')||txt('.im-card_event-message')||txt('.im-card_message-tips-container'),separator:txt('.im-card_timestamp-message'),media,read_status:txt('.read-position')};})"""
 EL_ROWS="""e=>{let aside='';return Array.from(e.children).flatMap(x=>{
@@ -30,7 +30,7 @@ EL_ROWS="""e=>{let aside='';return Array.from(e.children).flatMap(x=>{
  const text=s=>{let n=x.querySelector(s);return (n?.innerText||n?.textContent||'').trim()};
  const account=text('.msg_account');const match=account.match(/((?:\\d{4}年)?\\d{1,2}月\\d{1,2}日\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)/);
  const area=x.querySelector('.msg_content');
- const media=area?Array.from(area.querySelectorAll('img,audio,video,source')).filter(n=>!n.closest('[class*=emoji]')&&!/product|goods/i.test(n.className)).map(n=>({kind:n.tagName==='IMG'?'image':n.tagName==='VIDEO'?'video':'audio',url:n.src,alt:n.alt||''})):[];
+ const media=Array.from(x.querySelectorAll('img,audio,video,source')).filter(n=>!n.closest('[class*=emoji],[class*=avatar]')&&!/product|goods/i.test(n.className)).map(n=>({kind:n.tagName==='IMG'?'image':n.tagName==='VIDEO'?'video':'audio',url:n.src,alt:n.alt||''}));
  return [{id:x.getAttribute('limoo_message_id')||x.id,time:match?match[1]:aside,sender:match?account.slice(0,match.index).trim():account,role:x.querySelector('.my_msg')?'merchant':account.startsWith('顾客')?'customer':'system',content:text('.msg_content')||text('.system_content')||text('.system_prompt_plugin'),is_ai:x.textContent.includes('AI自动回复纠错'),is_auto:!!x.querySelector('[class*=auto_reply]'),media,type:x.getAttribute('limoo_custom_type'),read_status:text('.read_status')}];})}"""
 
 
@@ -58,13 +58,32 @@ def dismiss(page):
             except Exception:pass
 
 
-def save_media(page,scope,session):
+def save_media(page,scope,session,frame=None):
     for m in session['messages']:
         if not (scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']):
             for a in m.get('media',[]):
                 a.pop('url',None);a['status']='context-not-archived'
             continue
+        if m.get('needs_review'):
+            try:
+                if scope['platform']=='淘宝闪购':
+                    loc=frame.locator('.imsdk_msg_list_item').filter(has=frame.locator('.message_item'))
+                    index=frame.locator('.imsdk_msg_list_item').evaluate_all('(es,id)=>es.findIndex(e=>e.getAttribute("limoo_message_id")===id)',m['id'])
+                    if index<0:raise RuntimeError('特殊消息已不在界面，需复查')
+                    loc=frame.locator('.imsdk_msg_list_item').nth(index)
+                elif m['id'].startswith('group-'):
+                    legacy=next(f for f in page.frames if '/wm_legacy_chat_detail' in f.url)
+                    loc=legacy.locator('.wm-im-chat-body > *').nth(int(m['id'].rsplit(':',1)[1]))
+                else:loc=page.locator(f'[data-message-id="{m["id"]}"]')
+                visible=loc.inner_text()
+                name=media_name(scope['store']+scope['platform']+m['id'])+'.png'
+                path=OUT/scope['date']/'attachments'/name;path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(loc.screenshot(timeout=10000))
+                m['media'].append(dict(kind='image',status='saved',file='attachments/'+name,alt='平台特殊消息原始截图'))
+                m.update(content='[特殊消息：保留平台原始截图，未转写]',capture_mode='screenshot',needs_review=bool('语音' in visible))
+            except Exception as exc:m['capture_error']=safe_error(exc)
         for a in m.get('media',[]):
+            if a.get('status')=='saved':continue
             url=a.pop('url','')
             a['status']='failed'
             try:
@@ -330,7 +349,7 @@ def eleme(pw,scope,config):
             try:
                 session=el_history(page,frame,item,scope['date'],scope.get('window_start'))
                 if any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
-                    save_media(page,scope,session);scope['sessions'].append(session)
+                    save_media(page,scope,session,frame);scope['sessions'].append(session)
                 elif not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['title'])
             except Exception as e:scope['errors'].append(safe_error(e))
     finally:
