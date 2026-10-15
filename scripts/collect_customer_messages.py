@@ -6,6 +6,8 @@ informational controls, never by send/refund/confirm-action controls.
 """
 from __future__ import annotations
 import argparse
+import base64
+import hashlib
 import json
 import platform
 import shutil
@@ -66,14 +68,16 @@ def save_media(page,scope,session):
             a['status']='failed'
             try:
                 parsed=urlparse(url)
-                if parsed.scheme not in ['http','https']:raise RuntimeError('附件地址不可下载')
-                # Download only the authenticated page's observed attachment; never persist signed URLs.
-                response=page.request.get(url,timeout=20000)
-                if not response.ok:raise RuntimeError('附件读取失败')
-                mime=response.headers.get('content-type','').split(';')[0]
+                if parsed.scheme in ['blob','data']:
+                    encoded=page.evaluate("""async url=>{const blob=await (await fetch(url)).blob();if(blob.size>30*1024*1024)throw new Error('attachment too large');return await new Promise((resolve,reject)=>{let r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(blob)})}""",url)
+                    head,body=encoded.split(',',1);mime=head.split(':',1)[1].split(';')[0];content=base64.b64decode(body)
+                else:
+                    if parsed.scheme not in ['http','https']:raise RuntimeError('附件地址不可下载')
+                    response=page.request.get(url,timeout=20000)
+                    if not response.ok:raise RuntimeError('附件读取失败')
+                    mime=response.headers.get('content-type','').split(';')[0];content=response.body()
                 if not mime.startswith(('image/','audio/','video/')):raise RuntimeError('附件类型未识别')
                 ext={'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','image/gif':'.gif','audio/mpeg':'.mp3','audio/amr':'.amr','video/mp4':'.mp4','audio/ogg':'.ogg'}.get(mime,'.bin')
-                content=response.body()
                 if len(content)>30*1024*1024:raise RuntimeError('附件超过30MB，需人工复查')
                 name=media_name(url)+ext
                 local=OUT/scope['date']/'attachments'/name
@@ -84,13 +88,17 @@ def save_media(page,scope,session):
 
 def mt_list(page):
     page.get_by_text('全部顾客消息',exact=True).dispatch_event('click')
+    page.wait_for_timeout(1500)
     wait(page,lambda:page.locator('[class*=sessionListItemContainer]').count() or '暂无消息' in page.locator('body').inner_text(),'美团全部会话加载')
     panel=page.locator('.infinite-scroll-component').first
     seen={};complete=False
     for _ in range(160):
         rows=page.locator('[class*=sessionListItemContainer]').evaluate_all("es=>es.map(e=>({id:e.id,label:e.innerText,latest:e.querySelector('[class*=userinfoChattime]')?.textContent?.trim()||''}))")
         for row in rows:
-            if row['id'] and not row['id'].startswith('-'):seen[row['id']]=row
+            if row['id'].startswith('-') or '订单完成后自动发送消息记录' in row['label']:continue
+            if not row['id']:
+                row['group']=True;row['id']='group-'+hashlib.sha256(row['label'].split('\n')[0].encode()).hexdigest()[:24]
+            seen[row['id']]=row
         if '已经到底' in panel.inner_text():complete=True;break
         panel.evaluate('e=>{e.scrollTop=e.scrollHeight;e.dispatchEvent(new Event("scroll"))}')
         page.wait_for_timeout(400)
@@ -99,6 +107,8 @@ def mt_list(page):
 
 def mt_history(page,item,target,window_start=None):
     dismiss(page)
+    if item.get('group'):
+        return mt_group_history(page,item,target,window_start)
     page.locator(f'[id="{item["id"]}"]').dispatch_event('click')
     panel=page.locator('[class*=sessionDetailPanel]')
     wait(page,lambda:item['label'].split('\n')[0] in panel.inner_text() and panel.locator('.message-item').count(),'美团会话正文')
@@ -120,6 +130,35 @@ def mt_history(page,item,target,window_start=None):
     return dict(**item,messages=messages,history_complete=complete,history_basis='平台历史末尾' if '没有更多历史消息' in history.inner_text() else '已越过目标日开始时间')
 
 
+
+def mt_group_history(page,item,target,window_start=None):
+    loc=page.locator('[class*=sessionListItemContainer]').filter(has_text=item['label'].split('\n')[0])
+    if loc.count()!=1:raise RuntimeError('美团三方群聊无法唯一定位')
+    loc.dispatch_event('click')
+    frame=wait(page,lambda:next((f for f in page.frames if '/imworkbench/wm_legacy_chat_detail' in f.url),None),'美团三方群聊页面')
+    wait(page,lambda:frame.locator('.wm-im-chat-item').count(),'美团三方群聊正文')
+    page.wait_for_timeout(700)
+    body=frame.locator('.wm-im-chat-body');stable=0;old=''
+    for _ in range(120):
+        signature=body.text_content()
+        stable=stable+1 if signature==old else 0;old=signature
+        if stable>=4:break
+        body.evaluate('e=>{e.scrollTop=1;e.dispatchEvent(new Event("scroll"));e.scrollTop=0;e.dispatchEvent(new Event("scroll"))}')
+        page.wait_for_timeout(450)
+    rows=body.evaluate("""(e,prefix)=>{let day='',names={};return Array.from(e.children).flatMap((x,i)=>{
+        if(x.classList.contains('system-message-box')){day=x.textContent.trim();return []}
+        if(!x.classList.contains('wm-im-chat-item'))return [];
+        let name=x.querySelector('.user-name-box .name')?.textContent?.trim()||'';
+        const avatar=x.querySelector('.avatar img')?.src||'';
+        if(name)names[avatar]=name;else name=names[avatar]||'顾客/群聊参与者';
+        let content=x.querySelector('.user-message')?.cloneNode(true);
+        content?.querySelectorAll('.opposite-read').forEach(n=>n.remove());
+        const text=(content?.innerText||content?.textContent||'').trim();
+        return [{id:prefix+':'+i,time:day,time_inferred:true,sender:name,role:x.classList.contains('wm-im-chat-item-mine')?'merchant':name.startsWith('骑手')?'participant':'customer',content:text,media:Array.from(x.querySelectorAll('.user-message img,.user-message audio,.user-message video')).map(n=>({kind:n.tagName==='IMG'?'image':n.tagName==='VIDEO'?'video':'audio',url:n.src,alt:n.alt||''}))}];})}""",item['id'])
+    messages=normalize(rows,target)
+    for m in messages:m['time_inferred']=True
+    return dict(**item,messages=messages,history_complete=stable>=4,history_basis='三方群聊已滚动到顶部连续5次复核；平台仅显示日期的消息不补造时分秒')
+
 def meituan(pw,scope,account,keyword):
     browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{account["port"]}',timeout=10000)
     page=browser.contexts[0].new_page();page.set_default_timeout(12000)
@@ -134,9 +173,11 @@ def meituan(pw,scope,account,keyword):
             latest=stamp(item.get('latest'))
             if not latest:scope['errors'].append('无法识别会话最近日期');continue
             if latest[:10]<scope.get('window_start',scope['date']):continue
-            if account.get('headquarters') and scope['store'].replace('店','') not in item['label']:continue
+            if account.get('headquarters') and not item.get('group') and scope['store'].replace('店','') not in item['label']:continue
             try:
                 session=mt_history(page,item,scope['date'],scope.get('window_start'))
+                if account.get('headquarters') and item.get('group'):
+                    if not any(scope['store'].replace('店','') in m['sender'] for m in session['messages'] if m['role']=='merchant'):continue
                 if not any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
                     if not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['label'].split('\n')[0])
                     continue
@@ -233,17 +274,18 @@ def eleme(pw,scope,config):
     page.set_default_timeout(12000)
     try:
         sid=config['eleme_shop_id']
-        header=page.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]')
-        wait(page,lambda:header.count(),'淘宝原生门店选择器')
-        header.dispatch_event('click')
-        search=page.get_by_placeholder('搜索店铺名称/ID')
-        search.wait_for(state='visible',timeout=12000);search.fill(sid)
-        menu=page.locator('#dropContentEl li[data-value]')
-        wait(page,lambda:menu.evaluate_all('(es,id)=>es.some(e=>e.getAttribute("data-value").endsWith("/SHOP:"+id))',sid),'淘宝门店搜索结果')
-        matching=menu.filter(has_text=config['eleme_keyword'])
-        if matching.count()!=1:raise RuntimeError('淘宝门店搜索结果无法唯一匹配')
-        if not matching.get_attribute('data-value').endswith('/SHOP:'+sid):raise RuntimeError('淘宝门店 ID 不匹配')
-        matching.dispatch_event('click')
+        if f'/app/shop/{sid}/' not in page.url or config['eleme_keyword'] not in page.locator('body').inner_text()[:600]:
+            header=page.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]')
+            wait(page,lambda:header.count(),'淘宝原生门店选择器')
+            search=page.get_by_placeholder('搜索店铺名称/ID')
+            if not search.is_visible():header.dispatch_event('click')
+            search.wait_for(state='visible',timeout=12000);search.fill('');search.fill(sid)
+            menu=page.locator('#dropContentEl li[data-value]')
+            wait(page,lambda:menu.evaluate_all('(es,id)=>es.some(e=>e.getAttribute("data-value").endsWith("/SHOP:"+id))',sid),'淘宝门店搜索结果')
+            matching=menu.filter(has_text=config['eleme_keyword'])
+            if matching.count()!=1:raise RuntimeError('淘宝门店搜索结果无法唯一匹配')
+            if not matching.get_attribute('data-value').endswith('/SHOP:'+sid):raise RuntimeError('淘宝门店 ID 不匹配')
+            matching.dispatch_event('click')
         wait(page,lambda:config['eleme_keyword'] in page.locator('body').inner_text()[:600],'淘宝单店身份')
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
@@ -306,7 +348,7 @@ def main():
                     scope['status']=scope_status(scope)
                     scope['attempts']=attempt+1
                     if scope['status']=='ready':break
-                    print(f'{key}: 第{attempt+1}次未完整，重新读取失败范围' if attempt==0 else f'{key}: 保留异常状态，等待复查',flush=True)
+                    print(f'{key}: 第{attempt+1}次未完整；{scope.get("error","")}；{"；".join(scope.get("errors",[]))}',flush=True)
                 atomic_json(OUT/args.date/'captures'/f'{c["eleme_shop_id"]}-{"meituan" if plat=="美团" else "eleme"}.json',scope)
                 from customer_message_data import project_scope
                 snapshot['scopes'][key]=project_scope(scope,args.date)

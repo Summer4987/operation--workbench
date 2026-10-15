@@ -46,7 +46,7 @@ def page(data,dates):
                             elif kind=='audio':attachments.append(f'<audio controls src="{url}"></audio><a href="{url}" target="_blank">语音原文件（未转写）</a>')
                             else:attachments.append(f'<video controls src="{url}"></video>')
                         else:attachments.append('<p class="warning">附件未成功保存，需复查</p>')
-                    bubble=f'<div class="msg {esc(m["role"])}"><small>{esc(m["reply_type"])} · {esc(m["timestamp"] or "时间未识别")}{" · 时间取自分组/上下文" if m.get("time_inferred") else ""}</small><div>{esc(m["content"]).replace(chr(10),"<br>")}</div>{"".join(attachments)}</div>'
+                    bubble=f'<div class="msg {esc(m["role"])}"><small>{esc(m["reply_type"])} {esc(m.get("sender", ""))} · {esc(m["timestamp"] or "时间未识别")}{" · 时间取自分组/上下文" if m.get("time_inferred") else ""}</small><div>{esc(m["content"]).replace(chr(10),"<br>")}</div>{"".join(attachments)}</div>'
                     if m['on_target_date']:bubbles.append(bubble)
                 context=[m for m in session['messages'] if not m['on_target_date']]
                 prior=''
