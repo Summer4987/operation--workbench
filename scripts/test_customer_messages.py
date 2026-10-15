@@ -1,4 +1,7 @@
 import unittest
+import subprocess
+import shutil
+from pathlib import Path
 from datetime import date
 from unittest.mock import patch
 from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards,media_type,retain_previous_scope
@@ -74,6 +77,13 @@ class DataTests(unittest.TestCase):
   old=dict(date='2026-10-13',sessions=[dict(id='old',messages=[])])
   new=dict(date='2026-10-14',status='failed',sessions=[])
   self.assertEqual(retain_previous_scope(old,new)['sessions'],[])
+ def test_invoice_class_is_not_voice_media(self):
+  from collect_customer_messages import MEDIA_REQUIREMENT_JS
+  node=shutil.which('node') or str(Path.home()/'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node')
+  if not Path(node).exists():self.skipTest('Node runtime unavailable')
+  script="const assert=require('assert');const detect=("+MEDIA_REQUIREMENT_JS+");const root=(cls,tag='DIV')=>({querySelectorAll:()=>[{className:cls,tagName:tag}]});assert.equal(detect(root('im-invoice-ai-card')),'');assert.equal(detect(root('invoice-card-content')),'');assert.equal(detect(root('im-card_voice-message')),'audio');assert.equal(detect(root('','AUDIO')),'audio');assert.equal(detect(root('im-card_video-message')),'video');"
+  r=subprocess.run([node,'-e',script],capture_output=True,text=True)
+  self.assertEqual(r.returncode,0,r.stderr)
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

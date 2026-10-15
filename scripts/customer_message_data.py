@@ -124,6 +124,8 @@ def reconcile_hidden_cards(scope):
     count=0
     for session in scope.get('sessions',[]):
         for m in session['messages']:
+            if str(m.get('type'))=='10089' and m.get('required_media')=='audio':
+                m.pop('required_media',None);count+=1
             if str(m.get('type')) not in {'17019','9','17024','1000'}:continue
             if m.get('content')!='[未解析消息，保留原始类型]' or m.get('media'):continue
             m.update(content=f'[平台系统记录：电脑版未展示正文（类型{m.get("type")}）]',role='system',reply_type='系统/群聊参与者',unavailable_text=True,needs_review=False)

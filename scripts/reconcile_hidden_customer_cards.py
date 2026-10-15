@@ -15,7 +15,7 @@ def main():
     if latest.exists():
         data=json.loads(latest.read_text());source=OUT/data['target_date']/'snapshot.json'
         if source.exists():atomic_json(latest,json.loads(source.read_text()))
-    print(f'已更新已保留的隐藏系统记录标记：{count} 条；未删除任何消息')
+    print(f'已校正已保留记录的系统卡/媒体类型标记：{count} 条；未删除任何消息')
     from render_customer_messages import build
     build()
 
