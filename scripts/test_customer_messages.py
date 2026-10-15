@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from unittest.mock import patch
-from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope
+from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards
 from render_customer_messages import page
 
 class DataTests(unittest.TestCase):
@@ -48,6 +48,12 @@ class DataTests(unittest.TestCase):
   self.assertEqual(row['role'],'system');self.assertIn('电脑版未展示正文',row['content'])
   unknown=normalize([dict(id='x',time='昨天 14:34',role='merchant',type='99999',content='')],'2026-10-14',date(2026,10,15))[0]
   self.assertTrue(unknown['needs_review'])
+ def test_reconcile_hidden_type_preserves_message_identity_and_time(self):
+  scope=dict(list_complete=True,errors=[],sessions=[dict(history_complete=True,messages=[dict(id='same-id',type='9',timestamp='2026-10-14 19:36:00',on_target_date=True,content='[未解析消息，保留原始类型]',media=[],needs_review=True)])])
+  self.assertEqual(reconcile_hidden_cards(scope),1)
+  m=scope['sessions'][0]['messages'][0]
+  self.assertEqual(m['id'],'same-id');self.assertEqual(m['timestamp'],'2026-10-14 19:36:00')
+  self.assertEqual(scope['status'],'ready');self.assertTrue(m['unavailable_text'])
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

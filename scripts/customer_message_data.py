@@ -58,8 +58,8 @@ def normalize(rows,target,today=None,newest_first=False):
         row['time_inferred']=row.get('time_inferred',False) or not bool(explicit)
         row['on_target_date']=row['timestamp'].startswith(target)
         row['media']=row.get('media') or []
-        if not row.get('content') and not row['media'] and str(row.get('type'))=='17019':
-            row.update(content='[平台系统提示卡：电脑版未展示正文（类型17019）]',role='system',unavailable_text=True)
+        if not row.get('content') and not row['media'] and str(row.get('type')) in {'17019','9','17024','1000'}:
+            row.update(content=f'[平台系统记录：电脑版未展示正文（类型{row.get("type")}）]',role='system',unavailable_text=True)
         row['content']=row.get('content') or ('[附件消息]' if row['media'] else '[未解析消息，保留原始类型]')
         role=row.get('role','system')
         sender=row.get('sender','')
@@ -118,3 +118,15 @@ def project_scope(raw,target):
         if any(m['on_target_date'] or not m.get('timestamp') for m in session['messages']):retained.append(session)
     scope['sessions']=retained;scope['status']=scope_status(scope)
     return scope
+
+
+def reconcile_hidden_cards(scope):
+    count=0
+    for session in scope.get('sessions',[]):
+        for m in session['messages']:
+            if str(m.get('type')) not in {'17019','9','17024','1000'}:continue
+            if m.get('content')!='[未解析消息，保留原始类型]' or m.get('media'):continue
+            m.update(content=f'[平台系统记录：电脑版未展示正文（类型{m.get("type")}）]',role='system',reply_type='系统/群聊参与者',unavailable_text=True,needs_review=False)
+            m.pop('capture_error',None);count+=1
+    scope['status']=scope_status(scope)
+    return count
