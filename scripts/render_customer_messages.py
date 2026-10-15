@@ -29,6 +29,7 @@ def page(data,dates):
             if not s:s=dict(store=c['store'],platform=platform,status='failed',sessions=[],error='本次未采集')
             status=s.get('status','failed');label={'ready':'界面范围已核验','partial':'待复查：采集不完整','failed':'采集失败'}.get(status,status)
             coverage.append(f'<div class="coverage {status}"><b>{esc(c["store"])} · {platform}</b><span>{label} · {len(s["sessions"])} 段</span></div>')
+            previous_note=f'<p class=warning>本次复采不完整，保留上次同日采集内容：{esc(s["previous_capture_at"])}；不代表本次读取成功。</p>' if s.get('previous_capture_at') else ''
             issue='；'.join([s.get('error',''),*s.get('errors',[])])
             body=[]
             for session in s['sessions']:

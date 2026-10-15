@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from unittest.mock import patch
-from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards,media_type
+from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards,media_type,retain_previous_scope
 from render_customer_messages import page
 
 class DataTests(unittest.TestCase):
@@ -64,6 +64,16 @@ class DataTests(unittest.TestCase):
   self.assertEqual(scope_status(scope),'partial')
   scope['sessions'][0]['messages'][0]['media']=[dict(kind='audio',status='saved')]
   self.assertEqual(scope_status(scope),'ready')
+ def test_failed_refresh_retains_same_day_evidence_but_stays_failed(self):
+  old=dict(date='2026-10-14',collected_at='old',sessions=[dict(id='session',messages=[dict(id='msg',content='原文')])])
+  new=dict(date='2026-10-14',status='failed',sessions=[],error='离线')
+  result=retain_previous_scope(old,new)
+  self.assertEqual(result['status'],'failed');self.assertEqual(result['sessions'][0]['messages'][0]['content'],'原文')
+  self.assertEqual(result['previous_capture_at'],'old')
+ def test_previous_day_is_never_used_as_current_day_evidence(self):
+  old=dict(date='2026-10-13',sessions=[dict(id='old',messages=[])])
+  new=dict(date='2026-10-14',status='failed',sessions=[])
+  self.assertEqual(retain_previous_scope(old,new)['sessions'],[])
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

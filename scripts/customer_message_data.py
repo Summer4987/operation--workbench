@@ -146,3 +146,24 @@ def media_type(declared,content):
     declared=declared.lower().split(';')[0]
     if declared.startswith(('image/','audio/','video/')) and not content.lstrip().lower().startswith((b'<!doctype html',b'<html')):return declared
     return ''
+
+
+def retain_previous_scope(previous,current):
+    """A failed refresh retains same-day evidence, explicitly labelled as previous capture."""
+    if not previous or current.get('status')=='ready' or previous.get('date')!=current.get('date'):return current
+    import copy
+    seen={s['id']:s for s in current.get('sessions',[])}
+    retained=False
+    for old in previous.get('sessions',[]):
+        if old['id'] not in seen:
+            saved=copy.deepcopy(old);saved['retained_from']=previous.get('collected_at','')
+            current['sessions'].append(saved);retained=True
+        else:
+            new=seen[old['id']];ids={m['id'] for m in new['messages']}
+            for m in old['messages']:
+                if m['id'] not in ids:
+                    saved=copy.deepcopy(m);saved['retained_from']=previous.get('collected_at','')
+                    new['messages'].append(saved);retained=True
+            new['messages'].sort(key=lambda m:m.get('timestamp',''))
+    if retained:current['previous_capture_at']=previous.get('collected_at','')
+    return current

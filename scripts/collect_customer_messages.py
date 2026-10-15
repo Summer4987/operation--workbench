@@ -111,7 +111,7 @@ def mt_list(page,observations,window_start):
     page.get_by_text('全部顾客消息',exact=True).dispatch_event('click')
     wait(page,lambda:observations,'美团全部顾客消息接口返回')
     page.wait_for_timeout(1000)
-    wait(page,lambda:page.locator('[class*=sessionListItemContainer]').count() or '暂无消息' in page.locator('body').inner_text(),'美团全部会话加载')
+    wait(page,lambda:page.locator('[class*=sessionListItemContainer]').count() or '暂无消息' in page.locator('body').first.inner_text(),'美团全部会话加载')
     panel=page.locator('.infinite-scroll-component').first
     seen={};complete=False
     for _ in range(160):
@@ -322,7 +322,7 @@ def eleme(pw,scope,config):
     page.set_default_timeout(12000)
     try:
         sid=config['eleme_shop_id']
-        if f'/app/shop/{sid}/' not in page.url or config['eleme_keyword'] not in page.locator('body').inner_text()[:600]:
+        if f'/app/shop/{sid}/' not in page.url or config['eleme_keyword'] not in page.locator('body').first.inner_text()[:600]:
             header=page.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]')
             wait(page,lambda:header.count(),'淘宝原生门店选择器')
             search=page.get_by_placeholder('搜索店铺名称/ID')
@@ -334,7 +334,7 @@ def eleme(pw,scope,config):
             if matching.count()!=1:raise RuntimeError('淘宝门店搜索结果无法唯一匹配')
             if not matching.get_attribute('data-value').endswith('/SHOP:'+sid):raise RuntimeError('淘宝门店 ID 不匹配')
             matching.dispatch_event('click')
-        wait(page,lambda:config['eleme_keyword'] in page.locator('body').inner_text()[:600],'淘宝单店身份')
+        wait(page,lambda:config['eleme_keyword'] in page.locator('body').first.inner_text()[:600],'淘宝单店身份')
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
         wait(page,lambda:page.locator('[class*=imIcon__]').count(),'淘宝消息入口')
@@ -396,6 +396,8 @@ def main():
     snapshot=dict(schema_version=1,target_date=args.date,generated_at=datetime.now(TZ).isoformat(timespec='seconds'),scopes={})
     # Resume same-date successful scopes only when a subset is explicitly requested.
     existing=OUT/args.date/'snapshot.json'
+    previous_snapshot=json.loads(existing.read_text()) if existing.exists() else {}
+    run_id=datetime.now(TZ).strftime('%Y%m%dT%H%M%S%f')
     if (args.store or args.platform) and existing.exists():snapshot=json.loads(existing.read_text())
     with sync_playwright() as pw:
         for c in config:
@@ -418,8 +420,9 @@ def main():
                     if scope['status']=='ready':break
                     print(f'{key}: 第{attempt+1}次未完整；{scope.get("error","")}；{"；".join(scope.get("errors",[]))}',flush=True)
                 atomic_json(OUT/args.date/'captures'/f'{c["eleme_shop_id"]}-{"meituan" if plat=="美团" else "eleme"}.json',scope)
-                from customer_message_data import project_scope
-                snapshot['scopes'][key]=project_scope(scope,args.date)
+                atomic_json(OUT/args.date/'runs'/run_id/f'{c["eleme_shop_id"]}-{"meituan" if plat=="美团" else "eleme"}.json',scope)
+                from customer_message_data import project_scope,retain_previous_scope
+                snapshot['scopes'][key]=retain_previous_scope(previous_snapshot.get('scopes',{}).get(key),project_scope(scope,args.date))
                 scope=snapshot['scopes'][key]
                 snapshot['generated_at']=datetime.now(TZ).isoformat(timespec='seconds')
                 atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
