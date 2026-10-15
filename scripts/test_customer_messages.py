@@ -42,6 +42,12 @@ class DataTests(unittest.TestCase):
   self.assertTrue(prior['sessions'][0]['messages'][0]['on_target_date'])
   self.assertFalse(prior['sessions'][0]['messages'][1]['on_target_date'])
   self.assertFalse(raw['sessions'][0]['messages'][0]['on_target_date'])
+ def test_known_platform_hidden_system_card_is_retained(self):
+  row=normalize([dict(id='sys',time='昨天 14:34',role='merchant',type='17019',content='')],'2026-10-14',date(2026,10,15))[0]
+  self.assertTrue(row['unavailable_text']);self.assertFalse(row['needs_review'])
+  self.assertEqual(row['role'],'system');self.assertIn('电脑版未展示正文',row['content'])
+  unknown=normalize([dict(id='x',time='昨天 14:34',role='merchant',type='99999',content='')],'2026-10-14',date(2026,10,15))[0]
+  self.assertTrue(unknown['needs_review'])
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

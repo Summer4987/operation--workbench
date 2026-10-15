@@ -58,6 +58,8 @@ def normalize(rows,target,today=None,newest_first=False):
         row['time_inferred']=row.get('time_inferred',False) or not bool(explicit)
         row['on_target_date']=row['timestamp'].startswith(target)
         row['media']=row.get('media') or []
+        if not row.get('content') and not row['media'] and str(row.get('type'))=='17019':
+            row.update(content='[平台系统提示卡：电脑版未展示正文（类型17019）]',role='system',unavailable_text=True)
         row['content']=row.get('content') or ('[附件消息]' if row['media'] else '[未解析消息，保留原始类型]')
         role=row.get('role','system')
         sender=row.get('sender','')
