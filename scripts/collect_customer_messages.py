@@ -67,7 +67,6 @@ def save_media(page,scope,session,frame=None):
         if m.get('needs_review'):
             try:
                 if scope['platform']=='淘宝闪购':
-                    loc=frame.locator('.imsdk_msg_list_item').filter(has=frame.locator('.message_item'))
                     index=frame.locator('.imsdk_msg_list_item').evaluate_all('(es,id)=>es.findIndex(e=>e.getAttribute("limoo_message_id")===id)',m['id'])
                     if index<0:raise RuntimeError('特殊消息已不在界面，需复查')
                     loc=frame.locator('.imsdk_msg_list_item').nth(index)
@@ -239,8 +238,11 @@ def el_list(page,frame):
     # Leave both 顾客单聊 / 三方群聊 unfiltered and unread-only off.
     for btn in frame.locator('.custom_detail_tab .button').all():
         if 'unClicked' not in (btn.get_attribute('class') or ''):btn.dispatch_event('click')
-    radio=frame.locator('.custom_detail_tab .radio')
-    if radio.count() and radio.locator('[class*=checked],[class*=Checked]').count():radio.dispatch_event('click')
+    unread=frame.locator('.custom_detail_tab .circle_wrapper')
+    if unread.count()!=1:raise RuntimeError('淘宝未读筛选控件缺失，停止采集')
+    if not unread.locator('.circle').count():unread.dispatch_event('click')
+    wait(page,lambda:unread.locator('.circle').count()==1,'淘宝关闭只看未读')
+    if frame.locator('.custom_detail_tab .button:not(.unClicked)').count():raise RuntimeError('淘宝单聊/三方群聊筛选未清空')
     box=frame.locator('#im_conversation_list_body')
     box.evaluate('e=>{e.scrollTop=0;e.dispatchEvent(new Event("scroll"))}')
     page.wait_for_timeout(600)
