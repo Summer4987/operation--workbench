@@ -89,6 +89,10 @@ class DataTests(unittest.TestCase):
   self.assertEqual(unique_group_store([],['保利中心店','银泰城店']),'')
   self.assertEqual(unique_group_store(['保利中心店'],['银泰城店','保利中心店']),'保利中心店')
   self.assertEqual(unique_group_store([],[]),'')
+ def test_visible_platform_prompt_is_not_a_manual_merchant_reply(self):
+  row=normalize([dict(id='system',time='昨天 14:34',type='17019',role='merchant',sender='商户',content='发票处理提醒：请完成开票')],'2026-10-14',date(2026,10,15))[0]
+  self.assertEqual(row['role'],'system');self.assertNotEqual(row['reply_type'],'门店回复')
+  self.assertEqual(row['content'],'发票处理提醒：请完成开票')
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

@@ -58,6 +58,7 @@ def normalize(rows,target,today=None,newest_first=False):
         row['time_inferred']=row.get('time_inferred',False) or not bool(explicit)
         row['on_target_date']=row['timestamp'].startswith(target)
         row['media']=row.get('media') or []
+        if str(row.get('type')) in {'17019','9','17024','1000'}:row['role']='system'
         if not row.get('content') and not row['media'] and str(row.get('type')) in {'17019','9','17024','1000'}:
             row.update(content=f'[平台系统记录：电脑版未展示正文（类型{row.get("type")}）]',role='system',unavailable_text=True)
         row['content']=row.get('content') or ('[附件消息]' if row['media'] else '[未解析消息，保留原始类型]')
@@ -127,6 +128,8 @@ def reconcile_hidden_cards(scope):
             if str(m.get('type'))=='10089' and m.get('required_media')=='audio':
                 m.pop('required_media',None);count+=1
             if str(m.get('type')) not in {'17019','9','17024','1000'}:continue
+            if m.get('role')!='system':
+                m.update(role='system',reply_type='系统/群聊参与者');count+=1
             if m.get('content')!='[未解析消息，保留原始类型]' or m.get('media'):continue
             m.update(content=f'[平台系统记录：电脑版未展示正文（类型{m.get("type")}）]',role='system',reply_type='系统/群聊参与者',unavailable_text=True,needs_review=False)
             m.pop('capture_error',None);count+=1
