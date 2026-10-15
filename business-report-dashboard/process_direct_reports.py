@@ -170,6 +170,40 @@ def load_legacy_payload() -> dict:
         return {}
 
 
+
+def read_valid_meituan(path, config, alias_lookup):
+    last_error = None
+    for encoding in dict.fromkeys([config["meituan"]["encoding"], "utf-8-sig", "utf-8"]):
+        try:
+            raw = pd.read_csv(path, encoding=encoding)
+            break
+        except UnicodeDecodeError as exc:
+            last_error = exc
+    else:
+        raise last_error
+    mapping = config["meituan"]["columns"]
+    required = [mapping[k] for k in ["date", "store_raw", "income", "orders"]]
+    if raw.empty or not set(required).issubset(raw.columns):
+        raise base.EmptyDailyReportError(f"美团报表为空或缺少基础字段：{path.name}")
+    income = pd.to_numeric(raw[mapping["income"]].astype(str).str.replace(",", "", regex=False), errors="coerce")
+    orders = pd.to_numeric(raw[mapping["orders"]].astype(str).str.replace(",", "", regex=False), errors="coerce")
+    import math
+    valid = income.map(lambda x: pd.notna(x) and math.isfinite(x)) & orders.map(lambda x: pd.notna(x) and math.isfinite(x) and x >= 0 and float(x).is_integer())
+    if not valid.any():
+        raise base.EmptyDailyReportError(f"美团报表没有有效收入/单量：{path.name}")
+    frame, warnings = base.standardize(raw[valid], "美团", mapping, alias_lookup)
+    return frame, warnings
+
+
+def merge_daily_frames(frames, target_stores):
+    unified = pd.concat([normalize_unified(frame) for frame in frames], ignore_index=True) if frames else empty_unified()
+    if not unified.empty:
+        unified = unified[unified["store"].isin(target_stores)].copy()
+        # Stable sort preserves appended official-report priority for equal keys.
+        unified.sort_values(["date", "store", "platform"], kind="stable", inplace=True)
+        unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
+    return normalize_unified(unified)
+
 def process(eleme_path: Path | None = None, meituan_path: Path | None = None) -> dict:
     config = load_config()
     alias_lookup = base.build_alias_lookup(config)
@@ -200,17 +234,17 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
         frames.append(frame)
         warnings.extend(direct_warnings(frame_warnings))
     for path in collect_meituan_paths(meituan_path):
-        frame, frame_warnings = base.read_meituan(path, config, alias_lookup)
+        try:
+            frame, frame_warnings = read_valid_meituan(path, config, alias_lookup)
+        except base.EmptyDailyReportError as exc:
+            warnings.append({"platform": "美团", "file": path.name, "issue": f"{exc}；已跳过，保留有效经营数据兜底"})
+            continue
         frames.append(frame)
         warnings.extend(direct_warnings(frame_warnings))
 
-    unified = pd.concat([normalize_unified(frame) for frame in frames], ignore_index=True) if frames else empty_unified()
+    unified = merge_daily_frames(frames, config["target_stores"])
     if not unified.empty:
-        unified = unified[unified["store"].isin(config["target_stores"])].copy()
-        unified.sort_values(["date", "store", "platform"], inplace=True)
-        unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
         base.validate_latest_platform_coverage(unified, config["target_stores"], context="直营店日报")
-    unified = normalize_unified(unified)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     unified_path = DATA_DIR / "direct_unified_daily.csv"
