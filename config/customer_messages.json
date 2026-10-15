@@ -1,6 +1,6 @@
 {
   "stores": [
-    {"store":"朝阳门店","eleme_shop_id":"166525463","eleme_keyword":"雅宝","meituan_account":"direct_chaoyangmen"},
+    {"store":"朝阳门店","eleme_shop_id":"166525463","eleme_keyword":"朝阳门店","meituan_account":"direct_chaoyangmen"},
     {"store":"银泰城店","eleme_shop_id":"523966249","eleme_keyword":"银泰城","meituan_account":"direct_yintaicheng"},
     {"store":"万象城店","eleme_shop_id":"524321320","eleme_keyword":"万象城","meituan_account":"direct_wanxiangcheng"},
     {"store":"金融城店","eleme_shop_id":"1300114063","eleme_keyword":"金融城","meituan_account":"direct_jinrongcheng"},

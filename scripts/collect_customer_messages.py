@@ -125,7 +125,7 @@ def meituan(pw,scope,account,keyword):
         page.goto(MT_URL,wait_until='domcontentloaded',timeout=60000)
         wait(page,lambda:page.get_by_text('全部顾客消息',exact=True).count(),'美团客服工作台')
         dismiss(page)
-        if keyword not in page.locator('body').inner_text()[:1000]:raise RuntimeError('美团账号身份不符合配置')
+        wait(page,lambda:keyword in page.locator('[class*=storeName]').first.inner_text() if page.locator('[class*=storeName]').count() else False,'美团账号身份核对')
         sessions,complete=mt_list(page)
         scope.update(list_complete=complete,scanned_sessions=len(sessions),sessions=[],errors=[])
         for item in sessions:
@@ -219,7 +219,18 @@ def eleme(pw,scope,config):
     page=browser.contexts[0].new_page();page.set_default_timeout(12000)
     try:
         sid=config['eleme_shop_id']
-        page.goto(f'https://melody.shop.ele.me/app/shop/{sid}/dashboard#app.shop.dashboard',wait_until='domcontentloaded',timeout=60000)
+        page.goto('https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center',wait_until='domcontentloaded',timeout=60000)
+        header=page.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]')
+        wait(page,lambda:header.count(),'淘宝原生门店选择器')
+        header.dispatch_event('click')
+        search=page.get_by_placeholder('搜索店铺名称/ID')
+        search.wait_for(state='visible',timeout=12000);search.fill(sid)
+        menu=page.locator('#dropContentEl li[data-value]')
+        wait(page,lambda:menu.evaluate_all('(es,id)=>es.some(e=>e.getAttribute("data-value").endsWith("/SHOP:"+id))',sid),'淘宝门店搜索结果')
+        matching=menu.filter(has_text=config['eleme_keyword'])
+        if matching.count()!=1:raise RuntimeError('淘宝门店搜索结果无法唯一匹配')
+        if not matching.get_attribute('data-value').endswith('/SHOP:'+sid):raise RuntimeError('淘宝门店 ID 不匹配')
+        matching.dispatch_event('click')
         wait(page,lambda:config['eleme_keyword'] in page.locator('body').inner_text()[:600],'淘宝单店身份')
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
