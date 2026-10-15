@@ -59,6 +59,11 @@ class DataTests(unittest.TestCase):
   self.assertEqual(media_type('binary/octet-stream',b'\x89PNG\r\n\x1a\nrest'),'image/png')
   self.assertEqual(media_type('text/html',b'<html>login</html>'),'')
   self.assertEqual(media_type('image/jpeg',b'<html>login</html>'),'')
+ def test_voice_duration_without_audio_is_incomplete(self):
+  scope=dict(list_complete=True,errors=[],sessions=[dict(history_complete=True,messages=[dict(on_target_date=True,needs_review=False,required_media='audio',content='8秒',media=[])])])
+  self.assertEqual(scope_status(scope),'partial')
+  scope['sessions'][0]['messages'][0]['media']=[dict(kind='audio',status='saved')]
+  self.assertEqual(scope_status(scope),'ready')
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)

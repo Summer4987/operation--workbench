@@ -23,7 +23,7 @@ MT_ROWS="""els=>els.map(e=>{
  let nick=e.querySelector('.sender-nickname')?.cloneNode(true);nick?.querySelector('.message-formattime')?.remove();
  const card=e.querySelector('[data-card-content]')||e.querySelector('.im_card_message-container');
  let media=card&&!card.querySelector('.im-card_order-message')?Array.from(card.querySelectorAll('img,audio,video,source')).filter(x=>!x.closest('[class*=emoji]')).map(x=>({kind:x.tagName==='IMG'?'image':x.tagName==='VIDEO'?'video':'audio',url:x.src,alt:x.alt||''})):[];
- return {id:e.id,time:txt('.message-formattime'),sender:nick?.textContent?.trim()||'',role:e.querySelector('.right-message')?'merchant':e.querySelector('.left-message')?'customer':'system',content:txt('[data-card-content]')||txt('.im-card_event-message')||txt('.im-card_message-tips-container'),separator:txt('.im-card_timestamp-message'),media,read_status:txt('.read-position')};})"""
+ return {id:e.id,time:txt('.message-formattime'),sender:nick?.textContent?.trim()||'',role:e.querySelector('.right-message')?'merchant':e.querySelector('.left-message')?'customer':'system',content:txt('[data-card-content]')||txt('.im-card_event-message')||txt('.im-card_message-tips-container'),separator:txt('.im-card_timestamp-message'),media,required_media:e.querySelector('[class*=voice],[class*=audio]')?'audio':e.querySelector('[class*=video]')?'video':'',read_status:txt('.read-position')};})"""
 EL_ROWS="""e=>{let aside='';return Array.from(e.children).flatMap(x=>{
  if(x.classList.contains('im_sdk_msg_list_item_aside_message')){aside=x.textContent.trim();return []}
  if(!x.classList.contains('imsdk_msg_list_item'))return [];
@@ -31,7 +31,7 @@ EL_ROWS="""e=>{let aside='';return Array.from(e.children).flatMap(x=>{
  const account=text('.msg_account');const match=account.match(/((?:\\d{4}年)?\\d{1,2}月\\d{1,2}日\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)/);
  const area=x.querySelector('.msg_content');
  const media=Array.from(x.querySelectorAll('img,audio,video,source')).filter(n=>!n.closest('[class*=emoji],[class*=avatar]')&&!/product|goods/i.test(n.className)).map(n=>({kind:n.tagName==='IMG'?'image':n.tagName==='VIDEO'?'video':'audio',url:n.src,alt:n.alt||''}));
- return [{id:x.getAttribute('limoo_message_id')||x.id,time:match?match[1]:aside,sender:match?account.slice(0,match.index).trim():account,role:x.querySelector('.my_msg')?'merchant':account.startsWith('顾客')?'customer':'system',content:text('.msg_content')||text('.system_content')||text('.system_prompt_plugin'),is_ai:x.textContent.includes('AI自动回复纠错'),is_auto:!!x.querySelector('[class*=auto_reply]'),media,type:x.getAttribute('limoo_custom_type'),read_status:text('.read_status')}];})}"""
+ return [{id:x.getAttribute('limoo_message_id')||x.id,time:match?match[1]:aside,sender:match?account.slice(0,match.index).trim():account,role:x.querySelector('.my_msg')?'merchant':account.startsWith('顾客')?'customer':'system',content:text('.msg_content')||text('.system_content')||text('.system_prompt_plugin'),is_ai:x.textContent.includes('AI自动回复纠错'),is_auto:!!x.querySelector('[class*=auto_reply]'),media,required_media:x.querySelector('[class*=voice],[class*=audio]')?'audio':x.querySelector('[class*=video]')?'video':'',type:x.getAttribute('limoo_custom_type'),read_status:text('.read_status')}];})}"""
 
 
 def wait(page,fn,label,seconds=35):
