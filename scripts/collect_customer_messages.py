@@ -15,6 +15,7 @@ import shutil
 import time
 from datetime import datetime,timedelta
 from urllib.parse import urlparse
+from review_page_data import match_store,store_aliases
 from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type
 
 MT_URL='https://e.waimai.meituan.com/imworkbench/home?appId=4&clientType=140006#/im/page/workbench/reception'
@@ -126,6 +127,11 @@ def save_media(page,scope,session,frame=None):
                     except Exception:pass
 
 
+
+def canonical_chat_title(title):
+    title=re.sub(r'^(?:今日|昨日|\d+[./]\d+)?#\d+(?:单)?\s*','',str(title).strip())
+    return re.sub(r'\s+','',title)
+
 def mt_list(page,observations,window_start):
     page.get_by_text('全部顾客消息',exact=True).dispatch_event('click')
     wait(page,lambda:observations,'美团全部顾客消息接口返回')
@@ -211,15 +217,29 @@ def mt_group_history(page,item,target,window_start=None):
 def meituan(pw,scope,account,keyword):
     browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{account["port"]}',timeout=10000)
     page=browser.contexts[0].new_page();page.set_default_timeout(12000)
-    observations=[]
+    observations=[];native_hints={};aliases=store_aliases()
+    def remember(rows):
+        for row in rows or []:
+            if not isinstance(row,dict):continue
+            name=row.get('poiName') or row.get('shopName') or ''
+            store=match_store(name,'美团',aliases)
+            if not store:continue
+            for field in ['title','chatName','groupName','name']:
+                title=row.get(field)
+                if isinstance(title,str) and title:
+                    native_hints.setdefault(canonical_chat_title(title),set()).add(store)
     def response(r):
-        if not urlparse(r.url).path.endswith('/dialog/group/query'):return
+        path=urlparse(r.url).path
+        if not any(path.endswith(x) for x in ['/dialog/group/query','/getAllChatInfos','/getChatInfosByType']):return
         try:
+            payload=r.json();data=payload.get('data') or {}
+            if path.endswith('/getAllChatInfos'):
+                remember((data.get('all') or {}).get('chats'));return
+            if path.endswith('/getChatInfosByType'):
+                remember(data.get('chats'));return
             query=r.request.post_data_json
-            if query.get('groupCode')!='AFTER_SALE':return
-            payload=r.json()
-            if not payload.get('success'):return
-            data=payload['data']
+            if query.get('groupCode')!='AFTER_SALE' or not payload.get('success'):return
+            remember(data.get('data'))
             observations.append(dict(total=data.get('total'),hasNext=data.get('hasNext'),count=len(data.get('data') or [])))
         except Exception:pass
     page.on('response',response)
@@ -239,7 +259,15 @@ def meituan(pw,scope,account,keyword):
             try:
                 session=mt_history(page,item,scope['date'],scope.get('window_start'))
                 if account.get('headquarters') and item.get('group'):
-                    if not any(scope['store'].replace('店','') in m['sender'] for m in session['messages'] if m['role']=='merchant'):continue
+                    mapped={match_store(m['sender'],'美团',aliases) for m in session['messages'] if m['role']=='merchant'}-{''}
+                    mapped.update(native_hints.get(canonical_chat_title(item['label'].split('\n')[0]),set()))
+                    if scope['store'] not in mapped:
+                        if not mapped:
+                            for msg in session['messages']:
+                                for attachment in msg.get('media',[]):attachment.pop('url',None)
+                            scope.setdefault('unassigned_sessions',[]).append(session)
+                            scope['errors'].append('总部三方群聊所属门店暂未核实，已本机留档，不能按无消息处理')
+                        continue
                 if not any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
                     if not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['label'].split('\n')[0])
                     continue
