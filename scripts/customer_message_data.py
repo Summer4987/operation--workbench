@@ -169,3 +169,8 @@ def retain_previous_scope(previous,current):
             new['messages'].sort(key=lambda m:m.get('timestamp',''))
     if retained:current['previous_capture_at']=previous.get('collected_at','')
     return current
+
+
+def unique_group_store(merchant_stores,hint_stores):
+    choices=(set(merchant_stores)-{''}) or (set(hint_stores)-{''})
+    return next(iter(choices)) if len(choices)==1 else ''

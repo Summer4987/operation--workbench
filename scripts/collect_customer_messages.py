@@ -16,7 +16,7 @@ import time
 from datetime import datetime,timedelta
 from urllib.parse import urlparse
 from review_page_data import match_store,store_aliases
-from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type
+from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store
 
 MT_URL='https://e.waimai.meituan.com/imworkbench/home?appId=4&clientType=140006#/im/page/workbench/reception'
 MT_ROWS="""els=>els.map(e=>{
@@ -259,10 +259,10 @@ def meituan(pw,scope,account,keyword):
             try:
                 session=mt_history(page,item,scope['date'],scope.get('window_start'))
                 if account.get('headquarters') and item.get('group'):
-                    mapped={match_store(m['sender'],'美团',aliases) for m in session['messages'] if m['role']=='merchant'}-{''}
-                    mapped.update(native_hints.get(canonical_chat_title(item['label'].split('\n')[0]),set()))
-                    if scope['store'] not in mapped:
-                        if not mapped:
+                    merchants={match_store(m['sender'],'美团',aliases) for m in session['messages'] if m['role']=='merchant'}-{''}
+                    resolved=unique_group_store(merchants,native_hints.get(canonical_chat_title(item['label'].split('\n')[0]),set()))
+                    if resolved!=scope['store']:
+                        if not resolved:
                             for msg in session['messages']:
                                 for attachment in msg.get('media',[]):attachment.pop('url',None)
                             scope.setdefault('unassigned_sessions',[]).append(session)

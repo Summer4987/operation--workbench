@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from datetime import date
 from unittest.mock import patch
-from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards,media_type,retain_previous_scope
+from customer_message_data import stamp,normalize,merge_messages,scope_status,project_scope,reconcile_hidden_cards,media_type,retain_previous_scope,unique_group_store
 from render_customer_messages import page
 
 class DataTests(unittest.TestCase):
@@ -84,6 +84,11 @@ class DataTests(unittest.TestCase):
   script="const assert=require('assert');const detect=("+MEDIA_REQUIREMENT_JS+");const root=(cls,tag='DIV')=>({querySelectorAll:()=>[{className:cls,tagName:tag}]});assert.equal(detect(root('im-invoice-ai-card')),'');assert.equal(detect(root('invoice-card-content')),'');assert.equal(detect(root('im-card_voice-message')),'audio');assert.equal(detect(root('','AUDIO')),'audio');assert.equal(detect(root('im-card_video-message')),'video');"
   r=subprocess.run([node,'-e',script],capture_output=True,text=True)
   self.assertEqual(r.returncode,0,r.stderr)
+ def test_group_attribution_rejects_ambiguous_hints(self):
+  self.assertEqual(unique_group_store([],['保利中心店']),'保利中心店')
+  self.assertEqual(unique_group_store([],['保利中心店','银泰城店']),'')
+  self.assertEqual(unique_group_store(['保利中心店'],['银泰城店','保利中心店']),'保利中心店')
+  self.assertEqual(unique_group_store([],[]),'')
  def test_empty_page_has_all_ten_expected_scopes(self):
   html=page(dict(target_date='2026-10-14',generated_at='test',scopes={}),['2026-10-14'])
   self.assertEqual(html.count('当前结果不可视为'),10)
