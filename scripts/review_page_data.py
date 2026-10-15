@@ -46,6 +46,18 @@ def score_value(value):
         return None
 
 
+
+def verify_all_store_scope(shop_ids, leaf_ids=None):
+    """Eleme uses [] or [-1] for all stores; organization IDs are not store IDs."""
+    if not isinstance(shop_ids, list):
+        raise RuntimeError("淘宝查询缺少全部门店范围")
+    selected = {str(value) for value in shop_ids}
+    if not selected or selected == {"-1"}:
+        return
+    leaves = {str(value) for value in (leaf_ids or [])}
+    if not leaves or selected != leaves:
+        raise RuntimeError("淘宝当前范围不是全部实际门店，可能选中了公司或部分门店")
+
 def meituan_review(item, account, aliases):
     # commentScoreType is a category code, never a star rating.
     rating = score_value(item.get('orderCommentScore')) or score_value(item.get('productScore'))

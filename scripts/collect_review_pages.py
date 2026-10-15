@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from review_page_data import (ROOT, SNAPSHOT, TZ, eleme_reviews, match_store,
-                              meituan_review, read_snapshot, refresh_payloads, score_value, store_aliases)
+                              meituan_review, read_snapshot, refresh_payloads, score_value, store_aliases, verify_all_store_scope)
 
 MT_URL = 'https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home'
 ELE_URL = 'https://melody.shop.ele.me/app/unit/comments#app.unit.comments'
@@ -137,10 +137,17 @@ class Collector:
         page.goto(ELE_URL, wait_until='domcontentloaded', timeout=60000)
         frame = await_value(page, lambda: next((f for f in page.frames if f.url.startswith('https://melody-comment.faas.ele.me/')), None), '淘宝评价页面')
         score_key = ('ChainRatingService', 'pageShopDetail')
-        initial = await_value(page, lambda: captured.get(score_key), '淘宝门店评分')
+        # Clear the native shop filter: [] is the platform's all-stores scope.
+        # Selecting the company/organization node is not equivalent to all shops.
+        frame.get_by_placeholder('按组织/城市查找').click()
+        frame.get_by_text('清空已选', exact=True).click()
+        captured.pop(score_key, None)
+        frame.get_by_role('button', name='确 定', exact=True).click()
+        initial = await_value(page, lambda: captured.get(score_key), '淘宝全部门店评分')
+        verify_all_store_scope(initial[0]['params']['request'].get('shopIds'))
         score_query = initial[0]['params']['request']
         def next_ui_page():
-            next_button = frame.locator('li.comment-melody-antd-pagination-next:visible')
+            next_button = frame.locator('li.comment-melody-antd-pagination-next:visible, li.kw-pager-next:visible')
             if next_button.count() != 1 or 'disabled' in (next_button.get_attribute('class') or ''):
                 raise RuntimeError('淘宝评价分页提前结束')
             next_button.click()
@@ -150,6 +157,7 @@ class Collector:
             value = await_value(page, lambda: captured.get(score_key) if captured.get(score_key, ({},))[0].get('params', {}).get('request', {}).get('pageNum') == n else None, '淘宝评分翻页')
             return value[1]
         score_rows = paged(score_page, 'data')
+        leaf_ids = {str(r['shopId']) for r in score_rows}
         names = [match_store(r.get('shopName',''), '饿了么', self.aliases) for r in score_rows]
         if len({str(r['shopId']) for r in score_rows}) != len(score_rows):
             raise RuntimeError('淘宝评分分页出现重复门店')
@@ -175,12 +183,18 @@ class Collector:
                 frame.get_by_text(label,exact=True).click()
             body, data = await_value(page, lambda: captured.get(list_key), '淘宝满意度筛选')
             query = body['params']['rateQuery']
+            verify_all_store_scope(query.get('shopIds'), leaf_ids)
             kind = query.get('rateType')
             if query.get('scoreType') != 'SERVICE_SCORES' or kind == 'ALL':
                 raise RuntimeError('淘宝满意度筛选未生效')
             if query.get('startTime','9999')[:10] > self.start or query.get('endTime','')[:10] < self.end:
                 raise RuntimeError('淘宝评价页面日期范围未覆盖最近7天')
-            _, total = await_value(page, lambda: captured.get(count_key), '淘宝筛选总数')
+            def current_count():
+                value = captured.get(count_key)
+                if value and value[0]['params']['rateQuery'].get('rateType') == kind:
+                    return value
+                return None
+            _, total = await_value(page, current_count, '淘宝筛选总数')
             if not isinstance(total, int):
                 raise RuntimeError('淘宝评价总数无效')
             def reviews_page(n):
@@ -191,6 +205,7 @@ class Collector:
                     if value:
                         q = value[0]['params']['rateQuery']
                         if q.get('currentPage') == n and q.get('rateType') == kind:
+                            verify_all_store_scope(q.get('shopIds'), leaf_ids)
                             return value
                     return None
                 _, result = await_value(page, current_page, '淘宝评价翻页')
@@ -205,6 +220,7 @@ class Collector:
                         raise RuntimeError('淘宝满意度星级与筛选不一致')
                     if self.start <= row['date'] <= self.end:
                         records[row['review_id']]=row
+        scope['store_scope']='all_stores'
         scope['records']=list(records.values())
         scope['reviews_status']='ready'
 

@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from review_page_data import TZ, build_summary, eleme_reviews, meituan_review, store_aliases, match_store
+from review_page_data import TZ, build_summary, eleme_reviews, meituan_review, store_aliases, match_store, verify_all_store_scope
 from collect_review_pages import paged, Collector
 
 NOW = datetime(2026, 10, 15, 12, tzinfo=TZ)
@@ -17,6 +17,15 @@ def scope(platform='饿了么', status='ready'):
 
 
 class ReviewPageTests(unittest.TestCase):
+    def test_all_store_scope_accepts_platform_all_or_all_leaf_stores(self):
+        for selected in [[], [-1], ["-1"], [11, 12]]:
+            verify_all_store_scope(selected, {11, 12})
+
+    def test_company_or_partial_store_selection_is_rejected(self):
+        for selected in [None, [93331264], [11], [-1, 11]]:
+            with self.assertRaises(RuntimeError):
+                verify_all_store_scope(selected, {11, 12})
+
     def test_satisfaction_is_independent_from_taste_packaging(self):
         rows = eleme_reviews(dict(shopName='熊小小牛排饭POKEBEAR(银泰城店)', shopId=1,
              interceptStatus={'desc':'申诉成功，不计入总分'},orderRateInfos=[dict(rateId=7,serviceRating=3,qualityRating=5,packageRating=5,
