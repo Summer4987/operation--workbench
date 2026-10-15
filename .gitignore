@@ -73,3 +73,7 @@ pdf_extracted.txt
 pdf_vs_docx_pdf_text.txt
 tmp/
 todo-quadrants-app/logs/
+
+# Production customer conversations and screenshots must never enter GitHub.
+business-report-dashboard/direct-dashboard/customer-messages/
+business-report-dashboard/direct-dashboard/customer-messages-sample.html
