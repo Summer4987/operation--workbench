@@ -19,7 +19,7 @@
 "/Users/summer/Documents/New project/business-report-dashboard/.venv/bin/python" scripts/collect_review_pages.py --account eleme_headquarters
 ```
 
-脚本只打开自己创建的临时评价页，读取页面发起的评分/评价查询并复用其分页查询，结束关闭自己创建的页。不会回复、申诉、发券或修改平台配置。浏览器无需退出。
+脚本只打开自己创建的临时评价页，淘宝通过原生页面筛选和翻页读取自然加载的响应，美团复用已观察到的只读评分/评价分页查询，结束关闭自己创建的页。不会回复、申诉、发券或修改平台配置。平台安全验证需人工在 Mac mini 完成，不自动处理或绕过。浏览器无需退出。
 
 `outputs/review_pages/latest.json` 保留在生产本机（Git忽略），只包含规范化评分、评价和采集覆盖；不保存Cookie、签名、请求头或登录令牌。看板数据沿用现有发布通道。每日运营既有流程已替换评价下载为评价页采集，不增加定时任务，不触发推广预算。
 

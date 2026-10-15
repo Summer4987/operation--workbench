@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Read-only collection from authenticated review pages, on the production Mac mini only.
 
-Requests are captured from the UI first; only the observed score/list query methods
-are replayed. Cookies, tokens, headers and request URLs are never persisted.
+Requests are captured from the UI first. Eleme uses native filters and paging;
+only observed Meituan score/list query methods are replayed. Cookies, tokens, headers and request URLs are never persisted.
 """
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ MAX_PAGES = 100
 def await_value(page, fn, label, seconds=30):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
+        if any('/_____tmd_____/punish' in frame.url for frame in page.frames):
+            raise RuntimeError('淘宝闪购要求人工安全验证，请在 Mac mini 完成后重试')
         value = fn()
         if value is not None:
             return value
