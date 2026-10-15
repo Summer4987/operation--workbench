@@ -92,7 +92,7 @@ def save_media(page,scope,session,frame=None):
                     head,body=encoded.split(',',1);mime=head.split(':',1)[1].split(';')[0];content=base64.b64decode(body)
                 else:
                     if parsed.scheme not in ['http','https']:raise RuntimeError('附件地址不可下载')
-                    response=page.request.get(url,timeout=20000,headers={'Referer':page.url})
+                    response=page.request.get(url,timeout=20000,headers={'Referer':frame.url if frame else page.url})
                     if not response.ok:raise RuntimeError('附件读取失败')
                     mime=response.headers.get('content-type','').split(';')[0];content=response.body()
                 mime=media_type(mime,content)
@@ -104,7 +104,21 @@ def save_media(page,scope,session,frame=None):
                 local=OUT/scope['date']/'attachments'/name
                 local.parent.mkdir(parents=True,exist_ok=True);local.write_bytes(content)
                 a.update(status='saved',file=f'attachments/{name}',mime=mime,bytes=len(content))
-            except Exception as e:a['error']=safe_error(e)
+            except Exception as e:
+                a['error']=safe_error(e)
+                # The platform may serve an image only to its already-loaded viewer.
+                # Preserve visible pixels as an explicitly labelled screenshot, never substitute error-page bytes.
+                if a.get('kind')=='image':
+                    try:
+                        host=frame or page
+                        index=host.locator('img').evaluate_all('(es,url)=>es.findIndex(e=>e.src===url&&e.complete&&e.naturalWidth>0)',url)
+                        if index<0:raise RuntimeError('平台原图也未加载，保留失败状态')
+                        image=host.locator('img').nth(index)
+                        name=media_name('rendered:'+url)+'.png'
+                        path=OUT/scope['date']/'attachments'/name;path.parent.mkdir(parents=True,exist_ok=True)
+                        path.write_bytes(image.screenshot(timeout=10000))
+                        a.update(status='saved',file='attachments/'+name,mime='image/png',source_mode='platform-image-screenshot',alt='图片附件（平台显示截图，原文件下载异常）',original_download_error=a.pop('error'))
+                    except Exception:pass
 
 
 def mt_list(page,observations,window_start):

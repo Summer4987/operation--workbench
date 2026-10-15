@@ -43,6 +43,7 @@ def page(data,dates):
                     for a in m.get('media',[]):
                         if a.get('status')=='saved':
                             url=esc(a['file']);kind=a.get('kind','image')
+                            if a.get('source_mode')=='platform-image-screenshot':attachments.append('<small>图片原文件下载异常；下方保留平台已显示的图片截图。</small>')
                             if kind=='image':attachments.append(f'<a href="{url}" target="_blank" rel="noopener"><img class="attachment" src="{url}" loading="lazy" alt="{esc(a.get("alt") or "消息图片")}"></a>')
                             elif kind=='audio':attachments.append(f'<audio controls src="{url}"></audio><a href="{url}" target="_blank">语音原文件（未转写）</a>')
                             else:attachments.append(f'<video controls src="{url}"></video>')
