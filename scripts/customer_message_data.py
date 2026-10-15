@@ -122,19 +122,19 @@ def project_scope(raw,target):
 
 
 def reconcile_hidden_cards(scope):
-    count=0
+    changed=set()
     for session in scope.get('sessions',[]):
         for m in session['messages']:
             if str(m.get('type'))=='10089' and m.get('required_media')=='audio':
-                m.pop('required_media',None);count+=1
+                m.pop('required_media',None);changed.add(m['id'])
             if str(m.get('type')) not in {'17019','9','17024','1000'}:continue
             if m.get('role')!='system':
-                m.update(role='system',reply_type='系统/群聊参与者');count+=1
+                m.update(role='system',reply_type='系统/群聊参与者');changed.add(m['id'])
             if m.get('content')!='[未解析消息，保留原始类型]' or m.get('media'):continue
             m.update(content=f'[平台系统记录：电脑版未展示正文（类型{m.get("type")}）]',role='system',reply_type='系统/群聊参与者',unavailable_text=True,needs_review=False)
-            m.pop('capture_error',None);count+=1
+            m.pop('capture_error',None);changed.add(m['id'])
     scope['status']=scope_status(scope)
-    return count
+    return len(changed)
 
 
 def media_type(declared,content):
