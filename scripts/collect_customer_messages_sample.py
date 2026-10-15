@@ -65,7 +65,7 @@ def main():
         page = pages[0]
         if args.identity_keyword not in page.locator('body').inner_text():
             raise RuntimeError('门店身份不匹配，停止采集')
-        page.get_by_text('全部顾客消息', exact=True).click(timeout=6000)
+        page.get_by_text('全部顾客消息', exact=True).dispatch_event('click')
         page.wait_for_timeout(1200)
         # Exhaust the session list using its actual scroll container, then verify footer.
         session_list = page.locator('.infinite-scroll-component').first
