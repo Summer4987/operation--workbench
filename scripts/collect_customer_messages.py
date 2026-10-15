@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import platform
+import re
 import shutil
 import time
 from datetime import datetime,timedelta
@@ -114,9 +115,12 @@ def mt_history(page,item,target,window_start=None):
     dismiss(page)
     if item.get('group'):
         return mt_group_history(page,item,target,window_start)
-    page.locator(f'[id="{item["id"]}"]').dispatch_event('click')
     panel=page.locator('[class*=sessionDetailPanel]')
-    wait(page,lambda:item['label'].split('\n')[0] in panel.inner_text() and panel.locator('.message-item').count(),'美团会话正文')
+    expected=item['label'].split('\n')[0]
+    same=panel.count() and panel.inner_text().split('\n')[0]==expected
+    previous=panel.locator('.message-item').first.get_attribute('id') if panel.count() and panel.locator('.message-item').count() else ''
+    page.locator(f'[id="{item["id"]}"]').dispatch_event('click')
+    wait(page,lambda:expected in panel.inner_text() and panel.locator('.message-item').count() and (same or panel.locator('.message-item').first.get_attribute('id')!=previous),'美团会话正文与切换归属')
     page.wait_for_timeout(600)
     history=panel.locator('.infinite-scroll-component').first
     merged={};complete=False
@@ -141,7 +145,8 @@ def mt_group_history(page,item,target,window_start=None):
     if loc.count()!=1:raise RuntimeError('美团三方群聊无法唯一定位')
     loc.dispatch_event('click')
     frame=wait(page,lambda:next((f for f in page.frames if '/imworkbench/wm_legacy_chat_detail' in f.url),None),'美团三方群聊页面')
-    wait(page,lambda:frame.locator('.wm-im-chat-item').count(),'美团三方群聊正文')
+    group_name=re.sub(r'^#\d+\s*','',item['label'].split('\n')[0])
+    wait(page,lambda:frame.locator('.wm-im-chat-item').count() and group_name in frame.locator('.wme-im-dialog-chat-window').inner_text()[:400],'美团三方群聊正文与归属')
     page.wait_for_timeout(700)
     body=frame.locator('.wm-im-chat-body');stable=0;old=''
     for _ in range(120):
