@@ -1070,6 +1070,8 @@ function renderDirectDaily() {
       const detailParts = [];
       if (item.eleme_income || item.eleme_orders) detailParts.push(`饿了么 ${yuan(item.eleme_income || 0)} / ${num(item.eleme_orders || 0)} 单`);
       if (item.meituan_income || item.meituan_orders) detailParts.push(`美团 ${yuan(item.meituan_income || 0)} / ${num(item.meituan_orders || 0)} 单`);
+      const fallback = (directDaily.fallback_notes || []).filter((r) => r.store === store);
+      fallback.forEach((r) => detailParts.push(`${r.platform}：经营数据页兜底；新老客各自下单转化率未提供`));
       return `<div class="good-row"><span>${escapeHtml(store)}</span><strong>${yuan(income)} / ${num(orders)} 单</strong><em>${escapeHtml(detailParts.join("；") || "等待平台拆分")}</em></div>`;
     }
   );

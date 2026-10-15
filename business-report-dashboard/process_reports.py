@@ -1610,7 +1610,7 @@ def write_store_reports(payload: dict) -> list[Path]:
         platform_cards_html = "\n".join(
             f"""<div class="platform-card">
         <div class="platform-card-head">
-          <strong>{html_lib.escape(row['platform'])}</strong>
+          <strong>{html_lib.escape(row['platform'])}{' · 经营数据页兜底' if row.get('source') == 'business_page_fallback' else ''}</strong>
           <span>{fmt_money(float(row.get('income') or 0))} / {fmt_int(row.get('orders') or 0)} 单</span>
         </div>
         <div class="platform-metrics">

@@ -322,6 +322,29 @@ def download_latest(page, context, account: dict, target_date: str | None) -> Pa
     return target
 
 
+
+def validate_basic_daily_file(path: Path, account: dict, target_date: str) -> None:
+    import csv
+    from meituan_business_daily_fallback import number
+    rows = None
+    for encoding in ["utf-8-sig", "gb18030"]:
+        try:
+            with path.open(encoding=encoding, newline="") as handle:
+                reader = csv.DictReader(handle)
+                if not {"日期", "门店名称", "营业收入", "有效订单"}.issubset(reader.fieldnames or []):
+                    continue
+                rows = list(reader)
+                break
+        except UnicodeDecodeError:
+            continue
+    if not rows:
+        raise RuntimeError("下载报表为空、字段缺失或编码无效")
+    import re
+    matches = [r for r in rows if re.sub(r"[^0-9]", "", str(r.get("日期", "")))[:8] == target_date
+               and (not account.get("keyword") or account["keyword"] in str(r.get("门店名称", "")))]
+    if not matches or any(number(r.get("有效订单")) is None or number(r.get("营业收入")) is None for r in matches):
+        raise RuntimeError("下载报表没有目标门店日期的有效基础数据")
+
 def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_seconds: int, browser_executable: str | None) -> Path:
     account = load_account(account_id)
     sync_playwright = require_playwright()
@@ -352,6 +375,7 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
             while time.time() < deadline:
                 try:
                     path = download_latest(page, context, account, target_date)
+                    validate_basic_daily_file(path, account, target_date)
                     if generated:
                         validate_meituan_customer_paid_file(path)
                     return path
@@ -359,7 +383,9 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
                     if "缺少 acctId/wmPoiId/token 参数" in str(exc):
                         raise
                     last_error = exc
-                    time.sleep(10)
+                    if submit and not generated:
+                        raise  # Maintenance/rate limit: no new report will appear; use business-page backup.
+                    time.sleep(min(5, max(0, deadline - time.time())))
             raise TimeoutError(f"等待直营美团报表超时：{last_error}")
         finally:
             if should_close_context:
@@ -375,6 +401,13 @@ def report_is_still_generating(exc: Exception) -> bool:
     )
 
 
+
+def run_business_fallback(account_id: str, target_date: str, reason: str) -> Path:
+    from meituan_business_daily_fallback import collect
+    path = collect(load_account(account_id), target_date, reason)
+    print(f"直营美团日报已使用经营数据页兜底：{account_id} {target_date}：{path}", flush=True)
+    return path
+
 def run_accounts(
     account_ids: list[str],
     target_date: str,
@@ -384,31 +417,22 @@ def run_accounts(
     browser_executable: str | None,
 ) -> list[str]:
     failures: list[str] = []
-    deferred: list[str] = []
     for account_id in account_ids:
         try:
             account = load_account(account_id)
             pause = daily_report_pause(account)
             if pause:
                 print(pause_message(pause))
-                continue
+                raise RuntimeError("报表下载暂停，使用经营数据页")
             path = run(account_id, target_date, submit, visible, wait_seconds, browser_executable)
             print(path)
         except Exception as exc:
-            if submit and len(account_ids) > 1 and report_is_still_generating(exc):
-                deferred.append(account_id)
-                print(f"直营美团报表仍在生成，完成其它账号后再复查：{account_id}", file=sys.stderr)
-                continue
-            failures.append(f"{account_id}: {exc}")
-            print(f"直营美团日报下载失败：{account_id}: {exc}", file=sys.stderr)
-
-    for account_id in deferred:
-        try:
-            path = run(account_id, target_date, False, visible, max(wait_seconds, 180), browser_executable)
-            print(f"直营美团延迟报表已补下载：{account_id}: {path}")
-        except Exception as exc:
-            failures.append(f"{account_id}: 延迟复查仍失败：{exc}")
-            print(f"直营美团日报下载失败：{account_id}: 延迟复查仍失败：{exc}", file=sys.stderr)
+            print(f"直营美团报表下载失败，切换经营数据页：{account_id}: {type(exc).__name__}", file=sys.stderr)
+            try:
+                run_business_fallback(account_id, target_date, f"报表下载失败（{type(exc).__name__}），自动使用经营数据页")
+            except Exception as fallback_exc:
+                failures.append(f"{account_id}: 报表和经营数据页均失败：{type(exc).__name__}/{type(fallback_exc).__name__}")
+                print(f"直营美团两条采集路径均失败：{account_id}: {type(fallback_exc).__name__}", file=sys.stderr)
     return failures
 
 
@@ -417,13 +441,18 @@ def main() -> None:
     parser.add_argument("--account", default="direct_chaoyangmen", help="账号 ID。")
     parser.add_argument("--all", action="store_true", help="下载所有已启用直营美团账号。")
     parser.add_argument("--target-date", default=yesterday_compact(), help="报表日期，格式 YYYYMMDD；默认昨天。")
+    parser.add_argument("--fallback-only", action="store_true", help="只读经营数据页补采，不提交或下载报表。")
     parser.add_argument("--submit", action="store_true", help="先提交指定日期的报表任务，再等待下载。默认只下载已有文件。")
     parser.add_argument("--visible", action="store_true", help="显示浏览器窗口；默认 headless。")
-    parser.add_argument("--wait-seconds", type=int, default=180, help="等待报表出现在下载列表的秒数。")
+    parser.add_argument("--wait-seconds", type=int, default=60, help="等待报表出现在下载列表的秒数。")
     parser.add_argument("--browser-executable", default=str(MAC_CHROME) if MAC_CHROME.exists() else None, help="Chrome/Chromium 可执行文件。")
     args = parser.parse_args()
 
     account_ids = enabled_account_ids() if args.all else [args.account]
+    if args.fallback_only:
+        for account_id in account_ids:
+            run_business_fallback(account_id, args.target_date, "只读经营数据页补采")
+        return
     failures = run_accounts(
         account_ids,
         args.target_date,

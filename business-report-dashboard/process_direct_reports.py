@@ -40,6 +40,10 @@ UNIFIED_COLUMNS = [
     *base.METRICS,
     "customer_paid_available",
     "customer_paid_orders",
+    "source",
+    "collected_at",
+    "source_note",
+    "missing_metrics",
 ]
 REVIEW_COLUMNS = [
     "date",
@@ -144,6 +148,9 @@ def normalize_unified(frame: pd.DataFrame) -> pd.DataFrame:
     for column in UNIFIED_COLUMNS:
         if column not in frame.columns:
             frame[column] = 0 if column in {*base.METRICS, "customer_paid_orders"} else ""
+    frame["source"] = frame["source"].fillna("").replace("", "report_download")
+    for column in ["collected_at", "source_note", "missing_metrics"]:
+        frame[column] = frame[column].fillna("")
     return frame[UNIFIED_COLUMNS].copy()
 
 
@@ -168,7 +175,14 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     alias_lookup = base.build_alias_lookup(config)
     base.STORE_SLUGS.update(DIRECT_STORE_SLUGS)
 
-    frames = []
+    fallback_records = []
+    for path in sorted((DATA_DIR / "direct" / "business_fallback").glob("*.json")):
+        value = json.loads(path.read_text(encoding="utf-8"))
+        row = value.get("record") or {}
+        if value.get("status") == "fallback_ready" and row.get("store") in config["target_stores"] and row.get("source") == "business_page_fallback":
+            fallback_records.append(row)
+    # Reports are appended after fallback rows: a recovered official report wins.
+    frames = [pd.DataFrame(fallback_records)] if fallback_records else []
     warnings = []
     for path in collect_eleme_paths(eleme_path):
         try:
@@ -203,7 +217,12 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     unified.to_csv(unified_path, index=False, encoding="utf-8-sig")
 
     legacy_payload = load_legacy_payload()
-    records = unified.to_dict(orient="records")
+    # pandas may represent unavailable fallback metrics as NaN; emit JSON null.
+    records = json.loads(unified.to_json(orient="records", force_ascii=False))
+    latest_date_for_notes = max((r["date"] for r in records), default="")
+    fallback_notes = [dict(store=r["store"], platform=r["platform"], date=r["date"],
+                           note=r["source_note"], missing_metrics=json.loads(r.get("missing_metrics") or "[]"))
+                      for r in records if r.get("source") == "business_page_fallback" and r["date"] == latest_date_for_notes]
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "group": config["group"],
@@ -213,6 +232,7 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
         "platform_summary": base.build_platform_summary(unified),
         "warnings": warnings,
         "records": records,
+        "fallback_notes": fallback_notes,
     }
     if not records and legacy_payload.get("records"):
         payload.update(

@@ -103,6 +103,7 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
             mock.patch.object(self.module, "require_playwright", return_value=FakeSyncPlaywright()), \
             mock.patch.object(self.module, "launch_context", return_value=(fake_context, False)), \
             mock.patch.object(self.module, "generate_report", return_value=False) as generate_report, \
+            mock.patch.object(self.module, "validate_basic_daily_file"), \
             mock.patch.object(self.module, "download_latest", return_value=expected_path) as download_latest:
             path = self.module.run("direct_chaoyangmen", "20260706", True, False, 1, None)
 
@@ -111,34 +112,38 @@ class DownloadDirectMeituanDailyTests(unittest.TestCase):
         download_latest.assert_called_once_with(fake_page, fake_context, {"id": "direct_chaoyangmen"}, "20260706")
         fake_context.close.assert_not_called()
 
-    def test_all_accounts_rechecks_report_that_is_still_generating(self) -> None:
-        timeout = TimeoutError(
-            "等待直营美团报表超时：直营美团下载列表没有可下载文件："
-            "{'data': {'list': [{'status': 0, 'url': ''}]}}"
-        )
-        recovered = Path("/tmp/yintaicheng.csv")
-        with mock.patch.object(
-            self.module,
-            "load_account",
-            side_effect=lambda account_id: {"id": account_id},
-        ), mock.patch.object(
-            self.module,
-            "run",
-            side_effect=[timeout, Path("/tmp/wanxiangcheng.csv"), recovered],
-        ) as run:
-            failures = self.module.run_accounts(
-                ["direct_yintaicheng", "direct_wanxiangcheng"],
-                "20260831",
-                True,
-                False,
-                1,
-                None,
-            )
-
+    def test_generation_timeout_uses_backup_and_continues_other_accounts(self) -> None:
+        timeout = TimeoutError("报表生成中")
+        with mock.patch.object(self.module, "load_account", side_effect=lambda account_id: {"id":account_id}), \
+             mock.patch.object(self.module, "run", side_effect=[timeout, Path("/tmp/second.csv")]) as run, \
+             mock.patch.object(self.module, "run_business_fallback", return_value=Path("/tmp/backup.json")) as fallback:
+            failures = self.module.run_accounts(["first", "second"], "20261014", True, False, 1, None)
         self.assertEqual(failures, [])
-        self.assertEqual(run.call_count, 3)
-        self.assertEqual(run.call_args_list[-1].args[0], "direct_yintaicheng")
-        self.assertFalse(run.call_args_list[-1].args[2])
+        self.assertEqual(run.call_count, 2)
+        fallback.assert_called_once()
+        self.assertEqual(fallback.call_args.args[:2], ("first", "20261014"))
+
+    def test_normal_report_does_not_use_fallback(self):
+        with mock.patch.object(self.module, "load_account", return_value={}), \
+             mock.patch.object(self.module, "run", return_value=Path("/tmp/report.csv")), \
+             mock.patch.object(self.module, "run_business_fallback") as fallback:
+            self.assertEqual(self.module.run_accounts(["first"], "20261014", True, False, 1, None), [])
+        fallback.assert_not_called()
+
+    def test_both_paths_failed_are_reported(self):
+        with mock.patch.object(self.module, "load_account", return_value={}), \
+             mock.patch.object(self.module, "run", side_effect=RuntimeError("限流")), \
+             mock.patch.object(self.module, "run_business_fallback", side_effect=RuntimeError("登录失效")):
+            result = self.module.run_accounts(["first"], "20261014", True, False, 1, None)
+        self.assertEqual(len(result), 1)
+        self.assertIn("报表和经营数据页均失败", result[0])
+
+    def test_header_only_report_is_rejected(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"empty.csv"
+            path.write_text("日期,门店名称,营业收入,有效订单\n",encoding="utf-8-sig")
+            with self.assertRaises(RuntimeError):self.module.validate_basic_daily_file(path,{},"20261014")
 
 
 if __name__ == "__main__":
