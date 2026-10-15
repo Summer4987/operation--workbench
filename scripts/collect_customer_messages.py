@@ -106,7 +106,7 @@ def mt_list(page,observations,window_start):
             boundary=any(d and d[:10]<window_start for d in dates)
             complete=bool(observations) and (observations[-1].get('hasNext') is False or boundary)
             break
-        panel.evaluate('e=>{e.scrollTop=e.scrollHeight;e.dispatchEvent(new Event("scroll"))}')
+        panel.evaluate('e=>{let n=e;while(n.parentElement&&!/auto|scroll/.test(getComputedStyle(n).overflowY))n=n.parentElement;n.scrollTop=n.scrollHeight;n.dispatchEvent(new Event("scroll"))}')
         page.wait_for_timeout(400)
     return list(seen.values()),complete
 
@@ -122,7 +122,7 @@ def mt_history(page,item,target,window_start=None):
     page.locator(f'[id="{item["id"]}"]').dispatch_event('click')
     wait(page,lambda:expected in panel.inner_text() and panel.locator('.message-item').count() and (same or panel.locator('.message-item').first.get_attribute('id')!=previous),'美团会话正文与切换归属')
     page.wait_for_timeout(600)
-    history=panel.locator('.infinite-scroll-component').first
+    history=panel.locator('#imMessageList')
     merged={};complete=False
     for _ in range(120):
         batch=normalize(panel.locator('.message-item').evaluate_all(MT_ROWS),target,newest_first=True)
