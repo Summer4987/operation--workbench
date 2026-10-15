@@ -123,32 +123,30 @@ class Collector:
             if '/ugc/invoke/' not in response.url:
                 return
             try:
-                req = response.request
-                body = req.post_data_json
+                body = response.request.post_data_json
                 key = (body.get('service'), body.get('method'))
                 if key in [('ChainRatingService', 'pageShopDetail'), ('ShopRatingService', 'getRateResult'), ('ShopRatingService', 'countRateResult')]:
-                    captured[key] = (req, body)
+                    data = response.json()
+                    if not data.get('error') and data.get('result') is not None:
+                        captured[key] = (body, data['result'])
             except Exception:
                 pass
         page.on('response', receive)
         page.goto(ELE_URL, wait_until='domcontentloaded', timeout=60000)
         frame = await_value(page, lambda: next((f for f in page.frames if f.url.startswith('https://melody-comment.faas.ele.me/')), None), '淘宝评价页面')
-        await_value(page, lambda: captured.get(('ChainRatingService','pageShopDetail')), '淘宝门店评分')
-        def query(service, method, params):
-            req, body = captured[(service, method)]
-            body = copy.deepcopy(body)
-            body['params'] = params
-            headers = {k:v for k,v in req.all_headers().items() if not k.startswith(':') and k not in ['host','cookie','content-length']}
-            headers['accept-encoding'] = 'gzip, deflate'
-            response = page.request.post(req.url, headers=headers, data=body, timeout=30000)
-            data = response.json()
-            if data.get('error') or data.get('result') is None:
-                raise RuntimeError('淘宝评价查询失败或登录失效')
-            return data['result']
-        score_body = captured[('ChainRatingService','pageShopDetail')][1]
-        score_query = copy.deepcopy(score_body['params']['request'])
+        score_key = ('ChainRatingService', 'pageShopDetail')
+        initial = await_value(page, lambda: captured.get(score_key), '淘宝门店评分')
+        score_query = initial[0]['params']['request']
+        def next_ui_page():
+            next_button = frame.locator('li.comment-melody-antd-pagination-next:visible')
+            if next_button.count() != 1 or 'disabled' in (next_button.get_attribute('class') or ''):
+                raise RuntimeError('淘宝评价分页提前结束')
+            next_button.click()
         def score_page(n):
-            return query('ChainRatingService','pageShopDetail', {'request':dict(score_query,pageNum=n,pageSize=100)})
+            if n > 1:
+                next_ui_page()
+            value = await_value(page, lambda: captured.get(score_key) if captured.get(score_key, ({},))[0].get('params', {}).get('request', {}).get('pageNum') == n else None, '淘宝评分翻页')
+            return value[1]
         score_rows = paged(score_page, 'data')
         names = [match_store(r.get('shopName',''), '饿了么', self.aliases) for r in score_rows]
         if len({str(r['shopId']) for r in score_rows}) != len(score_rows):
@@ -160,43 +158,52 @@ class Collector:
                 if rating:ratings[store]=rating
         scope['ratings'] = ratings
         scope['ratings_status'] = 'ready'
+        scope['stores'] = sorted(set(names) - {''})
         frame.get_by_text('评价内容', exact=True).click()
-        await_value(page,lambda:captured.get(('ShopRatingService','getRateResult')), '淘宝评价列表')
-        await_value(page,lambda:captured.get(('ShopRatingService','countRateResult')), '淘宝评价总数')
-        query_base = copy.deepcopy(captured[('ShopRatingService','getRateResult')][1]['params']['rateQuery'])
-        query_base.update(startTime=self.start+'T00:00:00',endTime=self.end+'T23:59:59',scoreType='SERVICE_SCORES')
+        list_key = ('ShopRatingService', 'getRateResult')
+        count_key = ('ShopRatingService', 'countRateResult')
+        await_value(page, lambda: captured.get(list_key), '淘宝评价列表')
         records = {}
-        for kind in ['BAD_REVIEW','NORMAL_REVIEW']:
-            # NORMAL_REVIEW is captured from the actual 3-star UI below before use.
-            if kind == 'NORMAL_REVIEW':
+        for label in ['满意度差评(1-2星)', '满意度中评(3星)']:
+            captured.pop(list_key, None)
+            captured.pop(count_key, None)
+            if label == '满意度差评(1-2星)':
                 frame.get_by_text('满意度评分',exact=True).click()
-                frame.get_by_text('满意度中评(3星)',exact=True).click()
-                def middle_query():
-                    query = captured[('ShopRatingService','getRateResult')][1]['params']['rateQuery']
-                    return query if query.get('scoreType') == 'SERVICE_SCORES' and query.get('rateType') not in ['ALL', 'BAD_REVIEW'] else None
-                observed = await_value(page, middle_query, '淘宝3星筛选')
-                kind = observed.get('rateType')
-                if kind in ['ALL','BAD_REVIEW'] or observed.get('scoreType') != 'SERVICE_SCORES':
-                    raise RuntimeError('淘宝3星筛选未生效')
-            q = dict(query_base,rateType=kind,currentPage=1,offset=0,limit=100)
-            total = query('ShopRatingService','countRateResult',{'rateQuery':q})
-            if not isinstance(total,int) or total<0:raise RuntimeError('淘宝评价总数无效')
+            else:
+                frame.get_by_text(label,exact=True).click()
+            body, data = await_value(page, lambda: captured.get(list_key), '淘宝满意度筛选')
+            query = body['params']['rateQuery']
+            kind = query.get('rateType')
+            if query.get('scoreType') != 'SERVICE_SCORES' or kind == 'ALL':
+                raise RuntimeError('淘宝满意度筛选未生效')
+            if query.get('startTime','9999')[:10] > self.start or query.get('endTime','')[:10] < self.end:
+                raise RuntimeError('淘宝评价页面日期范围未覆盖最近7天')
+            _, total = await_value(page, lambda: captured.get(count_key), '淘宝筛选总数')
+            if not isinstance(total, int):
+                raise RuntimeError('淘宝评价总数无效')
             def reviews_page(n):
-                data = query('ShopRatingService','getRateResult',{'rateQuery':dict(q,currentPage=n,offset=(n-1)*100)})
-                return dict(data,total=total)
+                if n > 1:
+                    next_ui_page()
+                def current_page():
+                    value = captured.get(list_key)
+                    if value:
+                        q = value[0]['params']['rateQuery']
+                        if q.get('currentPage') == n and q.get('rateType') == kind:
+                            return value
+                    return None
+                _, result = await_value(page, current_page, '淘宝评价翻页')
+                return dict(result, total=total)
             raw = paged(reviews_page,'rateInfos')
             ids = [str(r.get('rateId') or '') for item in raw for r in item.get('orderRateInfos', [])]
             if len(set(ids)) != total or '' in ids:
                 raise RuntimeError('淘宝评价分页重复或评价ID缺失')
             for item in raw:
                 for row in eleme_reviews(item,self.aliases):
-                    if not row['review_id'] or not row['negative'] or not self.start <= row['date'] <= self.end:
-                        raise RuntimeError('淘宝评价日期或满意度与筛选不一致')
-                    records[row['review_id']]=row
-            if sum(len(x.get('orderRateInfos') or []) for x in raw) != len(raw):
-                raise RuntimeError('淘宝评价粒度发生变化')
+                    if not row['negative']:
+                        raise RuntimeError('淘宝满意度星级与筛选不一致')
+                    if self.start <= row['date'] <= self.end:
+                        records[row['review_id']]=row
         scope['records']=list(records.values())
-        scope['stores'] = sorted(set(names) - {''})
         scope['reviews_status']='ready'
 
     def meituan(self,page,account,scope,old):
@@ -237,6 +244,7 @@ class Collector:
             # Single-store Flutter UI. A new isolated page has a fixed viewport;
             # read tab labels from the screenshot-confirmed header position.
             page.set_viewport_size({'width':1440,'height':1000})
+            page.wait_for_timeout(1800)  # Flutter renders after the score response and viewport resize.
             page.mouse.click(455,242)
         await_value(page,lambda:captured.get('list'),'美团评价列表')
         begin=int(datetime.fromisoformat(self.start).replace(tzinfo=TZ).timestamp())
