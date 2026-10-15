@@ -16,6 +16,7 @@ WEB=ROOT/'business-report-dashboard/direct-dashboard/customer-messages'
 def stamp(raw, today=None):
     today=today or datetime.now(TZ).date()
     raw=str(raw or '').strip()
+    explicit_year=bool(re.match(r'^\d{4}[-年]',raw))
     if not raw:return ''
     prefix=today
     if raw.startswith('昨天'):prefix=today-timedelta(days=1)
@@ -34,6 +35,7 @@ def stamp(raw, today=None):
     for fmt in ['%Y-%m-%d %H:%M:%S','%Y-%m-%d %H:%M','%Y-%m-%d']:
         try:
             dt=datetime.strptime(raw,fmt)
+            if not explicit_year and dt.year==today.year and dt.month>today.month+1:dt=dt.replace(year=dt.year-1)
             return dt.strftime('%Y-%m-%d %H:%M:%S') if 'H' in fmt else dt.date().isoformat()
         except ValueError:pass
     return ''
@@ -53,7 +55,7 @@ def normalize(rows,target,today=None,newest_first=False):
         explicit=stamp(row.get('time'),today)
         if explicit:carry=explicit
         row['timestamp']=explicit or carry
-        row['time_inferred']=not bool(explicit)
+        row['time_inferred']=row.get('time_inferred',False) or not bool(explicit)
         row['on_target_date']=row['timestamp'].startswith(target)
         row['media']=row.get('media') or []
         row['content']=row.get('content') or ('[附件消息]' if row['media'] else '[未解析消息，保留原始类型]')

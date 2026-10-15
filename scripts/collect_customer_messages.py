@@ -86,9 +86,10 @@ def save_media(page,scope,session):
             except Exception as e:a['error']=safe_error(e)
 
 
-def mt_list(page):
+def mt_list(page,observations,window_start):
     page.get_by_text('全部顾客消息',exact=True).dispatch_event('click')
-    page.wait_for_timeout(1500)
+    wait(page,lambda:observations,'美团全部顾客消息接口返回')
+    page.wait_for_timeout(1000)
     wait(page,lambda:page.locator('[class*=sessionListItemContainer]').count() or '暂无消息' in page.locator('body').inner_text(),'美团全部会话加载')
     panel=page.locator('.infinite-scroll-component').first
     seen={};complete=False
@@ -99,7 +100,11 @@ def mt_list(page):
             if not row['id']:
                 row['group']=True;row['id']='group-'+hashlib.sha256(row['label'].split('\n')[0].encode()).hexdigest()[:24]
             seen[row['id']]=row
-        if '已经到底' in panel.inner_text():complete=True;break
+        if '已经到底' in panel.inner_text():
+            dates=[stamp(r.get('latest')) for r in seen.values()]
+            boundary=any(d and d[:10]<window_start for d in dates)
+            complete=bool(observations) and (observations[-1].get('hasNext') is False or boundary)
+            break
         panel.evaluate('e=>{e.scrollTop=e.scrollHeight;e.dispatchEvent(new Event("scroll"))}')
         page.wait_for_timeout(400)
     return list(seen.values()),complete
@@ -162,12 +167,25 @@ def mt_group_history(page,item,target,window_start=None):
 def meituan(pw,scope,account,keyword):
     browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{account["port"]}',timeout=10000)
     page=browser.contexts[0].new_page();page.set_default_timeout(12000)
+    observations=[]
+    def response(r):
+        if not urlparse(r.url).path.endswith('/dialog/group/query'):return
+        try:
+            query=r.request.post_data_json
+            if query.get('groupCode')!='AFTER_SALE':return
+            payload=r.json()
+            if not payload.get('success'):return
+            data=payload['data']
+            observations.append(dict(total=data.get('total'),hasNext=data.get('hasNext'),count=len(data.get('data') or [])))
+        except Exception:pass
+    page.on('response',response)
     try:
         page.goto(MT_URL,wait_until='domcontentloaded',timeout=60000)
         wait(page,lambda:page.get_by_text('全部顾客消息',exact=True).count(),'美团客服工作台')
         dismiss(page)
         wait(page,lambda:keyword in page.locator('[class*=storeName]').first.inner_text() if page.locator('[class*=storeName]').count() else False,'美团账号身份核对')
-        sessions,complete=mt_list(page)
+        sessions,complete=mt_list(page,observations,scope.get('window_start',scope['date']))
+        scope['list_response_checks']=observations
         scope.update(list_complete=complete,scanned_sessions=len(sessions),sessions=[],errors=[])
         for item in sessions:
             latest=stamp(item.get('latest'))
@@ -183,7 +201,7 @@ def meituan(pw,scope,account,keyword):
                     continue
                 save_media(page,scope,session);scope['sessions'].append(session)
             except Exception as e:scope['errors'].append(safe_error(e))
-        scope['list_basis']='全部顾客消息加载至平台末尾；总部按会话所属门店匹配' if complete else '未到达会话列表末尾'
+        scope['list_basis']='已核对全部顾客消息接口返回及界面分页/日期边界；总部按所属门店匹配' if complete else '未到达会话列表末尾'
     finally:
         page.close();browser.close()
 
@@ -207,7 +225,7 @@ def el_list(page,frame):
         rows=frame.locator('.conv_item_plugin').evaluate_all("es=>es.map(e=>({id:e.getAttribute('limoo_session_id'),label:e.innerText,title:e.querySelector('.conv_item_plugin_title')?.textContent||'',latest:e.querySelector('.conv_item_default_time')?.textContent||''}))")
         for row in rows:
             if row['id']:seen[row['id']]=row
-        info=box.evaluate("e=>({top:e.scrollTop,height:e.scrollHeight,client:e.clientHeight,virtual:parseFloat(e.firstElementChild?.style.height)||0,row:e.querySelector('.imsdk_conv_item')?.getBoundingClientRect().height||0})")
+        info=box.evaluate("e=>({top:e.scrollTop,height:e.scrollHeight,client:e.clientHeight,virtual:(parseFloat(e.firstElementChild?.style.height)||0)+(parseFloat(e.firstElementChild?.style.marginTop)||0),row:e.querySelector('.imsdk_conv_item')?.getBoundingClientRect().height||0})")
         expected=round(info['virtual']/info['row']) if info['row'] else 0
         at_bottom=info['top']+info['client']>=info['height']-3
         if at_bottom and expected and len(seen)>=expected:
@@ -245,6 +263,8 @@ def el_history(page,frame,item,target,window_start=None):
     box=frame.locator('#im_sdk_msg_list_container');merged={};stable=0;last='';complete=False;basis=''
     for _ in range(120):
         rows=frame.locator('.msg_list').evaluate(EL_ROWS)
+        if rows and not rows[-1].get('time'):
+            rows[-1]['time']=stamp(item['latest']);rows[-1]['time_inferred']=True
         for row in rows:merged[row['id']]=row
         # EL rows include explicit time for each regular message and nearest preceding system-time label.
         messages=normalize(list(merged.values()),target)

@@ -12,6 +12,7 @@ class DataTests(unittest.TestCase):
   self.assertEqual(stamp('10月14日 17:05',today),'2026-10-14 17:05:00')
   self.assertEqual(stamp('2026年10月14日 17:05',today),'2026-10-14 17:05:00')
   self.assertEqual(stamp('12-31 23:59',date(2027,1,1)),'2026-12-31 23:59:00')
+  self.assertEqual(stamp('12月31日 23:59',date(2027,1,1)),'2026-12-31 23:59:00')
   self.assertEqual(stamp('10/14',today),'2026-10-14')
  def test_messages_not_deduped_by_identical_body(self):
   a=dict(id='a',time='10-14 12:00:00',sender='[AI客服]店',role='merchant',content='好的')
