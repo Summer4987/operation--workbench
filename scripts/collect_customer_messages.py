@@ -338,6 +338,26 @@ def eleme(pw,scope,config):
         browser.close()
 
 
+
+def restore_eleme_headquarters(pw):
+    """Restore the nationwide/all-store organization token before downstream jobs."""
+    from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,GROUP_ID,NEUTRAL_CONTEXT_URL
+    browser=pw.chromium.connect_over_cdp('http://127.0.0.1:9222',timeout=10000)
+    page=next((pg for ctx in browser.contexts for pg in ctx.pages if 'melody.shop.ele.me/app' in pg.url and has_visible_switcher(pg)),None)
+    owned=page is None
+    try:
+        if owned:
+            page=browser.contexts[0].new_page();page.goto(NEUTRAL_CONTEXT_URL,wait_until='domcontentloaded',timeout=60000)
+            page.wait_for_timeout(1500)
+        search=page.get_by_placeholder('搜索店铺名称/ID')
+        if search.count() and search.is_visible():search.fill('');page.wait_for_timeout(500)
+        choose_context(page,f'{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}',f'**/app/chain/{GROUP_ID}/**')
+        if '/app/chain/'+GROUP_ID+'/' not in page.url:raise RuntimeError('淘宝未恢复全国全部门店范围')
+        return True
+    finally:
+        if owned and page:page.close()
+        browser.close()
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--date',default=(datetime.now(TZ).date()-timedelta(days=1)).isoformat())
@@ -381,6 +401,14 @@ def main():
                 snapshot['generated_at']=datetime.now(TZ).isoformat(timespec='seconds')
                 atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
                 print(f'{key}: {scope["status"]}, {len(scope["sessions"])} 段, {scope.get("error","")}',flush=True)
+        if not args.platform or '淘宝闪购' in args.platform:
+            try:
+                snapshot['context_restored']=restore_eleme_headquarters(pw)
+                print('淘宝已恢复全国全部门店范围',flush=True)
+            except Exception as exc:
+                snapshot['context_error']=safe_error(exc)
+                print('淘宝总部范围恢复失败：'+snapshot['context_error'],flush=True)
+        atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
     from customer_message_data import project_scope
     for offset in range(1,args.lookback):
         older=(datetime.strptime(args.date,'%Y-%m-%d').date()-timedelta(days=offset)).isoformat()
@@ -398,6 +426,7 @@ def main():
     build()
     failed=[k for k,v in snapshot['scopes'].items() if v['status']!='ready']
     if len(snapshot['scopes'])!=len(config)*2:failed.append('覆盖门店平台数量未满')
+    if snapshot.get('context_error'):failed.append('淘宝全国全部门店范围恢复')
     if failed:raise SystemExit('客服消息采集有未完成项：'+','.join(failed))
 
 if __name__=='__main__':main()
