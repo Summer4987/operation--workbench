@@ -139,6 +139,7 @@ class Collector:
             body = copy.deepcopy(body)
             body['params'] = params
             headers = {k:v for k,v in req.all_headers().items() if not k.startswith(':') and k not in ['host','cookie','content-length']}
+            headers['accept-encoding'] = 'gzip, deflate'
             response = page.request.post(req.url, headers=headers, data=body, timeout=30000)
             data = response.json()
             if data.get('error') or data.get('result') is None:
@@ -240,7 +241,7 @@ class Collector:
         await_value(page,lambda:captured.get('list'),'美团评价列表')
         begin=int(datetime.fromisoformat(self.start).replace(tzinfo=TZ).timestamp())
         end=int(datetime.fromisoformat(self.end+'T23:59:59').replace(tzinfo=TZ).timestamp())
-        raw=paged(lambda n:query('list',pageNum=n,pageSize=100,commScore=0,beginTime=begin,endTime=end),'list')
+        raw=paged(lambda n:query('list',pageNum=n,pageSize=20,commScore=0,beginTime=begin,endTime=end),'list')
         if len({str(r.get('id')) for r in raw}) != len(raw):raise RuntimeError('美团评价分页出现重复记录')
         records=[]
         for item in raw:
@@ -272,7 +273,7 @@ def main():
     all_stores=franchise+json.loads((ROOT/'business-report-dashboard/direct_config.json').read_text())['target_stores']
     direct_stores={s for a in direct for s in a['stores']}
     accounts=[dict(id='eleme_headquarters',platform='饿了么',type='headquarters',port=9222,stores=all_stores),
-              dict(id='meituan_headquarters',platform='美团',type='headquarters',port=9222,stores=[s for s in all_stores if s not in direct_stores])]
+              dict(id='meituan_headquarters',platform='美团',type='headquarters',port=9222,stores=[s for s in all_stores if s not in direct_stores],url='https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw')]
     accounts += [dict(id=a['id'],platform='美团',type='single',port=a['debug_port'],stores=a['stores'],store_name=a['meituan_store_name'],url=a['pages']['reviews']) for a in direct]
     if args.account:
         unknown=set(args.account)-{a['id'] for a in accounts}
