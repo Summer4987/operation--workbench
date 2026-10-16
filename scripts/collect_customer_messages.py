@@ -359,28 +359,19 @@ def el_history(page,frame,item,target,window_start=None):
 
 
 def eleme(pw,scope,config):
+    from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,NEUTRAL_CONTEXT_URL
     browser=pw.chromium.connect_over_cdp('http://127.0.0.1:9222',timeout=10000)
     # The merchant shell shares store context across tabs. Switch inside a valid existing shell.
-    page=next((pg for context in browser.contexts for pg in context.pages if 'melody.shop.ele.me/app/' in pg.url and pg.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]').count()),None)
+    page=next((pg for context in browser.contexts for pg in context.pages if 'melody.shop.ele.me/app/' in pg.url and has_visible_switcher(pg)),None)
     owned=page is None
     if owned:
         page=browser.contexts[0].new_page()
-        page.goto('https://melody.shop.ele.me/',wait_until='domcontentloaded',timeout=60000)
+        page.goto(NEUTRAL_CONTEXT_URL,wait_until='domcontentloaded',timeout=60000)
     page.set_default_timeout(12000)
     try:
         sid=config['eleme_shop_id']
         if f'/app/shop/{sid}/' not in page.url or config['eleme_keyword'] not in page.locator('body').first.inner_text()[:600]:
-            header=page.locator('[data-manual-spm="a2f1q.bx798315.cx137275.dx174403"]')
-            wait(page,lambda:header.count(),'淘宝原生门店选择器')
-            search=page.get_by_placeholder('搜索店铺名称/ID')
-            if not search.is_visible():header.dispatch_event('click')
-            search.wait_for(state='visible',timeout=12000);search.fill('');search.fill(sid)
-            menu=page.locator('#dropContentEl li[data-value]')
-            wait(page,lambda:menu.evaluate_all('(es,id)=>es.some(e=>e.getAttribute("data-value").endsWith("/SHOP:"+id))',sid),'淘宝门店搜索结果')
-            matching=menu.filter(has_text=config['eleme_keyword'])
-            if matching.count()!=1:raise RuntimeError('淘宝门店搜索结果无法唯一匹配')
-            if not matching.get_attribute('data-value').endswith('/SHOP:'+sid):raise RuntimeError('淘宝门店 ID 不匹配')
-            matching.dispatch_event('click')
+            choose_context(page,sid,re.compile(r'/app/shop/'+re.escape(sid)+r'(?:/|$)'))
         wait(page,lambda:config['eleme_keyword'] in page.locator('body').first.inner_text()[:600],'淘宝单店身份')
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)

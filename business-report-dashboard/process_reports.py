@@ -1902,7 +1902,8 @@ def process(
     payload["focus_items"] = build_all_focus_items(payload, latest_date) if latest_date else []
     payload["all_store_diagnoses"] = build_all_store_diagnoses(payload, latest_date) if latest_date else []
 
-    (DATA_DIR / "latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    payload_path = DATA_DIR / "latest.json"
+    payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = page_review_summary(payload.get("target_stores") or load_config()["target_stores"])
     if summary is not None:
         payload["review_summary"] = summary
