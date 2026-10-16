@@ -328,6 +328,21 @@ def collect_balances() -> tuple[list[dict], list[dict], str]:
         for store in STORES:
             item, candidates = collect_store(page, store, base_url)
             network_candidates.extend(candidates)
+            if item and item.get("error"):
+                # Retry only the failed store in a fresh tab; a stale merchant
+                # shell can otherwise keep reloading without its promotion app.
+                retry_page = context.new_page()
+                try:
+                    retried, retry_candidates = collect_store(retry_page, store, base_url)
+                    network_candidates.extend(retry_candidates)
+                    if retried:
+                        item = retried
+                        item["retry_attempted"] = True
+                except Exception as exc:
+                    item["retry_attempted"] = True
+                    item["retry_error_type"] = type(exc).__name__
+                finally:
+                    retry_page.close()
             if item:
                 items.append(item)
         return items, network_candidates, base_url
