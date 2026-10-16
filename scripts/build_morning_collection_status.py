@@ -34,7 +34,7 @@ EXPECTED_STEPS = [
     "运营总看板发布腾讯云",
     "汇总",
 ]
-LEGACY_EXPECTED_STEPS = {"双平台评价下载"}
+LEGACY_EXPECTED_STEPS = {"双平台评价下载", "双平台评价页及门店评分采集"}
 
 REPAIR_GUIDES = {
     "auth_block": {
@@ -463,6 +463,9 @@ def build_payload() -> dict[str, Any]:
     completed_steps = [step for step in steps if step["status"] == "success"]
     running_steps = [step for step in steps if step["status"] == "running"]
     recorded_names = {step["name"] for step in steps}
+    # Page-based capture replaced the two export steps; don't report them missing.
+    if "双平台评价页及门店评分采集" in recorded_names:
+        recorded_names.update({"饿了么评价下载", "美团评价下载"})
     not_run_steps = [name for name in EXPECTED_STEPS if name not in recorded_names]
     if failed_steps or task.get("status") == "failed":
         status = "failed"
