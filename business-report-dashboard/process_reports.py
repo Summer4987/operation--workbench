@@ -7,7 +7,7 @@ import json
 import re
 import shutil
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -202,7 +202,7 @@ def read_review_files(alias_lookup: dict[str, list[tuple[str, str]]]) -> pd.Data
     import sys
     sys.path.insert(0, str(ROOT.parent / "scripts"))
     from review_page_data import read_snapshot, scope_fresh, TZ
-    from datetime import datetime
+    from datetime import datetime, timedelta
     snapshot = read_snapshot()
     if snapshot:
         # Once page collection is enabled, exports cannot silently reintroduce old reviews.
@@ -636,13 +636,13 @@ def pct_change(current: float, previous: float) -> float | None:
 
 def fmt_delta_text(change: float | None) -> str:
     if change is None:
-        return "前日无可比数据"
+        return "上周同日无可比数据"
     return f"{'+' if change > 0 else ''}{change * 100:.1f}%"
 
 
 def fmt_rate_delta_text(change: float | None) -> str:
     if change is None:
-        return "前日无可比数据"
+        return "上周同日无可比数据"
     return f"{'+' if change > 0 else ''}{change * 100:.1f}个百分点"
 
 
@@ -668,11 +668,13 @@ def latest_report_date(payload: dict) -> str:
 
 
 def previous_report_date(payload: dict, report_date: str) -> str | None:
-    dates = sorted(date for date in payload.get("source_dates", []) if date)
+    # Compare the same weekday exactly seven calendar days earlier. Missing
+    # reports must not silently fall back to another date or the previous row.
+    dates = set(payload.get("source_dates", []))
     if report_date not in dates:
         return None
-    index = dates.index(report_date)
-    return dates[index - 1] if index > 0 else None
+    previous = (datetime.strptime(report_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+    return previous if previous in dates else None
 
 
 def common_platform_records(payload: dict, store: str, report_date: str) -> tuple[list[dict], list[dict], str | None]:
@@ -714,7 +716,7 @@ def build_focus_items(payload: dict, store: str, report_date: str) -> list[dict]
             items.append(
                 {
                     "level": "high",
-                    "title": f"{label}较前日下降 {abs(change) * 100:.1f}%",
+                    "title": f"{label}较上周同日下降 {abs(change) * 100:.1f}%",
                     "body": f"对比 {previous_date} 的共同平台，{advice}",
                 }
             )
@@ -788,7 +790,7 @@ def explain_primary_driver(summary: dict, previous_summary: dict) -> str:
     if not drivers and income_change is not None:
         return "收入变化没有被单一指标解释，需要结合平台拆分和活动状态确认。"
     if not drivers:
-        return "暂无前日可比数据，先以今日横向排名和转化率判断。"
+        return "暂无上周同日可比数据，先以今日横向排名和转化率判断。"
     return "主要拖累：" + "、".join(drivers) + "。"
 
 
@@ -817,15 +819,15 @@ def build_store_diagnosis(payload: dict, store: str, report_date: str) -> dict:
         levels.append("high")
         actions.append("立刻确认门店营业状态、平台在线状态、配送范围和是否被限流。")
     if income_change is not None and income_change <= -0.15:
-        issues.append(f"收入较前日下降 {abs(income_change) * 100:.1f}%")
+        issues.append(f"收入较上周同日下降 {abs(income_change) * 100:.1f}%")
         levels.append("high")
         actions.append("优先对照平台活动、营业时长、客单价和单量变化。")
     if orders_change is not None and orders_change <= -0.15:
-        issues.append(f"单量较前日下降 {abs(orders_change) * 100:.1f}%")
+        issues.append(f"单量较上周同日下降 {abs(orders_change) * 100:.1f}%")
         levels.append("high")
         actions.append("先看曝光是否同步下降，再看下单转化是否掉得更快。")
     if impressions_change is not None and impressions_change <= -0.20:
-        issues.append(f"曝光较前日下降 {abs(impressions_change) * 100:.1f}%")
+        issues.append(f"曝光较上周同日下降 {abs(impressions_change) * 100:.1f}%")
         levels.append("medium")
         actions.append("检查平台入口、搜索排名、活动资源和推广余额。")
     if avg_order and summary["order_conversion"] < avg_order * 0.8:
@@ -1144,7 +1146,7 @@ def write_dashboard(payload: dict) -> Path:
         <div class="legend"><span><i class="new"></i>新客</span><span><i class="old"></i>老客</span></div>
       </div>
       <div class="panel chart-box wide">
-        <div class="section-title"><h2>门店收入较前一日变化</h2><span id="previousDateLabel"></span></div>
+        <div class="section-title"><h2>门店收入较上周同日变化</h2><span id="previousDateLabel"></span></div>
         <div id="incomeChangeBars"></div>
       </div>
     </section>
@@ -1155,19 +1157,19 @@ def write_dashboard(payload: dict) -> Path:
           <tr>
             <th>门店</th>
             <th>收入</th>
-            <th>收入较前日</th>
+            <th>收入较上周同日</th>
             <th>单量</th>
-            <th>单量较前日</th>
+            <th>单量较上周同日</th>
             <th>客单价</th>
             <th>饿了么客单价</th>
             <th>美团客单价</th>
             <th>顾客实付单均价</th>
             <th>曝光量</th>
-            <th>曝光较前日</th>
+            <th>曝光较上周同日</th>
             <th>进店转化率</th>
-            <th>进店较前日</th>
+            <th>进店较上周同日</th>
             <th>下单转化率</th>
-            <th>下单较前日</th>
+            <th>下单较上周同日</th>
             <th>新客占比</th>
             <th>饿了么收入</th>
             <th>美团收入</th>
@@ -1195,9 +1197,9 @@ def write_dashboard(payload: dict) -> Path:
     const safeDiv = (a, b) => b ? a / b : 0;
     const pctChange = (current, previous) => previous ? (current - previous) / previous : null;
     const deltaClass = (change) => change === null ? '' : change >= 0 ? 'up' : 'down';
-    const deltaText = (change, scope = '较前日') => change === null ? '前日无数据' : `${{change >= 0 ? '+' : ''}}${{(change * 100).toFixed(1)}}% ${{scope}}`;
+    const deltaText = (change, scope = '较上周同日') => change === null ? '上周同日无数据' : `${{change >= 0 ? '+' : ''}}${{(change * 100).toFixed(1)}}% ${{scope}}`;
     const ratePointChange = (current, previous, hasPrevious) => hasPrevious ? Number(current || 0) - Number(previous || 0) : null;
-    const rateDeltaText = (change) => change === null ? '前日无数据' : `${{change >= 0 ? '+' : ''}}${{(change * 100).toFixed(1)}}个百分点`;
+    const rateDeltaText = (change) => change === null ? '上周同日无数据' : `${{change >= 0 ? '+' : ''}}${{(change * 100).toFixed(1)}}个百分点`;
     const weightedRate = (rows, column, weightColumn) => {{
       const weightSum = rows.reduce((sum, row) => sum + Number(row[weightColumn] || 0), 0);
       if (weightSum <= 0) return rows.length ? rows.reduce((sum, row) => sum + Number(row[column] || 0), 0) / rows.length : 0;
@@ -1256,8 +1258,11 @@ def write_dashboard(payload: dict) -> Path:
 	    }}
 
     function previousDate(date) {{
-      const index = datesAsc.indexOf(date);
-      return index > 0 ? datesAsc[index - 1] : null;
+      if (!datesAsc.includes(date)) return null;
+      const target = new Date(date + 'T00:00:00Z');
+      target.setUTCDate(target.getUTCDate() - 7);
+      const previous = target.toISOString().slice(0, 10);
+      return datesAsc.includes(previous) ? previous : null;
     }}
 
     function totalsFromStores(stores) {{
@@ -1328,7 +1333,7 @@ def write_dashboard(payload: dict) -> Path:
     function renderChangeBars(id, rows, metric) {{
       const ranked = [...rows].filter((row) => row[metric] !== null).sort((a, b) => Number(b[metric] || 0) - Number(a[metric] || 0));
       if (!ranked.length) {{
-        document.getElementById(id).innerHTML = '<div class="empty">没有前一日数据可对比。</div>';
+        document.getElementById(id).innerHTML = '<div class="empty">没有上周同日数据可对比。</div>';
         return;
       }}
       const max = Math.max(0.01, ...ranked.map((row) => Math.abs(Number(row[metric] || 0))));
@@ -1477,7 +1482,7 @@ def write_dashboard(payload: dict) -> Path:
       const previousCompareRecords = comparableRecords(prevRecords, dayRecords);
       const fallbackRows = dayRecords.filter((row) => row.source === 'business_page_fallback');
       document.getElementById('fallbackNotice').textContent = fallbackRows.map((row) => `${{row.store}} ${{row.platform}}：经营数据页兜底；未提供的新老客各自下单转化率不按0处理。`).join('；');
-      const compareScope = sharedPlatforms.length ? `较前日（同店同平台：${{sharedPlatforms.join('、')}}）` : '较前日';
+      const compareScope = sharedPlatforms.length ? `较上周同日（同店同平台：${{sharedPlatforms.join('、')}}）` : '较上周同日';
       const stores = attachPrevious(storeSummary(dayRecords), storeSummary(currentCompareRecords), storeSummary(previousCompareRecords));
       const totals = totalsFromStores(stores);
       const compareTotals = totalsFromStores(storeSummary(currentCompareRecords));
@@ -1514,7 +1519,7 @@ def write_dashboard(payload: dict) -> Path:
       renderBars('visitBars', stores, 'visit_conversion', fmtRate);
       renderBars('orderBars', stores, 'order_conversion', fmtRate);
       renderCustomerBars(stores);
-      document.getElementById('previousDateLabel').textContent = prevDate && sharedPlatforms.length ? `对比 ${{prevDate}}，共同平台：${{sharedPlatforms.join('、')}}` : '无可比前一日平台数据';
+      document.getElementById('previousDateLabel').textContent = prevDate && sharedPlatforms.length ? `对比 ${{prevDate}}，共同平台：${{sharedPlatforms.join('、')}}` : '无可比上周同日平台数据';
       renderChangeBars('incomeChangeBars', stores, 'income_change');
       renderWeeklyAnalysis(date);
 
@@ -1767,7 +1772,7 @@ def write_store_reports(payload: dict) -> list[Path]:
           <div class="summary-row"><span>下单转化率</span><b>{fmt_rate(summary["order_conversion"])}</b></div>
           <div class="summary-row"><span>新客占比</span><b>{fmt_rate(summary["new_customer_ratio"])}</b></div>
           <div class="summary-row"><span>新客 / 老客订单</span><b>{fmt_int(summary["new_customer_orders"])} / {fmt_int(summary["old_customer_orders"])}</b></div>
-          <div class="summary-row"><span>对比基准</span><b>{html_lib.escape(previous_date or "无前日数据")}</b></div>
+          <div class="summary-row"><span>对比基准（上周同日）</span><b>{html_lib.escape(previous_date or "无上周同日数据")}</b></div>
         </div>
       </div>
     </section>
@@ -1977,7 +1982,11 @@ def render_existing_payload(payload_path: Path = DATA_DIR / "latest.json") -> di
     summary = page_review_summary(payload.get("target_stores") or load_config()["target_stores"])
     if summary is not None:
         payload["review_summary"] = summary
-        payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Recompute cached diagnoses when comparison rules change during deployment.
+    report_date = latest_report_date(payload)
+    payload["focus_items"] = build_all_focus_items(payload, report_date)
+    payload["all_store_diagnoses"] = build_all_store_diagnoses(payload, report_date)
+    payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     dashboard_path = write_dashboard(payload)
     store_report_paths = write_store_reports(payload)
     return {
