@@ -185,13 +185,30 @@ def mt_history(page,item,target,window_start=None):
 
 
 
+def mt_group_identity_matches(label, title, order_text):
+    """Riders can leave a closed group; bind the customer and order, not participants."""
+    label=str(label).split('\n')[0].strip()
+    order=re.match(r'^#(\d+)\s+(.+)$',label)
+    if not order:return False
+    customer=canonical_chat_title(order.group(2).split('、')[0])
+    actual=canonical_chat_title(str(title).split('、')[0])
+    # Keep the masked customer/tail identifier and exact order marker together.
+    return bool(customer and customer==actual and re.search(
+        r'(?m)^\s*#'+re.escape(order.group(1))+r'\s*$',str(order_text)))
+
+
 def mt_group_history(page,item,target,window_start=None):
     loc=page.locator('[class*=sessionListItemContainer]').filter(has_text=item['label'].split('\n')[0])
     if loc.count()!=1:raise RuntimeError('美团三方群聊无法唯一定位')
     loc.dispatch_event('click')
     frame=wait(page,lambda:next((f for f in page.frames if '/imworkbench/wm_legacy_chat_detail' in f.url),None),'美团三方群聊页面')
-    group_name=re.sub(r'^#\d+\s*','',item['label'].split('\n')[0])
-    wait(page,lambda:frame.locator('.wm-im-chat-item').count() and group_name in frame.locator('.wme-im-dialog-chat-window').inner_text()[:400],'美团三方群聊正文与归属')
+    def group_ready():
+        title=frame.locator('.wme-im-dialog-chat-window .wme-im-dialog-top')
+        order=frame.locator('.wme-im-dialog-chat-window .order-tips')
+        return (title.count()==1 and order.count()==1
+                and frame.locator('.wm-im-chat-item').count()>0
+                and mt_group_identity_matches(item['label'],title.inner_text(),order.inner_text()))
+    wait(page,group_ready,'美团三方群聊正文与归属')
     page.wait_for_timeout(700)
     body=frame.locator('.wm-im-chat-body');stable=0;old=''
     for _ in range(120):

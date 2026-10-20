@@ -84,6 +84,16 @@ class DataTests(unittest.TestCase):
   script="const assert=require('assert');const detect=("+MEDIA_REQUIREMENT_JS+");const root=(cls,tag='DIV')=>({querySelectorAll:()=>[{className:cls,tagName:tag}]});assert.equal(detect(root('im-invoice-ai-card')),'');assert.equal(detect(root('invoice-card-content')),'');assert.equal(detect(root('im-card_voice-message')),'audio');assert.equal(detect(root('','AUDIO')),'audio');assert.equal(detect(root('im-card_video-message')),'video');"
   r=subprocess.run([node,'-e',script],capture_output=True,text=True)
   self.assertEqual(r.returncode,0,r.stderr)
+ def test_group_identity_survives_rider_departure_but_rejects_stale_details(self):
+  from collect_customer_messages import mt_group_identity_matches as matches
+  label='#31 L**(尾号8630)、骑手彭、我'
+  self.assertTrue(matches(label,'L**(尾号8630)、我(2)','#31\n订单取消'))
+  self.assertTrue(matches(label,'L**(尾号8630)、骑手彭、我(3)','#31\n订单取消'))
+  self.assertFalse(matches(label,'L**(尾号8630)、我(2)','#310\n订单取消'))
+  self.assertFalse(matches(label,'L**(尾号9999)、我(2)','#31\n订单取消'))
+  self.assertFalse(matches(label,'其他顾客、我(2)','#31\n订单取消'))
+  self.assertFalse(matches(label,'L**(尾号8630)、我(2)',''))
+  self.assertFalse(matches('无法确认订单','L**(尾号8630)、我(2)','#31'))
  def test_group_attribution_rejects_ambiguous_hints(self):
   self.assertEqual(unique_group_store([],['保利中心店']),'保利中心店')
   self.assertEqual(unique_group_store([],['保利中心店','银泰城店']),'')
