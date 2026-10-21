@@ -17,6 +17,8 @@ TASK_ID="ops.realtime_order_income"
 TASK_STEP="初始化"
 TASK_STATE_FINALIZED="false"
 FINAL_RC=0
+FINAL_FAILURE_MESSAGE=""
+FINAL_FAILURE_STEP=""
 LOGIN_PREFLIGHT_RUNNER="$ROOT/scripts/check_platform_login_preflight.py"
 NOTIFY_RUNNER="$ROOT/scripts/ops_notify.py"
 
@@ -144,7 +146,9 @@ run_followup_step() {
   local seconds="$2"
   shift 2
   TASK_STEP="$step"
-  record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
+  if [[ "$TASK_STEP" != "发布最终工作台状态" ]]; then
+    record_task_run "$TASK_ID" running --message "$TASK_STEP" --step "$TASK_STEP" --log-path "$LOG_FILE"
+  fi
   run_with_timeout "$seconds" "$@"
   local rc=$?
   if [[ "$rc" -eq 0 ]]; then
@@ -152,6 +156,8 @@ run_followup_step() {
   fi
   if [[ "$FINAL_RC" -eq 0 ]]; then
     FINAL_RC="$rc"
+    FINAL_FAILURE_MESSAGE="实时单量收入采集后续步骤失败：${TASK_STEP}。"
+    FINAL_FAILURE_STEP="$TASK_STEP"
   fi
   record_task_run "$TASK_ID" failed --message "实时单量收入采集后续步骤失败：${TASK_STEP}。" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$rc"
   return "$rc"
@@ -176,7 +182,7 @@ finish_task_state() {
     if [[ "$FINAL_RC" -ne 0 ]]; then
       final_rc="$FINAL_RC"
     fi
-    record_task_run "$TASK_ID" failed --message "$(latest_failure_message)" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$final_rc"
+    record_task_run "$TASK_ID" failed --message "${FINAL_FAILURE_MESSAGE:-实时任务执行失败：${TASK_STEP}。}" --step "${FINAL_FAILURE_STEP:-$TASK_STEP}" --log-path "$LOG_FILE" --returncode "$final_rc"
   fi
 }
 trap finish_task_state EXIT
@@ -210,6 +216,8 @@ trap finish_task_state EXIT
   if [[ "$COLLECT_RC" -ne 0 ]]; then
     FINAL_RC="$COLLECT_RC"
     failure_message="$(latest_failure_message)"
+    FINAL_FAILURE_MESSAGE="$failure_message"
+    FINAL_FAILURE_STEP="$TASK_STEP"
     record_task_run "$TASK_ID" failed --message "$failure_message" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$COLLECT_RC"
     notify_realtime_failure_once "$failure_message"
   fi
@@ -218,19 +226,22 @@ trap finish_task_state EXIT
   run_followup_step "生成实时采集状态" "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_realtime_collection_status.py" || true
   run_followup_step "生成任务健康状态" "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_task_health.py" || true
   run_followup_step "生成工作台数据" "${REALTIME_BUILD_TIMEOUT_SECONDS:-120}" "$PYTHON" "$ROOT/scripts/build_workbench_data.py" || true
-  run_followup_step "发布工作台云端数据" "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh" || true
+  run_followup_step "发布工作台云端数据" "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" env OPERATION_ROOT="$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh" || true
   if [[ "$COLLECT_RC" -eq 0 && "$FINAL_RC" -eq 0 ]]; then
     record_task_run "$TASK_ID" success --message "实时单量收入采集完成。" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode 0
   else
-    record_task_run "$TASK_ID" failed --message "$(latest_failure_message)" --step "$TASK_STEP" --log-path "$LOG_FILE" --returncode "$FINAL_RC"
+    record_task_run "$TASK_ID" failed --message "$FINAL_FAILURE_MESSAGE" --step "$FINAL_FAILURE_STEP" --log-path "$LOG_FILE" --returncode "$FINAL_RC"
   fi
   refresh_final_workbench_state
-  run_with_timeout "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" env OPERATION_ROOT="$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh" || true
+  run_followup_step "发布最终工作台状态" "${REALTIME_DEPLOY_TIMEOUT_SECONDS:-180}" env OPERATION_ROOT="$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only /bin/zsh "$ROOT/scripts/deploy_workbench_to_cloud.zsh" || true
+  if [[ "$FINAL_RC" -ne 0 ]]; then
+    record_task_run "$TASK_ID" failed --message "$FINAL_FAILURE_MESSAGE" --step "$FINAL_FAILURE_STEP" --log-path "$LOG_FILE" --returncode "$FINAL_RC"
+  fi
   TASK_STATE_FINALIZED="true"
   if [[ "$FINAL_RC" -eq 0 ]]; then
     echo "[$(date '+%F %T')] 实时单量收入采集完成"
   else
-    echo "[$(date '+%F %T')] 实时单量收入采集失败，已生成失败状态并保留上一份成功数据"
+    echo "[$(date '+%F %T')] 实时任务失败：${FINAL_FAILURE_MESSAGE}"
   fi
 } >> "$LOG_FILE" 2>&1
 

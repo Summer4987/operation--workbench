@@ -8,7 +8,7 @@ PUBLIC_URL="${OPERATION_CLOUD_PUBLIC_URL:-http://139.155.148.169/operation-workb
 DEPLOY_MODE="${OPERATION_CLOUD_DEPLOY_MODE:-ui-data}"
 DEPLOY_VERSION="${OPERATION_DEPLOY_VERSION:-$(date +%Y%m%d%H%M%S)}"
 STAGE_DIR="${TMPDIR:-/tmp}/operation-workbench-deploy"
-SSH_OPTS=(-o StrictHostKeyChecking=accept-new)
+SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=12 -o ServerAliveInterval=15 -o ServerAliveCountMax=2)
 IDENTITY_FILE="${OPERATION_CLOUD_IDENTITY_FILE:-$HOME/.ssh/xiong_operation_cloud_ed25519}"
 if [[ -f "$IDENTITY_FILE" ]]; then
   SSH_OPTS+=(-i "$IDENTITY_FILE")
@@ -38,7 +38,11 @@ if [[ "$DEPLOY_MODE" != "data-only" ]]; then
 fi
 run_optional "日报重点状态更新" "$PYTHON" scripts/build_daily_focus_status.py
 run_optional "评价待办状态更新" "$PYTHON" scripts/build_review_action_status.py
-run_optional "直营店日报看板生成" "$PYTHON" business-report-dashboard/process_direct_reports.py
+# Realtime publication reuses the existing daily report. Re-reading every workbook
+# twice per collection can exhaust the launchd publication timeout.
+if [[ "$DEPLOY_MODE" != "data-only" ]]; then
+  run_optional "直营店日报看板生成" "$PYTHON" business-report-dashboard/process_direct_reports.py
+fi
 run_optional "客服消息网页生成" "$PYTHON" scripts/render_customer_messages.py
 run_optional "推广余额状态更新" "$PYTHON" scripts/build_promo_balance_status.py
 "$PYTHON" scripts/build_agent_mobile_status.py
