@@ -10,6 +10,7 @@ const text = cell => String(cell?.text ?? cell?.value ?? '').trim();
 export const INBOUND_HEADERS = ['预计入库日期','库存地点','供应商编码','供应商名称','商品编码','商品名称','物料规格','储存方式','到货数量','单位'];
 
 export function inboundTemplate(config) {
+  if(config.WECOM_INBOUND_RUNTIME_TEMPLATE)return config.WECOM_INBOUND_RUNTIME_TEMPLATE;
   return config.WECOM_INBOUND_TEMPLATE || path.join(os.homedir(), 'Desktop/熊小小/易代仓预约.xlsx');
 }
 

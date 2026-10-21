@@ -13,12 +13,18 @@ const key=crypto.createHash('sha256').update(owner+'\n'+today()+'\n'+text).diges
 const receiptFile=path.join(PRIVATE,'recovery',key+'.json');
 const previous=loadJson(receiptFile,{});
 if(previous.file_sent){console.log(JSON.stringify({already_delivered:true}));process.exit(0);}
+const running=await fetch('http://127.0.0.1:18769/health',{signal:AbortSignal.timeout(1000)}).then(r=>r.json()).catch(()=>null);
+if(send&&running?.authenticated){
+  const token=fs.readFileSync(path.join(PRIVATE,'operator-token'),'utf8').trim();
+  const r=await fetch('http://127.0.0.1:18769/operator/inbound',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({text,send:true}),signal:AbortSignal.timeout(65000)});
+  const result=await r.json();if(!r.ok||!result.ok)throw Error(result.error||'正式进程补发失败');
+  console.log(JSON.stringify(result));process.exit(0);
+}
 const config=settings();
 const result=await new Assistant(config).answer(text,'recovery-'+key);
 if(result.artifacts.length!==1)throw Error('没有生成唯一入库附件，请核对原文');
 const file=result.artifacts[0];
 if(!send){console.log(JSON.stringify({generated:true,file}));process.exit(0);}
-const running=await fetch('http://127.0.0.1:18769/health',{signal:AbortSignal.timeout(1000)}).then(r=>r.json()).catch(()=>null);
 if(running?.authenticated)throw Error('请先停止常驻连接，避免重复连接互相挤掉');
 const require=createRequire(import.meta.url),{WSClient}=require('@wecom/aibot-node-sdk');
 const client=new WSClient({botId:config.WECOM_BOT_ID,secret:config.WECOM_BOT_SECRET,maxReconnectAttempts:0,

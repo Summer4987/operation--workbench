@@ -12,6 +12,7 @@ if [[ ! -f "$ROOT/node_modules/@wecom/aibot-node-sdk/package.json" ]]; then
 fi
 export WECOM_INSTALL_ROOT="$ROOT"
 export WECOM_INSTALL_NODE="$NODE"
+"$NODE" "$ROOT/refresh_template.mjs"
 /usr/bin/python3 - <<'PY'
 import os, plistlib
 from pathlib import Path
@@ -25,7 +26,8 @@ payload = {'Label': 'com.summer.wecom-work-assistant',
            'ProgramArguments': [os.environ['WECOM_INSTALL_NODE'], str(root/'app.mjs')],
            'WorkingDirectory': str(root), 'RunAtLoad': True, 'KeepAlive': True,
            'ThrottleInterval': 15,
-           'EnvironmentVariables': {'PATH': str(home/'.local/bin')+':/usr/bin:/bin:/usr/sbin:/sbin', 'TZ': 'Asia/Shanghai'},
+           'EnvironmentVariables': {'PATH': str(home/'.local/bin')+':/usr/bin:/bin:/usr/sbin:/sbin', 'TZ': 'Asia/Shanghai',
+                                    'WECOM_INBOUND_RUNTIME_TEMPLATE': str(home/'.local/share/xiong-wecom-assistant/templates/inbound.xlsx')},
            'StandardOutPath': str(log/'stdout.log'), 'StandardErrorPath': str(log/'stderr.log')}
 with (folder/'com.summer.wecom-work-assistant.plist').open('wb') as f:
     plistlib.dump(payload, f)

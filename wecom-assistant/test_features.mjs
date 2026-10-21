@@ -8,6 +8,8 @@ import ExcelJS from 'exceljs';
 import {createInbound,readInboundTemplate,matchInboundProduct,inboundDate,parseDirectInbound} from './inbound.mjs';
 import {businessReport,comparisonReport,orderReport,orderTotals} from './reports.mjs';
 import {Assistant} from './core.mjs';
+import {checkOperator,operatorToken,operatorInbound} from './operator.mjs';
+import {inboundTemplate} from './inbound.mjs';
 const dir=path.dirname(fileURLToPath(import.meta.url));
 const template=path.join(dir,'fixtures/inbound-template.xlsx');
 const config={WECOM_INBOUND_TEMPLATE:template};
@@ -80,4 +82,22 @@ test('a generated attachment survives a later model timeout',async t=>{
  }});
  const r=await a.answer('生成一个测试表格','timeout-after-file',{timeoutMs:100});
  assert.equal(r.artifacts.length,1);assert.match(r.text,/表格已生成/);assert.equal(fs.existsSync(r.artifacts[0]),true);
+});
+test('the latest failed request uses the runtime template without calling AI',async t=>{
+ const a=new Assistant({WECOM_INBOUND_RUNTIME_TEMPLATE:template,WECOM_INBOUND_TEMPLATE:'/unreadable/Desktop/template.xlsx'},temp(t),{llm:async()=>{throw Error('AI must not be called');}});
+ const result=await a.answer('预约后天入库牛五花牛排34件','latest-request');
+ assert.equal(result.artifacts.length,1);const b=new ExcelJS.Workbook();await b.xlsx.readFile(result.artifacts[0]);
+ assert.equal(b.getWorksheet('Sheet1').getCell('E2').value,'LDXXX0001');assert.equal(b.getWorksheet('Sheet1').getCell('I2').value,34);
+ assert.equal(inboundTemplate({WECOM_INBOUND_RUNTIME_TEMPLATE:template,WECOM_INBOUND_TEMPLATE:'/Desktop'}),template);
+});
+test('operator token is private and exact bearer authentication is required',t=>{
+ const root=temp(t),token=operatorToken(root);assert.equal(fs.statSync(path.join(root,'operator-token')).mode&0o777,0o600);
+ assert.equal(checkOperator('',token),false);assert.equal(checkOperator('Bearer wrong',token),false);assert.equal(checkOperator('Bearer '+token,token),true);
+});
+test('live-process recovery only sends to paired owner and does not resend acknowledged files',async t=>{
+ const root=temp(t);fs.mkdirSync(path.join(root,'outbox'));const file=path.join(root,'outbox','reservation.xlsx');fs.copyFileSync(template,file);
+ const sent=[];const context={root,owner:'paired-owner',assistant:{answer:async()=>({text:'已生成',artifacts:[file]})},client:{uploadMedia:async()=>({media_id:'test-media'}),sendMessage:async(owner,body)=>{sent.push({owner,body});}}};
+ const result=await operatorInbound({text:'预约后天入库牛五花牛排34件',send:true,recipient:'someone-else'},context);
+ assert.equal(result.file_delivered,true);assert.equal(sent.length,2);assert.ok(sent.every(s=>s.owner==='paired-owner'));
+ assert.equal((await operatorInbound({text:'预约后天入库牛五花牛排34件',send:true},context)).already_delivered,true);assert.equal(sent.length,2);
 });

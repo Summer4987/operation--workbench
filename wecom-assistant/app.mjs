@@ -5,6 +5,7 @@ import http from 'node:http';
 import {createRequire} from 'node:module';
 import ExcelJS from 'exceljs';
 import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook,balance} from './core.mjs';
+import {operatorToken,checkOperator,operatorInbound} from './operator.mjs';
 const require=createRequire(import.meta.url);
 const {WSClient}=require('@wecom/aibot-node-sdk');
 const config=settings();
@@ -17,7 +18,7 @@ if(mode==='--pair-code') {
   console.log(access.data.owner?'已绑定，无需再次绑定。':`绑定 ${access.data.token}`);process.exit(0);
 }
 if(!config.WECOM_BOT_ID || !config.WECOM_BOT_SECRET) throw Error('企微Bot ID或Secret未配置');
-const status={started_at:new Date().toISOString(),authenticated:false,paired:Boolean(access.data.owner),received:0,replied:0,errors:0,last_error:'',last_message_at:null,last_reply_at:null,model_configured:Boolean(config.AGENT_LLM_API_KEY)};
+const status={started_at:new Date().toISOString(),process_id:process.pid,inbound_runtime_template:Boolean(config.WECOM_INBOUND_RUNTIME_TEMPLATE),authenticated:false,paired:Boolean(access.data.owner),received:0,replied:0,errors:0,last_error:'',last_message_at:null,last_reply_at:null,model_configured:Boolean(config.AGENT_LLM_API_KEY)};
 function update(extra={}) { Object.assign(status,extra,{updated_at:new Date().toISOString()});saveJson(statusFile,status); }
 // SDK logs may contain payloads; suppress details and keep only sanitized health codes.
 const logger={debug(){},info(){},warn(){},error(){}};
@@ -72,6 +73,7 @@ async function handle(frame){
   const key=sessionKey(body);
   if(busy.has(key)){await sendText(frame,stream,'上一条消息还在处理中，请等结果返回后再发下一条。');return;}
   busy.add(key);let tick;let progress='正在理解问题……';const started=Date.now();
+  saveJson(path.join(PRIVATE,'last-request.json'),{received_at:new Date().toISOString(),message_type:body.msgtype,text:text.slice(0,8000)});
   try{
     await sendText(frame,stream,'正在处理，请稍候……',false);
     update({received:status.received+1,last_message_at:new Date().toISOString(),active:true,last_stage:progress});
@@ -122,7 +124,21 @@ if(mode==='--smoke'){
 }else{
   client.on('message',frame=>handle(frame).catch(()=>update({errors:status.errors+1,last_error:'消息回复失败'})));
   client.on('event.enter_chat',frame=>client.replyWelcome(frame,{msgtype:'text',text:{content:'你好，我是熊小小工作助手。完成私聊绑定后可查询经营、订货，整理聊天和生成Excel。'}}).catch(()=>{}));
-  const server=http.createServer((req,res)=>{
+  const adminToken=operatorToken();
+  const server=http.createServer(async(req,res)=>{
+    if(req.method==='POST'&&req.url==='/operator/inbound'){
+      if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
+      const key=sessionKey({chattype:'single',from:{userid:access.data.owner}});
+      if(busy.has(key)||!status.authenticated){res.writeHead(409);res.end();return;}
+      busy.add(key);
+      try{
+        let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16000)throw Error('请求过长');}
+        const result=await operatorInbound(JSON.parse(body),{assistant,client,owner:access.data.owner});
+        res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));
+      }catch(error){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:false,error:String(error.message).slice(0,200)}));}
+      finally{busy.delete(key);}
+      return;
+    }
     if(req.method!=='GET'||req.url!=='/health'){res.writeHead(404);res.end();return;}
     res.writeHead(status.authenticated?200:503,{'Content-Type':'application/json'});res.end(JSON.stringify(status));
   });
