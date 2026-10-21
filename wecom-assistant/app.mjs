@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import {createRequire} from 'node:module';
 import ExcelJS from 'exceljs';
-import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook} from './core.mjs';
+import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook,balance} from './core.mjs';
 const require=createRequire(import.meta.url);
 const {WSClient}=require('@wecom/aibot-node-sdk');
 const config=settings();
@@ -71,11 +71,11 @@ async function handle(frame){
   }
   const key=sessionKey(body);
   if(busy.has(key)){await sendText(frame,stream,'上一条消息还在处理中，请等结果返回后再发下一条。');return;}
-  busy.add(key);let tick;
+  busy.add(key);let tick;let progress='正在理解问题……';const started=Date.now();
   try{
     await sendText(frame,stream,'正在处理，请稍候……',false);
-    update({received:status.received+1,last_message_at:new Date().toISOString()});
-    tick=setInterval(()=>sendText(frame,stream,'仍在处理，正在查询数据或生成结果……',false).catch(()=>{}),20000);
+    update({received:status.received+1,last_message_at:new Date().toISOString(),active:true,last_stage:progress});
+    tick=setInterval(()=>sendText(frame,stream,progress,false).catch(()=>{}),15000);
     if(body.msgtype==='file'){
       const contents=await fileText(body);
       const file=path.join(PRIVATE,'sessions',key+'.json');
@@ -85,12 +85,15 @@ async function handle(frame){
     }else if(['text','voice'].includes(body.msgtype)){
       if(/^(帮助|菜单|你好|在吗|help)$/i.test(text.trim())){
         clearInterval(tick);await sendText(frame,stream,HELP);
+      }else if(/^(模型余额|API余额|api余额|余额|模型额度|查余额|查看余额)$/.test(text.trim())){
+        progress='正在查询模型账户余额……';
+        const answer=await balance(config);clearInterval(tick);await sendText(frame,stream,answer);
       }else if(text.trim()==='清除本次记忆'){
         fs.rmSync(path.join(PRIVATE,'sessions',key+'.json'),{force:true});
         clearInterval(tick);await sendText(frame,stream,'已清除本次对话上下文。上传原文件与已生成表格仍保留在Mac mini本地。');
       }else{
         if(body.quote?.text?.content)text+='\n引用的待分析聊天：\n'+body.quote.text.content;
-        const result=await assistant.answer(text,key);clearInterval(tick);
+        const result=await assistant.answer(text,key,{onProgress:value=>{progress=value;update({last_stage:value});}});clearInterval(tick);
         await sendText(frame,stream,result.text);
         for(const file of result.artifacts)await attachment(file,frame);
       }
@@ -98,9 +101,9 @@ async function handle(frame){
     update({replied:status.replied+1,last_reply_at:new Date().toISOString(),last_error:''});
   }catch(e){
     clearInterval(tick);update({errors:status.errors+1,last_error:'消息处理失败'});
-    const safe=/^(AI|数据查询|订货数据|查询超时|查询结果|目前支持|文件超过|文件下载)/.test(e.message)?e.message:'处理失败，请稍后重试或缩小范围；未执行任何订货或生产修改。';
+    const safe=/^(AI|处理超时|余额查询|数据查询|订货数据|查询超时|查询结果|目前支持|文件超过|文件下载)/.test(e.message)?e.message:'处理失败，请稍后重试或缩小范围；未执行任何订货或生产修改。';
     await sendText(frame,stream,safe).catch(()=>{});
-  }finally{busy.delete(key);}
+  }finally{update({active:false,last_duration_ms:Date.now()-started,last_stage:'已结束'});busy.delete(key);}
 }
 if(mode==='--smoke'){
   smokeTimer=setTimeout(()=>{console.error('企微认证超时');client.disconnect();process.exit(1);},20000);

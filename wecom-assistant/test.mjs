@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import ExcelJS from 'exceljs';
-import {Access,Assistant,workbook,readEnv,sessionKey,saveJson,loadJson} from './core.mjs';
+import {Access,Assistant,workbook,readEnv,sessionKey,saveJson,loadJson,withDeadline,balance} from './core.mjs';
 function temp(t){const p=fs.mkdtempSync(path.join(os.tmpdir(),'wecom-test-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p;}
 test('business data requires exact one-time pairing in a private chat',t=>{
  const access=new Access(temp(t));const body={chattype:'single',from:{userid:'owner'}};
@@ -33,3 +33,23 @@ test('business export uses all source rows, while model results are bounded',asy
 });
 test('unsupported tools cannot execute a command',async t=>{const a=new Assistant({},temp(t));await assert.rejects(a.tool('shell',{command:'anything'},[]),/不支持/);});
 test('history is isolated by sender and room',()=>{assert.notEqual(sessionKey({chattype:'single',from:{userid:'a'}}),sessionKey({chattype:'single',from:{userid:'b'}}));});
+
+test('total deadline aborts stuck model and never saves an unfinished session',async t=>{
+ const root=temp(t);let captured;
+ const a=new Assistant({},root,{llm:async(m,c,tools,signal)=>{captured=signal;return new Promise(()=>{});}});
+ await assert.rejects(a.answer('问题','stuck',{timeoutMs:15}),/处理超时/);
+ assert.equal(captured.aborted,true);
+ assert.equal(fs.existsSync(path.join(root,'sessions/stuck.json')),false);
+});
+test('progress distinguishes data reads from answer generation',async t=>{
+ const steps=[];let calls=0;
+ const a=new Assistant({},temp(t),{bridge:async()=>({rows:[],line_count:0}),llm:async()=>calls++?{role:'assistant',content:'没有记录'}:{role:'assistant',tool_calls:[{id:'1',function:{name:'query_orders',arguments:'{"start":"2026-10-21","end":"2026-10-21"}'}}]}});
+ await a.answer('查订货','progress',{onProgress:value=>steps.push(value)});
+ assert.ok(steps.some(s=>s.includes('查询正式订货')));assert.ok(steps.some(s=>s.includes('整理回答')));
+});
+test('balance command reads official API directly without model calls',async t=>{
+ const original=globalThis.fetch;t.after(()=>globalThis.fetch=original);
+ globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.deepseek.com/user/balance');assert.equal(options.headers.Authorization,'Bearer test');return {ok:true,json:async()=>({is_available:true,balance_infos:[{currency:'CNY',total_balance:'10.80'}]})};};
+ const text=await balance({AGENT_LLM_API_KEY:'test'});assert.match(text,/10.80/);assert.match(text,/当前可用/);
+ await assert.rejects(balance({AGENT_LLM_BASE_URL:'https://example.com'}),/不支持/);
+});
