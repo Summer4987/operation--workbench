@@ -10,72 +10,79 @@ def snapshot(generated_at: str, orders: int, income: float) -> dict:
         "generated_at": generated_at,
         "status": "ok",
         "summary": {"total_orders": orders, "total_income": income},
-        "stores": [],
+        "stores": [{"store": "双井", "orders": orders, "income": income}],
     }
 
 
 class RealtimeComparisonTests(unittest.TestCase):
-    def test_uses_success_snapshot_within_same_period_tolerance(self) -> None:
-        realtime = snapshot("2026-08-05 12:30:56", 849, 27212.1)
-        history = [
+    def test_uses_success_snapshot_within_same_period_tolerance(self):
+        result = build_realtime_comparison(snapshot("2026-08-05 12:30:56", 849, 27212.1), [
             snapshot("2026-08-04 12:36:00", 700, 22000),
             snapshot("2026-07-29 12:31:00", 600, 19000),
-        ]
-
-        result = build_realtime_comparison(realtime, history)
-
+        ])
         self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["match_mode"], "same_period")
         self.assertEqual(result["matched_time"], "2026-08-04 12:36:00")
         self.assertEqual(result["summary"]["orders"]["delta"], 149)
         self.assertEqual(result["last_week"]["status"], "ready")
         self.assertEqual(result["last_week"]["summary"]["orders"]["previous"], 600)
 
-    def test_marks_same_period_missing_and_returns_surrounding_success_snapshots(self) -> None:
-        realtime = snapshot("2026-08-05 12:30:56", 849, 27212.1)
-        history = [
+    def test_uses_nearest_success_outside_tolerance_for_totals_and_stores(self):
+        result = build_realtime_comparison(snapshot("2026-08-05 12:30:56", 849, 27212.1), [
             snapshot("2026-08-04 11:31:12", 500, 16000),
             snapshot("2026-08-04 12:00:55", 620, 20000),
             snapshot("2026-08-04 13:46:23", 980, 31000),
-        ]
+        ])
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["match_mode"], "nearest")
+        self.assertEqual(result["matched_time"], "2026-08-04 12:00:55")
+        self.assertIn("最临近", result["message"])
+        self.assertEqual(result["summary"]["orders"]["delta"], 229)
+        self.assertEqual(result["stores"][0]["orders"]["delta"], 229)
+        self.assertAlmostEqual(result["stores"][0]["income"]["delta"], 7212.1)
 
-        result = build_realtime_comparison(realtime, history)
+    def test_2039_uses_yesterday_2000_as_requested(self):
+        result = build_realtime_comparison(snapshot("2026-10-21 20:39:28", 1544, 46859.9), [
+            snapshot("2026-10-20 19:30:00", 1538, 47442),
+            snapshot("2026-10-20 20:00:00", 1565, 48205),
+        ])
+        self.assertEqual(result["matched_time"], "2026-10-20 20:00:00")
+        self.assertEqual(result["summary"]["orders"]["delta"], -21)
+        self.assertAlmostEqual(result["summary"]["income"]["delta"], -1345.1)
 
-        self.assertEqual(result["status"], "time_missing")
-        self.assertEqual(result["message"], "昨日同时段数据缺失")
-        self.assertNotIn("summary", result)
-        self.assertEqual(
-            [item["generated_at"] for item in result["nearest_snapshots"]],
-            ["2026-08-04 12:00:55", "2026-08-04 13:46:23"],
-        )
-        self.assertEqual(result["nearest_snapshots"][0]["summary"]["current_order_delta"], 229)
-        self.assertEqual(result["nearest_snapshots"][1]["relation"], "after")
+    def test_closer_later_snapshot_is_used(self):
+        result = build_realtime_comparison(snapshot("2026-08-05 12:30:00", 849, 27212.1), [
+            snapshot("2026-08-04 11:00:00", 500, 16000),
+            snapshot("2026-08-04 13:00:00", 900, 28000),
+        ])
+        self.assertEqual(result["matched_time"], "2026-08-04 13:00:00")
+        self.assertEqual(result["summary"]["orders"]["delta"], -51)
 
-    def test_returns_two_nearest_when_only_earlier_snapshots_exist(self) -> None:
-        realtime = snapshot("2026-08-05 20:00:00", 1200, 40000)
-        history = [
-            snapshot("2026-08-04 18:30:00", 900, 30000),
-            snapshot("2026-08-04 19:00:00", 1000, 33000),
-        ]
+    def test_equal_distance_prefers_earlier_snapshot(self):
+        result = build_realtime_comparison(snapshot("2026-08-05 12:30:00", 849, 27212.1), [
+            snapshot("2026-08-04 13:00:00", 900, 28000),
+            snapshot("2026-08-04 12:00:00", 620, 20000),
+        ])
+        self.assertEqual(result["matched_time"], "2026-08-04 12:00:00")
 
-        result = build_realtime_comparison(realtime, history)
-
-        self.assertEqual(result["status"], "time_missing")
-        self.assertEqual(len(result["nearest_snapshots"]), 2)
-        self.assertEqual(result["nearest_snapshots"][-1]["generated_at"], "2026-08-04 19:00:00")
-
-    def test_failed_snapshot_is_not_used_as_same_period_baseline(self) -> None:
-        realtime = snapshot("2026-08-05 12:30:00", 849, 27212.1)
+    def test_failed_snapshot_is_ignored_and_last_week_also_uses_nearest(self):
         failed = snapshot("2026-08-04 12:30:30", 800, 25000)
         failed["status"] = "failed"
-        history = [failed, snapshot("2026-08-04 12:00:00", 620, 20000)]
+        result = build_realtime_comparison(snapshot("2026-08-05 12:30:00", 849, 27212.1), [
+            failed, snapshot("2026-08-04 12:00:00", 620, 20000),
+            snapshot("2026-07-29 13:00:00", 600, 19000),
+        ])
+        self.assertEqual(result["matched_time"], "2026-08-04 12:00:00")
+        self.assertEqual(result["last_week"]["match_mode"], "nearest")
+        self.assertEqual(result["last_week"]["summary"]["orders"]["previous"], 600)
 
-        result = build_realtime_comparison(realtime, history)
-
-        self.assertEqual(result["status"], "time_missing")
-        self.assertEqual(
-            [item["generated_at"] for item in result["nearest_snapshots"]],
-            ["2026-08-04 12:00:00"],
-        )
+    def test_day_without_any_success_remains_unavailable(self):
+        result = build_realtime_comparison(snapshot("2026-08-05 12:30:00", 849, 27212.1), [
+            snapshot("2026-08-03 12:30:00", 620, 20000),
+        ])
+        self.assertEqual(result["status"], "pending")
+        self.assertNotIn("summary", result)
+        self.assertNotIn("matched_time", result)
 
 
 if __name__ == "__main__":

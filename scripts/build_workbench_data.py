@@ -455,44 +455,11 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
         candidates.sort(key=lambda item: (item[0], item[1]))
         _, previous_time, previous = candidates[0]
         match_delta_minutes = round(abs((previous_time - target_time).total_seconds()) / 60)
-        if abs((previous_time - target_time).total_seconds()) > REALTIME_SAME_PERIOD_TOLERANCE_MINUTES * 60:
-            before = sorted((item for item in candidates if item[1] <= target_time), key=lambda item: item[1], reverse=True)
-            after = sorted((item for item in candidates if item[1] > target_time), key=lambda item: item[1])
-            selected = ([before[0]] if before else []) + ([after[0]] if after else [])
-            selected_times = {item[1] for item in selected}
-            for candidate in candidates:
-                if len(selected) >= 2:
-                    break
-                if candidate[1] not in selected_times:
-                    selected.append(candidate)
-                    selected_times.add(candidate[1])
-            current_orders = float(current_summary.get("total_orders") or 0)
-            current_income = float(current_summary.get("total_income") or 0)
-            nearest_snapshots = []
-            for delta, snapshot_time, snapshot in sorted(selected, key=lambda item: item[1]):
-                snapshot_summary = snapshot.get("summary") or {}
-                snapshot_orders = float(snapshot_summary.get("total_orders") or 0)
-                snapshot_income = float(snapshot_summary.get("total_income") or 0)
-                nearest_snapshots.append({
-                    "generated_at": snapshot_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "time_label": snapshot_time.strftime("%Y-%m-%d %H:%M"),
-                    "relation": "before" if snapshot_time <= target_time else "after",
-                    "delta_minutes": round(delta / 60),
-                    "summary": {
-                        "orders": snapshot_orders,
-                        "income": snapshot_income,
-                        "current_order_delta": current_orders - snapshot_orders,
-                        "current_income_delta": current_income - snapshot_income,
-                    },
-                })
-            return {
-                "status": "time_missing",
-                "message": f"{label}同时段数据缺失",
-                "detail": f"目标时刻 {target_time.strftime('%H:%M')} 前后 {REALTIME_SAME_PERIOD_TOLERANCE_MINUTES} 分钟内没有成功快照。",
-                "target_time": target_text,
-                "same_period_tolerance_minutes": REALTIME_SAME_PERIOD_TOLERANCE_MINUTES,
-                "nearest_snapshots": nearest_snapshots,
-            }
+        match_mode = (
+            "same_period"
+            if abs((previous_time - target_time).total_seconds()) <= REALTIME_SAME_PERIOD_TOLERANCE_MINUTES * 60
+            else "nearest"
+        )
 
         previous_summary = previous.get("summary") or {}
         previous_stores = {item.get("store"): item for item in previous.get("stores") or []}
@@ -515,7 +482,8 @@ def build_realtime_comparison(realtime: dict, history: list[dict]) -> dict:
         previous_income = float(previous_summary.get("total_income") or 0)
         return {
             "status": "ready",
-            "message": f"已对比{label} {previous_time.strftime('%H:%M')}",
+            "message": f"已对比{label}{'最临近时段' if match_mode == 'nearest' else '同时段'} {previous_time.strftime('%H:%M')}",
+            "match_mode": match_mode,
             "target_time": target_text,
             "matched_time": previous_time.strftime("%Y-%m-%d %H:%M:%S"),
             "matched_time_label": previous_time.strftime("%Y-%m-%d %H:%M"),

@@ -119,7 +119,7 @@ function comparisonLabel(currentIncome, currentOrders, previous) {
   const realtimeOrders = realtimeComparison?.summary?.orders;
   if (realtimeComparison?.status === "ready" && realtimeOrders) {
     const baseTime = realtimeComparison.matched_time ? realtimeComparison.matched_time.slice(11, 16) : "最近时刻";
-    return `较昨日基准 ${baseTime} ${signedNumber(realtimeOrders.delta)} 单`;
+    return `较昨日${realtimeComparison.match_mode === "nearest" ? "最临近" : "基准"} ${baseTime} ${signedNumber(realtimeOrders.delta)} 单`;
   }
   if (realtimeComparison?.status === "time_missing") return realtimeComparison.message || "昨日同时段数据缺失";
   if (!previous || previous.status === "missing") return previous?.message || "昨日暂无可用实时历史数据，明天开始生成";
@@ -137,7 +137,7 @@ function lastWeekComparisonLabel(realtimeComparison) {
   const orders = comparison.summary?.orders;
   if (comparison.status === "ready" && orders) {
     const baseTime = comparison.matched_time ? comparison.matched_time.slice(11, 16) : "最近时刻";
-    return `较上周基准 ${baseTime} ${signedNumber(orders.delta)} 单`;
+    return `较上周${comparison.match_mode === "nearest" ? "最临近" : "基准"} ${baseTime} ${signedNumber(orders.delta)} 单`;
   }
   if (comparison.status === "time_missing") return comparison.message || "上周同时段数据缺失";
   return comparison.message || "上周暂无可用实时历史数据";
@@ -435,7 +435,7 @@ function realtimeStoreCompare(item, compareMap) {
   const previous = compareMap.get(store);
   if (!previous) return data.realtime_comparison?.message || "昨日暂无可用历史数据";
   const baseTime = data.realtime_comparison?.matched_time ? data.realtime_comparison.matched_time.slice(11, 16) : "";
-  const prefix = baseTime ? `较昨日基准 ${baseTime}` : "较昨日基准";
+  const prefix = baseTime ? `较昨日${data.realtime_comparison?.match_mode === "nearest" ? "最临近" : "基准"} ${baseTime}` : "较昨日基准";
   if (previous.orders) {
     const orders = previous.orders || {};
     return `${prefix} ${signedNumber(orders.delta)} 单`;
@@ -460,7 +460,7 @@ function realtimeStoreLastWeekCompare(item, compareMap) {
   const previous = compareMap.get(store);
   if (!previous) return data.realtime_comparison?.last_week?.message || "上周同时段暂无数据";
   const orders = previous.orders || {};
-  return `较上周基准 ${data.realtime_comparison?.last_week?.matched_time ? data.realtime_comparison.last_week.matched_time.slice(11, 16) : "最近时刻"} ${signedNumber(orders.delta || 0)} 单`;
+  return `较上周${data.realtime_comparison?.last_week?.match_mode === "nearest" ? "最临近" : "基准"} ${data.realtime_comparison?.last_week?.matched_time ? data.realtime_comparison.last_week.matched_time.slice(11, 16) : "最近时刻"} ${signedNumber(orders.delta || 0)} 单`;
 }
 
 function realtimeStoreLastWeekCompareDelta(item, compareMap) {
@@ -487,7 +487,7 @@ function renderRealtimeCard(daily, stores, totalIncome, totalOrders) {
   const realtimeFailures = realtimeCollection.platform_failures || [];
   const failedPlatformStoreCount = Number(realtimeCollection.summary?.failed_platform_store_count || 0);
   const comparisonBaseText = realtimeComparison?.matched_time_label
-    ? `对比基准：${realtimeComparison.matched_time_label}。`
+    ? `对比基准：${realtimeComparison.matched_time_label}${realtimeComparison.match_mode === "nearest" ? "（昨日最临近成功快照）" : ""}。`
     : "";
   const realtimeStatusText = collectionStatus === "stale"
     ? "偏旧"
