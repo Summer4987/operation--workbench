@@ -69,6 +69,42 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
         self.assertEqual(len(status["low_balance_items"]), 1)
         self.assertFalse(status["summary"]["source_is_stale"])
 
+    def test_confirmed_zero_keeps_evidence_in_warning_cards(self) -> None:
+        items = [
+            {"platform": "饿了么", "store_name": store, "balance": 0.0,
+             "status": "warning", "confirmed_zero": True,
+             "source": "Chrome CDP接口读取", "balance_field": "adBalance.totalWithoutCard"}
+            for store in ("金融城店", "万象城店")
+        ]
+        status = self.module.build_status({
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "threshold": 200, "items": items,
+        })
+        self.assertEqual(len(status["low_balance_items"]), 2)
+        self.assertEqual(status["unconfirmed_balance_items"], [])
+        for item in status["low_balance_items"]:
+            self.assertEqual(item["balance"], 0.0)
+            self.assertTrue(item["confirmed_zero"])
+            self.assertEqual(item["source"], "Chrome CDP接口读取")
+            self.assertEqual(item["balance_field"], "adBalance.totalWithoutCard")
+            self.assertFalse(self.module.is_unconfirmed_zero_balance(item))
+
+    def test_unconfirmed_page_zero_stays_out_of_warning_cards(self) -> None:
+        payload = {"threshold": 200, "items": [{
+            "platform": "饿了么", "store_name": "金融城店", "balance": 0.0,
+            "status": "warning", "source": "Chrome CDP页面表格读取",
+        }]}
+        self.assertEqual(self.module.low_balance_items(payload), [])
+        self.assertEqual(len(self.module.unconfirmed_balance_items(payload)), 1)
+
+    def test_legacy_api_zero_keeps_its_confirmation_source(self) -> None:
+        payload = {"threshold": 200, "items": [{
+            "platform": "饿了么", "store_name": "金融城店", "balance": 0.0,
+            "status": "warning", "source": "Chrome CDP接口读取",
+        }]}
+        warning = self.module.low_balance_items(payload)[0]
+        self.assertFalse(self.module.is_unconfirmed_zero_balance(warning))
+
     def test_selected_direct_meituan_stores_are_excluded_from_low_balance_warning(self) -> None:
         payload = {
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

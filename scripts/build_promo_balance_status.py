@@ -314,6 +314,13 @@ def low_balance_items(payload: dict) -> list[dict]:
                 "balance": balance,
                 "threshold": threshold,
                 "status": "warning",
+                # The UI validates zero balances again. Preserve the evidence
+                # from collection so a confirmed zero stays ¥0.00 in cards.
+                **{
+                    key: item[key]
+                    for key in ("source", "confirmed_zero", "balance_field", "api_seen", "account_response_url")
+                    if key in item
+                },
                 "message": item.get("message") or "推广余额低于预警阈值。",
                 "human_action": "先充值低余额门店，再执行预算或出价自动化。",
             }
