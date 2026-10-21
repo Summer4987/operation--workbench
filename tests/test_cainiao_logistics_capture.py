@@ -155,6 +155,12 @@ def test_new_home_cards_include_pickup_codes_but_not_carrier_trace():
     assert [target["text"] for target in targets] == ["6-6-1234", "运输中"]
 
 
+def test_pickup_code_before_label_in_new_detail():
+    module = load_module()
+    assert module.find_pickup_codes(["09点30分到20点30分", "6-6-1234", "取件码", "查看"]) == [("6-6-1234", 1)]
+    assert module.find_pickup_codes(["79012345678901", "取件码", "查看"]) == []
+
+
 def test_launch_failure_does_not_report_empty_success(monkeypatch):
     module = load_module()
     monkeypatch.setattr(module, "run_command", lambda *args: {

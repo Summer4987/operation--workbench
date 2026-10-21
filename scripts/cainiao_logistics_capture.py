@@ -282,6 +282,10 @@ def find_pickup_codes(texts: list[str]) -> list[tuple[str, int]]:
     for index, text in enumerate(texts):
         for match in PICKUP_RE.finditer(text):
             found.append((clean_code(match.group(1)), index))
+        if text in ["取件码", "取货码", "提货码", "凭证码", "取件号"] and index > 0:
+            previous = clean_code(texts[index - 1])
+            if re.fullmatch(r"\d{1,4}(?:-\d{1,6}){1,3}", previous):
+                found.append((previous, index - 1))
         if any(label in text for label in ["取件码", "取货码", "提货码", "凭证码", "取件号"]) and index + 1 < len(texts):
             next_text = clean_code(texts[index + 1])
             if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9\-]{2,15}", next_text):
