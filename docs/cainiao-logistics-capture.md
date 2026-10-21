@@ -47,3 +47,13 @@ CAINIAO_ADB_SERIAL=<adb序列号> python3 scripts/cainiao_logistics_capture.py -
 ## 定时任务原则
 
 正式每天两次跑之前，先在 Mac mini 真机完成一次 dry-run 和一次 `--commit` 验证。验证通过后再安装 launchd；异常时保留证据包，让 agent 读截图和控件树接管判断。
+
+## Mac mini 运行目录
+
+为避免 macOS 对 Documents 目录的后台访问限制（launchd 退出码 78、posix_spawn Operation not permitted），菜鸟任务使用独立 GitHub main 检出目录：
+
+`~/Library/Application Support/XiongCainiao/github-main`
+
+此目录必须通过 Git 从 GitHub main 拉取，不从开发机复制代码。先确认工作区无有效代码改动，再 `git pull --ff-only origin main`；在此目录完成真机预览及写入验证后，运行 `scripts/install_cainiao_logistics_launchd.zsh`。安装时间为每天 10:00、14:00、17:00；用 `launchctl kickstart gui/$(id -u)/com.summer.operation.cainiao-logistics` 验证后台实际执行结果，不能只检查任务是否加载。
+
+新版首页的独立取件码卡片也作为详情入口；承运商轨迹文字和广告不作为详情入口。应用未安装或启动失败时直接报错，避免把桌面误判为采集成功。未知门店地址仍不写入看板。

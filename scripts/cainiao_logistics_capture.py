@@ -104,7 +104,9 @@ def ensure_ok(result: dict[str, Any], action: str) -> None:
 def launch_cainiao(serial: str, package: str, timeout: int) -> list[dict[str, Any]]:
     commands = []
     base = adb_base(serial)
-    commands.append(run_command(base + ["shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"], timeout))
+    launch = run_command(base + ["shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"], timeout)
+    commands.append(launch)
+    ensure_ok(launch, "启动菜鸟应用")
     time.sleep(3)
     return commands
 
@@ -181,7 +183,8 @@ def list_detail_targets(xml_text: str, max_details: int) -> list[dict[str, int]]
         x1, y1, x2, y2 = bounds
         if x1 < 250 or y1 < 260 or y2 > 2240:
             continue
-        if not any(word in text for word in DETAIL_STATUS_WORDS):
+        # Only tap the card's status or pickup code, not carrier traces or ads.
+        if text not in DETAIL_STATUS_WORDS and not re.fullmatch(r"\d{1,4}(?:-\d{1,6}){1,3}", text):
             continue
         cx, cy = bounds_center(bounds)
         key_y = round(cy / 80) * 80

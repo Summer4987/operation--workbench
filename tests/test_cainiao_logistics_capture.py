@@ -144,6 +144,30 @@ def test_infer_store_name_falls_back_when_address_unknown():
     assert module.infer_store_name(["送至 未知地址"], "银泰城店") == "银泰城店"
 
 
+def test_new_home_cards_include_pickup_codes_but_not_carrier_trace():
+    module = load_module()
+    xml = '''<hierarchy>
+      <node text="6-6-1234" bounds="[319,1014][530,1077]" />
+      <node text="运输中" bounds="[319,1720][448,1778]" />
+      <node text="中通快递 | 已到达转运中心" bounds="[319,2070][900,2140]" />
+    </hierarchy>'''
+    targets = module.list_detail_targets(xml, 12)
+    assert [target["text"] for target in targets] == ["6-6-1234", "运输中"]
+
+
+def test_launch_failure_does_not_report_empty_success(monkeypatch):
+    module = load_module()
+    monkeypatch.setattr(module, "run_command", lambda *args: {
+        "returncode": 252, "stdout": "No activities found", "stderr": ""
+    })
+    try:
+        module.launch_cainiao("", module.DEFAULT_PACKAGE, 20)
+    except RuntimeError as exc:
+        assert "启动菜鸟应用失败" in str(exc)
+    else:
+        raise AssertionError("Missing app must fail before scanning the desktop")
+
+
 def test_popup_cancel_target_detects_cainiao_review_popup():
     module = load_module()
 
