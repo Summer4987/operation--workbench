@@ -28,7 +28,7 @@ test('business export uses all source rows, while model results are bounded',asy
  const result=JSON.parse(messages.at(-1).content);assert.equal(result.rows.length,400);assert.equal(result.rows_truncated,true);return {role:'assistant',content:'附件已生成'};
  }});
  const result=await assistant.answer('生成经营表','session');assert.equal(result.artifacts.length,1);
- const book=new ExcelJS.Workbook();await book.xlsx.readFile(result.artifacts[0]);assert.equal(book.worksheets[0].rowCount,411);
+ const book=new ExcelJS.Workbook();await book.xlsx.readFile(result.artifacts[0]);assert.equal(book.getWorksheet('经营明细').rowCount,411);
  assert.equal(loadJson(path.join(root,'sessions/session.json'),[]).length,2);
 });
 test('unsupported tools cannot execute a command',async t=>{const a=new Assistant({},temp(t));await assert.rejects(a.tool('shell',{command:'anything'},[]),/不支持/);});

@@ -17,6 +17,12 @@ def validate(q):
         raise ValueError('不支持的订货区域')
     if q.get('scope', 'all') not in ('all', 'franchise', 'direct'):
         raise ValueError('不支持的经营范围')
+    if q.get('kind') == 'business_comparison':
+        pa, pb = date.fromisoformat(q['previous_start']), date.fromisoformat(q['previous_end'])
+        if (pb-pa).days != (b-a).days:
+            raise ValueError('经营对比需要两段天数相同的期间，请明确起止日期')
+        if not (pb < a or b < pa):
+            raise ValueError('两段经营对比期间不能重叠')
 
 
 def business(q, roots):
@@ -75,13 +81,61 @@ def business(q, roots):
             'note': '收入与顾客实付口径不同；空值不代表零。只覆盖已有日报记录，不保证所有门店平台完整。'}
 
 
+def business_comparison(q, roots):
+    current = business(q, roots)
+    previous = business(dict(q, start=q['previous_start'], end=q['previous_end']), roots)
+    day_count = (date.fromisoformat(q['end'])-date.fromisoformat(q['start'])).days+1
+    store_keys = sorted({(r['范围'], r['门店']) for r in current['rows']+previous['rows']})
+    comparisons = []
+    for scope, store in store_keys:
+        a = [r for r in current['rows'] if (r['范围'], r['门店']) == (scope, store)]
+        b = [r for r in previous['rows'] if (r['范围'], r['门店']) == (scope, store)]
+        platforms = sorted({r['平台'] for r in a+b})
+        comparable, excluded = [], []
+        income_a = income_b = orders_a = orders_b = 0
+        for platform in platforms:
+            aa = [r for r in a if r['平台'] == platform]
+            bb = [r for r in b if r['平台'] == platform]
+            # A duplicate, missing date or missing value makes this platform unavailable.
+            complete = all(len(period) == day_count and len({r['日期'] for r in period}) == day_count
+                           and all(r.get('收入') is not None and r.get('订单数') is not None for r in period)
+                           for period in [aa, bb])
+            if not complete:
+                excluded.append(platform)
+                continue
+            comparable.append(platform)
+            income_a += sum(float(r['收入']) for r in aa)
+            income_b += sum(float(r['收入']) for r in bb)
+            orders_a += sum(float(r['订单数']) for r in aa)
+            orders_b += sum(float(r['订单数']) for r in bb)
+        valid = bool(comparable)
+        delta = round(income_a-income_b, 2) if valid else None
+        order_delta = orders_a-orders_b if valid else None
+        comparisons.append({'范围': scope, '门店': store,
+                            '本期可比收入': round(income_a, 2) if valid else None,
+                            '上期可比收入': round(income_b, 2) if valid else None,
+                            '收入差额': delta, '收入变化率': delta/income_b if valid and income_b else None,
+                            '本期可比订单': orders_a if valid else None,
+                            '上期可比订单': orders_b if valid else None,
+                            '订单差额': order_delta, '订单变化率': order_delta/orders_b if valid and orders_b else None,
+                            '可比平台': '、'.join(comparable),
+                            '状态': ('缺失或重复记录，未纳入：'+'、'.join(excluded)) if excluded else '两期记录完整'})
+    comparisons.sort(key=lambda r: (r['收入变化率'] is None, r['收入变化率'] or 0))
+    return {'source': current['source'], 'start': q['start'], 'end': q['end'],
+            'previous_start': q['previous_start'], 'previous_end': q['previous_end'],
+            'sources': current['sources'], 'rows': comparisons, 'line_count': len(comparisons),
+            'detail_rows': [dict(r, 期间='本期') for r in current['rows']]+[dict(r, 期间='上期') for r in previous['rows']],
+            'errors': sorted(set(current['errors']+previous['errors'])),
+            'note': '按两期均逐日完整的相同门店、平台和指标比较。缺失或重复记录的平台不纳入涨跌；上期为零时变化率留空。收入与顾客实付是不同指标，不作因果推断。'}
+
+
 def query(q):
     validate(q)
-    if q['kind'] == 'business':
+    if q['kind'] in ('business', 'business_comparison'):
         roots = [Path(s).expanduser() for s in json.loads(os.environ.get('WECOM_DATA_ROOTS', json.dumps([
             str(Path.home() / 'Library/Application Support/xiong-operation/production'),
             str(Path.home() / 'Documents/operation-workbench-clean')])))]
-        return business(q, roots)
+        return business_comparison(q, roots) if q['kind'] == 'business_comparison' else business(q, roots)
     if q['kind'] != 'orders':
         raise ValueError('不支持的查询')
     script = Path(__file__).with_name('remote_query.py').read_text()
