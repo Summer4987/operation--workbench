@@ -1565,7 +1565,7 @@ def write_dashboard(payload: dict) -> Path:
 </html>
 """
     # Embed the shared source so daily output remains a single deployable HTML file.
-    insights = (Path(__file__).parent / "daily_insights.js").read_text(encoding="utf-8")
+    insights = (Path(__file__).parent / "daily_report_v2.js").read_text(encoding="utf-8")
     html = html.replace("</body>", "<script>" + insights + "</script>\n</body>")
     output.write_text(html, encoding="utf-8")
     return output
