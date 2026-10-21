@@ -5,7 +5,7 @@ import os
 import shlex
 import subprocess
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -81,6 +81,82 @@ def business(q, roots):
             'note': '收入与顾客实付口径不同；空值不代表零。只覆盖已有日报记录，不保证所有门店平台完整。'}
 
 
+def realtime(q, roots, now=None):
+    """Latest collected franchise sales snapshot; never supply-order data or live polling."""
+    now = now or datetime.now(timezone(timedelta(hours=8)))
+    if q.get('scope') == 'direct':
+        raise ValueError('当前实时采集仅覆盖加盟门店，不能作为直营门店实时数据')
+    candidates, errors = [], []
+    for root in roots:
+        p = root / 'outputs/realtime_order_income/latest.json'
+        if not p.exists():
+            continue
+        try:
+            payload = json.loads(p.read_text())
+            stamp = datetime.fromisoformat(str(payload['generated_at']))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone(timedelta(hours=8)))
+            if stamp > now + timedelta(minutes=5):
+                raise ValueError('future timestamp')
+            candidates.append((stamp, p.stat().st_mtime, payload))
+        except (OSError, ValueError, KeyError, TypeError):
+            errors.append('有实时数据源无法解析或时间异常')
+    if not candidates:
+        raise ValueError('实时经营数据不存在或不可用；不能用订货量代替销售单量')
+    stamp, _, payload = max(candidates, key=lambda x: x[:2])
+    age = max(0, int((now-stamp).total_seconds()/60))
+    stale = stamp.date() != now.date() or age > 60
+    reset = payload.get('status') == 'reset' or bool((payload.get('summary') or {}).get('daily_reset'))
+    if reset:
+        errors.append('当前为每日重置占位，尚未采集有效数据，不能把占位零当作真实零单')
+    if stale:
+        errors.append('实时快照已过期，以下仅为最近一次采集，不能代表此刻单量')
+    if payload.get('status') != 'ok':
+        errors.append('最近快照状态：'+str(payload.get('status', '未知')))
+    stores = payload.get('stores') or []
+    targets = payload.get('target_stores') or [s.get('store') for s in stores]
+    names = sorted(set(str(n) for n in targets if n) | {str(s.get('store')) for s in stores if s.get('store')})
+    wanted = str(q.get('store') or '').strip()
+    selected = [n for n in names if not wanted or wanted in n]
+    by_store = {s.get('store'): s for s in stores}
+    rows, totals = [], []
+    def number(v):
+        return float(v) if not isinstance(v, bool) and isinstance(v, (int,float)) and math.isfinite(v) and v >= 0 else None
+    for name in selected:
+        platforms = by_store.get(name, {}).get('platforms') or {}
+        for platform in sorted(set(platforms) | {'美团', '饿了么'}):
+            item = platforms.get(platform) or {}
+            orders = None if reset or item.get('source') in ('daily_reset','account_scope') or item.get('income_status') == 'account_out' else number(item.get('orders'))
+            income = None if reset or item.get('income_status') not in ('trusted',) else number(item.get('income'))
+            rows.append({'范围':'加盟', '日期':stamp.date().isoformat(), '门店':name, '平台':platform,
+                         '订单数':orders, '收入':income,
+                         '状态':'单量缺失' if orders is None else ('收入缺失或未验证' if income is None else '已采集')})
+        rr = [r for r in rows if r['门店'] == name]
+        values = [r['订单数'] for r in rr if r['订单数'] is not None]
+        money = [r['收入'] for r in rr if r['收入'] is not None]
+        totals.append({'范围':'加盟','门店':name, '订单数':sum(values) if values else None,
+                       '收入':round(sum(money),2) if money else None,
+                       '记录数':len(rr), '收入缺失记录数':sum(r['收入'] is None for r in rr),
+                       '单量缺失记录数':sum(r['订单数'] is None for r in rr)})
+    if wanted and not selected:
+        errors.append('没有匹配的加盟门店：'+wanted)
+    missing = sum(r['订单数'] is None for r in rows)
+    if missing:
+        errors.append(str(missing)+'个平台门店单量缺失，合计仅包含已采集部分')
+    if payload.get('missing') or payload.get('account_out') or payload.get('errors'):
+        errors.append('采集源报告缺失、退出账号或异常；请查看实时采集状态')
+    values = [r['订单数'] for r in rows if r['订单数'] is not None]
+    money = [r['收入'] for r in rows if r['收入'] is not None]
+    return {'source':'Mac mini 正式加盟店实时采集快照', 'start':stamp.date().isoformat(), 'end':stamp.date().isoformat(),
+            'generated_at':payload['generated_at'], 'age_minutes':age, 'stale':stale, 'reset':reset,
+            'scope':'franchise', 'available_stores':names, 'store_count':len(selected),
+            'platform_store_count':len(rows), 'missing_order_rows':missing,
+            'sources':[{'scope':'franchise','generated_at':payload['generated_at'],'latest_date':stamp.date().isoformat()}],
+            'rows':rows, 'line_count':len(rows), 'store_totals':totals,
+            'totals':{'订单数':sum(values) if values else None, '收入':round(sum(money),2) if money else None},
+            'errors':errors, 'note':'门店销售有效订单数，非采购订货量。读取最近一次正式采集快照，不触发平台刷新；按美团、饿了么分平台汇总。缺失不是零；有缺失时合计仅为已采集部分；收入仅含已验证值。'}
+
+
 def business_comparison(q, roots):
     current = business(q, roots)
     previous = business(dict(q, start=q['previous_start'], end=q['previous_end']), roots)
@@ -131,10 +207,12 @@ def business_comparison(q, roots):
 
 def query(q):
     validate(q)
-    if q['kind'] in ('business', 'business_comparison'):
+    if q['kind'] in ('business', 'business_comparison', 'realtime'):
         roots = [Path(s).expanduser() for s in json.loads(os.environ.get('WECOM_DATA_ROOTS', json.dumps([
             str(Path.home() / 'Library/Application Support/xiong-operation/production'),
             str(Path.home() / 'Documents/operation-workbench-clean')])))]
+        if q['kind'] == 'realtime':
+            return realtime(q, roots)
         return business_comparison(q, roots) if q['kind'] == 'business_comparison' else business(q, roots)
     if q['kind'] != 'orders':
         raise ValueError('不支持的查询')

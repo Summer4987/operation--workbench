@@ -61,3 +61,41 @@ class QueryTests(unittest.TestCase):
             self.assertIsNone(r['rows'][0]['收入差额'])
 
 if __name__=='__main__':unittest.main()
+
+class RealtimeTests(unittest.TestCase):
+    def snapshot(self, root, stamp='2026-10-21 20:01:00', **extra):
+        p=root/'outputs/realtime_order_income/latest.json';p.parent.mkdir(parents=True,exist_ok=True)
+        d={'generated_at':stamp,'status':'ok','target_stores':['A','B'],'stores':[
+            {'store':'A','orders':99999,'platforms':{'美团':{'orders':4,'income':100,'income_status':'trusted'},'饿了么':{'orders':6,'income':200,'income_status':'trusted'}}},
+            {'store':'B','platforms':{'美团':{'orders':2,'income':99,'income_status':'untrusted'},'饿了么':{'orders':0,'income':0,'income_status':'account_out','source':'account_scope'}}}]}
+        d.update(extra);p.write_text(json.dumps(d));return p
+    def test_latest_snapshot_platform_totals_missing_permissions_not_zero(self):
+        from datetime import datetime,timezone,timedelta
+        now=datetime(2026,10,21,20,15,tzinfo=timezone(timedelta(hours=8)))
+        with tempfile.TemporaryDirectory() as d:
+            roots=[Path(d)/'old',Path(d)/'new']
+            self.snapshot(roots[0],stamp='2026-08-04 21:00:00')
+            self.snapshot(roots[1])
+            r=bridge.realtime({},roots,now)
+            self.assertEqual(r['generated_at'],'2026-10-21 20:01:00')
+            self.assertEqual(r['totals'],{'订单数':12,'收入':300})
+            self.assertEqual(r['missing_order_rows'],1)
+            self.assertIsNone(next(x for x in r['rows'] if x['门店']=='B' and x['平台']=='饿了么')['订单数'])
+            self.assertFalse(r['stale'])
+            self.assertEqual(bridge.realtime({'store':'A'},roots,now)['totals']['订单数'],10)
+            self.assertIsNone(bridge.realtime({'store':'NO'},roots,now)['totals']['订单数'])
+            with self.assertRaises(ValueError):bridge.realtime({'scope':'direct'},roots,now)
+    def test_stale_reset_and_missing_snapshot_are_never_current_zero_orders(self):
+        from datetime import datetime,timezone,timedelta
+        now=datetime(2026,10,21,20,15,tzinfo=timezone(timedelta(hours=8)))
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            with self.assertRaises(ValueError):bridge.realtime({},[root],now)
+            self.snapshot(root,stamp='2026-10-20 23:00:00')
+            self.assertTrue(bridge.realtime({},[root],now)['stale'])
+            self.snapshot(root,status='reset')
+            r=bridge.realtime({},[root],now)
+            self.assertIsNone(r['totals']['订单数']);self.assertIsNone(r['totals']['收入'])
+            self.assertTrue(r['reset'])
+            self.snapshot(root,stamp='2026-10-22 20:01:00')
+            with self.assertRaises(ValueError):bridge.realtime({},[root],now)

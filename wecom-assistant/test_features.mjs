@@ -101,3 +101,32 @@ test('live-process recovery only sends to paired owner and does not resend ackno
  assert.equal(result.file_delivered,true);assert.equal(sent.length,2);assert.ok(sent.every(s=>s.owner==='paired-owner'));
  assert.equal((await operatorInbound({text:'预约后天入库牛五花牛排34件',send:true},context)).already_delivered,true);assert.equal(sent.length,2);
 });
+
+test('realtime sales correction bypasses polluted history, model and supply orders',async t=>{
+ const root=temp(t),calls=[];
+ const payload={generated_at:'2026-10-21 20:01:00',store_count:1,platform_store_count:2,available_stores:['中关村'],
+   rows:[{'门店':'中关村','平台':'美团','订单数':142},{'门店':'中关村','平台':'饿了么','订单数':206}],
+   store_totals:[{'门店':'中关村','订单数':348}],totals:{'订单数':348},errors:[],missing_order_rows:0};
+ const a=new Assistant({},root,{llm:()=>{throw Error('must not call model');},bridge:async args=>{calls.push(args);return structuredClone(payload);}});
+ const r=await a.answer('加盟店的订单量，你要查实时单量，不是查订货量','sales-correction');
+ assert.equal(calls.length,1);assert.equal(calls[0].kind,'realtime');
+ assert.match(r.text,/销售订单合计：348单/);assert.match(r.text,/20:01:00/);assert.match(r.text,/美团142单，饿了么206单/);
+ const direct=await a.answer('直营门店实时单量','direct');assert.match(direct.text,/尚未接入/);assert.equal(calls.length,1);
+});
+
+test('realtime tool exists for model questions and stale snapshots are clearly marked',async t=>{
+ const {TOOLS}=await import('./core.mjs');const {isRealtimeRequest,realtimeReply}=await import('./realtime.mjs');
+ assert(TOOLS.some(t=>t.function.name==='query_realtime'));
+ assert(isRealtimeRequest('今日加盟店订单量'));assert(!isRealtimeRequest('今天成都订货量'));assert(!isRealtimeRequest('昨天加盟店订单量'));
+ const s=realtimeReply({generated_at:'2026-10-20 20:00:00',stale:true,reset:false,store_count:1,platform_store_count:2,missing_order_rows:1,totals:{'订单数':4},store_totals:[],errors:['快照已过期']});
+ assert.match(s,/已过期/);assert.match(s,/仅已采集部分/);assert.match(s,/不触发平台刷新/);
+ const reset=realtimeReply({reset:true,totals:{'订单数':null}});assert.match(reset,/尚未就绪/);assert.match(reset,/合计：缺失/);
+});
+
+test('realtime filters requested store/platform and refuses unverified city mapping',async t=>{
+ const a=new Assistant({},temp(t),{llm:()=>{throw Error('no model');},bridge:async()=>({generated_at:'2026-10-21 20:01:00',available_stores:['中关村','清河'],store_count:2,platform_store_count:4,
+ rows:[{'门店':'中关村','平台':'美团','订单数':3,'收入':12},{'门店':'中关村','平台':'饿了么','订单数':4,'收入':16},{'门店':'清河','平台':'美团','订单数':8,'收入':32},{'门店':'清河','平台':'饿了么','订单数':9,'收入':36}],
+ store_totals:[{'门店':'中关村','订单数':7},{'门店':'清河','订单数':17}],totals:{'订单数':24,'收入':96},errors:[]})});
+ const r=await a.answer('查中关村美团实时单量','filter');assert.match(r.text,/合计：3单/);assert.doesNotMatch(r.text,/饿了么|清河/);assert.match(r.text,/12.00元/);
+ const city=await a.answer('成都加盟店实时单量','city');assert.match(city.text,/请指定门店/);assert.doesNotMatch(city.text,/合计/);
+});

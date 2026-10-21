@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {PRIVATE,loadJson,saveJson,today} from './core.mjs';
+import {isRealtimeRequest} from './realtime.mjs';
 
 export function operatorToken(root=PRIVATE){
   const file=path.join(root,'operator-token');
@@ -31,4 +32,12 @@ export async function operatorInbound(payload,{assistant,client,owner,root=PRIVA
   saveJson(receiptFile,receipt);
   try{await client.sendMessage(owner,{msgtype:'markdown',markdown:{content:'刚才失败的预约表已补发。\n'+result.text}});receipt.notice_sent=true;saveJson(receiptFile,receipt);}catch{}
   return {ok:true,file_delivered:true,notice_delivered:receipt.notice_sent,process_id:process.pid,elapsed_ms:Date.now()-start};
+}
+
+export async function operatorRealtime(payload,{assistant}){
+  const text=String(payload.text||'');
+  if(text.length>8000||!isRealtimeRequest(text))throw Error('只接受实时经营查询原文');
+  const start=Date.now();
+  const result=await assistant.answer(text,'operator-realtime');
+  return {ok:true,process_id:process.pid,elapsed_ms:Date.now()-start,text:result.text,filenames:result.artifacts.map(f=>path.basename(f))};
 }

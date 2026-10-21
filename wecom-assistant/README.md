@@ -57,3 +57,9 @@
 `query_business(export_excel=true)` 导出门店汇总、经营明细和口径。`query_orders(export_excel=true)` 导出按门店/渠道/SKU/品名/单位分组的订货汇总、完整明细和门店订货状态。不同单位不合并计数；报表保留统计期间、源数据时间及缺失提示。
 
 `fixtures/inbound-template.xlsx` 为人工合成回归测试模板，含虚构旧预约行以验证新批次清理；不来自生产私人文件。原始测试文件由Artifact Tool生成，OOXML命名空间规范化以兼容ExcelJS读取。
+
+### 实时销售单量
+
+“加盟店的实时单量/订单量”读取 Mac mini 正式 `outputs/realtime_order_income/latest.json`，与采购订货接口完全分开。明确的实时请求直接查询并按平台计算，不经过模型；其他问答可以调用 `query_realtime`。回复注明采集时间，超过60分钟或跨日标记过期；每日重置和账号退出占位不作为真实零单。仅覆盖源文件里的加盟门店，不宣称主动刷新平台。可按已有门店名、美团/饿了么筛选，可导出带口径说明的经营表格。
+
+安装器将 `WECOM_DATA_ROOTS` 设为 Mac mini 的正式生产产物目录，避免后台进程读取旧 Documents 副本。仅本机令牌可调用 `POST /operator/realtime`（`{ "text": "加盟店实时单量" }`），调用常驻 Assistant 并返回只读结果，不向企微补发消息。

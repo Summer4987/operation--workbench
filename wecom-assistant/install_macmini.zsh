@@ -14,7 +14,7 @@ export WECOM_INSTALL_ROOT="$ROOT"
 export WECOM_INSTALL_NODE="$NODE"
 "$NODE" "$ROOT/refresh_template.mjs"
 /usr/bin/python3 - <<'PY'
-import os, plistlib
+import os, plistlib, json
 from pathlib import Path
 home = Path.home()
 root = Path(os.environ['WECOM_INSTALL_ROOT'])
@@ -27,6 +27,7 @@ payload = {'Label': 'com.summer.wecom-work-assistant',
            'WorkingDirectory': str(root), 'RunAtLoad': True, 'KeepAlive': True,
            'ThrottleInterval': 15,
            'EnvironmentVariables': {'PATH': str(home/'.local/bin')+':/usr/bin:/bin:/usr/sbin:/sbin', 'TZ': 'Asia/Shanghai',
+                                    'WECOM_DATA_ROOTS': json.dumps([str(home/'Library/Application Support/xiong-operation/production')]),
                                     'WECOM_INBOUND_RUNTIME_TEMPLATE': str(home/'.local/share/xiong-wecom-assistant/templates/inbound.xlsx')},
            'StandardOutPath': str(log/'stdout.log'), 'StandardErrorPath': str(log/'stderr.log')}
 with (folder/'com.summer.wecom-work-assistant.plist').open('wb') as f:
