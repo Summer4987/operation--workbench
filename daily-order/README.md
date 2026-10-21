@@ -71,3 +71,25 @@ data/submissions/*.csv
 ```
 
 这些文件是运行结果，默认不提交到 GitHub。
+
+## 订货通知路由
+
+2026-10-21 起，成都／北京门店逐单的「有门店下单啦」提醒停用；每天
+18:00 微信群订货汇总改用「熊小小日配订货」现有 Excel／出库单通知群。
+Excel 推送和 18:00 后补单提醒也使用这个目标，旧门店通知群不再承担这些通知。
+若指定日期没有微信群商品订单，汇总接口仍返回 empty，不发送空汇总。
+
+配置只存放在云端 systemd 的 `zzz-order-notification-routing.conf`，不将机器人
+地址提交 Git。此配置清空 `DAILY_ORDER_NOTIFY_WEBHOOK`，将
+`DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK` 指向正在运行的日配服务的
+`ORDER_NOTIFY_WEBHOOK`，保持 18:00 定时器不变。
+
+在 Mac mini 从 GitHub main 拉取后，可以预览或更新路由（不会发送测试消息）：
+
+```sh
+python3 scripts/configure_order_notification_routing.py
+python3 scripts/configure_order_notification_routing.py --apply
+```
+
+输出仅包含通知目标指纹。验证时确认逐单提醒关闭、汇总目标与日配目标一致，
+并检查正式订货页面和只读汇总预览接口。机器人地址本身不包含可查询的群名称。
