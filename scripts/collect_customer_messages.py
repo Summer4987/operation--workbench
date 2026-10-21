@@ -79,7 +79,7 @@ def save_media(page,scope,session,frame=None):
                 elif m['id'].startswith('group-'):
                     legacy=next(f for f in page.frames if '/wm_legacy_chat_detail' in f.url)
                     loc=legacy.locator('.wm-im-chat-body > *').nth(int(m['id'].rsplit(':',1)[1]))
-                else:loc=page.locator(f'[data-message-id="{m["id"]}"]')
+                else:loc=page.locator('.message-item'+f'[id={json.dumps(m["id"])}]')
                 visible=loc.inner_text()
                 name=media_name(scope['store']+scope['platform']+m['id'])+'.png'
                 path=OUT/scope['date']/'attachments'/name;path.parent.mkdir(parents=True,exist_ok=True)

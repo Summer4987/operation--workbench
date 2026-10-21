@@ -37,6 +37,18 @@ def await_value(page, fn, label, seconds=30):
     raise RuntimeError(f'{label}未返回；请检查生产登录态或页面结构')
 
 
+def satisfaction_response(value, kind, page_num=1):
+    """Ignore in-flight ALL/other-star responses after changing the native filter."""
+    if not value:
+        return None
+    query = value[0].get('params', {}).get('rateQuery', {})
+    if (query.get('scoreType') == 'SERVICE_SCORES'
+            and query.get('rateType') == kind
+            and query.get('currentPage', 1) == page_num):
+        return value
+    return None
+
+
 def paged(fetch, items_key, total_key='total', first=1):
     """Verify exhaustion and unique IDs; a truncated/capped query must not mean zero."""
     rows = []
@@ -131,6 +143,9 @@ class Collector:
                     data = response.json()
                     if not data.get('error') and data.get('result') is not None:
                         captured[key] = (body, data['result'])
+                        if key[0] == 'ShopRatingService':
+                            query = body.get('params', {}).get('rateQuery', {})
+                            captured[(*key, query.get('scoreType'), query.get('rateType'), query.get('currentPage', 1))] = (body, data['result'])
             except Exception:
                 pass
         page.on('response', receive)
@@ -174,14 +189,17 @@ class Collector:
         count_key = ('ShopRatingService', 'countRateResult')
         await_value(page, lambda: captured.get(list_key), '淘宝评价列表')
         records = {}
-        for label in ['满意度差评(1-2星)', '满意度中评(3星)']:
+        for label, expected_kind in [('满意度差评(1-2星)', 'BAD_REVIEW'), ('满意度中评(3星)', 'MEDIUM_REVIEW')]:
             captured.pop(list_key, None)
             captured.pop(count_key, None)
             if label == '满意度差评(1-2星)':
                 frame.get_by_text('满意度评分',exact=True).click()
             else:
                 frame.get_by_text(label,exact=True).click()
-            body, data = await_value(page, lambda: captured.get(list_key), '淘宝满意度筛选')
+            def filtered(key, n=1):
+                value = captured.get((*key, 'SERVICE_SCORES', expected_kind, n))
+                return satisfaction_response(value, expected_kind, n)
+            body, data = await_value(page, lambda: filtered(list_key), '淘宝满意度筛选')
             query = body['params']['rateQuery']
             verify_all_store_scope(query.get('shopIds'), leaf_ids)
             kind = query.get('rateType')
@@ -190,7 +208,7 @@ class Collector:
             if query.get('startTime','9999')[:10] > self.start or query.get('endTime','')[:10] < self.end:
                 raise RuntimeError('淘宝评价页面日期范围未覆盖最近7天')
             def current_count():
-                value = captured.get(count_key)
+                value = filtered(count_key)
                 if value and value[0]['params']['rateQuery'].get('rateType') == kind:
                     return value
                 return None
@@ -201,7 +219,7 @@ class Collector:
                 if n > 1:
                     next_ui_page()
                 def current_page():
-                    value = captured.get(list_key)
+                    value = filtered(list_key, n)
                     if value:
                         q = value[0]['params']['rateQuery']
                         if q.get('currentPage') == n and q.get('rateType') == kind:
