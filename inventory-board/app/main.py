@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import agent_inbox, agent_wecom
+from . import agent_inbox, agent_wecom, wecom_files
 from .db import (
     connect,
     create_import,
@@ -2050,9 +2050,22 @@ def _notify_order_submit(result: dict, filename: str, download_url: str = "") ->
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = url_request.Request(webhook, data=payload, method="POST", headers={"Content-Type": "application/json"})
     try:
-        url_request.urlopen(req, timeout=6).read()
-    except Exception:
-        pass
+        with url_request.urlopen(req, timeout=6) as response:
+            sent = json.loads(response.read()) if notify_type in {"wecom", "wechat_work", "企业微信", "企微"} else response.read()
+        if isinstance(sent, dict):
+            wecom_files._require_success(sent)
+    except Exception as exc:
+        _write_order_notify_log("text-failed", f"{filename}: {type(exc).__name__}")
+
+    if notify_type in {"wecom", "wechat_work", "企业微信", "企微"}:
+        try:
+            path = Path(result.get("file") or OUTPUT_DIR / Path(filename).name)
+            if path.name != filename:
+                raise ValueError("Order attachment filename mismatch")
+            receipt = wecom_files.send_excel(webhook, path)
+            _write_order_notify_log("file-sent", json.dumps(receipt, ensure_ascii=False))
+        except Exception as exc:
+            _write_order_notify_log("file-failed", f"{filename}: {type(exc).__name__}")
 
 
 def _notify_inventory_warning_for_skus(skus: set[str], source: str) -> None:
