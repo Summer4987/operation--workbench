@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {PRIVATE,loadJson,saveJson,today} from './core.mjs';
+import {PRIVATE,loadJson,saveJson,today,Assistant} from './core.mjs';
 import {isRealtimeRequest} from './realtime.mjs';
 
 export function operatorToken(root=PRIVATE){
@@ -46,6 +46,7 @@ export async function operatorAsk(payload,{assistant,owner}){
   if(!owner)throw Error('尚未绑定账号');
   const text=String(payload.text||'');
   if(!text.trim()||text.length>8000)throw Error('请求长度须为1至8000字');
-  const start=Date.now();const result=await assistant.answer(text,'operator-personal');
+  const target=payload.verification===true?new Assistant(assistant.config,path.join(assistant.root,'verification','personal')):assistant;
+  const start=Date.now();const result=await target.answer(text,'operator-personal');
   return {ok:true,process_id:process.pid,elapsed_ms:Date.now()-start,text:result.text,filenames:result.artifacts.map(f=>path.basename(f))};
 }
