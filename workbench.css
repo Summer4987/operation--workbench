@@ -607,10 +607,6 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.center-grid.health-grid {
-  grid-template-columns: 1fr;
-}
-
 .wide-module {
   min-height: 0;
 }
@@ -1418,85 +1414,6 @@ h2 {
   grid-template-columns: minmax(110px, 0.38fr) auto minmax(0, 1fr);
 }
 
-.health-task-list {
-  display: grid;
-  gap: 10px;
-}
-
-.health-block-title {
-  margin-top: 12px;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 950;
-}
-
-.health-block-title:first-of-type {
-  margin-top: 4px;
-}
-
-.health-run-list div {
-  grid-template-columns: minmax(130px, 0.24fr) minmax(72px, auto) minmax(0, 1fr);
-}
-
-.health-task-list div {
-  min-width: 0;
-  min-height: 54px;
-  padding: 12px 13px;
-  border: 1px solid #e8edf4;
-  border-radius: 8px;
-  background: #fbfcfe;
-  display: grid;
-  grid-template-columns: minmax(130px, 0.24fr) minmax(82px, auto) minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-}
-
-.health-task-list.morning-task-list div {
-  grid-template-columns: minmax(150px, 0.22fr) minmax(132px, 0.2fr) minmax(84px, auto) minmax(0, 1fr);
-}
-
-.health-task-list div.warn-row {
-  background: var(--soft-red-bg);
-  border-color: var(--soft-red-line);
-  border-left: 4px solid var(--red);
-}
-
-.health-task-list div.good-row {
-  background: #f7fcfa;
-  border-color: #d5efe6;
-  border-left: 4px solid var(--green);
-}
-
-.health-task-list div.neutral-row {
-  background: #f8fafc;
-  border-color: #dbe3ee;
-  border-left: 4px solid #94a3b8;
-}
-
-.health-task-list span,
-.health-task-list strong,
-.health-task-list em {
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.health-task-list span {
-  color: #0f172a;
-  font-weight: 950;
-}
-
-.health-task-list strong {
-  white-space: nowrap;
-  font-weight: 950;
-}
-
-.health-task-list em {
-  color: var(--muted);
-  font-style: normal;
-  overflow-wrap: anywhere;
-}
-
 .budget-current-list {
   display: grid;
   gap: 8px;
@@ -2068,9 +1985,6 @@ h2 {
   .review-weekly-list div,
   .review-workflow-list div,
   .budget-edit-row,
-  .morning-task-list div,
-  .health-task-list.morning-task-list div,
-  .health-task-list div,
   .week-store-grid,
   .week-store,
   .realtime-summary,

@@ -852,107 +852,6 @@ async function loadDailyOrderPendingSummary() {
   renderPriority();
 }
 
-function renderHealth() {
-  const taskHealth = data.task_health || {};
-  const taskRuns = data.task_runs || {};
-  const macminiSmoke = data.macmini_smoke_status || {};
-  const operationCheck = data.operation_automation_check || {};
-  const summary = taskHealth.summary || {};
-  const environment = taskHealth.environment || {};
-  const tasks = taskHealth.tasks || [];
-  const morningTasks = taskHealth.morning_tasks || [];
-  const smokeStatus = macminiSmoke.status || "waiting_log";
-  const operationBlockers = operationCheck.blockers || [];
-  const operationWarnings = operationCheck.warnings || [];
-  const operationEnvironment = operationCheck.environment || environment;
-  const operationRow = {
-    name: "系统体检",
-    status: operationBlockers.length ? "danger" : operationWarnings.length ? "warn" : "ok",
-    status_text: operationBlockers.length ? "阻塞" : operationWarnings.length ? "提醒" : "正常",
-    reason: operationBlockers.length
-      ? `${operationEnvironment.label || "当前环境"}发现 ${operationBlockers.length} 个阻塞项`
-      : operationWarnings.length
-        ? `${operationEnvironment.label || "当前环境"}有 ${operationWarnings.length} 个提醒`
-        : `${operationEnvironment.label || "当前环境"}体检通过`,
-    human_action: (operationBlockers[0] || operationWarnings[0] || {}).message || "",
-    last_seen_at: operationCheck.generated_at || "",
-    environment_label: operationEnvironment.label || "",
-  };
-  const smokeRow = {
-    name: "Mac mini 只读冒烟",
-    status: smokeStatus === "ready" ? "ok" : smokeStatus === "failed" ? "danger" : "warn",
-    status_text: smokeStatus === "ready" ? "已完成" : smokeStatus === "failed" ? "失败" : "待回传",
-    reason: macminiSmoke.message || "等待 Mac mini 生产冒烟日志。",
-    human_action: macminiSmoke.next_action || "",
-    last_seen_at: macminiSmoke.summary?.updated_at || "",
-    environment_label: "Mac mini 生产环境",
-  };
-  const abnormalCount = Number(summary.warn || 0) + Number(summary.danger || 0);
-  const statusPrefix = environment.role === "production" ? "生产" : "开发";
-  text("healthStatus", `${statusPrefix}${abnormalCount ? "注意" : "正常"}`);
-  text(
-    "healthSummary",
-    `共 ${summary.total || tasks.length || 0} 个自动化任务：正常 ${summary.ok || 0}，注意 ${summary.warn || 0}，需处理 ${summary.danger || 0}，规划中 ${summary.planned || 0}。${taskHealth.generated_at ? `任务健康生成：${taskHealth.generated_at}。` : ""}`
-  );
-  rows(
-    "morningTaskRows",
-    morningTasks,
-    (task) => {
-      const runStatus = task.last_run_status || "missing";
-      const cls = runStatus === "success" ? "good-row" : runStatus === "missing" || runStatus === "skipped" ? "neutral-row" : "warn-row";
-      const statusText = task.last_run_status_text || (runStatus === "success" ? "成功" : runStatus === "failed" ? "失败" : runStatus === "running" ? "运行中" : runStatus === "skipped" ? "跳过" : runStatus === "warning" ? "注意" : "未记录");
-      const meta = [
-        task.last_run_step ? `步骤：${task.last_run_step}` : "",
-        task.last_run_message || task.reason || "",
-        task.failure_type ? `原因：${task.failure_type}` : "",
-        task.human_action ? `处理：${task.human_action}` : "",
-        task.evidence ? `记录：${task.evidence}` : "",
-      ].filter(Boolean).join(" · ");
-      return `<div class="${cls}"><span>${escapeHtml(task.name || task.id || "未知任务")}</span><strong>${escapeHtml(task.last_run_at || "未记录")}</strong><strong>${escapeHtml(statusText)}</strong><em>${escapeHtml(meta || task.schedule || "-")}</em></div>`;
-    }
-  );
-  const healthRows = operationEnvironment.role === "production" || operationBlockers.length
-    ? [operationRow, smokeRow, ...tasks]
-    : [smokeRow, ...tasks, operationRow];
-  rows(
-    "healthRows",
-    healthRows,
-    (task) => {
-      const cls = task.status === "ok" ? "good-row" : "warn-row";
-      const meta = [
-        task.reason,
-        task.last_run_status ? `最近运行：${task.last_run_status}` : "",
-        task.last_run_step ? `步骤：${task.last_run_step}` : "",
-        task.repair_guide ? `向导：${task.repair_guide}` : "",
-        task.human_action ? `处理：${task.human_action}` : "",
-        task.last_seen_at ? `最近：${task.last_seen_at}` : "",
-        task.evidence ? `记录：${task.evidence}` : "",
-        task.environment_label || environment.label || "",
-      ].filter(Boolean).join(" · ");
-      return `<div class="${cls}"><span>${escapeHtml(task.name)}</span><strong>${escapeHtml(task.status_text || task.status)}</strong><em>${escapeHtml(meta || task.next_step || "-")}</em></div>`;
-    }
-  );
-  const taskNames = new Map(tasks.map((task) => [task.id, task.name]));
-  const events = (taskRuns.events || []).slice(-18).reverse();
-  rows(
-    "healthRunRows",
-    events,
-    (event) => {
-      const ok = event.status === "success";
-      const cls = ok ? "good-row" : "warn-row";
-      const statusText = event.status === "success" ? "成功" : event.status === "failed" ? "失败" : event.status === "running" ? "运行中" : event.status === "skipped" ? "跳过" : event.status || "-";
-      const meta = [
-        event.created_at ? `时间：${event.created_at}` : "",
-        event.step ? `步骤：${event.step}` : "",
-        event.message || "",
-        event.failure_type ? `原因：${event.failure_type}` : "",
-        event.log_path ? `日志：${event.log_path}` : "",
-      ].filter(Boolean).join(" · ");
-      return `<div class="${cls}"><span>${escapeHtml(taskNames.get(event.task_id) || event.task_id || "未知任务")}</span><strong>${escapeHtml(statusText)}</strong><em>${escapeHtml(meta || "-")}</em></div>`;
-    }
-  );
-}
-
 function renderAiAdvice() {
   const advice = data.ai_advice || {};
   if (Array.isArray(advice.rows) && advice.rows.length) {
@@ -1738,7 +1637,7 @@ function renderOrdering() {
   text(
     "orderingSummary",
     orderSuggestions.status === "failed"
-      ? orderSuggestions.message || "订货建议生成失败，请查看任务健康报告。"
+      ? orderSuggestions.message || "订货建议生成失败，请查看运行日志。"
       : `按库存预警生成订货建议，当前 ${channelCount} 个供应渠道。`
   );
   text("orderingConfirmStatus", pending ? "需人工确认" : "当前无需处理");
@@ -1973,7 +1872,6 @@ text("generatedAt", `数据更新时间：${data.generated_at || "未生成"}${g
 renderDaily();
 renderDirectDaily();
 renderPriority();
-renderHealth();
 renderReviews();
 renderDirectReviews();
 renderBalances();
