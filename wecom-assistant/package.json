@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": {"start": "node app.mjs", "test": "node --test test.mjs"},
+  "scripts": {"start": "node app.mjs", "test": "node --test test.mjs test_features.mjs test_personal.mjs"},
   "engines": {"node": ">=22"},
   "dependencies": {"@wecom/aibot-node-sdk": "1.0.6", "exceljs": "4.4.0"}
 }

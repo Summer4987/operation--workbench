@@ -5,7 +5,8 @@ import http from 'node:http';
 import {createRequire} from 'node:module';
 import ExcelJS from 'exceljs';
 import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook,balance} from './core.mjs';
-import {operatorToken,checkOperator,operatorInbound,operatorRealtime} from './operator.mjs';
+import {memoryCommand} from './memory.mjs';
+import {operatorToken,checkOperator,operatorInbound,operatorRealtime,operatorAsk} from './operator.mjs';
 const require=createRequire(import.meta.url);
 const {WSClient}=require('@wecom/aibot-node-sdk');
 const config=settings();
@@ -18,7 +19,7 @@ if(mode==='--pair-code') {
   console.log(access.data.owner?'已绑定，无需再次绑定。':`绑定 ${access.data.token}`);process.exit(0);
 }
 if(!config.WECOM_BOT_ID || !config.WECOM_BOT_SECRET) throw Error('企微Bot ID或Secret未配置');
-const status={started_at:new Date().toISOString(),process_id:process.pid,inbound_runtime_template:Boolean(config.WECOM_INBOUND_RUNTIME_TEMPLATE),authenticated:false,paired:Boolean(access.data.owner),received:0,replied:0,errors:0,last_error:'',last_message_at:null,last_reply_at:null,model_configured:Boolean(config.AGENT_LLM_API_KEY)};
+const status={started_at:new Date().toISOString(),process_id:process.pid,inbound_runtime_template:Boolean(config.WECOM_INBOUND_RUNTIME_TEMPLATE),authenticated:false,paired:Boolean(access.data.owner),received:0,replied:0,errors:0,last_error:'',last_message_at:null,last_reply_at:null,model_configured:Boolean(config.AGENT_LLM_API_KEY),memory_enabled:config.WECOM_MEMORY_ENABLED==='1',memory_model_consent:config.WECOM_MEMORY_MODEL_CONSENT==='1',search_enabled:config.WECOM_SEARCH_ENABLED==='1'};
 function update(extra={}) { Object.assign(status,extra,{updated_at:new Date().toISOString()});saveJson(statusFile,status); }
 // SDK logs may contain payloads; suppress details and keep only sanitized health codes.
 const logger={debug(){},info(){},warn(){},error(){}};
@@ -73,7 +74,7 @@ async function handle(frame){
   const key=sessionKey(body);
   if(busy.has(key)){await sendText(frame,stream,'上一条消息还在处理中，请等结果返回后再发下一条。');return;}
   busy.add(key);let tick;let progress='正在理解问题……';const started=Date.now();
-  saveJson(path.join(PRIVATE,'last-request.json'),{received_at:new Date().toISOString(),message_type:body.msgtype,text:text.slice(0,8000)});
+  saveJson(path.join(PRIVATE,'last-request.json'),{received_at:new Date().toISOString(),message_type:body.msgtype,text:memoryCommand(text)?'[长期记忆管理指令，正文不记入排障日志]':text.slice(0,8000)});
   try{
     await sendText(frame,stream,'正在处理，请稍候……',false);
     update({received:status.received+1,last_message_at:new Date().toISOString(),active:true,last_stage:progress});
@@ -103,7 +104,7 @@ async function handle(frame){
     update({replied:status.replied+1,last_reply_at:new Date().toISOString(),last_error:''});
   }catch(e){
     clearInterval(tick);update({errors:status.errors+1,last_error:'消息处理失败',last_failed_stage:progress});
-    const safe=/^(AI|处理超时|余额查询|数据查询|订货数据|查询超时|查询结果|目前支持|文件超过|文件下载)/.test(e.message)?e.message:'处理失败，请稍后重试或缩小范围；未执行任何订货或生产修改。';
+    const safe=/^(AI|处理超时|余额查询|数据查询|订货数据|查询超时|查询结果|目前支持|文件超过|文件下载|联网搜索|搜索入口|没有可用搜索|长期记忆)/.test(e.message)?e.message:'处理失败，请稍后重试或缩小范围；未执行任何订货或生产修改。';
     await sendText(frame,stream,safe).catch(()=>{});
   }finally{update({active:false,last_duration_ms:Date.now()-started,last_stage:'已结束'});busy.delete(key);}
 }
@@ -126,14 +127,14 @@ if(mode==='--smoke'){
   client.on('event.enter_chat',frame=>client.replyWelcome(frame,{msgtype:'text',text:{content:'你好，我是熊小小工作助手。完成私聊绑定后可查询经营、订货，整理聊天和生成Excel。'}}).catch(()=>{}));
   const adminToken=operatorToken();
   const server=http.createServer(async(req,res)=>{
-    if(req.method==='POST'&&['/operator/inbound','/operator/realtime'].includes(req.url)){
+    if(req.method==='POST'&&['/operator/inbound','/operator/realtime','/operator/ask'].includes(req.url)){
       if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
       const key=sessionKey({chattype:'single',from:{userid:access.data.owner}});
       if(busy.has(key)||!status.authenticated){res.writeHead(409);res.end();return;}
       busy.add(key);
       try{
         let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16000)throw Error('请求过长');}
-        const result=await (req.url==='/operator/realtime'?operatorRealtime:operatorInbound)(JSON.parse(body),{assistant,client,owner:access.data.owner});
+        const result=await (req.url==='/operator/ask'?operatorAsk:req.url==='/operator/realtime'?operatorRealtime:operatorInbound)(JSON.parse(body),{assistant,client,owner:access.data.owner});
         res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));
       }catch(error){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:false,error:String(error.message).slice(0,200)}));}
       finally{busy.delete(key);}
