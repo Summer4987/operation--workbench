@@ -9,6 +9,29 @@ from scripts import send_inventory_warning_daily as sender
 
 
 class InventoryWarningDailyTests(unittest.TestCase):
+    def test_cli_records_business_results_and_failures(self) -> None:
+        cases = [
+            ({"status": "sent", "message": "已推送3项预警"}, "success", 0),
+            ({"status": "clear", "message": "无需预警"}, "success", 0),
+            ({"status": "skipped", "message": "今日已完成"}, "success", 0),
+            ({"status": "error", "message": "发送失败"}, "failed", 1),
+            (RuntimeError("连接超时"), "failed", 1),
+        ]
+        for result, status, code in cases:
+            with self.subTest(result=result), mock.patch("sys.argv", ["sender"]), mock.patch.object(
+                sender, "record_task_event"
+            ) as record, mock.patch.object(sender, "run") as run:
+                if isinstance(result, Exception):
+                    run.side_effect = result
+                else:
+                    run.return_value = result
+                self.assertEqual(sender.main(), code)
+                self.assertEqual(record.call_args_list[0].args, (sender.TASK_ID, "running"))
+                self.assertEqual(record.call_args.args, (sender.TASK_ID, status))
+                self.assertEqual(record.call_args.kwargs["returncode"], code)
+                if isinstance(result, Exception):
+                    self.assertEqual(record.call_args.kwargs["failure_type"], "timeout")
+
     def test_daily_sender_deduplicates_completed_date(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

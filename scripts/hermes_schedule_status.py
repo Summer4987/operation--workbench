@@ -19,6 +19,7 @@ LABEL_PREFIX = "com.summer.operation"
 GRACE_MINUTES = 20
 
 LABEL_NAMES = {
+    "com.summer.operation.inventory-warning-daily": "每日库存预警",
     "com.summer.operation.morning": "上午运营一键采集",
     "com.summer.operation.realtime-order-income": "实时单量和营业额采集",
     "com.summer.operation.agent-task-notifier": "Hermes 自动汇报通知器",
@@ -27,6 +28,7 @@ LABEL_NAMES = {
     "com.summer.operation.evening": "晚间预算任务",
 }
 LABEL_TASK_IDS = {
+    "com.summer.operation.inventory-warning-daily": "ops.inventory_warning_daily",
     "com.summer.operation.morning": "ops.morning_collection",
     "com.summer.operation.realtime-order-income": "ops.realtime_order_income",
     "com.summer.operation.cainiao-logistics": "ops.cainiao_logistics",

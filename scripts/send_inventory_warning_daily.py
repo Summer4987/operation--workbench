@@ -11,12 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from atomic_io import atomic_write_text
+from task_run_state import classify_failure_text, record_task_event
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASE_URL = "http://139.155.148.169"
 STATE_PATH = ROOT / "outputs" / "inventory_warning_daily" / "state.json"
 LATEST_PATH = ROOT / "outputs" / "inventory_warning_daily" / "latest.json"
+TASK_ID = "ops.inventory_warning_daily"
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -83,13 +85,27 @@ def main() -> int:
     parser.add_argument("--base-url", default=os.environ.get("INVENTORY_WARNING_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--force", action="store_true", help="忽略当天去重状态并重新触发")
     args = parser.parse_args()
+    log_path = Path.home() / "Library/Logs/xiong-operation/launchd/com.summer.operation.inventory-warning-daily.out.log"
+    def record(status: str, message: str, returncode: int | None = None) -> None:
+        record_task_event(
+            TASK_ID, status, message=message, step="每日库存预警",
+            log_path=log_path, returncode=returncode,
+            failure_type=classify_failure_text(message, returncode) if status == "failed" else "",
+        )
+
+    record("running", "开始检查并推送每日库存预警。")
     try:
         payload = run(base_url=args.base_url, force=args.force)
     except Exception as exc:
-        print(f"库存预警推送失败：{exc}")
+        message = f"库存预警推送失败：{exc}"
+        record("failed", message, 1)
+        print(message)
         return 1
     print(json.dumps(payload, ensure_ascii=False))
-    return 0 if payload.get("status") in {"sent", "clear", "skipped"} else 1
+    completed = payload.get("status") in {"sent", "clear", "skipped"}
+    message = str(payload.get("message") or f"库存预警接口返回状态：{payload.get('status')}")
+    record("success" if completed else "failed", message, 0 if completed else 1)
+    return 0 if completed else 1
 
 
 if __name__ == "__main__":

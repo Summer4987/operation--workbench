@@ -15,6 +15,21 @@ import hermes_schedule_status as schedule_module  # noqa: E402
 
 
 class HermesScheduleStatusTests(unittest.TestCase):
+    def test_inventory_warning_reads_business_ledger(self) -> None:
+        for status in ("success", "failed"):
+            with self.subTest(status=status):
+                row = schedule_module.classify_row(
+                    {"label": "com.summer.operation.inventory-warning-daily",
+                     "plist": {"StartCalendarInterval": {"Hour": 16, "Minute": 0}}},
+                    {"tasks": {"ops.inventory_warning_daily": {
+                        "status": status, "message": "业务结果",
+                        "finished_at": "2026-10-21 16:00:05",
+                    }}}, {}, datetime(2026, 10, 21, 17, 0),
+                )
+                self.assertEqual(row["status"], status)
+                self.assertEqual(row["name"], "每日库存预警")
+                self.assertEqual(row["reason"], "业务结果")
+
     def setUp(self) -> None:
         self.original_runs_path = schedule_module.RUNS_PATH
         self.original_clean_runs_path = schedule_module.CLEAN_RUNS_PATH
