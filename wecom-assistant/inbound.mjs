@@ -88,6 +88,33 @@ function chineseNumber(word){
   return sum+part+value;
 }
 
+// Clear reservation requests do not require a network round trip to an LLM.
+export function parseDirectInbound(raw,catalog,today){
+  if(!/入库|易代仓/.test(raw)||/不要|不入库|不是|取消|撤销|改成|改为|修改|删除|增加|减少|追加|查阅|查询|记录|统计/.test(raw))return null;
+  const removeInstructions=s=>s.replace(/(?:生成|制作|做|发|给我|一份|一个|请|帮我|表格|表|预约|明天|后天|今天|预计|入库|成都易代仓|易代仓|Excel|excel|文件|附件|到货|日期|时间|品名|数量|商品|[：:。！？!?])/g,'').trim().replace(/^(?:和|及|以及)/,'').trim();
+  const body=raw.replace(/\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}日?/g,'').replace(/\d{1,2}月\d{1,2}日?/g,'');
+  const items=[];
+  for(const segment of body.split(/[\n，,；;、]/)){
+    if(!removeInstructions(segment))continue;
+    const matches=[...segment.matchAll(/(?<![\w.+-])(?:(\d+(?:\.\d+)?)\s*(公斤|千克|kg|件|箱|袋|个|斤|瓶|包|桶|盒|吨)?|([零〇一二两三四五六七八九十百千万]+)\s*(公斤|千克|kg|件|箱|袋|个|斤|瓶|包|桶|盒|吨))/giu)];
+    if(!matches.length)return null;
+    let previousEnd=0;
+    for(const match of matches){
+      const name=removeInstructions(segment.slice(previousEnd,match.index));
+      // A bare number may belong to an SKU, a specification or a follow-up instruction.
+      if(!name)return null;
+      const product=matchInboundProduct(catalog,name);
+      const quantity=match[1]?Number(match[1]):chineseNumber(match[3]);
+      const unit=match[2]||match[4]||undefined;
+      items.push({product:product.sku,quantity,...(unit?{unit}: {})});
+      previousEnd=match.index+match[0].length;
+    }
+    if(removeInstructions(segment.slice(previousEnd)))return null;
+  }
+  if(!items.length)return null;
+  return {inbound_date:inboundDate(raw,today),items};
+}
+
 export async function createInbound(args, raw, config, root, today) {
   if (!Array.isArray(args.items)||!args.items.length||args.items.length>100) throw Error('入库表需要1至100项商品');
   const loaded=await readInboundTemplate(config);

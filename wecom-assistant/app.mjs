@@ -100,7 +100,7 @@ async function handle(frame){
     }else {clearInterval(tick);await sendText(frame,stream,'目前支持文字、企微转文字语音、TXT/CSV/XLSX文件。截图请先转为文字后发送。');}
     update({replied:status.replied+1,last_reply_at:new Date().toISOString(),last_error:''});
   }catch(e){
-    clearInterval(tick);update({errors:status.errors+1,last_error:'消息处理失败'});
+    clearInterval(tick);update({errors:status.errors+1,last_error:'消息处理失败',last_failed_stage:progress});
     const safe=/^(AI|处理超时|余额查询|数据查询|订货数据|查询超时|查询结果|目前支持|文件超过|文件下载)/.test(e.message)?e.message:'处理失败，请稍后重试或缩小范围；未执行任何订货或生产修改。';
     await sendText(frame,stream,safe).catch(()=>{});
   }finally{update({active:false,last_duration_ms:Date.now()-started,last_stage:'已结束'});busy.delete(key);}

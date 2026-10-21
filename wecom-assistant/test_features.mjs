@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import ExcelJS from 'exceljs';
-import {createInbound,readInboundTemplate,matchInboundProduct,inboundDate} from './inbound.mjs';
+import {createInbound,readInboundTemplate,matchInboundProduct,inboundDate,parseDirectInbound} from './inbound.mjs';
 import {businessReport,comparisonReport,orderReport,orderTotals} from './reports.mjs';
 import {Assistant} from './core.mjs';
 const dir=path.dirname(fileURLToPath(import.meta.url));
@@ -57,4 +57,27 @@ test('AI inbound tool returns a real template attachment and blocks a generic re
  const r=await a.tool('create_inbound_reservation',{items:[{product:'鸡胸',quantity:100,unit:'件'}]},artifacts,undefined,{rawText:'入库鸡胸100件'});
  assert.equal(r.file_created,true);assert.equal(artifacts.length,1);assert.equal(r.file,undefined);
  await assert.rejects(a.tool('create_spreadsheet',{title:'入库',columns:['品名'],rows:[['鸡胸']]},[],undefined,{rawText:'入库鸡胸100件'}),/必须调用/);
+});
+test('the failed user request creates the exact reservation without calling an AI service',async t=>{
+ let called=false;const root=temp(t);
+ const a=new Assistant(config,root,{llm:async()=>{called=true;throw Error('AI must not be called');}});
+ const r=await a.answer('预约明天入库拌饭汁24件，发表格给我','real-user-regression');
+ assert.equal(called,false);assert.equal(r.artifacts.length,1);
+ const b=new ExcelJS.Workbook();await b.xlsx.readFile(r.artifacts[0]);const s=b.getWorksheet('Sheet1');
+ assert.equal(s.getCell('E2').value,'CWXXX0001');assert.equal(s.getCell('I2').value,24);assert.equal(s.getCell('H2').value,'常温');
+ assert.match(r.text,/24件/);
+});
+test('direct parsing supports multi-line and Chinese quantities but skips cancellation',async()=>{
+ const {catalog}=await readInboundTemplate(config);
+ const r=parseDirectInbound('明天入库：鸡胸一百件，鸡腿50件。生成表格给我',catalog,'2026-10-21');
+ assert.equal(r.items.length,2);assert.equal(r.items[0].quantity,100);assert.equal(r.inbound_date,'2026-10-22');
+ assert.equal(parseDirectInbound('不要入库拌饭汁24件',catalog,'2026-10-21'),null);
+});
+test('a generated attachment survives a later model timeout',async t=>{
+ let calls=0;const a=new Assistant({},temp(t),{llm:async()=>{
+  if(calls++)return new Promise(()=>{});
+  return {role:'assistant',tool_calls:[{id:'file',function:{name:'create_spreadsheet',arguments:JSON.stringify({title:'测试',columns:['状态'],rows:[['已核对']]})}}]};
+ }});
+ const r=await a.answer('生成一个测试表格','timeout-after-file',{timeoutMs:100});
+ assert.equal(r.artifacts.length,1);assert.match(r.text,/表格已生成/);assert.equal(fs.existsSync(r.artifacts[0]),true);
 });
