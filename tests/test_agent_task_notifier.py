@@ -8,6 +8,8 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +29,23 @@ def load_notifier():
 
 
 class AgentTaskNotifierTests(unittest.TestCase):
+    def test_inventory_business_failure_is_still_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runs = root / "runs.json"
+            runs.write_text(json.dumps({"tasks": {"ops.inventory_warning_daily": {
+                "status": "failed", "message": "库存预警接口连接超时",
+                "finished_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }}}), encoding="utf-8")
+            args = SimpleNamespace(
+                runs=str(runs), state=str(root / "state.json"), log=str(root / "log.json"),
+                target="weixin", hermes_bin="hermes", seed=False,
+                dry_run=True, no_write=True, include_unconfigured=False,
+            )
+            with mock.patch.object(self.notifier, "load_policy_rows", return_value=dict(self.notifier.DIRECT_TASK_ROWS)):
+                payload = self.notifier.notify(args)
+            self.assertEqual(payload["notification_count"], 1)
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.notifier = load_notifier()

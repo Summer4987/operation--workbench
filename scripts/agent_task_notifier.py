@@ -46,6 +46,16 @@ STATUS_INTROS = {
     "missing": "还没看到运行记录",
 }
 DIRECT_TASK_ROWS = {
+    "ops.inventory_warning_daily": {
+        "id": "ops.inventory_warning_daily",
+        "name": "每日库存预警",
+        "risk": "low",
+        "rerun": {
+            "suggested": True,
+            "auto_allowed": False,
+            "reason": "先核对库存预警接口结果和当天发送记录，避免重复推送。",
+        },
+    },
     "ops.morning_collection": {
         "id": "ops.morning_collection",
         "name": "上午运营一键采集",
