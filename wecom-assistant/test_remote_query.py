@@ -23,6 +23,14 @@ class RemoteTests(unittest.TestCase):
                 result=remote.query({'start':'2026-10-21','end':'2026-10-21','region':'daily'})
             self.assertEqual(result['line_count'],1);self.assertEqual(result['rows'][0]['数量'],3)
             self.assertEqual(result['order_count'],1);self.assertEqual(p.read_bytes(),before)
+    def test_beijing_catalog_supports_store_objects(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)/'opt/daily-order';(root/'data/beijing-submissions').mkdir(parents=True)
+            (root/'app').mkdir();(root/'app/catalog-beijing.json').write_text(json.dumps({'stores':[{'name':'朝阳门店','address':'private'}]}))
+            with patch.object(remote,'Path',side_effect=lambda value:Path(d)/str(value).lstrip('/')):
+                result=remote.query({'start':'2026-10-21','end':'2026-10-21','region':'beijing'})
+            self.assertEqual(result['unsubmitted_stores'],['朝阳门店'])
+            self.assertNotIn('private',json.dumps(result))
     def test_partial_orders_never_claim_a_complete_unsubmitted_list(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)/'opt/daily-order';folder=root/'data/submissions';folder.mkdir(parents=True)

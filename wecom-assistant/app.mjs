@@ -8,6 +8,7 @@ import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,
 const require=createRequire(import.meta.url);
 const {WSClient}=require('@wecom/aibot-node-sdk');
 const config=settings();
+let smokeTimer;
 const access=new Access();
 const statusFile=path.join(PRIVATE,'health.json');
 const mode=process.argv[2];
@@ -23,7 +24,12 @@ const logger={debug(){},info(){},warn(){},error(){}};
 const client=new WSClient({botId:config.WECOM_BOT_ID,secret:config.WECOM_BOT_SECRET,maxReconnectAttempts:-1,logger});
 client.on('authenticated',()=>{update({authenticated:true,last_error:''});console.log('企微长连接认证成功');});
 client.on('disconnected',()=>update({authenticated:false}));
-client.on('error',()=>{update({errors:status.errors+1,last_error:'企微连接或认证错误'});});
+client.on('error',error=>{
+  const code=String(error.message).match(/code: (\d+)/)?.[1];
+  const reason=code==='853000'?'企微认证失败：Bot ID与Secret不匹配（853000）':'企微连接或认证错误';
+  update({errors:status.errors+1,last_error:reason});
+  if(mode==='--smoke'){clearTimeout(smokeTimer);console.error(reason);client.disconnect();process.exit(1);}
+});
 client.on('event.disconnected_event',()=>{update({authenticated:false,last_error:'机器人被另一连接替代，请停止重复实例'});setTimeout(()=>process.exit(1),500);});
 const assistant=new Assistant(config);
 const seenFile=path.join(PRIVATE,'seen.json');
@@ -97,9 +103,9 @@ async function handle(frame){
   }finally{busy.delete(key);}
 }
 if(mode==='--smoke'){
-  const timeout=setTimeout(()=>{console.error('企微认证超时');client.disconnect();process.exit(1);},20000);
+  smokeTimer=setTimeout(()=>{console.error('企微认证超时');client.disconnect();process.exit(1);},20000);
   client.once('authenticated',async()=>{
-    clearTimeout(timeout);
+    clearTimeout(smokeTimer);
     try{
       const answer=await llm([{role:'user',content:'这是连接健康检查，只回复OK。'}],config,[]);
       if(!answer.content)throw Error('model check failed');

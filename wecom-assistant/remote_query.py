@@ -41,7 +41,10 @@ def query(q):
             if not cat.exists():
                 errors.append(key + '门店清单不存在')
             else:
-                expected.extend(json.loads(cat.read_text()).get('stores', []))
+                for store in json.loads(cat.read_text()).get('stores', []):
+                    name = store.get('name', '') if isinstance(store, dict) else str(store)
+                    if name:
+                        expected.append(name)
             for file in folder.glob('*.json'):
                 try:
                     order = json.loads(file.read_text())
