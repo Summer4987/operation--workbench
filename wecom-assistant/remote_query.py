@@ -21,7 +21,7 @@ def query(q):
                 f.filename AS 订单号, m.sku AS SKU, m.name AS 品名,
                 m.quantity AS 数量, m.unit AS 单位, m.document_date AS 单据日期
                 FROM movements m JOIN import_files f ON f.id=m.import_file_id
-                WHERE m.movement_type='outbound' AND f.source='熊小小日配订货出库'
+                WHERE m.movement_type='outbound' AND f.source='cloud_order' AND f.status='success'
                 AND substr(m.created_at,1,10)>=? AND substr(m.created_at,1,10)<=?
                 ORDER BY m.created_at DESC, m.id''', (start, end))]
         note = '日配按提交/入库时间筛选；只含成功进入日配出库记录的订单。未订货门店名单未配置。'
@@ -65,7 +65,7 @@ def query(q):
     submitted = sorted(set(r['门店'] for r in rows))
     return {'source': '云端正式订货数据（SSH只读）', 'start': start, 'end': end,
             'region': region, 'rows': rows, 'line_count': len(rows),
-            'order_count': len(set((r.get('区域', ''), r['订单号']) for r in rows)),
+            'order_count': len(set((r.get('区域', ''), r['订单号'], r['门店']) for r in rows)),
             'submitted_stores': submitted,
             'unsubmitted_stores': sorted(set(expected) - set(submitted)) if expected and not errors else None,
             'errors': sorted(set(errors)), 'note': note}
