@@ -17,7 +17,8 @@ function table(book,name,columns,rows){
   sheet.columns.forEach((col,i)=>{
     col.width=/品名|商品|状态/.test(columns[i])?42:/门店|备注|平台|日期|时间|说明/.test(columns[i])?30:22;
     if(/收入|实付|差额/.test(columns[i]))col.numFmt='#,##0.00';
-    if(/记录数|订单|数量/.test(columns[i])&&!/率$/.test(columns[i]))col.numFmt='#,##0.####';
+    if(/记录数|订单/.test(columns[i])&&!/率$/.test(columns[i]))col.numFmt='#,##0';
+    else if(columns[i]==='数量')col.numFmt='#,##0.00';
     if(/率$/.test(columns[i]))col.numFmt='0.0%';
     if(columns[i]==='日期')col.numFmt='yyyy-mm-dd';
     if(columns[i]==='状态'){
