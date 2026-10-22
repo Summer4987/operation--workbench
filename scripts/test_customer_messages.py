@@ -67,6 +67,27 @@ class DataTests(unittest.TestCase):
   self.assertEqual(scope_status(scope),'partial')
   scope['sessions'][0]['messages'][0]['media']=[dict(kind='audio',status='saved')]
   self.assertEqual(scope_status(scope),'ready')
+ def test_video_is_reference_only_without_browser_or_download(self):
+  from collect_customer_messages import save_media
+  from unittest.mock import Mock
+  m=dict(id='video',timestamp='2026-10-21 17:50:35',on_target_date=True,required_media='video',needs_review=True,content='[附件消息]',media=[dict(kind='video',url='https://example.invalid/private.mp4')])
+  browser=Mock()
+  save_media(browser,dict(date='2026-10-21'),dict(messages=[m]))
+  self.assertEqual(browser.mock_calls,[])
+  self.assertEqual(m['media'],[]);self.assertTrue(m['video_not_archived'])
+  scope=dict(list_complete=True,errors=[],sessions=[dict(history_complete=True,messages=[m])])
+  self.assertEqual(scope_status(scope),'ready')
+  self.assertIn('门店平台后台',m['content'])
+  scope['sessions'][0]['history_complete']=False
+  self.assertEqual(scope_status(scope),'partial')
+ def test_old_video_cover_is_ready_and_page_explains_omission(self):
+  m=normalize([dict(id='video',time='10-14 12:00',role='customer',content='[附件消息]',required_media='video',media=[dict(kind='image',status='saved',file='attachments/cover.png')])],'2026-10-14',date(2026,10,15))[0]
+  scope=dict(store='朝阳门店',platform='美团',status='partial',list_complete=True,sessions=[dict(label='视频',history_complete=True,messages=[m])])
+  html=page(dict(target_date='2026-10-14',generated_at='test',scopes={'朝阳门店|美团':scope}),[])
+  self.assertEqual(scope['status'],'ready');self.assertIn('暂不保存视频文件',html)
+  self.assertNotIn('原文件尚未取得',html);self.assertIn('attachments/cover.png',html)
+  m['timestamp']='';m['on_target_date']=False
+  self.assertEqual(scope_status(scope),'partial')
  def test_failed_refresh_retains_same_day_evidence_but_stays_failed(self):
   old=dict(date='2026-10-14',collected_at='old',sessions=[dict(id='session',messages=[dict(id='msg',content='原文')])])
   new=dict(date='2026-10-14',status='failed',sessions=[],error='离线')

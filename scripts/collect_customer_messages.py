@@ -16,7 +16,7 @@ import time
 from datetime import datetime,timedelta
 from urllib.parse import urlparse
 from review_page_data import match_store,store_aliases
-from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store
+from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store,apply_video_policy
 
 MT_URL='https://e.waimai.meituan.com/imworkbench/home?appId=4&clientType=140006#/im/page/workbench/reception'
 MT_ROWS="""els=>els.map(e=>{
@@ -66,6 +66,7 @@ def dismiss(page):
 
 def save_media(page,scope,session,frame=None):
     for m in session['messages']:
+        if apply_video_policy(m):continue
         if not (scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']):
             for a in m.get('media',[]):
                 a.pop('url',None);a['status']='context-not-archived'
