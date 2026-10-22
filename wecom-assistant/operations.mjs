@@ -34,6 +34,8 @@ export function loadOperations(config={},target=day(new Date())){
  }
  const morning=read(path.join(root,'outputs/morning_collection_status/latest.json'));
  const rows=[...tasks.values()].map(t=>{
+  // Legacy wrappers may report success despite failed stores in their platform summary.
+  if(t.status==='success'&&/(?:有失败|失败\s*[1-9]\d*\s*家)/.test(t.message||''))t={...t,status:'warning'};
   const id=t.task_id;let details=[];const time=t.updated_at||'';
   if(id==='ops.morning_collection'&&morning&&String(morning.updated_at||morning.generated_at||'').startsWith(target)&&String(morning.updated_at||morning.generated_at)>=time){
    if(morning.status) t={...t,status:morning.status,message:morning.task_message||t.message};
