@@ -62,3 +62,13 @@ test('operator test uses only bound owner, fixed validation message and real dat
  const preview=await operatorOperations({send:false},deps);assert(!preview.delivered);assert.equal(sent.length,0);
  const result=await operatorOperations({send:true,owner:'other',text:'arbitrary'},deps);assert(result.delivered);assert.equal(sent[0][0],'bound-owner');assert.doesNotMatch(JSON.stringify(sent),/arbitrary/);
 });
+
+test('platform partial failures override a legacy success wrapper but resolved failures stay successful',t=>{
+ const root=fixture(t),config={WECOM_DATA_ROOTS:JSON.stringify([root])};
+ save(path.join(root,'outputs/task_runs/latest.json'),{tasks:{'growth.promo_budget':{status:'success',message:'美团：有失败；成功14/15家；失败1家（五一广场）',updated_at:'2026-10-21 17:22:08'},'ops.morning_collection':{status:'success',message:'两项失败采集已修复；未重复执行预算',updated_at:'2026-10-21 10:37:29'}}});
+ const report=loadOperations(config,'2026-10-21');
+ assert.equal(report.tasks.find(t=>t.id==='growth.promo_budget').status,'warning');
+ assert.equal(report.tasks.find(t=>t.id==='ops.morning_collection').status,'success');
+ assert.match(operationsReply(report,'昨天哪里失败'),/五一广场/);
+ assert.doesNotMatch(operationsReply(report,'昨天哪里失败'),/当前没有失败/);
+});
