@@ -1,3 +1,4 @@
+import {OperationsNotifier,loadOperations} from './operations.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -6,12 +7,13 @@ import {createRequire} from 'node:module';
 import ExcelJS from 'exceljs';
 import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook,balance} from './core.mjs';
 import {memoryCommand} from './memory.mjs';
-import {operatorToken,checkOperator,operatorInbound,operatorRealtime,operatorAsk} from './operator.mjs';
+import {operatorToken,checkOperator,operatorInbound,operatorRealtime,operatorAsk,operatorOperations} from './operator.mjs';
 const require=createRequire(import.meta.url);
 const {WSClient}=require('@wecom/aibot-node-sdk');
 const config=settings();
 let smokeTimer;
 const access=new Access();
+let operationsNotifier;
 const statusFile=path.join(PRIVATE,'health.json');
 const mode=process.argv[2];
 if(mode==='--status') { console.log(JSON.stringify({...loadJson(statusFile,{}),paired:Boolean(access.data.owner)},null,2)); process.exit(0); }
@@ -19,7 +21,7 @@ if(mode==='--pair-code') {
   console.log(access.data.owner?'已绑定，无需再次绑定。':`绑定 ${access.data.token}`);process.exit(0);
 }
 if(!config.WECOM_BOT_ID || !config.WECOM_BOT_SECRET) throw Error('企微Bot ID或Secret未配置');
-const status={started_at:new Date().toISOString(),process_id:process.pid,inbound_runtime_template:Boolean(config.WECOM_INBOUND_RUNTIME_TEMPLATE),authenticated:false,paired:Boolean(access.data.owner),received:0,replied:0,errors:0,last_error:'',last_message_at:null,last_reply_at:null,model_configured:Boolean(config.AGENT_LLM_API_KEY),memory_enabled:config.WECOM_MEMORY_ENABLED==='1',memory_model_consent:config.WECOM_MEMORY_MODEL_CONSENT==='1',search_enabled:config.WECOM_SEARCH_ENABLED==='1'};
+const status={started_at:new Date().toISOString(),process_id:process.pid,inbound_runtime_template:Boolean(config.WECOM_INBOUND_RUNTIME_TEMPLATE),authenticated:false,paired:Boolean(access.data.owner),received:0,replied:0,errors:0,last_error:'',last_message_at:null,last_reply_at:null,model_configured:Boolean(config.AGENT_LLM_API_KEY),memory_enabled:config.WECOM_MEMORY_ENABLED==='1',memory_model_consent:config.WECOM_MEMORY_MODEL_CONSENT==='1',search_enabled:config.WECOM_SEARCH_ENABLED==='1',operations_query:true,operations_alerts_enabled:config.WECOM_OPS_ALERTS_ENABLED==='1'};
 function update(extra={}) { Object.assign(status,extra,{updated_at:new Date().toISOString()});saveJson(statusFile,status); }
 // SDK logs may contain payloads; suppress details and keep only sanitized health codes.
 const logger={debug(){},info(){},warn(){},error(){}};
@@ -127,14 +129,14 @@ if(mode==='--smoke'){
   client.on('event.enter_chat',frame=>client.replyWelcome(frame,{msgtype:'text',text:{content:'你好，我是熊小小工作助手。完成私聊绑定后可查询经营、订货，整理聊天和生成Excel。'}}).catch(()=>{}));
   const adminToken=operatorToken();
   const server=http.createServer(async(req,res)=>{
-    if(req.method==='POST'&&['/operator/inbound','/operator/realtime','/operator/ask'].includes(req.url)){
+    if(req.method==='POST'&&['/operator/inbound','/operator/realtime','/operator/ask','/operator/operations'].includes(req.url)){
       if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
       const key=sessionKey({chattype:'single',from:{userid:access.data.owner}});
       if(busy.has(key)||!status.authenticated){res.writeHead(409);res.end();return;}
       busy.add(key);
       try{
         let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16000)throw Error('请求过长');}
-        const result=await (req.url==='/operator/ask'?operatorAsk:req.url==='/operator/realtime'?operatorRealtime:operatorInbound)(JSON.parse(body),{assistant,client,owner:access.data.owner});
+        const result=await (req.url==='/operator/operations'?operatorOperations:req.url==='/operator/ask'?operatorAsk:req.url==='/operator/realtime'?operatorRealtime:operatorInbound)(JSON.parse(body),{assistant,client,owner:access.data.owner});
         res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));
       }catch(error){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:false,error:String(error.message).slice(0,200)}));}
       finally{busy.delete(key);}
@@ -145,6 +147,14 @@ if(mode==='--smoke'){
   });
   server.on('error',()=>{console.error('本地健康检查端口不可用');process.exit(1);});
   server.listen(Number(config.WECOM_HEALTH_PORT||18769),'127.0.0.1');
+  operationsNotifier=new OperationsNotifier({stateFile:path.join(PRIVATE,'operations-notifications.json'),readReport:date=>loadOperations(config,date),save:saveJson,
+    send:async text=>{if(!status.authenticated||!access.data.owner)throw Error('连接或绑定未就绪');await client.sendMessage(access.data.owner,{msgtype:'markdown',markdown:{content:text}});}});
+  const checkOperations=async()=>{
+    if(config.WECOM_OPS_ALERTS_ENABLED!=='1'||!status.authenticated||!access.data.owner||busy.size)return;
+    const result=await operationsNotifier.tick();update({operations_alert_last_check:new Date().toISOString(),operations_alert_error:result.error||'',operations_alert_last_sent:result.sent?new Date().toISOString():status.operations_alert_last_sent||null});
+  };
+  setInterval(checkOperations,60000);
+  client.on('authenticated',()=>checkOperations());
   update();client.connect();
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{update({authenticated:false});client.disconnect();server.close();process.exit(0);});
 }

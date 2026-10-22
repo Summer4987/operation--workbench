@@ -1,3 +1,4 @@
+import {isOperationsRequest,requestDate,loadOperations,operationsReply} from './operations.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -12,7 +13,7 @@ import {searchCommand,searchPrivacy,searchWeb,searchLinks} from './search.mjs';
 
 export const DIR = path.dirname(fileURLToPath(import.meta.url));
 export const PRIVATE = path.join(os.homedir(), '.local/share/xiong-wecom-assistant');
-export const HELP = '我是熊小小工作助手。你可以问：\n• 昨天比前天收入下降最多的是哪家店？\n• 最近7天直营店经营汇总，生成Excel\n• 今天北京门店谁还没订货？\n• 今天成都门店订货汇总，生成Excel\n• 明天入库：鸡胸100件，鸡腿50件，生成易代仓预约表\n• 模型余额\n• 记住：我希望回复先给结论\n• 查看记忆 / 修改记忆 ID 新内容 / 删除记忆 ID\n• 联网搜索：公开关键词\n也可以发TXT、CSV、Excel后继续提问。入库表沿用原模板，每次只填本批内容；生成表格不会登记实际库存。';
+export const HELP = '我是熊小小工作助手。你可以问：\n• 昨天比前天收入下降最多的是哪家店？\n• 最近7天直营店经营汇总，生成Excel\n• 今天北京门店谁还没订货？\n• 今天成都门店订货汇总，生成Excel\n• 明天入库：鸡胸100件，鸡腿50件，生成易代仓预约表\n• 今天运营哪里失败了？ / 运营恢复了吗？\n• 模型余额\n• 记住：我希望回复先给结论\n• 查看记忆 / 修改记忆 ID 新内容 / 删除记忆 ID\n• 联网搜索：公开关键词\n也可以发TXT、CSV、Excel后继续提问。入库表沿用原模板，每次只填本批内容；生成表格不会登记实际库存。';
 export function readEnv(file) {
   if (!fs.existsSync(file)) return {};
   const result = {};
@@ -93,6 +94,7 @@ export async function bridge(args, config, signal) {
 }
 const queryParameters={type:'object',properties:{start:{type:'string',description:'起始日期YYYY-MM-DD，必填'},end:{type:'string',description:'结束日期YYYY-MM-DD，必填'},store:{type:'string',description:'门店名称包含的词，全部门店时为空'},scope:{type:'string',enum:['all','franchise','direct']},region:{type:'string',enum:['all','chengdu','beijing','daily'],description:'daily是熊小小日配订货；成都门店chengdu；北京门店beijing'},export_excel:{type:'boolean',description:'需要Excel文件时为true'}},required:['start','end'],additionalProperties:false};
 export const TOOLS=[
+  {type:'function',function:{name:'query_operations',description:'只读查询正式运营任务失败、异常、恢复情况及失败门店平台。返回实际记录时间，缺少当日记录不等于成功。不会重跑任务。',parameters:{type:'object',properties:{date:{type:'string',description:'YYYY-MM-DD，省略默认北京时间今天'}},additionalProperties:false}}},
   {type:'function',function:{name:'query_realtime',description:'查询加盟店最近一次正式实时采集的销售单量、营业收入。实时单量/销售订单量用此工具，绝不能用query_orders订货代替。仅覆盖加盟门店，必须报告采集时间、过期和缺失情况；不触发平台刷新。',parameters:{type:'object',properties:{store:{type:'string'},scope:{type:'string',enum:['franchise','direct']},export_excel:{type:'boolean'}},additionalProperties:false}}},
   {type:'function',function:{name:'query_business',description:'查询已有正式经营日报，按日期、门店和加盟/直营范围筛选。查询不到必须说明缺失，不可用零代替。返回计算后的合计和明细。',parameters:queryParameters}},
   {type:'function',function:{name:'query_orders',description:'只读查询正式订货：成都、北京、日配。按提交日期统计。需要分别查询区域时分别调用。',parameters:queryParameters}},
@@ -130,6 +132,7 @@ export class Assistant {
   constructor(config,root=PRIVATE,deps={}) {this.config=config;this.root=root;this.call=deps.llm||llm;this.query=deps.bridge||bridge;this.memories=new MemoryStore(root);this.search=deps.search||searchWeb;}
   async tool(name,args,artifacts,signal,context={}){
     signal?.throwIfAborted();
+    if(name==='query_operations')return loadOperations(this.config,args.date||today());
     if(name==='inbound_catalog'){
       const {catalog}=await readInboundTemplate(this.config);
       return {products:catalog,note:'商品来自易代仓预约模板；编码与规格不可编造。'};
@@ -167,6 +170,10 @@ export class Assistant {
     }
   }
   async runAnswer(text,key,signal,onProgress,artifacts=[]){
+    if(isOperationsRequest(text)){
+      onProgress?.('正在读取正式运营任务状态……');
+      return {text:operationsReply(loadOperations(this.config,requestDate(text)),text),artifacts};
+    }
     const command=memoryCommand(text);
     if(command){
       if(this.config.WECOM_MEMORY_ENABLED!=='1')return {text:'长期记忆尚未启用。',artifacts};

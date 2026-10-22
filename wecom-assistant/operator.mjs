@@ -1,3 +1,4 @@
+import {loadOperations,operationsReply,requestDate} from './operations.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -49,4 +50,14 @@ export async function operatorAsk(payload,{assistant,owner}){
   const target=payload.verification===true?new Assistant(assistant.config,path.join(assistant.root,'verification','personal')):assistant;
   const start=Date.now();const result=await target.answer(text,'operator-personal');
   return {ok:true,process_id:process.pid,elapsed_ms:Date.now()-start,text:result.text,filenames:result.artifacts.map(f=>path.basename(f))};
+}
+
+
+export async function operatorOperations(payload,{assistant,client,owner}){
+  if(!owner)throw Error('尚未绑定账号');
+  const report=loadOperations(assistant.config,requestDate('今天'));
+  if(report.error)throw Error('运营状态读取失败');
+  const text='【运营提醒接入验证】\n已接入运营异常私聊提醒，每60秒检查一次；同一异常不重复提醒，恢复后通知。\n'+operationsReply(report,'今天运营哪里失败了');
+  if(payload.send===true)await client.sendMessage(owner,{msgtype:'markdown',markdown:{content:text.slice(0,1200)}});
+  return {ok:true,process_id:process.pid,delivered:payload.send===true,text};
 }
