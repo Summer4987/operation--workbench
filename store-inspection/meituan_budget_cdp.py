@@ -101,10 +101,55 @@ class PromotionRestricted(RuntimeError):
     pass
 
 
+RESTRICTION_VISIBLE_TEXT_JS = r"""root => {
+    const result = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest('script,style,noscript,template,[hidden],[aria-hidden="true"]')) continue;
+        const value = node.textContent.trim();
+        if (!value) continue;
+        let visible = true;
+        for (let element = parent; element; element = element.parentElement) {
+            const style = getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+                visible = false; break;
+            }
+        }
+        if (!visible) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        if (Array.from(range.getClientRects()).some(r => r.width > 0 && r.height > 0)) result.push(value);
+    }
+    return result.join('\n');
+}"""
+
+
+def promotion_restriction_text(page) -> str:
+    """Read rendered UI text only, excluding injected scripts and hidden IM frames."""
+    texts = []
+    for frame in page.frames:
+        try:
+            if frame.parent_frame is not None and not frame.frame_element().is_visible():
+                continue
+            texts.append(frame.locator("body").evaluate(RESTRICTION_VISIBLE_TEXT_JS, timeout=10000))
+        except Exception:
+            continue
+    return "\n".join(text for text in texts if text)
+
+
 def check_promotion_restriction(text: str) -> None:
-    for token in ("限流", "推广受限", "限制推广", "访问过于频繁", "访问频繁", "操作过于频繁", "请求过于频繁", "Too Many Requests", "HTTP 429", "HTTP ERROR 429"):
-        if token in text:
-            raise PromotionRestricted(f"按用户规则跳过限流门店：页面提示{token}")
+    for line in text.splitlines():
+        line = line.strip()
+        # Defensive filtering for exception strings: source comments are not UI state.
+        if line.startswith(("//", "/*", "*")):
+            continue
+        for token in ("限流", "推广受限", "限制推广", "访问过于频繁", "访问频繁", "操作过于频繁", "请求过于频繁", "Too Many Requests", "HTTP 429", "HTTP ERROR 429"):
+            if token == "限流" and re.search(r"(?:未|没有|无|不)(?:被)?限流", line):
+                continue
+            if token in line:
+                raise PromotionRestricted(f"按用户规则跳过限流门店：页面提示{token}")
 
 
 def load_tasks(period: str) -> list[dict]:
@@ -541,7 +586,7 @@ def enter_dianjin(page, *, skip_when_restricted: bool = False) -> None:
     for _ in range(PROMO_ENTRY_LOAD_TIMEOUT_SECONDS):
         text = page_text(page)
         if skip_when_restricted:
-            check_promotion_restriction(text)
+            check_promotion_restriction(promotion_restriction_text(page))
         if "点金推广" in text or ("推广设置" in text and ("推广预算" in text or "每日预算" in text)):
             break
         time.sleep(1)
@@ -565,7 +610,7 @@ def enter_dianjin(page, *, skip_when_restricted: bool = False) -> None:
         time.sleep(1)
         text = page_text(page)
         if skip_when_restricted:
-            check_promotion_restriction(text)
+            check_promotion_restriction(promotion_restriction_text(page))
         if "推广设置" in text and ("推广预算" in text or "每日预算" in text):
             return
     raise RuntimeError("进入点金推广后没有预算区域")
@@ -1168,7 +1213,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
             enter_dianjin_with_recovery(page, target_url)
         ready = wait_setting_ready(page)
         if skip_restricted:
-            check_promotion_restriction(page_text(page))
+            check_promotion_restriction(promotion_restriction_text(page))
         if read_budget(page) in {None, 0} and ready.get("rangeMax") in {None, 0}:
             page.reload(wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)

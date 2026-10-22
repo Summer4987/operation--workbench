@@ -260,7 +260,8 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             "targetBudget": 60,
             "directMeituanAccountId": "direct_wanxiangcheng",
         }
-        with mock.patch.object(self.module, "enter_dianjin_with_recovery"):
+        # This test covers account URL lookup independently of dated business pauses.
+        with mock.patch.object(self.module, "task_paused", return_value=False), mock.patch.object(self.module, "enter_dianjin_with_recovery"):
             with mock.patch.object(self.module, "wait_setting_ready", return_value={"rangeMax": 1}):
                 with mock.patch.object(self.module, "read_budget", return_value=60):
                     with mock.patch.object(self.module, "wait_budget", return_value=60):
@@ -502,6 +503,26 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertTrue(result["skipped"])
         self.assertEqual(result["failure_type"], "user_paused")
         context.new_page.assert_not_called()
+
+    def test_code_comments_and_negative_status_are_not_restrictions(self) -> None:
+        for text in ("// 错误限流\nerror: { maxNum: 100 }", "/* 错误限流 */", "当前未被限流", "没有限流", "推广设置\n每日预算\n120"):
+            with self.subTest(text=text):
+                self.module.check_promotion_restriction(text)
+        for text in ("当前门店限流中", "推广受限", "限制推广", "访问过于频繁", "HTTP ERROR 429", "Too Many Requests"):
+            with self.subTest(text=text), self.assertRaises(self.module.PromotionRestricted):
+                self.module.check_promotion_restriction(text)
+
+    def test_restriction_reader_excludes_hidden_frames_and_uses_rendered_text(self) -> None:
+        visible = mock.Mock(parent_frame=None)
+        visible.locator.return_value.evaluate.return_value = "推广设置\n每日预算\n120"
+        hidden = mock.Mock(parent_frame=visible)
+        hidden.frame_element.return_value.is_visible.return_value = False
+        hidden.locator.return_value.evaluate.return_value = "限流"
+        page = mock.Mock(frames=[visible, hidden])
+        text = self.module.promotion_restriction_text(page)
+        self.module.check_promotion_restriction(text)
+        hidden.locator.assert_not_called()
+        visible.locator.return_value.evaluate.assert_called_once_with(self.module.RESTRICTION_VISIBLE_TEXT_JS, timeout=10000)
 
     def test_restricted_chaoyangmen_skips_without_budget_input_or_retry(self) -> None:
         page = FakePage("https://e.waimai.meituan.com/")
