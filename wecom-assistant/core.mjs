@@ -170,7 +170,7 @@ export class Assistant {
     }
   }
   async runAnswer(text,key,signal,onProgress,artifacts=[]){
-    if(isOperationsRequest(text)){
+    if(isOperationsRequest(text)&&!memoryCommand(text)&&searchCommand(text)===null){
       onProgress?.('正在读取正式运营任务状态……');
       return {text:operationsReply(loadOperations(this.config,requestDate(text)),text),artifacts};
     }

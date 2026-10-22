@@ -72,3 +72,11 @@ test('platform partial failures override a legacy success wrapper but resolved f
  assert.match(operationsReply(report,'昨天哪里失败'),/五一广场/);
  assert.doesNotMatch(operationsReply(report,'昨天哪里失败'),/当前没有失败/);
 });
+
+test('explicit memory and search commands containing operations words retain their command routing',async t=>{
+ const {Assistant}=await import('./core.mjs');const root=fixture(t);
+ const a=new Assistant({WECOM_MEMORY_ENABLED:'1'},root,{llm:()=>{throw Error('must not call model');}});
+ const remembered=await a.answer('记住：运营失败时我希望先看到门店名称','x');
+ assert.equal(a.memories.read().length,1);assert.doesNotMatch(remembered.text,/运营任务状态/);
+ assert.match((await a.answer('联网搜索：运营异常排查','x')).text,/联网搜索尚未启用/);
+});
