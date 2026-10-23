@@ -102,7 +102,14 @@ def choose_context(page, value: str, expected_url_pattern: str) -> None:
     if modern:
         target_id = value.rsplit("__RC_CASCADER_SPLIT__", 1)[-1]
         if target_id == GROUP_ID:
-            option = visible_locator(page.locator(f'li[data-value="{group_value}__RC_CASCADER_SPLIT__{group_value}:all"]'))
+            # Brand children are populated asynchronously; a fixed 700ms delay
+            # can falsely report a missing nationwide option on a valid account.
+            option = None
+            for _ in range(25):
+                option = visible_locator(page.locator(f'li[data-value="{group_value}__RC_CASCADER_SPLIT__{group_value}:all"]'))
+                if option is not None:
+                    break
+                page.wait_for_timeout(200)
         else:
             option = visible_locator(page.locator(f'li[data-value$="/SHOP:{target_id}"]'))
             regions = page.locator('li[data-value]').evaluate_all(

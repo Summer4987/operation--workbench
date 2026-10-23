@@ -54,3 +54,13 @@ class ModernContextTest(unittest.TestCase):
             group.click.assert_called_once()
             option.click.assert_called_once()
             page.wait_for_url.assert_called_once_with('**/expected/**', timeout=30000)
+
+    def test_nationwide_option_can_arrive_after_brand_selection(self):
+        from unittest.mock import Mock, patch
+        from scripts.ensure_eleme_headquarters_context import choose_context
+        page,group,option=Mock(),Mock(),Mock()
+        group.get_attribute.return_value='/ACCOUNT_ROOT:6152949092/BRAND_ROOT:93331264'
+        with patch('scripts.ensure_eleme_headquarters_context.open_switcher'), patch('scripts.ensure_eleme_headquarters_context.visible_locator',side_effect=[None,group,None,None,option]):
+            choose_context(page,'93331264__RC_CASCADER_SPLIT__93331264','**/expected/**')
+        option.click.assert_called_once()
+        self.assertEqual(sum(c.args==(200,) for c in page.wait_for_timeout.call_args_list),2)
