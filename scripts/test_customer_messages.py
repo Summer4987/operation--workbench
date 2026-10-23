@@ -62,11 +62,31 @@ class DataTests(unittest.TestCase):
   self.assertEqual(media_type('binary/octet-stream',b'\x89PNG\r\n\x1a\nrest'),'image/png')
   self.assertEqual(media_type('text/html',b'<html>login</html>'),'')
   self.assertEqual(media_type('image/jpeg',b'<html>login</html>'),'')
- def test_voice_duration_without_audio_is_incomplete(self):
-  scope=dict(list_complete=True,errors=[],sessions=[dict(history_complete=True,messages=[dict(on_target_date=True,needs_review=False,required_media='audio',content='8秒',media=[])])])
-  self.assertEqual(scope_status(scope),'partial')
-  scope['sessions'][0]['messages'][0]['media']=[dict(kind='audio',status='saved')]
+ def test_voice_is_reference_only_without_downloading_and_missing_time_stays_partial(self):
+  from collect_customer_messages import save_media
+  from unittest.mock import Mock
+  m=dict(id='audio',timestamp='2026-10-22 11:28:47',on_target_date=True,needs_review=False,required_media='audio',content='8秒',media=[dict(kind='audio',url='https://example.invalid/voice.amr')])
+  browser=Mock();save_media(browser,dict(date='2026-10-22'),dict(messages=[m]))
+  self.assertEqual(browser.mock_calls,[]);self.assertEqual(m['media'],[]);self.assertTrue(m['audio_not_archived'])
+  scope=dict(list_complete=True,errors=[],sessions=[dict(history_complete=True,messages=[m])])
   self.assertEqual(scope_status(scope),'ready')
+  m['timestamp']='';self.assertEqual(scope_status(scope),'partial')
+ def test_standalone_eleme_never_uses_nationwide_selector(self):
+  from collect_customer_messages import ensure_eleme_customer_shop
+  from unittest.mock import Mock,patch
+  page=Mock();page.frames=[];page.url='https://melody.shop.ele.me/app/shop/1300114063/dashboard'
+  page.locator.return_value.first.inner_text.return_value='熊小小金融城店'
+  config=dict(store='金融城店',eleme_shop_id='1300114063',eleme_keyword='金融城',eleme_context='standalone')
+  with patch('ensure_eleme_headquarters_context.choose_context') as group:
+   ensure_eleme_customer_shop(page,config);group.assert_not_called();page.goto.assert_not_called()
+   page.locator.return_value.first.inner_text.return_value='无效店铺，当前账号无法访问该店铺'
+   with self.assertRaisesRegex(RuntimeError,'独立账号未登录'):ensure_eleme_customer_shop(page,config)
+   group.assert_not_called()
+ def test_audio_page_explains_intentional_omission(self):
+  m=normalize([dict(id='a',time='10-14 12:00',role='customer',content='8秒',required_media='audio',media=[])],'2026-10-14',date(2026,10,15))[0]
+  scope=dict(store='朝阳门店',platform='美团',status='partial',list_complete=True,sessions=[dict(label='语音',history_complete=True,messages=[m])])
+  html=page(dict(target_date='2026-10-14',generated_at='test',scopes={'朝阳门店|美团':scope}),[])
+  self.assertEqual(scope['status'],'ready');self.assertIn('暂不保存音频文件',html);self.assertNotIn('原文件尚未取得',html)
  def test_video_is_reference_only_without_browser_or_download(self):
   from collect_customer_messages import save_media
   from unittest.mock import Mock

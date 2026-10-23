@@ -16,7 +16,7 @@ import time
 from datetime import datetime,timedelta
 from urllib.parse import urlparse
 from review_page_data import match_store,store_aliases
-from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store,apply_video_policy
+from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store,apply_reference_media_policy
 
 MT_URL='https://e.waimai.meituan.com/imworkbench/home?appId=4&clientType=140006#/im/page/workbench/reception'
 MT_ROWS="""els=>els.map(e=>{
@@ -66,7 +66,7 @@ def dismiss(page):
 
 def save_media(page,scope,session,frame=None):
     for m in session['messages']:
-        if apply_video_policy(m):continue
+        if apply_reference_media_policy(m):continue
         if not (scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']):
             for a in m.get('media',[]):
                 a.pop('url',None);a['status']='context-not-archived'
@@ -376,9 +376,29 @@ def el_history(page,frame,item,target,window_start=None):
     return dict(**item,messages=messages,history_complete=complete,history_basis=basis)
 
 
+def ensure_eleme_customer_shop(page,config):
+    """Independent shops never traverse the nationwide organization selector."""
+    sid=config['eleme_shop_id']
+    pattern=re.compile(r'/app/shop/'+re.escape(sid)+r'(?:/|$)')
+    if config.get('eleme_context')=='standalone':
+        if not pattern.search(page.url):
+            page.goto(f'https://melody.shop.ele.me/app/shop/{sid}/dashboard',wait_until='domcontentloaded',timeout=60000)
+        def identity():
+            body=page.locator('body').first.inner_text()
+            if any(text in body for text in ['无效店铺','当前账号无法访问该店铺','请登录','重新登录']):
+                raise RuntimeError(f'{config["store"]}独立账号未登录或当前账号无权访问，请在 Mac mini 登录该店独立账号')
+            return bool(pattern.search(page.url) and config['eleme_keyword'] in body[:600])
+        wait(page,identity,'淘宝独立门店身份')
+    else:
+        from ensure_eleme_headquarters_context import choose_context
+        if not pattern.search(page.url) or config['eleme_keyword'] not in page.locator('body').first.inner_text()[:600]:
+            choose_context(page,sid,pattern)
+        wait(page,lambda:bool(pattern.search(page.url)) and config['eleme_keyword'] in page.locator('body').first.inner_text()[:600],'淘宝单店身份')
+
+
 def eleme(pw,scope,config):
     from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,NEUTRAL_CONTEXT_URL
-    browser=pw.chromium.connect_over_cdp('http://127.0.0.1:9222',timeout=10000)
+    browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{int(config.get("eleme_debug_port",9222))}',timeout=10000)
     # The merchant shell shares store context across tabs. Switch inside a valid existing shell.
     page=next((pg for context in browser.contexts for pg in context.pages if 'melody.shop.ele.me/app/' in pg.url and has_visible_switcher(pg)),None)
     owned=page is None
@@ -388,9 +408,7 @@ def eleme(pw,scope,config):
     page.set_default_timeout(12000)
     try:
         sid=config['eleme_shop_id']
-        if f'/app/shop/{sid}/' not in page.url or config['eleme_keyword'] not in page.locator('body').first.inner_text()[:600]:
-            choose_context(page,sid,re.compile(r'/app/shop/'+re.escape(sid)+r'(?:/|$)'))
-        wait(page,lambda:config['eleme_keyword'] in page.locator('body').first.inner_text()[:600],'淘宝单店身份')
+        ensure_eleme_customer_shop(page,config)
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
         wait(page,lambda:page.locator('[class*=imIcon__]').count(),'淘宝消息入口')

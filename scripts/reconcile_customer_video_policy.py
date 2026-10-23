@@ -1,4 +1,4 @@
-"""Apply the reference-only video policy to existing Mac mini captures."""
+"""Apply the reference-only audio/video policy to existing Mac mini captures."""
 import json
 import platform
 from customer_message_data import OUT,atomic_json,scope_status
@@ -15,7 +15,7 @@ def main():
             scope['status']=scope_status(scope)
         if json.dumps(data,sort_keys=True)!=before:
             atomic_json(path,data);count+=1
-    print(f'已按视频仅标记规则更新 {count} 份记录；原始运行日志及已有附件保留。')
+    print(f'已按音视频仅标记规则更新 {count} 份记录；原始运行日志及已有附件保留。')
     from render_customer_messages import build
     build()
 

@@ -89,26 +89,39 @@ def merge_messages(batches):
 VIDEO_NOTICE='[视频消息：暂不保存视频文件，如需查看请到门店平台后台查看]'
 
 
-def apply_video_policy(message):
-    """Videos are intentionally references only; keep timestamp and saved covers."""
-    if not (message.get('required_media')=='video' or message.get('video_not_archived') or any(a.get('kind')=='video' for a in message.get('media',[]))):
+def apply_reference_media_policy(message):
+    """Audio and video are references only; retain message identity and saved covers."""
+    kind = message.get('required_media')
+    if kind not in {'audio', 'video'}:
+        kind = next((k for k in ['audio', 'video'] if message.get(k+'_not_archived')), None)
+    if kind is None:
+        kind = next((a.get('kind') for a in message.get('media',[]) if a.get('kind') in {'audio','video'}), None)
+    if kind not in {'audio','video'}:
         return False
-    message['video_not_archived']=True
-    message['required_media']='video'
-    message['media']=[a for a in message.get('media',[]) if a.get('kind')!='video' and a.get('status')=='saved']
+    message[kind+'_not_archived']=True
+    message['required_media']=kind
+    message['media']=[a for a in message.get('media',[]) if a.get('kind') not in {'audio','video'} and a.get('status')=='saved']
     if not message.get('content') or message['content'].startswith(('[未解析','[附件')):
-        message['content']=VIDEO_NOTICE
+        label='语音' if kind=='audio' else '视频'
+        message['content']=f'[{label}消息：暂不保存文件，如需查看请到门店平台后台查看]'
     message['needs_review']=not bool(message.get('timestamp'))
     message.pop('capture_error',None)
     return True
+
+
+def apply_video_policy(message):
+    """Compatibility entry point for existing video reconciliation callers."""
+    if message.get('required_media')=='video' or message.get('video_not_archived') or any(a.get('kind')=='video' for a in message.get('media',[])):
+        return apply_reference_media_policy(message)
+    return False
 
 
 def scope_status(scope):
     if scope.get('error'):return 'failed'
     if not scope.get('list_complete') or scope.get('errors'):return 'partial'
     for s in scope.get('sessions',[]):
-        for m in s['messages']:apply_video_policy(m)
-        if not s.get('history_complete') or any(m.get('needs_review') or (m.get('required_media') and m['required_media']!='video' and not any(a.get('status')=='saved' and a.get('kind')==m['required_media'] for a in m.get('media',[]))) or any(a.get('status')!='saved' for a in m.get('media',[])) for m in s['messages'] if m.get('on_target_date') or not m.get('timestamp')):
+        for m in s['messages']:apply_reference_media_policy(m)
+        if not s.get('history_complete') or any(m.get('needs_review') or (m.get('required_media') and m['required_media'] not in {'audio','video'} and not any(a.get('status')=='saved' and a.get('kind')==m['required_media'] for a in m.get('media',[]))) or any(a.get('status')!='saved' for a in m.get('media',[])) for m in s['messages'] if m.get('on_target_date') or not m.get('timestamp')):
             return 'partial'
     return 'ready'
 
