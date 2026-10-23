@@ -71,19 +71,43 @@ class DataTests(unittest.TestCase):
   scope=dict(list_complete=True,errors=[],sessions=[dict(history_complete=True,messages=[m])])
   self.assertEqual(scope_status(scope),'ready')
   m['timestamp']='';self.assertEqual(scope_status(scope),'partial')
- def test_standalone_eleme_never_uses_nationwide_selector(self):
+ def test_jinrongcheng_reuses_same_account_shop_identity(self):
   from collect_customer_messages import ensure_eleme_customer_shop
   from unittest.mock import Mock,patch
   page=Mock();page.frames=[];page.url='https://melody.shop.ele.me/app/shop/1300114063/dashboard'
   page.locator.return_value.first.inner_text.return_value='熊小小金融城店'
-  config=dict(store='金融城店',eleme_shop_id='1300114063',eleme_keyword='金融城',eleme_context='standalone')
-  with patch('ensure_eleme_headquarters_context.choose_context') as group:
-   ensure_eleme_customer_shop(page,config);group.assert_not_called();page.goto.assert_not_called()
-   page.url='https://melody.shop.ele.me/app/unit/dashboard'
-   ensure_eleme_customer_shop(page,config);group.assert_not_called();page.goto.assert_not_called()
-   page.locator.return_value.first.inner_text.return_value='无效店铺，当前账号无法访问该店铺'
-   with self.assertRaisesRegex(RuntimeError,'独立账号未登录'):ensure_eleme_customer_shop(page,config)
-   group.assert_not_called()
+  config=dict(store='金融城店',eleme_shop_id='1300114063',eleme_keyword='金融城')
+  with patch('ensure_eleme_headquarters_context.choose_context') as choose:
+   ensure_eleme_customer_shop(page,config);choose.assert_not_called();page.goto.assert_not_called()
+ def test_missing_group_menu_recovers_via_account_shell_and_reselects_shop(self):
+  from collect_customer_messages import ensure_eleme_customer_shop
+  from unittest.mock import Mock,patch
+  page=Mock();page.frames=[];page.url='https://melody.shop.ele.me/app/unit/dashboard'
+  page.locator.return_value.first.inner_text.return_value='集团主体账号'
+  config=dict(store='金融城店',eleme_shop_id='1300114063',eleme_keyword='金融城')
+  calls=[]
+  def choose(pg,sid,pattern):
+   calls.append(sid)
+   if len(calls)==1:raise RuntimeError('没有找到全国集团')
+   pg.url='https://melody.shop.ele.me/app/shop/1300114063/dashboard'
+   pg.locator.return_value.first.inner_text.return_value='熊小小金融城店'
+  with patch('ensure_eleme_headquarters_context.choose_context',side_effect=choose), patch('ensure_eleme_headquarters_context.visible_locator',return_value=None), patch('ensure_eleme_headquarters_context.has_visible_switcher',return_value=True):
+   ensure_eleme_customer_shop(page,config)
+  self.assertEqual(calls,['1300114063','1300114063'])
+  page.goto.assert_called_once_with('https://melody.shop.ele.me/app',wait_until='domcontentloaded',timeout=60000)
+ def test_financial_single_shop_route_requires_exact_chat_shop_id(self):
+  from collect_customer_messages import ensure_eleme_customer_shop
+  from unittest.mock import Mock,patch
+  page=Mock();page.url='https://melody.shop.ele.me/app/chain/-1/dashboard'
+  page.locator.return_value.first.inner_text.return_value='熊小小金融城店'
+  page.frames=[Mock(url='https://im.ele.me/napos?shopId=1300114063')]
+  config=dict(store='金融城店',eleme_shop_id='1300114063',eleme_keyword='金融城',eleme_context_route='chain_single')
+  with patch('ensure_eleme_headquarters_context.choose_context') as choose:
+   ensure_eleme_customer_shop(page,config);choose.assert_not_called()
+  page.frames=[Mock(url='https://im.ele.me/napos?shopId=13001140630')]
+  with patch('ensure_eleme_headquarters_context.choose_context',side_effect=RuntimeError('identity mismatch')) as choose,patch('ensure_eleme_headquarters_context.visible_locator',return_value=None),patch('ensure_eleme_headquarters_context.has_visible_switcher',return_value=True),patch('collect_customer_messages.wait',return_value=True):
+   with self.assertRaisesRegex(RuntimeError,'identity mismatch'):ensure_eleme_customer_shop(page,config)
+   self.assertEqual(choose.call_count,2)
  def test_audio_page_explains_intentional_omission(self):
   m=normalize([dict(id='a',time='10-14 12:00',role='customer',content='8秒',required_media='audio',media=[])],'2026-10-14',date(2026,10,15))[0]
   scope=dict(store='朝阳门店',platform='美团',status='partial',list_complete=True,sessions=[dict(label='语音',history_complete=True,messages=[m])])

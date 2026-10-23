@@ -14,7 +14,7 @@ import re
 import shutil
 import time
 from datetime import datetime,timedelta
-from urllib.parse import urlparse
+from urllib.parse import urlparse,parse_qs
 from review_page_data import match_store,store_aliases
 from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store,apply_reference_media_policy
 
@@ -377,25 +377,35 @@ def el_history(page,frame,item,target,window_start=None):
 
 
 def ensure_eleme_customer_shop(page,config):
-    """Independent shops never traverse the nationwide organization selector."""
+    """Select a shop in the existing authorized account and verify its identity."""
+    from ensure_eleme_headquarters_context import choose_context,visible_locator,has_visible_switcher,NEUTRAL_CONTEXT_URL
     sid=config['eleme_shop_id']
-    pattern=re.compile(r'/app/shop/'+re.escape(sid)+r'(?:/|$)')
-    if config.get('eleme_context')=='standalone':
-        # Independent accounts use the unit shell; a group shop URL cannot
-        # grant access or substitute for the independent account login.
-        if not pattern.search(page.url) and '/app/unit/' not in page.url:
-            page.goto('https://melody.shop.ele.me/app/unit/dashboard',wait_until='domcontentloaded',timeout=60000)
-        def identity():
-            body=page.locator('body').first.inner_text()
-            if any(text in body for text in ['无效店铺','当前账号无法访问该店铺','请登录','重新登录']) or ('集团主体账号' in body[:300] and config['eleme_keyword'] not in body[:150]):
-                raise RuntimeError(f'{config["store"]}独立账号未登录或当前账号无权访问，请在 Mac mini 登录该店独立账号')
-            return bool((pattern.search(page.url) or '/app/unit/' in page.url) and config['eleme_keyword'] in body[:600])
-        wait(page,identity,'淘宝独立门店身份')
-    else:
-        from ensure_eleme_headquarters_context import choose_context
-        if not pattern.search(page.url) or config['eleme_keyword'] not in page.locator('body').first.inner_text()[:600]:
+    chain_single=config.get('eleme_context_route')=='chain_single'
+    route=r'(?:shop/'+re.escape(sid)+r'|chain/-1)' if chain_single else r'shop/'+re.escape(sid)
+    pattern=re.compile(r'/app/'+route+r'(?:/|$)')
+    def identity():
+        if not pattern.search(page.url) or config['eleme_keyword'] not in page.locator('body').first.inner_text()[:600]:return False
+        # chain/-1 has no shop id in its path. Verify the real conversation
+        # component identity before reading any messages from that route.
+        if '/app/chain/-1/' in page.url:
+            return any(f.url.startswith('https://im.ele.me/napos') and parse_qs(urlparse(f.url).query).get('shopId')==[sid] for f in page.frames)
+        return True
+    for attempt in range(2):
+        try:
+            if identity():return
+            # A previous store's search/menu state must not hide the group root.
+            search=visible_locator(page.get_by_placeholder('搜索店铺名称/ID'))
+            if search is not None:
+                search.fill('');page.wait_for_timeout(500)
             choose_context(page,sid,pattern)
-        wait(page,lambda:bool(pattern.search(page.url)) and config['eleme_keyword'] in page.locator('body').first.inner_text()[:600],'淘宝单店身份')
+            wait(page,identity,'淘宝单店身份')
+            return
+        except Exception:
+            if attempt:raise
+            # Restore the account-level shell through its normal entry. Direct
+            # navigation to a shop URL does not perform the organization switch.
+            page.goto(NEUTRAL_CONTEXT_URL,wait_until='domcontentloaded',timeout=60000)
+            wait(page,lambda:has_visible_switcher(page),'淘宝账号门店切换器')
 
 
 def eleme(pw,scope,config):
@@ -414,7 +424,7 @@ def eleme(pw,scope,config):
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
         wait(page,lambda:page.locator('[class*=imIcon__]').count(),'淘宝消息入口')
-        frame=wait(page,lambda:next((f for f in page.frames if f.url.startswith('https://im.ele.me/napos') and f'shopId={sid}' in f.url),None),'淘宝单店聊天窗口')
+        frame=wait(page,lambda:next((f for f in page.frames if f.url.startswith('https://im.ele.me/napos') and parse_qs(urlparse(f.url).query).get('shopId')==[sid]),None),'淘宝单店聊天窗口')
         wait(page,lambda:frame.get_by_role('tab',name='顾客消息',exact=True).count(),'淘宝聊天组件加载')
         page.wait_for_timeout(600)
         if 'web_im_visually_hidden' in (page.locator('#web_im_iframe_container').get_attribute('class') or ''):

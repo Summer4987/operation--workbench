@@ -3,7 +3,7 @@
     {"store":"朝阳门店","eleme_shop_id":"166525463","eleme_keyword":"朝阳门店","meituan_account":"direct_chaoyangmen"},
     {"store":"银泰城店","eleme_shop_id":"523966249","eleme_keyword":"银泰城","meituan_account":"direct_yintaicheng"},
     {"store":"万象城店","eleme_shop_id":"524321320","eleme_keyword":"万象城","meituan_account":"direct_wanxiangcheng"},
-    {"store":"金融城店","eleme_shop_id":"1300114063","eleme_keyword":"金融城","eleme_context":"standalone","meituan_account":"direct_jinrongcheng"},
+    {"store":"金融城店","eleme_shop_id":"1300114063","eleme_keyword":"金融城","eleme_context_route":"chain_single","meituan_account":"direct_jinrongcheng"},
     {"store":"保利中心店","eleme_shop_id":"540966345","eleme_keyword":"保利中心","meituan_account":"headquarters"}
   ]
 }
