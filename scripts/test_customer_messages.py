@@ -79,6 +79,8 @@ class DataTests(unittest.TestCase):
   config=dict(store='金融城店',eleme_shop_id='1300114063',eleme_keyword='金融城',eleme_context='standalone')
   with patch('ensure_eleme_headquarters_context.choose_context') as group:
    ensure_eleme_customer_shop(page,config);group.assert_not_called();page.goto.assert_not_called()
+   page.url='https://melody.shop.ele.me/app/unit/dashboard'
+   ensure_eleme_customer_shop(page,config);group.assert_not_called();page.goto.assert_not_called()
    page.locator.return_value.first.inner_text.return_value='无效店铺，当前账号无法访问该店铺'
    with self.assertRaisesRegex(RuntimeError,'独立账号未登录'):ensure_eleme_customer_shop(page,config)
    group.assert_not_called()

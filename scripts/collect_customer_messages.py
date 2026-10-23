@@ -381,13 +381,15 @@ def ensure_eleme_customer_shop(page,config):
     sid=config['eleme_shop_id']
     pattern=re.compile(r'/app/shop/'+re.escape(sid)+r'(?:/|$)')
     if config.get('eleme_context')=='standalone':
-        if not pattern.search(page.url):
-            page.goto(f'https://melody.shop.ele.me/app/shop/{sid}/dashboard',wait_until='domcontentloaded',timeout=60000)
+        # Independent accounts use the unit shell; a group shop URL cannot
+        # grant access or substitute for the independent account login.
+        if not pattern.search(page.url) and '/app/unit/' not in page.url:
+            page.goto('https://melody.shop.ele.me/app/unit/dashboard',wait_until='domcontentloaded',timeout=60000)
         def identity():
             body=page.locator('body').first.inner_text()
-            if any(text in body for text in ['无效店铺','当前账号无法访问该店铺','请登录','重新登录']):
+            if any(text in body for text in ['无效店铺','当前账号无法访问该店铺','请登录','重新登录']) or ('集团主体账号' in body[:300] and config['eleme_keyword'] not in body[:150]):
                 raise RuntimeError(f'{config["store"]}独立账号未登录或当前账号无权访问，请在 Mac mini 登录该店独立账号')
-            return bool(pattern.search(page.url) and config['eleme_keyword'] in body[:600])
+            return bool((pattern.search(page.url) or '/app/unit/' in page.url) and config['eleme_keyword'] in body[:600])
         wait(page,identity,'淘宝独立门店身份')
     else:
         from ensure_eleme_headquarters_context import choose_context
