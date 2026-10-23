@@ -108,6 +108,14 @@ class DataTests(unittest.TestCase):
   with patch('ensure_eleme_headquarters_context.choose_context',side_effect=RuntimeError('identity mismatch')) as choose,patch('ensure_eleme_headquarters_context.visible_locator',return_value=None),patch('ensure_eleme_headquarters_context.has_visible_switcher',return_value=True),patch('collect_customer_messages.wait',return_value=True):
    with self.assertRaisesRegex(RuntimeError,'identity mismatch'):ensure_eleme_customer_shop(page,config)
    self.assertEqual(choose.call_count,2)
+ def test_headquarters_restore_accepts_new_route_only_with_nationwide_identity(self):
+  from collect_customer_messages import is_eleme_headquarters_context
+  from unittest.mock import Mock
+  page=Mock();page.url='https://melody.shop.ele.me/app/chain/-1/dashboard'
+  page.locator.return_value.first.inner_text.return_value='品牌版 熊小小牛排饭（全国） 集团主体账号'
+  self.assertTrue(is_eleme_headquarters_context(page))
+  page.locator.return_value.first.inner_text.return_value='品牌版 熊小小金融城店 集团主体账号'
+  self.assertFalse(is_eleme_headquarters_context(page))
  def test_audio_page_explains_intentional_omission(self):
   m=normalize([dict(id='a',time='10-14 12:00',role='customer',content='8秒',required_media='audio',media=[])],'2026-10-14',date(2026,10,15))[0]
   scope=dict(store='朝阳门店',platform='美团',status='partial',list_complete=True,sessions=[dict(label='语音',history_complete=True,messages=[m])])

@@ -448,6 +448,11 @@ def eleme(pw,scope,config):
 
 
 
+def is_eleme_headquarters_context(page):
+    from ensure_eleme_headquarters_context import GROUP_ID
+    return bool(re.search(r'/app/chain/(?:'+re.escape(GROUP_ID)+r'|-1)(?:/|$)',page.url) and '全国' in page.locator('body').first.inner_text()[:180])
+
+
 def restore_eleme_headquarters(pw):
     """Restore the nationwide/all-store organization token before downstream jobs."""
     from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,GROUP_ID,NEUTRAL_CONTEXT_URL
@@ -460,8 +465,9 @@ def restore_eleme_headquarters(pw):
             page.wait_for_timeout(1500)
         search=page.get_by_placeholder('搜索店铺名称/ID')
         if search.count() and search.is_visible():search.fill('');page.wait_for_timeout(500)
-        choose_context(page,f'{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}',f'**/app/chain/{GROUP_ID}/**')
-        if '/app/chain/'+GROUP_ID+'/' not in page.url:raise RuntimeError('淘宝未恢复全国全部门店范围')
+        choose_context(page,f'{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}',re.compile(r'/app/chain/(?:'+re.escape(GROUP_ID)+r'|-1)(?:/|$)'))
+        wait(page,lambda:is_eleme_headquarters_context(page),'淘宝全国范围身份')
+        if not is_eleme_headquarters_context(page):raise RuntimeError('淘宝未恢复全国全部门店范围')
         return True
     finally:
         if owned and page:page.close()
@@ -519,6 +525,7 @@ def main():
                 snapshot.pop('context_error',None)
                 print('淘宝已恢复全国全部门店范围',flush=True)
             except Exception as exc:
+                snapshot['context_restored']=False
                 snapshot['context_error']=safe_error(exc)
                 print('淘宝总部范围恢复失败：'+snapshot['context_error'],flush=True)
         atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
