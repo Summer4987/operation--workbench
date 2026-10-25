@@ -23,8 +23,8 @@ LOCAL_OUTPUT_DIR = Path("/Users/summer/Desktop/库存管理/出库记录")
 SERVER_OUTPUT_DIR = BASE_DIR / "data" / "order_outputs"
 CATALOG_PATH = BASE_DIR / "app" / "catalog.json"
 PRODUCT_SPEC_OVERRIDES = {"LDXXX0003": "15kg/箱", "LDXXX00013": "15kg/箱"}
-DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004", "LDXXX0005", "LDXXX0006"}
-DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）", "熊小小牛排饭-冷冻菠菜（冻）", "冷冻菠菜段", "熊小小牛排饭-冷冻菠菜段（冻）"}
+DISABLED_PUBLIC_ORDER_SKUS = {"CWXXX0004", "LDXXX0005", "LDXXX0006", "LDXXX00011"}
+DISABLED_PUBLIC_ORDER_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）", "熊小小牛排饭-冷冻菠菜（冻）", "冷冻菠菜段", "熊小小牛排饭-冷冻菠菜段（冻）", "熊小小牛排饭-菲力牛排（冻）", "熊小小牛排饭-S里脊（菲力牛排）（冻）", "S里脊（菲力牛排）（冻）"}
 
 
 def _env_path(name: str) -> Path | None:
@@ -191,7 +191,7 @@ def generate_structured_outbound_order(
         sku = _clean(item.get("sku"))
         product = products_by_sku.get(sku)
         quantity = _decimal(str(item.get("quantity", "")))
-        if not product or not product.public_order or quantity is None or quantity <= 0:
+        if not product or not product.public_order or _is_disabled_public_order_product(product) or quantity is None or quantity <= 0:
             continue
         lines.append(
             OrderLine(

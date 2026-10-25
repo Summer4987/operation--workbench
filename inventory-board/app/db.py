@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "inventory.sqlite3"
-DISABLED_INVENTORY_SKUS = {"CWXXX0004", "LDXXX0005", "LDXXX0006"}
-DISABLED_INVENTORY_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）", "熊小小牛排饭-冷冻菠菜（冻）", "冷冻菠菜段", "熊小小牛排饭-冷冻菠菜段（冻）"}
+DISABLED_INVENTORY_SKUS = {"CWXXX0004", "LDXXX0005", "LDXXX0006", "LDXXX00011"}
+DISABLED_INVENTORY_NAMES = {"打包袋", "熊小小牛排饭-定制无纺布袋-YDC", "熊小小牛排饭-冷冻西兰花（冻）", "熊小小牛排饭-冷冻菠菜（冻）", "冷冻菠菜段", "熊小小牛排饭-冷冻菠菜段（冻）", "熊小小牛排饭-菲力牛排（冻）", "熊小小牛排饭-S里脊（菲力牛排）（冻）", "S里脊（菲力牛排）（冻）"}
 
 
 @contextmanager
@@ -75,8 +75,8 @@ def init_db() -> None:
             DROP TRIGGER IF EXISTS ignore_disabled_inventory_product_insert;
             CREATE TRIGGER ignore_disabled_inventory_product_insert
             BEFORE INSERT ON products
-            WHEN NEW.sku IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            WHEN NEW.sku IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             BEGIN
                 SELECT RAISE(IGNORE);
             END;
@@ -84,8 +84,8 @@ def init_db() -> None:
             DROP TRIGGER IF EXISTS ignore_disabled_inventory_product_update;
             CREATE TRIGGER ignore_disabled_inventory_product_update
             BEFORE UPDATE ON products
-            WHEN NEW.sku IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            WHEN NEW.sku IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              OR NEW.name IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             BEGIN
                 SELECT RAISE(IGNORE);
             END;
@@ -196,8 +196,8 @@ def inventory_summary() -> list[dict]:
                 MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
-            WHERE p.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            WHERE p.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             GROUP BY p.sku
             ORDER BY
                 CASE
@@ -233,8 +233,8 @@ def inventory_warning_items(skus: list[str] | set[str] | tuple[str, ...]) -> lis
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
             WHERE p.sku IN ({placeholders})
-              AND p.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+              AND p.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             GROUP BY p.sku
             HAVING balance <= p.warning_threshold
             ORDER BY balance ASC, p.sku
@@ -302,8 +302,8 @@ def recent_movements(limit: int = 50) -> list[dict]:
                 movements.created_at
             FROM movements
             JOIN import_files ON import_files.id = movements.import_file_id
-            WHERE movements.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              AND movements.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            WHERE movements.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              AND movements.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             ORDER BY movements.id DESC
             LIMIT ?
             """,
@@ -320,8 +320,8 @@ def delivery_months() -> list[str]:
             FROM movements
             WHERE movement_type = 'outbound'
               AND created_at != ''
-              AND sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              AND name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+              AND sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              AND name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             ORDER BY month DESC
             """
         ).fetchall()
@@ -348,8 +348,8 @@ def store_delivery_summary(month: str | None = None) -> list[dict]:
             FROM movements m
             LEFT JOIN products p ON p.sku = m.sku
             WHERE m.movement_type = 'outbound'
-            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             {month_filter}
             GROUP BY store_name, delivery_date, m.sku
             ORDER BY
@@ -426,8 +426,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
                 MAX(CASE WHEN m.movement_type = 'outbound' THEN m.created_at END) AS last_outbound_at
             FROM products p
             LEFT JOIN movements m ON m.sku = p.sku
-            WHERE p.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            WHERE p.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+              AND p.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             GROUP BY p.sku
             HAVING inbound_quantity > 0 OR outbound_quantity > 0 OR current_balance != 0
             ORDER BY outbound_quantity DESC, inbound_quantity DESC, current_value DESC, p.sku
@@ -444,8 +444,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
                 SUM(m.quantity) AS quantity
             FROM movements m
             WHERE m.movement_type = 'outbound'
-            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             {movement_filter}
             GROUP BY m.sku, destination
             ORDER BY m.sku, quantity DESC
@@ -469,8 +469,8 @@ def inventory_flow_summary(month: str | None = None, limit: int = 80) -> dict:
             FROM movements m
             JOIN import_files f ON f.id = m.import_file_id
             WHERE 1 = 1
-            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006')
-            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）')
+            AND m.sku NOT IN ('CWXXX0004', 'LDXXX0005', 'LDXXX0006', 'LDXXX00011')
+            AND m.name NOT IN ('打包袋', '熊小小牛排饭-定制无纺布袋-YDC', '熊小小牛排饭-冷冻西兰花（冻）', '熊小小牛排饭-冷冻菠菜（冻）', '冷冻菠菜段', '熊小小牛排饭-冷冻菠菜段（冻）', '熊小小牛排饭-菲力牛排（冻）', '熊小小牛排饭-S里脊（菲力牛排）（冻）', 'S里脊（菲力牛排）（冻）')
             {movement_filter}
             ORDER BY m.id DESC
             LIMIT 40
