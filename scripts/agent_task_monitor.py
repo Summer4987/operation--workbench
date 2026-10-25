@@ -706,7 +706,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="生成 Hermes/Mac mini 自动化任务透明化报告")
+    parser = argparse.ArgumentParser(description="生成 Mac mini 运营 Agent 自动化任务透明化报告")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="通知任务和补跑策略配置")
     parser.add_argument("--health", default=str(DEFAULT_HEALTH_PATH), help="任务健康状态 JSON")
     parser.add_argument("--runs", default=str(DEFAULT_RUNS_PATH), help="任务运行记录 JSON")

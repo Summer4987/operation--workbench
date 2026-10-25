@@ -22,7 +22,7 @@ LABEL_NAMES = {
     "com.summer.operation.inventory-warning-daily": "每日库存预警",
     "com.summer.operation.morning": "上午运营一键采集",
     "com.summer.operation.realtime-order-income": "实时单量和营业额采集",
-    "com.summer.operation.agent-task-notifier": "Hermes 自动汇报通知器",
+    "com.summer.operation.agent-task-notifier": "运营 Agent 自动汇报通知器",
     "com.summer.operation.ai-center-guardian": "AI 业务中心守护检查",
     "com.summer.operation.cainiao-logistics": "菜鸟物流采集",
     "com.summer.operation.evening": "晚间预算任务",
@@ -258,7 +258,7 @@ def classify_row(row: dict[str, Any], runs: dict[str, Any], launchctl: dict[str,
             reason = f"今天有日志，但 launchd 最近退出码是 {status_code}。"
         else:
             status = "warning"
-            reason = "今天有日志，但没有写入任务账本；Hermes 只能判断它触发过，不能确认业务结果。"
+            reason = "今天有日志，但没有写入任务账本；只能确认任务触发过，尚不能确认业务结果。"
     elif due_times:
         status = "missing"
         reason = "已经过了计划时间，但没看到今天的运行账本或日志。"
@@ -386,7 +386,7 @@ def format_latest_issue(payload: dict[str, Any], *, include_rerun: bool) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="给 Hermes 查询 Mac mini launchd 定时任务运行情况")
+    parser = argparse.ArgumentParser(description="查询 Mac mini launchd 定时任务运行情况")
     parser.add_argument("--period", choices=["all", "afternoon"], default="all")
     parser.add_argument("--explain-latest", action="store_true", help="解释最近一个失败/需关注任务")
     parser.add_argument("--rerun-advice", action="store_true", help="同时给出是否适合补跑")

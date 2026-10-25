@@ -603,7 +603,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="按任务完成状态向 Hermes 微信发送自动化结果通知")
+    parser = argparse.ArgumentParser(description="按任务完成状态发送运营 Agent 自动化结果通知，默认使用企微 Webhook")
     parser.add_argument("--task-id", action="append", help="仅发送指定任务，可重复传入")
     parser.add_argument("--runs", default=str(DEFAULT_RUNS_PATH), help="任务运行状态 JSON")
     parser.add_argument("--state", default=str(DEFAULT_STATE_PATH), help="去重状态文件")

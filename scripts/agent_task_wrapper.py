@@ -114,7 +114,7 @@ def split_argv(argv: list[str]) -> tuple[list[str], list[str]]:
 def main() -> int:
     wrapper_argv, command = split_argv(sys.argv[1:])
     parser = argparse.ArgumentParser(
-        description="包装 Mac mini 自动化任务：记录运行状态，任务结束后刷新 Hermes 透明化报告。"
+        description="包装 Mac mini 自动化任务：记录运行状态，任务结束后刷新运营 Agent 透明化报告。"
     )
     parser.add_argument("task_id", help="notification_tasks.json / task_runs 使用的任务 ID")
     parser.add_argument("--step", default="", help="运行步骤名称")
