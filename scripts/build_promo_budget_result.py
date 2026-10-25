@@ -164,6 +164,9 @@ def main() -> int:
     output = Path(args.output).expanduser()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # Keep lunch evidence available after the dinner job updates latest.json.
+    output.with_name(f'{output.stem}_{args.period}{output.suffix}').write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     if args.record:
         subprocess.run([
             sys.executable, str(ROOT / "scripts" / "record_task_run.py"),

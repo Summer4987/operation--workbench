@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 from datetime import datetime
 import json
 import re
@@ -16,6 +17,7 @@ from atomic_io import atomic_write_text
 import agent_task_monitor
 import hermes_schedule_status
 import ops_notify
+import morning_result_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -311,6 +313,8 @@ def delivery_backoff_seconds(output: str, consecutive_failures: int) -> int:
 
 
 def build_batch_message(messages: list[str]) -> str:
+    if any(str(message).startswith('【上午运营分类报告') for message in messages):
+        return '\n\n'.join(str(message).strip() for message in messages if str(message).strip())
     clean_messages = [compact_message(message) for message in messages if compact_message(message)]
     if not clean_messages:
         return ""
@@ -334,6 +338,24 @@ def build_batch_message(messages: list[str]) -> str:
 
 def compact_message(message: str) -> str:
     return " ".join(str(message or "").split())
+
+
+def split_delivery_message(message: str, limit: int = 1800) -> list[str]:
+    """Keep every category and newline, splitting on UTF-8 byte boundaries."""
+    chunks = []
+    current = ''
+    for line in message.splitlines(keepends=True):
+        if current and len((current+line).encode('utf-8')) > limit:
+            chunks.append(current)
+            current = ''
+        for char in line:
+            if len((current+char).encode('utf-8')) > limit:
+                chunks.append(current)
+                current = ''
+            current += char
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def morning_collection_notification_context(
@@ -361,7 +383,10 @@ def morning_collection_notification_context(
     return list(dict.fromkeys(failed)), list(dict.fromkeys(budget_success))
 
 
-def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any]) -> str:
+def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, runs=None) -> str:
+    if task_id == 'ops.morning_collection':
+        payload = morning_result_report.build_payload(task, runs if runs is not None else read_json(DEFAULT_RUNS_PATH, {}), ROOT)
+        return morning_result_report.format_report(payload)
     status = str(task.get("status") or "")
     status_label = STATUS_LABELS.get(status, status or "未知")
     name = row.get("name") or task_id
@@ -450,6 +475,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     sent = previous_state.get("sent") if isinstance(previous_state.get("sent"), dict) else {}
     cooldown_until = float(previous_state.get("cooldown_until") or 0)
     consecutive_failures = int(previous_state.get("consecutive_failures") or 0)
+    batch_progress = previous_state.get('batch_progress') or {}
     now = time.time()
     policy_rows = load_policy_rows()
     promo_balance_period = str(getattr(args, "promo_balance_period", "") or "")
@@ -481,6 +507,12 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         status = str(task.get("status") or "")
         if status not in TERMINAL_STATUSES:
             continue
+        if task_id == 'ops.morning_collection':
+            if not morning_result_report.is_final(task):
+                continue
+            events = morning_result_report.session_events(task, runs)
+            if any(e.get('step') == '初始化' and e.get('extra', {}).get('mode') == 'preview' for e in events):
+                continue
         signature = task_signature(task)
         if args.seed:
             now_sent[task_id] = signature
@@ -488,7 +520,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         if sent.get(task_id) == signature:
             continue
         row = policy_rows.get(task_id, {"id": task_id, "name": task.get("step") or task_id, "rerun": {}})
-        message = build_message(task_id, task, row)
+        message = build_message(task_id, task, row, runs=runs)
         notifications.append(
             {
                 "task_id": task_id,
@@ -509,11 +541,22 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             item["delivery_output"] = delivery_output
     elif notifications and not args.dry_run:
         batch_message = build_batch_message([str(item["message"]) for item in notifications])
-        delivered, delivery_output = send_weixin(batch_message, args.target, args.hermes_bin) if batch_message else (False, "empty-message")
+        chunks = split_delivery_message(batch_message)
+        digest = hashlib.sha256(batch_message.encode('utf-8')).hexdigest()
+        sent_chunks = int(batch_progress.get('sent_chunks', 0)) if batch_progress.get('digest') == digest else 0
+        batch_progress = dict(digest=digest, sent_chunks=sent_chunks)
+        delivered, delivery_output = False, 'empty-message'
+        for index in range(sent_chunks, len(chunks)):
+            delivered, delivery_output = send_weixin(chunks[index], args.target, args.hermes_bin)
+            if not delivered:
+                break
+            batch_progress['sent_chunks'] = index+1
+        delivered = bool(chunks) and batch_progress['sent_chunks'] == len(chunks)
         for item in notifications:
             item["delivered"] = delivered
             item["delivery_output"] = delivery_output
         if delivered:
+            batch_progress = {}
             now_sent.update(pending_signatures)
             cooldown_until = 0
             consecutive_failures = 0
@@ -538,6 +581,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         "consecutive_failures": consecutive_failures,
         "last_delivery_output": delivery_output,
         "sent": now_sent,
+        "batch_progress": batch_progress,
     }
     if not args.no_write:
         write_json(
@@ -546,6 +590,7 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
                 "sent": now_sent,
                 "cooldown_until": cooldown_until,
                 "consecutive_failures": consecutive_failures,
+                "batch_progress": batch_progress,
                 "last_delivery_output": delivery_output,
             },
         )

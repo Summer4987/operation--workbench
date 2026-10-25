@@ -483,16 +483,19 @@ def main() -> int:
                     add_failure(failures, "评价待办状态", result)
                 balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
                 if balance_result.returncode != 0:
+                    add_failure(failures, "推广余额总巡检", balance_result)
                     if args.source == "scheduled":
                         print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
-                    else:
-                        add_failure(failures, "推广余额总巡检", balance_result)
-                run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
+                result = run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
+                if result.returncode != 0:
+                    add_failure(failures, "巡检证据清单生成", result)
                 result = run_step("推广余额状态更新", [sys.executable, str(PROMO_BALANCE_STATUS_RUNNER)], required=False, timeout_seconds=120)
                 if result.returncode != 0:
                     add_failure(failures, "推广余额状态", result)
                 if is_production_environment():
-                    run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
+                    result = run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
+                    if result.returncode != 0:
+                        add_failure(failures, "巡检证据上传云端", result)
                 else:
                     print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
             result = run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False)
@@ -508,8 +511,11 @@ def main() -> int:
                 print("预览模式：跳过双平台预算页面检查和保存。", flush=True)
             elif not budget_inputs_ready:
                 print("预算配置同步或预览失败：已跳过双平台预算提交，继续采集与看板收尾。", flush=True)
+                for platform in ['饿了么', '美团']:
+                    record_task_run('skipped', '预算配置同步或预览失败，未执行预算提交。', f'{platform}{budget_period}预算真实提交', log_path)
             else:
                 if skip_eleme_budget:
+                    record_task_run('skipped', '按临时运营设置跳过淘宝闪购预算，未提交。', f'饿了么{budget_period}预算真实提交', log_path)
                     print(
                         f"按临时运营设置跳过饿了么{budget_period}预算；美团预算及其它采集、看板任务照常执行。",
                         flush=True,
@@ -546,12 +552,14 @@ def main() -> int:
                     add_failure(failures, f"美团{budget_period}预算", result)
                 budget_result_recorded = publish_budget_result(budget_period, run_started_epoch, log_path)
                 flush_result_notifications("growth.promo_budget")
-                run_step(
+                result = run_step(
                     "上午推广低余额通知",
                     [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER), "--promo-balance-period", "上午"],
                     required=False,
                     timeout_seconds=60,
                 )
+                if result.returncode != 0:
+                    add_failure(failures, "上午推广低余额通知", result)
             result = run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False)
             if result.returncode != 0:
                 add_failure(failures, "运营总看板", result)

@@ -82,28 +82,13 @@ class AgentTaskNotifierTests(unittest.TestCase):
 
     def test_morning_failure_message_separates_budget_success_from_failed_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            status_path = Path(tmp) / "morning.json"
-            status_path.write_text(
-                json.dumps(
-                    {
-                        "finished_at": "2026-09-01 08:40:45",
-                        "failed_steps": [
-                            {"name": "直营美团日报下载"},
-                            {"name": "巡检证据上传云端"},
-                            {"name": "汇总"},
-                        ],
-                        "successful_steps": [
-                            {"name": "饿了么午餐预算真实提交"},
-                            {"name": "美团午餐预算真实提交"},
-                        ],
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            original_path = self.notifier.DEFAULT_MORNING_STATUS_PATH
-            try:
-                self.notifier.DEFAULT_MORNING_STATUS_PATH = status_path
+            root = Path(tmp)
+            output = root/'outputs/promo_budget_result/latest.json'
+            output.parent.mkdir(parents=True)
+            output.write_text(json.dumps(dict(period='午餐',generated_at='2026-09-01 08:40:00',platforms={p:dict(total=2,success_count=2,skipped_count=0,failed_count=0) for p in ['eleme','meituan']})))
+            events = [dict(task_id='ops.morning_collection',step=step,status=status,created_at='2026-09-01 08:30:00') for step,status in [
+                ('直营美团日报下载','failed'),('巡检证据上传云端','failed'),('饿了么午餐预算真实提交','success'),('美团午餐预算真实提交','success')]]
+            with mock.patch.object(self.notifier,'ROOT',root):
                 message = self.notifier.build_message(
                     "ops.morning_collection",
                     {
@@ -113,13 +98,53 @@ class AgentTaskNotifierTests(unittest.TestCase):
                         "finished_at": "2026-09-01 08:40:45",
                     },
                     self.notifier.DIRECT_TASK_ROWS["ops.morning_collection"],
+                    runs={'events':events},
                 )
-            finally:
-                self.notifier.DEFAULT_MORNING_STATUS_PATH = original_path
 
-        self.assertIn("实际失败项：直营美团日报下载、巡检证据上传云端", message)
-        self.assertIn("饿了么午餐预算真实提交、美团午餐预算真实提交", message)
-        self.assertIn("本次告警不代表推广预算失败", message)
+        self.assertIn("直营美团日报下载：失败", message)
+        self.assertIn("巡检证据上传：失败", message)
+        self.assertIn("淘宝闪购午餐预算提交：成功", message)
+        self.assertIn("美团午餐预算提交：成功", message)
+
+    def test_categorized_report_preserves_all_projects_and_utf8(self):
+        report='【上午运营分类报告】\n'+''.join(f'分类项目{i}：成功\n' for i in range(300))
+        batch=self.notifier.build_batch_message([report])
+        chunks=self.notifier.split_delivery_message(batch)
+        self.assertEqual(''.join(chunks),report.strip())
+        self.assertGreater(len(chunks),1)
+        self.assertTrue(all(len(chunk.encode('utf-8'))<=1800 for chunk in chunks))
+        self.assertIn('分类项目299：成功',chunks[-1])
+
+    def test_morning_intermediate_success_and_preview_do_not_send_final_report(self):
+        for step,mode in [('评价看板生成','commit'),('汇总','preview')]:
+            with self.subTest(step=step,mode=mode), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);runs=root/'runs.json'
+                task=dict(status='success',step=step,finished_at='2026-10-25 08:30:00')
+                events=[dict(task_id='ops.morning_collection',step='初始化',status='running',created_at='2026-10-25 08:00:00',extra={'mode':mode})]
+                runs.write_text(json.dumps(dict(tasks={'ops.morning_collection':task},events=events)))
+                args=SimpleNamespace(runs=str(runs),state=str(root/'state.json'),log=str(root/'log.json'),seed=False,dry_run=True,no_write=True,include_unconfigured=False,target='weixin',hermes_bin='hermes')
+                with mock.patch.object(self.notifier,'load_policy_rows',return_value=dict(self.notifier.DIRECT_TASK_ROWS)):
+                    self.assertEqual(self.notifier.notify(args)['notification_count'],0)
+
+    def test_partial_delivery_resumes_without_resending_completed_chunks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);runs=root/'runs.json'
+            runs.write_text(json.dumps({'tasks':{'ops.morning_collection':dict(status='success',step='汇总',finished_at='2026-10-25 08:30:00')}}))
+            args=SimpleNamespace(runs=str(runs),state=str(root/'state.json'),log=str(root/'log.json'),seed=False,dry_run=False,no_write=False,include_unconfigured=False,target='weixin',hermes_bin='hermes')
+            message='【上午运营分类报告】\n'+('项目：成功\n'*300)
+            chunks=self.notifier.split_delivery_message(message.strip())
+            outcomes=[(True,'ok'),(False,'retry')]+[(True,'ok')]*(len(chunks)-1)
+            with mock.patch.object(self.notifier,'load_policy_rows',return_value=dict(self.notifier.DIRECT_TASK_ROWS)), \
+                 mock.patch.object(self.notifier,'build_message',return_value=message), \
+                 mock.patch.object(self.notifier,'delivery_backoff_seconds',return_value=0), \
+                 mock.patch.object(self.notifier,'send_weixin',side_effect=outcomes) as send:
+                first=self.notifier.notify(args);self.assertFalse(first['notifications'][0]['delivered'])
+                self.assertEqual(first['batch_progress']['sent_chunks'],1)
+                self.assertNotIn('ops.morning_collection',first['sent'])
+                second=self.notifier.notify(args);self.assertTrue(second['notifications'][0]['delivered'])
+                self.assertEqual(send.call_args_list[0].args[0],chunks[0])
+                self.assertEqual(send.call_args_list[2].args[0],chunks[1])
+                self.assertEqual(self.notifier.notify(args)['notification_count'],0)
 
     def test_notify_deduplicates_terminal_task_signatures(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
