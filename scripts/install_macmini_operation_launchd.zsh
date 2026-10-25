@@ -1,6 +1,14 @@
 #!/bin/zsh
 set -euo pipefail
 
+SCRIPTS_ONLY=0
+if [[ "${1:-}" == "--scripts-only" && $# -eq 1 ]]; then
+  SCRIPTS_ONLY=1
+elif (( $# > 0 )); then
+  echo "用法：scripts/install_macmini_operation_launchd.zsh [--scripts-only]" >&2
+  exit 2
+fi
+
 SOURCE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT="${OPERATION_RUNTIME_ROOT:-${OPERATION_ROOT:-$SOURCE_ROOT}}"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
@@ -622,6 +630,11 @@ cd "\$ROOT"
 "\$PYTHON" scripts/send_inventory_warning_daily.py
 EOF
 chmod +x "$SCRIPT_DIR/run_inventory_warning_daily.zsh"
+
+if (( SCRIPTS_ONLY )); then
+  echo "生产运行脚本已从 GitHub 检出目录安装；定时任务保持现有安装。"
+  exit 0
+fi
 
 # Retired permanently; also remove installations from older releases.
 /bin/zsh "$SOURCE_ROOT/scripts/uninstall_daily_order_wechat_delivery.zsh"

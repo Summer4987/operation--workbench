@@ -496,14 +496,18 @@ def main() -> int:
                 else:
                     print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
             result = run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False)
+            budget_inputs_ready = result.returncode == 0
             if result.returncode != 0:
                 add_failure(failures, "预算配置同步", result)
             node = str(NODE if NODE.exists() else "node")
             result = run_step("推广预算初始化预览", [node, str(PROMO_PREVIEW_RUNNER)], required=False)
+            budget_inputs_ready = budget_inputs_ready and result.returncode == 0
             if result.returncode != 0:
                 add_failure(failures, "推广预算预览", result)
             if args.mode == "preview":
                 print("预览模式：跳过双平台预算页面检查和保存。", flush=True)
+            elif not budget_inputs_ready:
+                print("预算配置同步或预览失败：已跳过双平台预算提交，继续采集与看板收尾。", flush=True)
             else:
                 if skip_eleme_budget:
                     print(

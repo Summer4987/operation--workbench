@@ -1312,7 +1312,14 @@ def execute_task_with_store_retries(context, base_url: str, task: dict, *, commi
     attempts = max(2, STORE_RETRY_ATTEMPTS) if preflight or commit else 1
     last_record: dict | None = None
     for attempt in range(1, attempts + 1):
-        record = execute_task(context, base_url, task, commit=commit, preflight=preflight)
+        try:
+            with store_hard_timeout(task):
+                record = execute_task(context, base_url, task, commit=commit, preflight=preflight)
+        except Exception as exc:
+            record = dict(store=task.get('store'), keyword=task.get('keyword'),
+                          targetBudget=task.get('targetBudget'),
+                          directMeituanAccountId=task.get('directMeituanAccountId') or '',
+                          ok=False, error=str(exc), failure_type=classify_failure(str(exc)))
         record["attempt"] = attempt
         last_record = record
         if record.get("ok"):
@@ -1320,7 +1327,8 @@ def execute_task_with_store_retries(context, base_url: str, task: dict, *, commi
         if record.get("failure_type") in {"auth_block", "store_mapping", "page_structure_changed", "platform_budget_locked"}:
             return record
         print(f"门店级重试：{task.get('keyword')} 第 {attempt}/{attempts} 次失败：{record.get('error')}", flush=True)
-        time.sleep(5)
+        if attempt < attempts:
+            time.sleep(5)
     return last_record or {"ok": False, "error": "未执行", "failure_type": "execution_failed"}
 
 
@@ -1602,7 +1610,7 @@ def main() -> int:
                     with store_hard_timeout(task):
                         context = context_for_task(playwright, contexts, launched_contexts, task, direct_accounts)
                         task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
-                        result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
+                    result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
                     results.append(result)
                     if not result.get("ok"):
                         print(

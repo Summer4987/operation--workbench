@@ -77,6 +77,23 @@ def paged(fetch, items_key, total_key='total', first=1):
     raise RuntimeError('超过分页上限，结果不完整')
 
 
+def validate_eleme_review_ids(rows):
+    """The UI total counts order groups; each group may contain follow-up ratings."""
+    seen = set()
+    for item in rows:
+        rates = item.get('orderRateInfos')
+        if not isinstance(rates, list) or not rates:
+            raise RuntimeError('淘宝评价订单缺少评价明细')
+        for rate in rates:
+            ident = str(rate.get('rateId') or '').strip()
+            if not ident:
+                raise RuntimeError('淘宝评价ID缺失')
+            if ident in seen:
+                raise RuntimeError('淘宝评价分页出现重复评价ID')
+            seen.add(ident)
+    return seen
+
+
 class Collector:
     def __init__(self, playwright, old, start, end):
         self.pw, self.old, self.start, self.end = playwright, old, start, end
@@ -229,9 +246,7 @@ class Collector:
                 _, result = await_value(page, current_page, '淘宝评价翻页')
                 return dict(result, total=total)
             raw = paged(reviews_page,'rateInfos')
-            ids = [str(r.get('rateId') or '') for item in raw for r in item.get('orderRateInfos', [])]
-            if len(set(ids)) != total or '' in ids:
-                raise RuntimeError('淘宝评价分页重复或评价ID缺失')
+            validate_eleme_review_ids(raw)
             for item in raw:
                 for row in eleme_reviews(item,self.aliases):
                     if not row['negative']:

@@ -169,6 +169,23 @@ class MeituanBudgetCdpTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.module = load_module()
 
+    def test_store_timeout_retries_only_current_store(self):
+        task = dict(keyword='丽泽', targetBudget=120)
+        with mock.patch.object(self.module, 'STORE_RETRY_ATTEMPTS', 2), \
+             mock.patch.object(self.module, 'execute_task', side_effect=[TimeoutError('单店执行超时'), {'ok': True}]) as execute, \
+             mock.patch.object(self.module.time, 'sleep'):
+            result = self.module.execute_task_with_store_retries(object(), 'https://test', task, commit=True, preflight=False)
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['attempt'], 2)
+        self.assertEqual(execute.call_count, 2)
+        self.assertTrue(all(call.args[2] is task for call in execute.call_args_list))
+
+    def test_store_auth_failure_does_not_retry(self):
+        with mock.patch.object(self.module, 'execute_task', return_value={'ok': False, 'failure_type': 'auth_block'}) as execute:
+            result = self.module.execute_task_with_store_retries(object(), 'https://test', {}, commit=True, preflight=False)
+        self.assertFalse(result['ok'])
+        execute.assert_called_once()
+
     def test_resolve_default_base_url_falls_back_without_chrome_history(self) -> None:
         with mock.patch.object(self.module, "recent_meituan_promo_url", return_value=None):
             with mock.patch.dict("os.environ", {}, clear=True):

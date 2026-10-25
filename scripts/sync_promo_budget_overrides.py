@@ -121,21 +121,24 @@ def main() -> int:
         defaults = normalize_store_names(json.loads(TARGET.read_text(encoding="utf-8")))
     except Exception:
         defaults = {"stores": {}}
-    try:
-        data = read_remote_http()
-    except Exception as exc:
-        if isinstance(exc, HTTPError):
-            reason = f"HTTP {exc.code} {exc.reason}"
-        elif isinstance(exc, URLError):
-            reason = f"网络错误 {exc.reason}"
-        else:
-            reason = str(exc)
+    # The default HTTP route requires a web login and can redirect to HTML.
+    # Unattended production jobs already have a read-only SSH source.
+    readers = [('HTTP', read_remote_http), ('SSH', read_remote_ssh)]
+    if not AUTH_PASSWORD and not os.environ.get('PROMO_BUDGET_OVERRIDES_URL'):
+        readers.reverse()
+    errors = []
+    for transport, reader in readers:
         try:
-            data = read_remote_ssh()
-            print(f"HTTP 预算配置读取失败，已改用 SSH 只读同步：{reason}")
-        except Exception as ssh_exc:
-            print(f"云端预算配置读取失败，继续使用本地最后可用配置：{reason}；SSH 兜底失败：{ssh_exc}")
-            return 0
+            data = reader()
+            if not isinstance(data.get('stores'), dict) or not data['stores']:
+                raise ValueError('云端预算配置缺少有效门店')
+            break
+        except Exception as exc:
+            # Never log HTTP bodies or signed URLs from transport exceptions.
+            errors.append(f'{transport}: {type(exc).__name__}')
+    else:
+        print('云端预算配置同步失败，已保留本地配置但禁止据此提交预算：'+'；'.join(errors))
+        return 1
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     data = merge_missing_defaults(normalize_store_names(data), defaults)
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"

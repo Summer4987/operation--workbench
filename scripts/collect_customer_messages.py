@@ -50,6 +50,20 @@ def wait(page,fn,label,seconds=35):
     raise RuntimeError(label+'超时，未标为无消息')
 
 
+def read_session_with_retry(page, read):
+    """Retry only the failed conversation, without discarding collected sessions."""
+    for attempt in range(2):
+        try:
+            result = read()
+            if result.get('history_complete') or attempt:
+                return result
+        except Exception as exc:
+            if attempt or (type(exc) is RuntimeError and any(
+                    word in str(exc) for word in ['登录', '安全验证', '验证码', '门店与'])):
+                raise
+        page.wait_for_timeout(1000)
+
+
 def dismiss(page):
     for name in ['跳过全部','我知道了','知道了','暂不体验']:
         for loc in page.get_by_text(name,exact=True).all():
@@ -275,7 +289,7 @@ def meituan(pw,scope,account,keyword):
             if latest[:10]<scope.get('window_start',scope['date']):continue
             if account.get('headquarters') and not item.get('group') and scope['store'].replace('店','') not in item['label']:continue
             try:
-                session=mt_history(page,item,scope['date'],scope.get('window_start'))
+                session=read_session_with_retry(page,lambda:mt_history(page,item,scope['date'],scope.get('window_start')))
                 if account.get('headquarters') and item.get('group'):
                     merchants={match_store(m['sender'],'美团',aliases) for m in session['messages'] if m['role']=='merchant'}-{''}
                     resolved=unique_group_store(merchants,native_hints.get(canonical_chat_title(item['label'].split('\n')[0]),set()))
@@ -408,7 +422,7 @@ def ensure_eleme_customer_shop(page,config):
             wait(page,lambda:has_visible_switcher(page),'淘宝账号门店切换器')
 
 
-def eleme(pw,scope,config):
+def eleme(pw,scope,config,*,recover=False):
     from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,NEUTRAL_CONTEXT_URL
     browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{int(config.get("eleme_debug_port",9222))}',timeout=10000)
     # The merchant shell shares store context across tabs. Switch inside a valid existing shell.
@@ -419,17 +433,27 @@ def eleme(pw,scope,config):
         page.goto(NEUTRAL_CONTEXT_URL,wait_until='domcontentloaded',timeout=60000)
     page.set_default_timeout(12000)
     try:
+        scope['stage']='淘宝单店身份核对'
+        if recover:
+            # A timed-out iframe can survive in the shared merchant shell.
+            # Reload through the account entry before reselecting this store.
+            page.goto(NEUTRAL_CONTEXT_URL,wait_until='domcontentloaded',timeout=60000)
+            wait(page,lambda:has_visible_switcher(page),'淘宝账号门店切换器恢复')
         sid=config['eleme_shop_id']
         ensure_eleme_customer_shop(page,config)
+        scope['stage']='淘宝聊天窗口加载'
         # Some versions mount the floating entry only after scrolling.
         page.mouse.wheel(0,600)
         wait(page,lambda:page.locator('[class*=imIcon__]').count(),'淘宝消息入口')
         frame=wait(page,lambda:next((f for f in page.frames if f.url.startswith('https://im.ele.me/napos') and parse_qs(urlparse(f.url).query).get('shopId')==[sid]),None),'淘宝单店聊天窗口')
         wait(page,lambda:frame.get_by_role('tab',name='顾客消息',exact=True).count(),'淘宝聊天组件加载')
         page.wait_for_timeout(600)
-        if 'web_im_visually_hidden' in (page.locator('#web_im_iframe_container').get_attribute('class') or ''):
+        container=page.locator('#web_im_iframe_container')
+        wait(page,lambda:container.count()==1,'淘宝聊天窗口容器加载')
+        if 'web_im_visually_hidden' in (container.get_attribute('class') or ''):
             page.locator('[class*=imIcon__]').dispatch_event('click')
         wait(page,lambda:frame.locator('#im_conversation_list_body').evaluate('e=>e.clientHeight>100'),'淘宝聊天窗口展开')
+        scope['stage']='淘宝会话列表采集'
         sessions,complete,expected=el_list(page,frame)
         scope.update(list_complete=complete,scanned_sessions=len(sessions),expected_sessions=expected,sessions=[],errors=[],list_basis='虚拟列表逐屏去重并核对总高度/行高对应的会话数')
         for item in sessions:
@@ -437,7 +461,8 @@ def eleme(pw,scope,config):
             if not latest:scope['errors'].append('无法识别会话日期：'+item['title']);continue
             if latest[:10]<scope.get('window_start',scope['date']):continue
             try:
-                session=el_history(page,frame,item,scope['date'],scope.get('window_start'))
+                scope['stage']='淘宝会话历史采集'
+                session=read_session_with_retry(page,lambda:el_history(page,frame,item,scope['date'],scope.get('window_start')))
                 if any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
                     save_media(page,scope,session,frame);scope['sessions'].append(session)
                 elif not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['title'])
@@ -505,8 +530,8 @@ def main():
                                 if not a.get('enabled'):raise RuntimeError('直营账号未启用')
                                 meituan(pw,scope,dict(port=a['debug_port']),a['keyword'])
                             else:meituan(pw,scope,dict(port=9222,headquarters=True),'总部')
-                        else:eleme(pw,scope,c)
-                    except Exception as e:scope['error']=safe_error(e)
+                        else:eleme(pw,scope,c,recover=bool(attempt))
+                    except Exception as e:scope['error']=(scope.get('stage','平台采集')+'：'+safe_error(e))
                     scope['status']=scope_status(scope)
                     scope['attempts']=attempt+1
                     if scope['status']=='ready':break

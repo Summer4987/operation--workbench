@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from review_page_data import TZ, build_summary, eleme_reviews, meituan_review, store_aliases, match_store, verify_all_store_scope
-from collect_review_pages import paged, Collector
+from collect_review_pages import paged, Collector, validate_eleme_review_ids
 
 NOW = datetime(2026, 10, 15, 12, tzinfo=TZ)
 
@@ -17,6 +17,21 @@ def scope(platform='饿了么', status='ready'):
 
 
 class ReviewPageTests(unittest.TestCase):
+    def test_order_groups_can_contain_multiple_distinct_ratings(self):
+        rows = paged(lambda n: dict(total=2, rateInfos=[
+            dict(orderRateInfos=[dict(rateId=1), dict(rateId=2)]),
+            dict(orderRateInfos=[dict(rateId=3)])]), 'rateInfos')
+        self.assertEqual(validate_eleme_review_ids(rows), {'1', '2', '3'})
+
+    def test_duplicate_missing_and_empty_rating_groups_still_fail(self):
+        for rows in [
+            [dict(orderRateInfos=[dict(rateId=1), dict(rateId=1)])],
+            [dict(orderRateInfos=[dict(rateId=1)]), dict(orderRateInfos=[dict(rateId=1)])],
+            [dict(orderRateInfos=[{}])], [dict(orderRateInfos=[])], [{}],
+        ]:
+            with self.subTest(rows=rows), self.assertRaises(RuntimeError):
+                validate_eleme_review_ids(rows)
+
     def test_all_store_scope_accepts_platform_all_or_all_leaf_stores(self):
         for selected in [[], [-1], ["-1"], [11, 12]]:
             verify_all_store_scope(selected, {11, 12})
