@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -124,7 +123,7 @@ def main() -> int:
     # The default HTTP route requires a web login and can redirect to HTML.
     # Unattended production jobs already have a read-only SSH source.
     readers = [('HTTP', read_remote_http), ('SSH', read_remote_ssh)]
-    if not AUTH_PASSWORD and not os.environ.get('PROMO_BUDGET_OVERRIDES_URL'):
+    if not os.environ.get('PROMO_BUDGET_OVERRIDES_URL'):
         readers.reverse()
     errors = []
     for transport, reader in readers:

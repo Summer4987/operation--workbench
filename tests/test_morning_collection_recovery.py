@@ -36,7 +36,7 @@ class MessageRecoveryTests(unittest.TestCase):
 class BudgetConfigurationTests(unittest.TestCase):
     def test_unattended_sync_uses_ssh_without_web_login(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(sync, 'TARGET', Path(tmp)/'budget.json'), \
-             patch.object(sync, 'COPY_PATH', ''), patch.object(sync, 'AUTH_PASSWORD', ''), \
+             patch.object(sync, 'COPY_PATH', ''), patch.object(sync, 'AUTH_PASSWORD', 'configured-without-web-session'), \
              patch.dict(sync.os.environ, {}, clear=True), \
              patch.object(sync, 'read_remote_ssh', return_value={'stores': {'丽泽': {'美团': {'lunchBudget': 120}}}}) as ssh, \
              patch.object(sync, 'read_remote_http') as http:
