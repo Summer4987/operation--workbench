@@ -36,6 +36,15 @@ def header_valid(rows):
             and ("减" in text or "红包" in text or "立减" in text))
 
 
+def identity_matches(text, store):
+    # Fail closed on truncated/ambiguous headings instead of labeling by intent.
+    aliases = {"朝阳门店": ("朝阳门", "第B2档口", "第B2"),
+               "中关村店": ("中关村", "第3档口")}
+    names = aliases.get(store, (store.removesuffix("店"),))
+    heading = compact(text)
+    return any(compact(name) in heading for name in names)
+
+
 class Capture:
     def __init__(self, args):
         self.args = args
@@ -75,7 +84,7 @@ class Capture:
         # Read before entering, so an existing challenge cannot receive a tap.
         before, entry_rows = self.screen("entry-check.png")
         merchant = next((r for r in entry_rows if "熊小小牛排饭" in compact(r["text"])
-                         and r["y"] < 850), None)
+                         and r["y"] < 850 and identity_matches(r["text"], self.args.store)), None)
         if merchant is None:
             raise RuntimeError("Expected merchant heading absent from top result")
         self.tap(merchant["x"], merchant["y"])
@@ -90,6 +99,9 @@ class Capture:
             first, rows = self.screen("first-candidate.png")
         if not header_valid(rows):
             raise RuntimeError("Store name and coupon header could not be verified")
+        if not any(identity_matches(r["text"], self.args.store) for r in rows
+                   if "熊小小牛排饭" in compact(r["text"])):
+            raise RuntimeError("Store identity mismatch or truncated identity; capture rejected")
         first.rename(self.directory / "01-first-screen.png")
         category = category_target(rows)
         if category is None:

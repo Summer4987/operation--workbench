@@ -8,6 +8,11 @@ spec.loader.exec_module(capture)
 
 
 class CaptureGuards(unittest.TestCase):
+    def test_wrong_store_and_truncated_heading_are_rejected(self):
+        self.assertFalse(capture.identity_matches("熊小小牛排饭POKEBEAR(望京店)", "安贞店"))
+        self.assertFalse(capture.identity_matches("熊小小牛排饭POKEBEAR", "望京店"))
+        self.assertTrue(capture.identity_matches("熊小小牛排饭POKEBEAR(望京店)", "望京店"))
+        self.assertTrue(capture.identity_matches("熊小小牛排饭POKEBEAR(第B2档口)", "朝阳门店"))
     def test_challenge_stops_but_reservation_does_not(self):
         self.assertTrue(capture.verification([{"text": "向右滑动验证"}]))
         self.assertFalse(capture.verification([{"text": "现在预订，明天10点配送"}]))
