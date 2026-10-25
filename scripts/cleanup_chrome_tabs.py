@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +17,30 @@ ROOT = Path(__file__).resolve().parents[1]
 DEBUG_URL = "http://127.0.0.1:9222"
 OUTPUT_DIR = ROOT / "outputs" / "chrome_session_cleanup"
 DIRECT_MEITUAN_CONFIG = ROOT / "config" / "direct_meituan_accounts.json"
+PROTECTED_SCRIPTS = {
+    'meituan_budget_cdp.py', 'eleme_dianjin_adapter.mjs',
+    'collect_review_pages.py', 'collect_customer_messages.py',
+    'download_direct_meituan_daily.py',
+}
+
+
+def active_browser_tasks() -> list[str]:
+    """Do not close another running collector's page, including duplicate tabs."""
+    try:
+        result = subprocess.run(['ps', '-axo', 'args='], capture_output=True,
+                                text=True, check=True, timeout=3)
+        active = set()
+        for command in result.stdout.splitlines():
+            try:
+                arguments = shlex.split(command)
+            except ValueError:
+                continue
+            active.update(Path(arg).name for arg in arguments
+                          if Path(arg).name in PROTECTED_SCRIPTS)
+        return sorted(active)
+    except (OSError, subprocess.SubprocessError):
+        # If process inspection fails, defer this optional destructive cleanup.
+        return ['process_inspection_unavailable']
 
 KEEP_PATTERNS = [
     re.compile(r"r\.ele\.me/doujin-isv-manage"),
@@ -84,6 +110,10 @@ def tab_category(url: str) -> str:
 
 
 def cleanup_port(port: int, *, dry_run: bool, max_per_category: int) -> dict:
+    active = active_browser_tasks()
+    if active:
+        return {'port': port, 'skipped': True, 'reason': 'browser_task_active',
+                'active_tasks': active, 'kept': [], 'closed': []}
     debug_url = f"http://127.0.0.1:{port}"
     try:
         tabs = read_json(f"{debug_url}/json/list")
@@ -156,6 +186,8 @@ def main() -> int:
                 "kept": item.get("kept_count", 0),
                 "closed": item.get("closed_count", 0),
                 "error": item.get("error", ""),
+                "skipped": item.get("skipped", False),
+                "reason": item.get("reason", ""),
             }
             for item in payload["ports"]
         ],
