@@ -166,14 +166,18 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
         if not isinstance(row, dict):
             continue
         status = str(row.get("status") or "")
-        if status not in {"failed", "missing", "warning"}:
-            continue
         label = str(row.get("label") or "")
         if not label:
             continue
+        # The dedicated Cainiao checkout writes its own ledger. Report its
+        # verified completion as well as failures, rather than only log warnings.
+        if status not in {"failed", "missing", "warning"} and not (
+            status == "success" and label == "com.summer.operation.cainiao-logistics"
+        ):
+            continue
         task_id = f"schedule.{label}"
         issue_tasks[task_id] = {
-            "status": "failed" if status == "failed" else "missing" if status == "missing" else "warning",
+            "status": status,
             "message": row.get("reason") or "",
             "step": row.get("name") or label,
             "log_path": row.get("evidence") or "",
@@ -403,8 +407,10 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, ru
         conclusion = "通过，功能已完成。"
     elif status == "failed":
         conclusion = "未通过，需要处理。"
-    elif status in {"warning", "missing"}:
-        conclusion = "部分通过，需要核实。"
+    elif status == "missing" or failure_type == "launchd_schedule":
+        conclusion = "结果未确认，缺少有效完成记录。"
+    elif status == "warning":
+        conclusion = "存在异常，需要处理。"
     elif status == "skipped":
         conclusion = "已跳过，需要确认是否符合预期。"
     else:

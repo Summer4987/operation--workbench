@@ -29,6 +29,25 @@ def load_notifier():
 
 
 class AgentTaskNotifierTests(unittest.TestCase):
+    def test_unconfirmed_schedule_is_not_reported_as_partial_success(self) -> None:
+        message = self.notifier.build_message("schedule.test", {
+            "status": "warning", "failure_type": "launchd_schedule",
+            "message": "没有完成记录",
+        }, {"name": "菜鸟物流采集"})
+        self.assertNotIn("部分通过", message)
+        self.assertIn("结果未确认", message)
+
+    def test_verified_cainiao_completion_is_reportable(self) -> None:
+        with mock.patch.object(self.notifier.hermes_schedule_status, "collect_status", return_value={
+            "generated_at": "2026-10-25 17:30:00", "tasks": [{
+                "label": "com.summer.operation.cainiao-logistics", "status": "success",
+                "name": "菜鸟物流采集", "last_at": "2026-10-25 17:00:59",
+                "reason": "菜鸟物流采集完成。",
+            }],
+        }):
+            tasks = self.original_schedule_loader()
+        self.assertEqual(tasks["schedule.com.summer.operation.cainiao-logistics"]["status"], "success")
+
     def test_inventory_business_failure_is_still_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -383,7 +402,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             notice = payload["notifications"][0]
             self.assertEqual(notice["task_id"], "growth.promo_balance.low_balance")
             self.assertEqual(notice["status"], "warning")
-            self.assertIn("推广余额低余额预警部分通过，需要核实", notice["message"])
+            self.assertIn("推广余额低余额预警存在异常，需要处理", notice["message"])
             self.assertIn("余额巡检发现 2 个低余额门店", notice["message"])
             self.assertIn("1. 美团 丽泽门店：余额 184.58 元", notice["message"])
             self.assertIn("2. 饿了么 望京店：余额 47.68 元", notice["message"])

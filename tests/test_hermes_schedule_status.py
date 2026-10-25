@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,41 @@ import hermes_schedule_status as schedule_module  # noqa: E402
 
 
 class HermesScheduleStatusTests(unittest.TestCase):
+    def test_dedicated_cainiao_ledger_overrides_old_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            main = root / "main.json"
+            dedicated = root / "cainiao.json"
+            def payload(at, status):
+                return {"tasks": {"ops.cainiao_logistics": {
+                    "finished_at": at, "status": status, "message": "菜鸟物流采集完成。",
+                }}}
+            main.write_text(json.dumps(payload("2026-07-03 10:53:20", "success")))
+            dedicated.write_text(json.dumps(payload("2026-10-25 17:00:59", "success")))
+            with mock.patch.multiple(schedule_module, RUNS_PATH=main,
+                                     CLEAN_RUNS_PATH=root / "missing.json", CAINIAO_RUNS_PATH=dedicated):
+                runs, _ = schedule_module.load_task_runs()
+            row = schedule_module.classify_row({
+                "label": "com.summer.operation.cainiao-logistics",
+                "plist": {"StartCalendarInterval": {"Hour": 17, "Minute": 0}},
+            }, runs, {}, datetime(2026, 10, 25, 17, 30))
+            self.assertEqual(row["status"], "success")
+            self.assertEqual(row["last_at"], "2026-10-25 17:00:59")
+
+    def test_log_warning_uses_log_time_instead_of_old_ledger_time(self) -> None:
+        with mock.patch.object(schedule_module, "newest_log_time", return_value=(
+            datetime(2026, 10, 25, 17, 1), "/tmp/today.log"
+        )):
+            row = schedule_module.classify_row({
+                "label": "com.summer.operation.cainiao-logistics",
+                "plist": {"StartCalendarInterval": {"Hour": 17, "Minute": 0}},
+            }, {"tasks": {"ops.cainiao_logistics": {
+                "finished_at": "2026-07-03 10:53:20", "status": "success",
+            }}}, {}, datetime(2026, 10, 25, 17, 30))
+        self.assertEqual(row["status"], "warning")
+        self.assertEqual(row["last_at"], "2026-10-25 17:01:00")
+        self.assertIn("结果未确认", row["reason"])
+
     def test_inventory_warning_reads_business_ledger(self) -> None:
         for status in ("success", "failed"):
             with self.subTest(status=status):

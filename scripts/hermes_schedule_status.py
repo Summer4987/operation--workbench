@@ -14,6 +14,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 CLEAN_RUNS_PATH = Path.home() / "Documents" / "operation-workbench-clean" / "outputs" / "task_runs" / "latest.json"
+CAINIAO_RUNS_PATH = Path.home() / "Library" / "Application Support" / "XiongCainiao" / "github-main" / "outputs" / "task_runs" / "latest.json"
 LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 LABEL_PREFIX = "com.summer.operation"
 GRACE_MINUTES = 20
@@ -62,7 +63,7 @@ def read_json(path: Path, fallback: Any) -> Any:
 def load_task_runs() -> tuple[dict[str, Any], Path]:
     merged_tasks: dict[str, Any] = {}
     source_path = RUNS_PATH
-    candidate_paths = list(dict.fromkeys([CLEAN_RUNS_PATH, RUNS_PATH]))
+    candidate_paths = list(dict.fromkeys([CLEAN_RUNS_PATH, RUNS_PATH, CAINIAO_RUNS_PATH]))
     for path in candidate_paths:
         payload = read_json(path, {})
         tasks = payload.get("tasks") if isinstance(payload.get("tasks"), dict) else {}
@@ -71,6 +72,8 @@ def load_task_runs() -> tuple[dict[str, Any], Path]:
         if not merged_tasks:
             source_path = path
         for task_id, task in tasks.items():
+            if path == CAINIAO_RUNS_PATH and task_id != "ops.cainiao_logistics":
+                continue
             if not isinstance(task, dict):
                 continue
             current = merged_tasks.get(task_id)
@@ -253,12 +256,13 @@ def classify_row(row: dict[str, Any], runs: dict[str, Any], launchctl: dict[str,
             status = "warning"
             reason = str(run.get("message") or "今天有运行记录，但状态不明确。")
     elif latest_log_at and latest_log_at.date() == now.date() and due_times:
+        last_at = latest_log_at
         if status_code not in {"0", "-", ""}:
             status = "failed"
             reason = f"今天有日志，但 launchd 最近退出码是 {status_code}。"
         else:
             status = "warning"
-            reason = "今天有日志，但没有写入任务账本；只能确认任务触发过，尚不能确认业务结果。"
+            reason = "今天日志文件有更新，但未找到对应的业务完成记录；执行结果未确认，需要核对任务账本和业务产物。"
     elif due_times:
         status = "missing"
         reason = "已经过了计划时间，但没看到今天的运行账本或日志。"
