@@ -37,7 +37,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
         self.assertNotIn("部分通过", message)
         self.assertIn("结果未确认", message)
 
-    def test_verified_cainiao_completion_is_reportable(self) -> None:
+    def test_verified_cainiao_completion_is_silent(self) -> None:
         with mock.patch.object(self.notifier.hermes_schedule_status, "collect_status", return_value={
             "generated_at": "2026-10-25 17:30:00", "tasks": [{
                 "label": "com.summer.operation.cainiao-logistics", "status": "success",
@@ -46,7 +46,20 @@ class AgentTaskNotifierTests(unittest.TestCase):
             }],
         }):
             tasks = self.original_schedule_loader()
-        self.assertEqual(tasks["schedule.com.summer.operation.cainiao-logistics"]["status"], "success")
+        self.assertNotIn("schedule.com.summer.operation.cainiao-logistics", tasks)
+
+    def test_cainiao_schedule_failures_remain_reportable(self) -> None:
+        for status in ("failed", "missing", "warning"):
+            with self.subTest(status=status), mock.patch.object(
+                self.notifier.hermes_schedule_status, "collect_status", return_value={
+                    "generated_at": "2026-10-25 17:30:00", "tasks": [{
+                        "label": "com.summer.operation.cainiao-logistics", "status": status,
+                        "name": "菜鸟物流采集", "reason": "设备未连接",
+                    }],
+                }
+            ):
+                tasks = self.original_schedule_loader()
+                self.assertEqual(tasks["schedule.com.summer.operation.cainiao-logistics"]["status"], status)
 
     def test_inventory_business_failure_is_still_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -169,11 +169,7 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
         label = str(row.get("label") or "")
         if not label:
             continue
-        # The dedicated Cainiao checkout writes its own ledger. Report its
-        # verified completion as well as failures, rather than only log warnings.
-        if status not in {"failed", "missing", "warning"} and not (
-            status == "success" and label == "com.summer.operation.cainiao-logistics"
-        ):
+        if status not in {"failed", "missing", "warning"}:
             continue
         task_id = f"schedule.{label}"
         issue_tasks[task_id] = {
@@ -514,6 +510,10 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             continue
         status = str(task.get("status") or "")
         if status not in TERMINAL_STATUSES:
+            continue
+        if status == "success" and task_id in {
+            "ops.cainiao_logistics", "schedule.com.summer.operation.cainiao-logistics"
+        }:
             continue
         if task_id == 'ops.morning_collection':
             if not morning_result_report.is_final(task):
