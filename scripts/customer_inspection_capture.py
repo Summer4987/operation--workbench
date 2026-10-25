@@ -32,7 +32,8 @@ def category_target(rows):
 
 def header_valid(rows):
     text = compact(" ".join(row["text"] for row in rows))
-    return "熊小小牛排饭" in text and ("减" in text or "红包" in text or "立减" in text)
+    return ("熊小小牛排饭" in text and ("点餐" in text or "点菜" in text)
+            and ("减" in text or "红包" in text or "立减" in text))
 
 
 class Capture:
@@ -72,10 +73,12 @@ class Capture:
 
     def run(self):
         # Read before entering, so an existing challenge cannot receive a tap.
-        before, _ = self.screen("entry-check.png")
-        if not 0 < self.args.entry[0] < 180:
-            raise ValueError("Entry must be the left-hand shop logo")
-        self.tap(*self.args.entry)
+        before, entry_rows = self.screen("entry-check.png")
+        merchant = next((r for r in entry_rows if "熊小小牛排饭" in compact(r["text"])
+                         and r["y"] < 850), None)
+        if merchant is None:
+            raise RuntimeError("Expected merchant heading absent from top result")
+        self.tap(merchant["x"], merchant["y"])
         time.sleep(4)
         first, rows = self.screen("first-candidate.png")
         if not header_valid(rows):

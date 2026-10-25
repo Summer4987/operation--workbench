@@ -18,4 +18,5 @@ class CaptureGuards(unittest.TestCase):
 
     def test_collapsed_search_mention_does_not_pass_header(self):
         self.assertFalse(capture.header_valid([{"text": "根据熊小小为你找到"}, {"text": "红包"}]))
-        self.assertTrue(capture.header_valid([{"text": "熊小小牛排饭 POKEBEAR"}, {"text": "30减16"}]))
+        self.assertFalse(capture.header_valid([{"text": "熊小小牛排饭 POKEBEAR"}, {"text": "30减16"}]))
+        self.assertTrue(capture.header_valid([{"text": "熊小小牛排饭 POKEBEAR"}, {"text": "30减16"}, {"text": "点餐"}]))
