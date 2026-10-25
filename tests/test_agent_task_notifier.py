@@ -29,6 +29,19 @@ def load_notifier():
 
 
 class AgentTaskNotifierTests(unittest.TestCase):
+    def test_balance_delivery_preserves_all_store_lines(self) -> None:
+        items = [{"platform": "美团", "store_name": f"熊小小牛排饭 POKEBEAR（门店{i}）",
+                  "balance": 25.02, "threshold": 200} for i in range(1, 11)]
+        text = self.notifier.low_balance_notice_text(items, "2026-10-25 16:16:27")
+        message = self.notifier.build_message("growth.promo_balance.low_balance", {"message": text}, {})
+        batch = self.notifier.build_batch_message([message])
+        delivered_text = "".join(self.notifier.split_delivery_message(batch))
+        self.assertEqual(delivered_text, message)
+        for i in range(1, 11):
+            self.assertIn(f"\n{i}. 美团｜门店{i}｜25.02 元（阈值 200 元）", delivered_text)
+        self.assertNotIn("POKEBEAR", delivered_text)
+        self.assertEqual(delivered_text.count("处理建议"), 1)
+
     def test_unconfirmed_schedule_is_not_reported_as_partial_success(self) -> None:
         message = self.notifier.build_message("schedule.test", {
             "status": "warning", "failure_type": "launchd_schedule",
@@ -415,11 +428,11 @@ class AgentTaskNotifierTests(unittest.TestCase):
             notice = payload["notifications"][0]
             self.assertEqual(notice["task_id"], "growth.promo_balance.low_balance")
             self.assertEqual(notice["status"], "warning")
-            self.assertIn("推广余额低余额预警存在异常，需要处理", notice["message"])
+            self.assertTrue(notice["message"].startswith("【推广余额异常】\n"))
             self.assertIn("余额巡检发现 2 个低余额门店", notice["message"])
-            self.assertIn("1. 美团 丽泽门店：余额 184.58 元", notice["message"])
-            self.assertIn("2. 饿了么 望京店：余额 47.68 元", notice["message"])
-            self.assertIn("先充值低余额门店", notice["message"])
+            self.assertIn("\n1. 美团｜丽泽门店｜184.58 元", notice["message"])
+            self.assertIn("\n2. 饿了么｜望京店｜47.68 元", notice["message"])
+            self.assertIn("请先为以上门店充值", notice["message"])
 
             try:
                 self.notifier.load_promo_balance_alert_tasks = lambda: original_loader(balance_path)

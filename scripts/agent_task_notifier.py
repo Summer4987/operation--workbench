@@ -228,15 +228,16 @@ def low_balance_notice_text(items: list[dict[str, Any]], source_generated_at: st
         f"采集时间：{source_generated_at or '未知'}。",
         "低余额清单：",
     ]
-    for index, item in enumerate(items[:8], start=1):
+    for index, item in enumerate(items, start=1):
         platform = str(item.get("platform") or "")
         store_name = str(item.get("store_name") or item.get("store") or "")
+        branch = re.search(r"[（(]([^()（）]+)[)）]\s*$", store_name)
+        if branch and ("熊小小" in store_name or "pokebear" in store_name.lower()):
+            store_name = branch.group(1)
         balance = format_money(item.get("balance"))
         threshold = format_money(item.get("threshold"))
-        lines.append(f"{index}. {platform} {store_name}：余额 {balance} 元，低于阈值 {threshold} 元。")
-    if len(items) > 8:
-        lines.append(f"另外还有 {len(items) - 8} 个低余额门店。")
-    lines.append("处理建议：先充值低余额门店，再执行预算或出价自动化。")
+        lines.append(f"{index}. {platform}｜{store_name}｜{balance} 元（阈值 {threshold} 元）")
+    lines.extend(["", "处理建议：请先为以上门店充值，再执行预算或出价自动化。"])
     return "\n".join(lines)
 
 
@@ -315,7 +316,7 @@ def delivery_backoff_seconds(output: str, consecutive_failures: int) -> int:
 
 
 def build_batch_message(messages: list[str]) -> str:
-    if any(str(message).startswith('【上午运营分类报告') for message in messages):
+    if any(str(message).startswith(('【上午运营分类报告', '【推广余额异常】')) for message in messages):
         return '\n\n'.join(str(message).strip() for message in messages if str(message).strip())
     clean_messages = [compact_message(message) for message in messages if compact_message(message)]
     if not clean_messages:
@@ -386,6 +387,8 @@ def morning_collection_notification_context(
 
 
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, runs=None) -> str:
+    if task_id == "growth.promo_balance.low_balance":
+        return "【推广余额异常】\n" + str(task.get("message") or "").strip()
     if task_id == 'ops.morning_collection':
         payload = morning_result_report.build_payload(task, runs if runs is not None else read_json(DEFAULT_RUNS_PATH, {}), ROOT)
         return morning_result_report.format_report(payload)
