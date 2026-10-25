@@ -355,6 +355,9 @@ def store_review_note(review_summary: dict, store: str) -> str:
                 score += f"（上次 {detail.get('rating_collected_at', '')[:16]}）"
             negative = detail.get("negative_count")
             parts.append(f"{label} 门店评分 {score}；昨日差评 {negative if negative is not None else '未完成采集'}")
+        examples = [str(row.get('content') or '') for row in item.get('bad_reviews', []) if row.get('content')]
+        if examples:
+            parts.append('差评内容：' + ' / '.join(text[:160] for text in examples[:3]))
         return "；".join(parts)
     status = review_summary.get("status")
     if status == "missing":
@@ -1575,6 +1578,38 @@ def level_label(level: str) -> str:
     return {"high": "重点", "medium": "留意", "good": "正常"}.get(level, "提示")
 
 
+def store_review_details(review_summary: dict, store: str) -> str:
+    if review_summary.get('source') != 'review_pages':
+        return ''
+    item = review_summary.get('stores', {}).get(store, {})
+    cards = []
+    for platform in ['美团', '饿了么']:
+        detail = item.get('platforms', {}).get(platform, {})
+        label = '淘宝闪购' if platform == '饿了么' else platform
+        rows = detail.get('bad_reviews') or []
+        if detail.get('status') != 'ready':
+            body = '<p class="muted">评价采集未完成，暂不能确认差评数量。</p>'
+        elif not rows:
+            body = '<p class="muted">昨日未发现 1–3 星差评。</p>'
+        else:
+            pieces = []
+            for row in rows:
+                rating = row.get('rating')
+                stars = f'{rating:g} 星' if isinstance(rating, (int, float)) else '星级未获取'
+                meta = ' · '.join([str(row.get('date') or ''), stars, '已回复' if row.get('replied') else '待回复'])
+                if row.get('appeal_status'):
+                    meta += ' · ' + str(row['appeal_status'])
+                pieces.append(
+                    f'<article class="review-entry" data-review-id="{html_lib.escape(str(row.get("review_id") or ""), quote=True)}">'
+                    f'<div class="muted">{html_lib.escape(meta)}</div>'
+                    f'<p>{html_lib.escape(str(row.get("content") or "该评价未填写文字"))}</p></article>'
+                )
+            body = ''.join(pieces)
+        cards.append(f'<div><h3>{label}</h3>{body}</div>')
+    date = html_lib.escape(str(review_summary.get('target_date') or item.get('date') or ''))
+    return f'<section class="panel review-details"><h2>昨日差评明细 · {date}</h2>{"".join(cards)}</section>'
+
+
 def write_store_reports(payload: dict) -> list[Path]:
     stores_dir = DASHBOARD_DIR / "stores"
     stores_dir.mkdir(parents=True, exist_ok=True)
@@ -1599,6 +1634,7 @@ def write_store_reports(payload: dict) -> list[Path]:
         }
         focus_items = build_focus_items(payload, store, report_date)
         review_note = store_review_note(payload.get("review_summary", {}), store)
+        review_details = store_review_details(payload.get("review_summary", {}), store)
         focus_html = "\n".join(
             f"""<div class="alert {html_lib.escape(item['level'])}">
         <strong>{level_label(item['level'])}：{html_lib.escape(item['title'])}</strong>
@@ -1728,6 +1764,10 @@ def write_store_reports(payload: dict) -> list[Path]:
     .summary-row span {{ color: var(--muted); }}
     .summary-row b {{ text-align: right; }}
     .review-note {{ margin-top: 12px; padding: 12px 14px; border: 1px solid #fde68a; border-radius: 8px; background: #fffbeb; color: #7a5b13; font-size: 13px; line-height: 1.5; }}
+    .review-details {{ margin-bottom: 12px; }}
+    .review-details h3 {{ font-size: 15px; margin: 14px 0 8px; }}
+    .review-entry {{ padding: 12px 14px; border-left: 3px solid var(--bad); background: #fff8f7; margin-bottom: 10px; }}
+    .review-entry p {{ margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }}
     .table-wrap {{ overflow-x: auto; margin-bottom: 12px; }}
 	    table {{ width: 100%; border-collapse: collapse; min-width: 980px; }}
     th, td {{ padding: 11px 10px; border-bottom: 1px solid #edf1f6; text-align: right; white-space: nowrap; }}
@@ -1780,6 +1820,8 @@ def write_store_reports(payload: dict) -> list[Path]:
     <section class="platform-cards">
       {platform_cards_html}
     </section>
+
+    {review_details}
 
     <section class="table-wrap">
       <table>
