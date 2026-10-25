@@ -500,15 +500,17 @@ class AgentTaskNotifierTests(unittest.TestCase):
                 returncode = 1
                 stdout = "hermes not configured"
 
-            self.notifier.subprocess.run = lambda *args, **kwargs: Result()
-            delivered, output = self.notifier.send_weixin("测试消息", "weixin", "missing-hermes")
+            self.notifier.subprocess.run = mock.Mock(return_value=Result())
+            with mock.patch.object(self.notifier.ops_notify,'legacy_fallback_enabled',return_value=False):
+                delivered, output = self.notifier.send_weixin("测试消息", "weixin", "missing-hermes")
+            self.notifier.subprocess.run.assert_not_called()
         finally:
             self.notifier.ops_notify.notify_with_result = original_notify_with_result
             self.notifier.subprocess.run = original_run
 
         self.assertFalse(delivered)
         self.assertIn("wecom errcode=93000", output)
-        self.assertIn("hermes not configured", output)
+        self.assertNotIn("hermes not configured", output)
 
     def test_notify_backs_off_when_weixin_cooldown_is_active(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

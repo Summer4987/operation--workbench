@@ -181,7 +181,7 @@ def build_payload(task, runs, root=ROOT):
     section('午餐推广预算', budget_rows)
     section('工作台发布', [event_row('运营看板数据生成', '运营总看板数据更新'), event_row('正式看板发布', '运营总看板发布腾讯云')])
     counts = Counter(row['status'] for category in categories for row in category['items'])
-    return dict(date=day, mode=mode, categories=categories, counts=dict(counts),
+    return dict(date=day, updated_at=task.get('finished_at') or task.get('updated_at') or '', mode=mode, categories=categories, counts=dict(counts),
                 status='success' if task.get('status') == 'success' and not any(counts[s] for s in ['failed', 'partial', 'missing', 'running']) else 'attention',
                 task_message=str(task.get('message') or ''))
 
@@ -192,6 +192,7 @@ def format_report(payload):
     business_day = (date-timedelta(days=1)).date().isoformat() if date else '未记录'
     conclusion = '全部项目成功' if payload['status'] == 'success' and not counts.get('skipped') else '执行结束，含跳过项' if payload['status'] == 'success' else '存在异常或未完成项目'
     lines = [f'【上午运营分类报告｜{payload["date"]}】', f'结论：{conclusion}',
+             '结果更新时间：'+str(payload.get('updated_at') or '未记录'),
              f'日报/消息统计日：{business_day}；预算为当日午餐',
              '总览：'+'，'.join(f'{label} {counts.get(status, 0)}' for status, label in LABELS.items() if status != 'running' or counts.get(status))]
     for category in payload['categories']:

@@ -276,6 +276,8 @@ def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
         return True, "ops_notify"
     else:
         ops_output = "ops_notify failed"
+    if not ops_notify.legacy_fallback_enabled(ops_notify.load_config()):
+        return False, ops_output
     result = subprocess.run(
         [hermes_bin, "send", "--to", target, message],
         cwd=str(ROOT),
