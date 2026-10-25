@@ -595,6 +595,15 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         "batch_progress": batch_progress,
     }
     if not args.no_write:
+        if promo_balance_period and notifications and not args.dry_run:
+            receipt_path = state_path.parent / "receipts" / f"{time.strftime('%Y-%m-%d')}-{promo_balance_period}.json"
+            write_json(receipt_path, {
+                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "period": promo_balance_period,
+                "source_generated_at": next(iter(task_candidates.values()), {}).get("finished_at", ""),
+                "dry_run": bool(args.dry_run),
+                "notifications": notifications,
+            })
         write_json(
             state_path,
             {
@@ -647,6 +656,11 @@ def main() -> int:
         print(f"本次新增通知：{payload['notification_count']} 条。")
         for item in payload["notifications"]:
             print(f"- {item['task_id']} {item['status']} delivered={item['delivered']}")
+            print(f"  发送回执：{item['delivery_output']}")
+    if args.promo_balance_period and not args.dry_run and any(
+        not item["delivered"] for item in payload["notifications"]
+    ):
+        return 1
     return 0
 
 

@@ -29,6 +29,29 @@ def load_notifier():
 
 
 class AgentTaskNotifierTests(unittest.TestCase):
+    def test_balance_receipts_are_saved_separately_for_each_period(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = SimpleNamespace(
+                runs=str(root / "runs.json"), state=str(root / "state.json"),
+                log=str(root / "latest.log"), target="weixin", hermes_bin="", seed=False,
+                dry_run=False, no_write=False, include_unconfigured=False,
+            )
+            task = {"growth.promo_balance.low_balance": {
+                "status": "warning", "message": "低余额清单", "finished_at": "2026-10-25 08:10:00",
+            }}
+            with mock.patch.object(self.notifier, "load_policy_rows", return_value=self.notifier.DIRECT_TASK_ROWS), mock.patch.object(
+                self.notifier, "load_promo_balance_alert_tasks", side_effect=lambda: {k: dict(v) for k, v in task.items()}
+            ), mock.patch.object(self.notifier, "send_weixin", return_value=(True, "wecom errcode=0 errmsg=ok")):
+                for period in ("上午", "下午"):
+                    args.promo_balance_period = period
+                    self.notifier.notify(args)
+                    receipt = json.loads((root / "receipts" / f"{time.strftime('%Y-%m-%d')}-{period}.json").read_text())
+                    self.assertEqual(receipt["period"], period)
+                    self.assertTrue(receipt["notifications"][0]["delivered"])
+                    self.assertIn("wecom errcode=0", receipt["notifications"][0]["delivery_output"])
+                self.assertEqual(len(list((root / "receipts").glob("*.json"))), 2)
+
     def test_balance_delivery_preserves_all_store_lines(self) -> None:
         items = [{"platform": "美团", "store_name": f"熊小小牛排饭 POKEBEAR（门店{i}）",
                   "balance": 25.02, "threshold": 200} for i in range(1, 11)]

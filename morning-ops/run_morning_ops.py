@@ -552,6 +552,8 @@ def main() -> int:
                     add_failure(failures, f"美团{budget_period}预算", result)
                 budget_result_recorded = publish_budget_result(budget_period, run_started_epoch, log_path)
                 flush_result_notifications("growth.promo_budget")
+            # Balance alerts are independent of whether budget submission ran.
+            if args.mode == "commit":
                 result = run_step(
                     "上午推广低余额通知",
                     [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER), "--promo-balance-period", "上午"],

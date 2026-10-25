@@ -14,15 +14,23 @@ spec.loader.exec_module(ops)
 
 
 class MorningResultNotificationsTests(unittest.TestCase):
-    def run_flow(self, mode, fail=False):
+    def run_flow(self, mode, fail=False, skip_budget=False):
         events = []
         result = SimpleNamespace(returncode=0, output="", log_path=Path("test.log"))
+        def run_step(name, *args, **kwargs):
+            if fail:
+                raise RuntimeError("preflight failed")
+            if name == "上午推广低余额通知":
+                events.append("balance_notice")
+            if skip_budget and name == "同步云端预算配置":
+                return SimpleNamespace(name=name, returncode=1, output="配置同步失败", log_path=Path("test.log"))
+            return result
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(sys, "argv", ["test", "--mode", mode]))
             stack.enter_context(patch.object(ops, "morning_ops_lock", return_value=contextlib.nullcontext()))
             for name in ("cleanup_chrome_sessions", "refresh_final_status", "ensure_backend_chrome"):
                 stack.enter_context(patch.object(ops, name))
-            stack.enter_context(patch.object(ops, "run_step", side_effect=RuntimeError("preflight failed") if fail else None, return_value=result))
+            stack.enter_context(patch.object(ops, "run_step", side_effect=run_step))
             stack.enter_context(patch.object(ops, "run_step_with_pause", return_value=result))
             stack.enter_context(patch.object(ops, "record_task_run", side_effect=lambda status, *a, **k: events.append(status)))
             stack.enter_context(patch.object(ops, "publish_budget_result", side_effect=lambda *a: events.append("budget") or True))
@@ -46,6 +54,12 @@ class MorningResultNotificationsTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertNotIn("budget", events)
         self.assertNotIn("notify", events)
+        self.assertNotIn("balance_notice", events)
+
+    def test_skipped_budget_still_checks_morning_balance_alert(self):
+        code, events = self.run_flow("commit", skip_budget=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(events.count("balance_notice"), 1)
 
     def test_installer_preserves_pending_notifications(self):
         text = (ROOT / "scripts/install_agent_task_notifier_launchd.zsh").read_text()
