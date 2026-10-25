@@ -515,7 +515,8 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         if status not in TERMINAL_STATUSES:
             continue
         if status == "success" and task_id in {
-            "ops.cainiao_logistics", "schedule.com.summer.operation.cainiao-logistics"
+            "ops.cainiao_logistics", "schedule.com.summer.operation.cainiao-logistics",
+            "ops.inventory_warning_daily", "schedule.com.summer.operation.inventory-warning-daily",
         }:
             continue
         if task_id == 'ops.morning_collection':

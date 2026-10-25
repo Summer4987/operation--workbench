@@ -29,6 +29,24 @@ def load_notifier():
 
 
 class AgentTaskNotifierTests(unittest.TestCase):
+    def test_inventory_success_does_not_duplicate_inventory_warning(self) -> None:
+        for task_id in ("ops.inventory_warning_daily", "schedule.com.summer.operation.inventory-warning-daily"):
+            with self.subTest(task_id=task_id), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                runs = root / "runs.json"
+                runs.write_text(json.dumps({"tasks": {task_id: {
+                    "status": "success", "message": "库存预警汇总已推送。",
+                    "finished_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }}}), encoding="utf-8")
+                args = SimpleNamespace(
+                    runs=str(runs), state=str(root / "state.json"), log=str(root / "log.json"),
+                    target="weixin", hermes_bin="", seed=False, dry_run=True,
+                    no_write=True, include_unconfigured=False,
+                )
+                with mock.patch.object(self.notifier, "load_policy_rows", return_value=dict(self.notifier.DIRECT_TASK_ROWS)):
+                    payload = self.notifier.notify(args)
+                self.assertEqual(payload["notification_count"], 0)
+
     def test_balance_receipts_are_saved_separately_for_each_period(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
