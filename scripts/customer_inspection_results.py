@@ -103,8 +103,8 @@ def publish(source):
     def run(args,**kwargs):return subprocess.run(args,check=True,timeout=120,**kwargs)
     run(ssh+[server,f'mkdir -p {remote}/customer-inspection/data {remote}/customer-inspection/images'])
     transport=' '.join(ssh)
-    run(['rsync','-az','--chmod=D755,F644','--exclude=data','--exclude=images','-e',transport,str(ROOT/'customer-inspection')+'/',f'{server}:{remote}/customer-inspection/'])
-    run(['rsync','-az','--chmod=D755,F644','-e',transport,str(stage/'images')+'/',f'{server}:{remote}/customer-inspection/images/'])
+    run(['rsync','-az','--chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r','--exclude=data','--exclude=images','-e',transport,str(ROOT/'customer-inspection')+'/',f'{server}:{remote}/customer-inspection/'])
+    run(['rsync','-az','--chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r','-e',transport,str(stage/'images')+'/',f'{server}:{remote}/customer-inspection/images/'])
     # Upload data only after all originals. Rename each JSON atomically; catalog last.
     for name in [f'{date}.json','index.json']:
         run(['scp','-q','-i',str(HOME/'.ssh/xiong_operation_cloud_ed25519'),str(stage/'data'/name),f'{server}:{remote}/customer-inspection/data/{name}.tmp'])
