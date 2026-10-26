@@ -94,11 +94,24 @@ class Navigator(Capture):
             _, rows = self.observe()
             if header_valid(rows) or category_target(rows):
                 self.back(); continue
-            field = self.find(rows, ['搜索', '搜一搜'], lambda r: 90 < r['y'] < 380 and 180 < r['x'] < 900)
+            if self.find(rows,['选择收货地址','搜索地址','热门城市']):
+                self.back(); continue
+            field = self.find(rows, ['搜索', '搜一搜'], lambda r: 90 < r['y'] < 380 and 180 < r['x'] < 1080)
+            if field is not None and field['x'] > 900:
+                # MT homepage OCR labels the right-hand submit button, while
+                # the input contains a changing promoted query. Focus the
+                # observed text in that same row instead of submitting it.
+                field = next((r for r in rows if 100 < r['x'] < 850
+                              and abs(r['y']-field['y']) < 60), field)
             if field is None:
                 field = self.find(rows, ['熊小小'], lambda r: 90 < r['y'] < 220 and 300 < r['x'] < 850)
             if field:
-                self.click(field); self.type_text('熊小小'); return
+                self.click(field)
+                _, focused = self.observe()
+                query = next((r for r in focused if 110 < r['y'] < 380 and 130 < r['x'] < 850
+                              and not any(w in r['text'] for w in ('历史','热门','首页','收货地址'))),None)
+                if query is None: raise RuntimeError('搜索输入框打开后未确认，不输入关键词')
+                self.click(query); self.type_text('熊小小'); return
             self.back()
         raise RuntimeError('无法定位已核实的商家搜索入口')
 

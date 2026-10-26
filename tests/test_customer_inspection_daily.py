@@ -44,6 +44,17 @@ class DailyRotation(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'没有找到准确门店'):nav.merchant()
             click.assert_not_called();self.assertEqual(swipe.call_count,4)
 
+    def test_meituan_promoted_query_is_focused_instead_of_submitted(self):
+        nav=object.__new__(daily.Navigator)
+        placeholder=dict(text='Q 饿作剧派对',x=191,y=260)
+        submit=dict(text='搜索',x=961,y=260)
+        focused=dict(text='饿作剧派对',x=400,y=165)
+        with patch.object(nav,'observe',side_effect=[(None,[placeholder,submit]),(None,[focused])]),patch.object(nav,'click') as click,patch.object(nav,'type_text') as typed:
+            nav.search_results()
+            self.assertEqual(click.call_args_list[0].args[0],placeholder)
+            self.assertEqual(click.call_args_list[1].args[0],focused)
+            typed.assert_called_once_with('熊小小')
+
     def test_verification_stops_platform_but_other_platform_continues(self):
         calls=[]
         class FakeNavigator:
