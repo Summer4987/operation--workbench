@@ -61,7 +61,8 @@ def build(source: Path, stage: Path):
         platform,store=row['platform'],row['store']
         if platform not in PLATFORMS: raise ValueError('Unknown platform')
         item=dict(platform=platform,store=store,city=CITY.get(store,'北京'),status=row['status'],images=[],captured_at=None)
-        if row['status']=='visually_accepted':
+        if row['status'] in {'visually_accepted','ocr_verified'}:
+            item['review_method']='人工/视觉复核' if row['status']=='visually_accepted' else 'OCR自动核验（未人工逐图复核）'
             files=row.get('files') or []
             if len(files)!=2: raise ValueError(f'{store}: reviewed pair must contain two images')
             expected={f'{platform}/{store}/01-first-screen.png',f'{platform}/{store}/02-steak-category.png'}

@@ -31,6 +31,15 @@ class ReviewedResults(unittest.TestCase):
             report['records'][0]['files'][0]['path']='../private.png';(source/'reviewed-progress.json').write_text(json.dumps(report))
             with self.assertRaisesRegex(ValueError,'paths'):module.build(source,root/'stage')
 
+    def test_automatic_checks_are_not_mislabeled_as_visual_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source,report=self.fixture(root)
+            report['records'][0]['status']='ocr_verified';(source/'reviewed-progress.json').write_text(json.dumps(report))
+            result=module.build(source,root/'stage')
+            self.assertEqual(len(result['records'][0]['images']),2)
+            self.assertEqual(result['records'][0]['status'],'ocr_verified')
+            self.assertIn('未人工逐图复核',result['records'][0]['review_method'])
+
     def test_navigation_is_idempotent_and_preserves_live_content(self):
         html='              <a href="#direct-messages">直营门店消息复盘</a>\n        <section class="center-section" id="budget">custom'
         result=module.add_entry(html);self.assertEqual(module.add_entry(result),result);self.assertIn('custom',result)

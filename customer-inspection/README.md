@@ -1,5 +1,15 @@
 # 客户端巡检结果
 
+## 每日4店生产任务
+
+`config/customer-inspection-rotation.json` 是轮换配置，2026-10-26成都为第一组，随后北京东部4店、北京西部4店、武汉2店+杭州滨江+长沙五一广场，4天循环。每天北京时间10:30，由生产Mac mini 的 `com.summer.customer-inspection-daily` LaunchAgent执行，本机Codex/MacBook不必在线。Mac mini须处于登录运行状态、安卓机保持连接授权；关机期间不能采集。睡眠恢复时launchd可能补触发，不跨天回放旧批次。
+
+生产从GitHub main拉取后执行 `zsh scripts/install_customer_inspection_daily.zsh`。安装不会立刻重新采集当天门店。`python3 scripts/customer_inspection_daily.py --plan --date YYYY-MM-DD` 查看排期；`--preflight` 只检查设备和冲突，不操作平台。安装器拒绝脏生产代码及非main分支，日志留在 `~/Library/Logs/customer-inspection-daily`。
+
+执行器仅用本机ADB和Vision OCR，不依赖模型登录；只点击新截图中已识别的搜索、地址、具名商家和分类。先用当前地址找店，未找到才做一次地址重试。每平台每店最多150秒、双平台每店合计最多300秒；验证码暂停该平台。发现菜鸟任务占用则跳过，任务自身有文件锁。手机锁屏、控件变化、截断身份、地址或店铺无法确认，均记缺失，不盲点、不加购。中间导航截图为临时文件，单店结束删除；合格原图仅保留规定两张。每批结束一次性发布清单，避免每家发送通知。
+
+自动合格状态 `ocr_verified` 明确表示OCR核验，不等同人工逐图复核；页面与私聊均区分。依次核验具名搜索结果、进入店铺后的品牌和优惠头部、实际分类点击、商品名称和价格。不保证平台不弹验证码，也不保证四天内全部成功；四天是排期覆盖周期，失败不会借用旧图或别店图片凑数。自动导航仍需在实跑中验证各城市平台的页面差异。
+
 正式入口：`/operation-workbench/#customer-inspection`，独立页 `/operation-workbench/customer-inspection/`。沿用运营看板登录保护，支持日期、城市、平台筛选和原图查看。
 
 ## 发布与通知

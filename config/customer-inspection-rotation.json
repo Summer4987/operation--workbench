@@ -1,0 +1,34 @@
+{
+  "anchor_date": "2026-10-26",
+  "time": "10:30",
+  "timezone": "Asia/Shanghai",
+  "serial": "QGK7QOVKHU4XOF7L",
+  "store_budget_seconds": 300,
+  "pair_budget_seconds": 150,
+  "groups": [
+    {"name": "成都", "stores": [
+      {"name": "银泰城店", "city": "成都", "address": "银泰城"},
+      {"name": "保利中心店", "city": "成都", "address": "保利中心B座"},
+      {"name": "万象城店", "city": "成都", "address": "万象城"},
+      {"name": "金融城店", "city": "成都", "address": "金融城"}
+    ]},
+    {"name": "北京东部", "stores": [
+      {"name": "朝阳门店", "city": "北京", "address": "雅宝城"},
+      {"name": "安贞店", "city": "北京", "address": "安贞桥"},
+      {"name": "望京店", "city": "北京", "address": "望京SOHO"},
+      {"name": "双井店", "city": "北京", "address": "双井桥"}
+    ]},
+    {"name": "北京西部", "stores": [
+      {"name": "金融街店", "city": "北京", "address": "金融街购物中心"},
+      {"name": "中关村店", "city": "北京", "address": "中关村广场"},
+      {"name": "丽泽店", "city": "北京", "address": "丽泽商务区"},
+      {"name": "清河店", "city": "北京", "address": "上地开拓路1号"}
+    ]},
+    {"name": "武汉、杭州、长沙", "stores": [
+      {"name": "万松园店", "city": "武汉", "address": "万松园"},
+      {"name": "光谷店", "city": "武汉", "address": "光谷广场"},
+      {"name": "滨江店", "city": "杭州", "address": "滨江区政府"},
+      {"name": "五一广场店", "city": "长沙", "address": "五一广场"}
+    ]}
+  ]
+}
