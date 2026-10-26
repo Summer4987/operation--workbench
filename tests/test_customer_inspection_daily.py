@@ -36,6 +36,12 @@ class DailyRotation(unittest.TestCase):
         self.assertTrue(daily.identity('熊小小牛排饭(第2号档口)','中关村店','taobao-shangou'))
         self.assertFalse(daily.identity('熊小小牛排饭(望京店)','安贞店','meituan'))
 
+    def test_split_address_control_requires_adjacent_observed_labels(self):
+        switch=dict(text='切换',x=1015,y=151);address=dict(text='地址',x=1012,y=191)
+        self.assertEqual(daily.location_control([switch,address],'meituan'),switch)
+        self.assertIsNone(daily.location_control([switch],'meituan'))
+        self.assertIsNone(daily.location_control([switch,dict(text='地址',x=300,y=191)],'meituan'))
+
     def test_wrong_result_never_clicked_and_search_is_bounded(self):
         nav=object.__new__(daily.Navigator)
         nav.args=type('Args',(),dict(store='安贞店',platform='meituan'))()

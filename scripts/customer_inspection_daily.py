@@ -45,6 +45,20 @@ def identity(text, store, platform):
     return any(compact(a) in compact(text) for a in aliases.get(store, [store.removesuffix('店')]))
 
 
+def location_control(rows, platform):
+    control = next((r for r in rows if r['y'] < 450 and any(w in compact(r['text'])
+                    for w in ('切换地址','收货地址','配送至'))),None)
+    if control: return control
+    # MT renders this two-line control as two independent OCR boxes.
+    switch = next((r for r in rows if compact(r['text']) == '切换' and r['x'] > 850 and r['y'] < 300),None)
+    if switch and any(compact(r['text']) == '地址' and abs(r['x']-switch['x']) < 60
+                      and abs(r['y']-switch['y']) < 100 for r in rows): return switch
+    if platform == 'taobao-shangou':
+        return next((r for r in rows if 870 < r['x'] < 1070 and 100 < r['y'] < 220
+                     and len(compact(r['text'])) >= 2 and '搜索' not in r['text']),None)
+    return None
+
+
 class Navigator(Capture):
     def __init__(self, args, store):
         super().__init__(args)
@@ -118,13 +132,7 @@ class Navigator(Capture):
     def address(self):
         # Search-result location controls are safer than a guessed homepage tap.
         _, rows = self.observe()
-        switch = self.find(rows, ['切换地址', '收货地址', '配送至'], lambda r: r['y'] < 450)
-        if switch is None:
-            # Taobao labels its compact search-result control with the address.
-            # Accept only text at the observed top-right location control.
-            switch = next((r for r in rows if self.args.platform == 'taobao-shangou'
-                           and 870 < r['x'] < 1070 and 100 < r['y'] < 220
-                           and len(compact(r['text'])) >= 2 and '搜索' not in r['text']), None)
+        switch = location_control(rows,self.args.platform)
         if switch is None:
             raise RuntimeError('搜索结果没有可确认的地址切换入口')
         self.click(switch)
@@ -132,7 +140,7 @@ class Navigator(Capture):
         if not self.find(rows, ['选择收货地址', '选择地址', '新增地址', '搜索地址']):
             raise RuntimeError('地址选择页未确认')
         city = next((r for r in rows if r['x'] < 210 and 200 < r['y'] < 410
-                     and compact(r['text']).rstrip('市') in ['成都','北京','武汉','杭州','长沙']), None)
+                     and any(compact(r['text']).startswith(c) for c in ['成都','北京','武汉','杭州','长沙'])), None)
         if city is None:
             raise RuntimeError('地址页城市控件无法确认')
         if self.store['city'] not in city['text']:
