@@ -1,0 +1,22 @@
+# 客户端巡检结果
+
+正式入口：`/operation-workbench/#customer-inspection`，独立页 `/operation-workbench/customer-inspection/`。沿用运营看板登录保护，支持日期、城市、平台筛选和原图查看。
+
+## 发布与通知
+
+生产 Mac mini 从 GitHub main 拉取代码后运行：
+
+```sh
+python3 scripts/customer_inspection_results.py --source "$HOME/Documents/customer-inspection/YYYY-MM-DD-city"
+zsh scripts/install_customer_inspection_results.zsh
+```
+
+输入必须是已人工/视觉复核的 `reviewed-progress.json`；合格记录状态 `visually_accepted`、`files` 中两张 PNG 的相对路径和 SHA256。原图仍在 Mac mini，发布时只复制合格两图，不复制验证码、地址簿、私有日志或绝对路径。校验失败停止发布，不把仅保存文件当作完成。`--build-only DIRECTORY` 可在开发机离线预览。
+
+运行数据保存在 `~/Documents/customer-inspection/published`，不入 GitHub。图片先上传，日期数据随后原子更新，日期索引最后更新；正常登录正式 URL 并校验页面及每张原图后，才生成发布回执并请求本机企微服务发私聊摘要。结果通过现有长连接仅发给已绑定老板，不允许调用者指定收件人或正文。凭据、发布去重记录和消息回执均留在生产机。
+
+安装器只创建结果发布/通知任务，每5分钟检查当天新增或变更的复核清单；同一结果不重复发送，发送失败保留重试。它不创建手机采集任务，不修改平台登录态，也不能解决验证码或提高采集成功率。其他日期历史可以显式 `--source` 发布。源结果修改后将重新校验发布，通知按照门店状态和图片哈希去重。
+
+页面统计仅包含所选日期已有记录的批次，未纳入的门店不算成功；历史日期会标识为历史。未来采集应在完成两图验收后写入同一约定的复核清单，即可自动上传并通知。
+
+验证：`python3 -m unittest discover -s tests -p test_customer_inspection_results.py`；`node --test wecom-assistant/test_inspection.mjs`。生产 `ops` 通知 Webhook 并非此模块依赖。

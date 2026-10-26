@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {operatorInspection,INSPECTION_URL} from './inspection.mjs';
+function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'inspection-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const report={date:'2026-10-26',publication_verified:true,url:INSPECTION_URL,records:[{city:'成都',store:'测试店',platform:'meituan',status:'visually_accepted',images:[{sha256:'a'},{sha256:'b'}]}]};fs.writeFileSync(path.join(root,report.date+'.json'),JSON.stringify(report));return {root,report};}
+test('only bound owner receives verified summary, repeat is deduplicated',async t=>{const {root}=fixture(t),sent=[];const deps={reports:root,receipts:path.join(root,'receipts'),owner:'bound-owner',client:{sendMessage:async(...args)=>sent.push(args)}};assert.equal((await operatorInspection({date:'2026-10-26',owner:'other'},deps)).delivered,true);assert.equal((await operatorInspection({date:'2026-10-26'},deps)).already_delivered,true);assert.equal(sent.length,1);assert.equal(sent[0][0],'bound-owner');assert.match(sent[0][1].markdown.content,/1\/1/);assert.match(sent[0][1].markdown.content,/\?date=2026-10-26/);});
+test('send failure remains retryable; unpublished reports cannot send',async t=>{const {root,report}=fixture(t);const deps={reports:root,receipts:path.join(root,'receipts'),owner:'bound',client:{sendMessage:async()=>{throw Error('offline')}}};await assert.rejects(operatorInspection({date:report.date},deps),/offline/);assert.equal(fs.readdirSync(deps.receipts).length,0);report.publication_verified=false;fs.writeFileSync(path.join(root,report.date+'.json'),JSON.stringify(report));await assert.rejects(operatorInspection({date:report.date},deps),/尚未验证/);await assert.rejects(operatorInspection({date:'../secret'},deps),/日期/);});

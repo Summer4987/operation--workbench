@@ -403,4 +403,8 @@ else
   verify_remote_file "floor-plan-designer/app.js" "$STAGE_DIR/floor-plan-designer/app.js"
 fi
 
+# Preserve separately published runtime images/data when refreshing UI.
+ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/customer-inspection'"
+rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --exclude=data --exclude=images \
+  -e "ssh ${SSH_OPTS[*]}" "$ROOT/customer-inspection/" "$SERVER:$REMOTE_DIR/customer-inspection/"
 echo "运营总看板已发布：$PUBLIC_URL"

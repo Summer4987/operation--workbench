@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook,balance} from './core.mjs';
 import {memoryCommand} from './memory.mjs';
 import {operatorToken,checkOperator,operatorInbound,operatorRealtime,operatorAsk,operatorOperations} from './operator.mjs';
+import {operatorInspection} from './inspection.mjs';
 const require=createRequire(import.meta.url);
 const {WSClient}=require('@wecom/aibot-node-sdk');
 const config=settings();
@@ -129,14 +130,14 @@ if(mode==='--smoke'){
   client.on('event.enter_chat',frame=>client.replyWelcome(frame,{msgtype:'text',text:{content:'你好，我是熊小小工作助手。完成私聊绑定后可查询经营、订货，整理聊天和生成Excel。'}}).catch(()=>{}));
   const adminToken=operatorToken();
   const server=http.createServer(async(req,res)=>{
-    if(req.method==='POST'&&['/operator/inbound','/operator/realtime','/operator/ask','/operator/operations'].includes(req.url)){
+    if(req.method==='POST'&&['/operator/inbound','/operator/realtime','/operator/ask','/operator/operations','/operator/inspection'].includes(req.url)){
       if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
       const key=sessionKey({chattype:'single',from:{userid:access.data.owner}});
       if(busy.has(key)||!status.authenticated){res.writeHead(409);res.end();return;}
       busy.add(key);
       try{
         let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16000)throw Error('请求过长');}
-        const result=await (req.url==='/operator/operations'?operatorOperations:req.url==='/operator/ask'?operatorAsk:req.url==='/operator/realtime'?operatorRealtime:operatorInbound)(JSON.parse(body),{assistant,client,owner:access.data.owner});
+        const result=await (req.url==='/operator/inspection'?operatorInspection:req.url==='/operator/operations'?operatorOperations:req.url==='/operator/ask'?operatorAsk:req.url==='/operator/realtime'?operatorRealtime:operatorInbound)(JSON.parse(body),{assistant,client,owner:access.data.owner});
         res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));
       }catch(error){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:false,error:String(error.message).slice(0,200)}));}
       finally{busy.delete(key);}

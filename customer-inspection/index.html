@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户端巡检结果 · 熊小小</title><link rel="stylesheet" href="styles.css"></head>
+<body><main><header><div><p class="eyebrow">熊小小 · 顾客端实采</p><h1>客户端巡检结果</h1><p id="updated">正在读取已发布结果…</p></div><a href="../#customer-inspection" target="_top">返回总看板 ↗</a></header>
+<section class="toolbar" aria-label="筛选"><label>采集日期<select id="date"></select></label><label>城市<select id="city"><option value="">全部城市</option></select></label><label>平台<select id="platform"><option value="">双平台</option><option value="meituan">美团</option><option value="taobao-shangou">淘宝闪购</option></select></label><button id="refresh">刷新结果</button></section>
+<p id="message" role="status"></p><section id="summary" class="summary" aria-label="本批次进度"></section><p class="scope">进度仅统计所选日期已纳入的门店。没有记录的城市和门店不视为完成；历史图片不代表今天已采。</p>
+<section id="results" aria-label="门店巡检原图"></section><details><summary>查看采集口径和说明</summary><ul id="notes"></ul><p>每店每平台两张原图：①进店首屏（店头、顶部红包满减）；②牛排饭 STEAK 分类商品首屏。点击图片可查看原图。价格与优惠仅代表该账号、收货位置和采集时刻。</p></details></main><script src="app.js"></script></body></html>
