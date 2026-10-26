@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 
 export const INSPECTION_URL='http://139.155.148.169/operation-workbench/customer-inspection/';
-export async function operatorInspection(payload,{client,owner,reports=path.join(os.homedir(),'Documents/customer-inspection/published'),receipts=path.join(os.homedir(),'.local/share/xiong-wecom-assistant/inspection-notifications')}){
+export async function operatorInspection(payload,{client,owner,reports=path.join(os.homedir(),'Library/Application Support/customer-inspection/published'),receipts=path.join(os.homedir(),'.local/share/xiong-wecom-assistant/inspection-notifications')}){
   if(!owner)throw Error('尚未绑定私聊账号');
   const date=String(payload.date||'');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('采集日期无效');

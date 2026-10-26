@@ -19,11 +19,10 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from customer_inspection_capture import Capture, PACKAGES, compact, header_valid, category_target
-from customer_inspection_results import write_json, publish
+from customer_inspection_results import write_json, publish, RUNTIME
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / 'config/customer-inspection-rotation.json'
-RUNTIME = Path.home() / 'Documents/customer-inspection'
 ACCEPTED = {'visually_accepted', 'ocr_verified'}
 
 

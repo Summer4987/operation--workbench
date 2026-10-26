@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 HOME = Path.home()
 PRIVATE = HOME / '.local/share/xiong-wecom-assistant'
-RUNTIME = HOME / 'Documents/customer-inspection'
+RUNTIME = Path(os.environ.get('CUSTOMER_INSPECTION_HOME',str(HOME / 'Library/Application Support/customer-inspection'))).expanduser()
 URL = 'http://139.155.148.169/operation-workbench/customer-inspection/'
 CITY = {'银泰城店':'成都','保利中心店':'成都','万象城店':'成都','金融城店':'成都','万松园店':'武汉','光谷店':'武汉','滨江店':'杭州','五一广场店':'长沙'}
 PLATFORMS = {'meituan', 'taobao-shangou'}
