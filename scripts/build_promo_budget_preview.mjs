@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import {trialTask} from "./fleet-budget-trial.mjs";
 import {
   applyWeekendPresetIfNeeded,
   budgetDateContext,
@@ -78,7 +79,7 @@ function meituanTask(store, period) {
   const paused = Boolean(control.pausedFrom && dateContext.date >= control.pausedFrom);
   const promoEnabled = store.meituanPromoEnabled !== false;
   const targetBudget = budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
-  return {
+  return trialTask({
     platform: "美团",
     store: meituanName,
     sourceStore: store.name,
@@ -97,7 +98,7 @@ function meituanTask(store, period) {
       : meituanName
         ? (store.meituanPromoDisabledReason || "美团尚未开放推广入口")
         : "未匹配到美团门店，需人工确认",
-  };
+  }, dateContext.date, budgetFor("美团", store.name, "晚餐", store.dinnerBudget));
 }
 
 const payload = {
