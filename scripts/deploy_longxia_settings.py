@@ -29,15 +29,15 @@ def main():
         files['/var/www/html/operation-workbench/'+name]=(ROOT/name).read_text()
     payload=json.dumps(files,ensure_ascii=False)
     # Fixed server-side script; data is passed through stdin, never interpolated into shell.
-    remote="""import json,sys,time,pathlib,py_compile
+    remote="""import json,sys,time,pathlib
 files=json.load(sys.stdin)
 suffix='.backup-longxia-'+str(int(time.time()))
+for name,text in files.items():
+ if name.endswith('.py'):compile(text,name,'exec')
 for name,text in files.items():
  p=pathlib.Path(name)
  if p.exists():p.with_name(p.name+suffix).write_bytes(p.read_bytes())
  temp=p.with_name(p.name+'.longxia-tmp');temp.write_text(text);temp.replace(p)
-for name in files:
- if name.endswith('.py'):py_compile.compile(name,doraise=True)
 sys.path.insert(0,'/opt/inventory-board/app')
 import longxia_config as config
 p=pathlib.Path('/opt/inventory-board/data/promo_budget_overrides.json')
