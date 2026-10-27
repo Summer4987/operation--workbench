@@ -17,11 +17,11 @@ def main():
     if 'mini' not in socket.gethostname().lower():raise RuntimeError('只能由 Mac mini 发布')
     git=lambda *args:subprocess.check_output(['git','-C',str(ROOT),*args],text=True).strip()
     if git('branch','--show-current')!='main' or git('status','--porcelain') or git('rev-parse','HEAD')!=git('rev-parse','origin/main'):raise RuntimeError('需要干净的 GitHub main')
-    active=subprocess.check_output(SSH+['systemctl show inventory-board -p WorkingDirectory --value'],text=True).strip()
+    active=subprocess.check_output(SSH+['systemctl show inventory-board -p WorkingDirectory --value'],text=True,stdin=subprocess.DEVNULL).strip()
     if active!='/opt/inventory-board' and not (active.startswith('/opt/operation-workbench-releases/') and active.endswith('/inventory-board')):
         raise RuntimeError('未知服务目录，拒绝覆盖')
     target='/opt/operation-workbench-releases/longxia-'+git('rev-parse','HEAD')+'/inventory-board'
-    current=subprocess.check_output(SSH+['cat '+shlex.quote(active+'/app/main.py')],text=True)
+    current=subprocess.check_output(SSH+['cat '+shlex.quote(active+'/app/main.py')],text=True,stdin=subprocess.DEVNULL)
     new=(ROOT/'inventory-board/app/main.py').read_text()
     for start,end in [('@app.get("/api/promo-budget-overrides")','@app.post("/api/import")'),('def _read_promo_budget_overrides()', 'def _validate_weekend_preset(')]:
         current=current.replace(between(current,start,end),between(new,start,end))
@@ -31,7 +31,7 @@ def main():
     files={target+'/app/main.py':current}
     for name in ('longxia_config.py','longxia_defaults.json','longxia_status.py'):
         files[target+'/app/'+name]=(ROOT/'inventory-board/app'/name).read_text()
-    index=subprocess.check_output(SSH+['cat /var/www/html/operation-workbench/index.html'],text=True)
+    index=subprocess.check_output(SSH+['cat /var/www/html/operation-workbench/index.html'],text=True,stdin=subprocess.DEVNULL)
     start='<section class="center-section" id="bidding">'
     end='<section class="center-section" id="balances">'
     index=index.replace(between(index,start,end),between((ROOT/'index.html').read_text(),start,end))
@@ -65,7 +65,7 @@ override.write_text(previous)
 print('预算 API、模板与看板已发布到正式服务版本目录；运行数据已保留')
 """
     subprocess.run(SSH+['sudo -n python3 -c '+shlex.quote(remote)],input=payload,text=True,check=True)
-    subprocess.run(SSH+['sudo systemctl daemon-reload && sudo systemctl restart inventory-board && systemctl is-active inventory-board'],check=True)
+    subprocess.run(SSH+['sudo systemctl daemon-reload && sudo systemctl restart inventory-board && systemctl is-active inventory-board'],check=True,stdin=subprocess.DEVNULL)
     subprocess.run(['curl','--retry','3','--retry-delay','1','--retry-all-errors','--location','--fail','--silent','--output','/dev/null','http://139.155.148.169/operation-workbench/'],check=True)
 
 if __name__=='__main__':main()
