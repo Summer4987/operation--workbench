@@ -47,7 +47,7 @@ tmp=p.with_suffix('.tmp');tmp.write_text(json.dumps(data,ensure_ascii=False,inde
 print('预算 API、模板与看板已发布；其他后端功能和运行数据已保留')
 """
     import shlex
-    subprocess.run(SSH+['python3 -c '+shlex.quote(remote)],input=payload,text=True,check=True)
+    subprocess.run(SSH+['sudo -n python3 -c '+shlex.quote(remote)],input=payload,text=True,check=True)
     subprocess.run(SSH+['sudo systemctl restart inventory-board && systemctl is-active inventory-board'],check=True)
     subprocess.run(['curl','--fail','--silent','--output','/dev/null','http://139.155.148.169/operation-workbench/'],check=True)
 

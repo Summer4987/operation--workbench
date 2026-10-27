@@ -28,7 +28,7 @@ def main():
     if ack.exists():
         status=json.loads(ack.read_text())
         command=['ssh','-n','-o','BatchMode=yes','-o','ConnectTimeout=8','-i',str(transport.SSH_IDENTITY),'ubuntu@139.155.148.169',
-                 "cat > /opt/inventory-board/data/longxia_sync_status.json.tmp && mv /opt/inventory-board/data/longxia_sync_status.json.tmp /opt/inventory-board/data/longxia_sync_status.json"]
+                 "sudo -n tee /opt/inventory-board/data/longxia_sync_status.json.tmp > /dev/null && sudo -n mv /opt/inventory-board/data/longxia_sync_status.json.tmp /opt/inventory-board/data/longxia_sync_status.json"]
         command.remove('-n')
         subprocess.run(command,input=json.dumps(status),text=True,check=True,timeout=15,capture_output=True)
     print('龙虾云端模板已同步至生产配置；平台预算由午晚任务处理')
