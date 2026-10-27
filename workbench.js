@@ -1441,8 +1441,10 @@ function renderBudget() {
     budgetStoreNames(budget, saved),
     (store) => {
       const cfg = saved.stores?.[store] || {};
+      const managed = saved.longxia?.stores.find(r => canonicalStoreName(r.sourceStore) === canonicalStoreName(store));
       const detail = ["饿了么", "美团"].map((platform) => {
         const item = cfg[platform] || {};
+        if (platform === "美团" && managed) return `美团：午餐上限 ${yuan(item.lunchBudget)} / 晚餐新增 ${yuan(item.dinnerBudget - item.lunchBudget)} / 全天累计上限 ${yuan(item.dinnerBudget)}`;
         const parts = [
           item.lunchBudget ? `工作日午 ${yuan(item.lunchBudget)}` : "",
           item.dinnerBudget ? `工作日晚 ${yuan(item.dinnerBudget)}` : "",
