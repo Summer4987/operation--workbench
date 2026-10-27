@@ -2075,3 +2075,5 @@ h2 {
 .review-detail-card p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; line-height: 1.65; }
 .review-list .review-coverage-warning { display: block; padding: 12px; color: #8b5b16; background: #fff5df; line-height: 1.6; font-size: 13px; }
 @media (max-width: 600px) { .review-score-table th, .review-score-table td { padding: 9px 6px; } .review-score-table small { font-size: 11px; } .review-page-filters label { max-width: 100%; } }
+
+.longxia-periods{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin:16px 0}.longxia-periods article{padding:14px;background:#f3f7f4;border-radius:12px}#longxiaEditor select,#longxiaEditor input{display:block;padding:10px;border:1px solid #ccd8d0;border-radius:7px;max-width:100%}#longxiaEditor details{padding:16px;border:1px solid #dde5df;border-radius:10px}

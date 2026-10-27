@@ -98,7 +98,7 @@ function meituanTask(store, period) {
       : meituanName
         ? (store.meituanPromoDisabledReason || "美团尚未开放推广入口")
         : "未匹配到美团门店，需人工确认",
-  }, dateContext.date, budgetFor("美团", store.name, "晚餐", store.dinnerBudget));
+  }, dateContext.date, budgetFor("美团", store.name, "晚餐", store.dinnerBudget), overrides.longxia);
 }
 
 const payload = {

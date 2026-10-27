@@ -8,10 +8,10 @@
         "weekendDinnerBudget": 80
       },
       "美团": {
-        "lunchBudget": 100,
+        "lunchBudget": 105,
         "dinnerBudget": 150,
-        "weekendLunchBudget": 50,
-        "weekendDinnerBudget": 80
+        "weekendLunchBudget": 105,
+        "weekendDinnerBudget": 150
       }
     },
     "保利中心店": {
@@ -22,10 +22,10 @@
         "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 80,
+        "lunchBudget": 84,
         "dinnerBudget": 120,
-        "weekendLunchBudget": 70,
-        "weekendDinnerBudget": 100
+        "weekendLunchBudget": 84,
+        "weekendDinnerBudget": 120
       }
     },
     "滨江店": {
@@ -50,10 +50,10 @@
         "weekendDinnerBudget": 80
       },
       "美团": {
-        "lunchBudget": 120,
+        "lunchBudget": 140,
         "dinnerBudget": 200,
-        "weekendLunchBudget": 60,
-        "weekendDinnerBudget": 100
+        "weekendLunchBudget": 140,
+        "weekendDinnerBudget": 200
       }
     },
     "第2号档口利康金桥美食城": {
@@ -64,10 +64,10 @@
         "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 120,
+        "lunchBudget": 140,
         "dinnerBudget": 200,
-        "weekendLunchBudget": 80,
-        "weekendDinnerBudget": 120
+        "weekendLunchBudget": 140,
+        "weekendDinnerBudget": 200
       }
     },
     "第5号档口川湘府美食城店": {
@@ -78,10 +78,10 @@
         "weekendDinnerBudget": 90
       },
       "美团": {
-        "lunchBudget": 80,
+        "lunchBudget": 84,
         "dinnerBudget": 120,
-        "weekendLunchBudget": 50,
-        "weekendDinnerBudget": 80
+        "weekendLunchBudget": 84,
+        "weekendDinnerBudget": 120
       }
     },
     "光谷店": {
@@ -106,10 +106,10 @@
         "weekendDinnerBudget": 80
       },
       "美团": {
-        "lunchBudget": 100,
+        "lunchBudget": 105,
         "dinnerBudget": 150,
-        "weekendLunchBudget": 60,
-        "weekendDinnerBudget": 90
+        "weekendLunchBudget": 105,
+        "weekendDinnerBudget": 150
       }
     },
     "金融街店": {
@@ -176,9 +176,9 @@
         "weekendDinnerBudget": 118
       },
       "美团": {
-        "lunchBudget": 60,
+        "lunchBudget": 72,
         "dinnerBudget": 120,
-        "weekendLunchBudget": 60,
+        "weekendLunchBudget": 72,
         "weekendDinnerBudget": 120
       }
     },
@@ -218,11 +218,138 @@
         "weekendDinnerBudget": 100
       },
       "美团": {
-        "lunchBudget": 100,
+        "lunchBudget": 105,
         "dinnerBudget": 150,
-        "weekendLunchBudget": 60,
-        "weekendDinnerBudget": 90
+        "weekendLunchBudget": 105,
+        "weekendDinnerBudget": 150
       }
     }
+  },
+  "longxia": {
+    "schema": 1,
+    "budgetMode": "split",
+    "periods": [
+      [
+        630,
+        660
+      ],
+      [
+        660,
+        720
+      ],
+      [
+        720,
+        750
+      ],
+      [
+        1020,
+        1080
+      ],
+      [
+        1080,
+        1140
+      ],
+      [
+        1140,
+        1200
+      ]
+    ],
+    "templates": [
+      {
+        "id": "543f7d9d-8e61-4952-ae80-97b41eb9ab32",
+        "name": "白领工作区",
+        "shares": [
+          2000,
+          4000,
+          1000,
+          1500,
+          1500,
+          0
+        ],
+        "minBid": 30,
+        "maxBid": 90
+      },
+      {
+        "id": "ee46e818-ac0b-40ba-89b8-63d7a3790d2b",
+        "name": "住宅混合区",
+        "shares": [
+          1000,
+          3500,
+          1500,
+          1500,
+          1500,
+          1000
+        ],
+        "minBid": 30,
+        "maxBid": 90
+      }
+    ],
+    "stores": [
+      {
+        "name": "朝阳门店",
+        "sourceStore": "朝阳门店",
+        "profileId": "pmvos7u9uodag",
+        "key": "45170840|5650880|cpc-manual",
+        "dailyBudget": 20000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      },
+      {
+        "name": "银泰城店",
+        "sourceStore": "银泰城店",
+        "profileId": "pmvos88potxec",
+        "key": "59447797|26047144|cpc-manual",
+        "dailyBudget": 15000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      },
+      {
+        "name": "万象城店",
+        "sourceStore": "万象城店",
+        "profileId": "pmvot6l31fd2i",
+        "key": "229262133|27259618|cpc-manual",
+        "dailyBudget": 12000,
+        "templateId": "ee46e818-ac0b-40ba-89b8-63d7a3790d2b"
+      },
+      {
+        "name": "金融城店",
+        "sourceStore": "金融城店",
+        "profileId": "pmvovwscz4c6c",
+        "key": "250627104|29363511|cpc-manual",
+        "dailyBudget": 15000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      },
+      {
+        "name": "保利中心店",
+        "sourceStore": "保利中心店",
+        "profileId": "pmvow3fli5mn1",
+        "key": "267168671|32022526|cpc-manual",
+        "dailyBudget": 12000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      },
+      {
+        "name": "安贞店",
+        "sourceStore": "安贞店",
+        "profileId": "pmvox3w2wihbo",
+        "key": "267168671|28944820|cpc-manual",
+        "dailyBudget": 15000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      },
+      {
+        "name": "中关村",
+        "sourceStore": "第2号档口利康金桥美食城",
+        "profileId": "pmvpbfkes85ze",
+        "key": "267168671|30703865|cpc-manual",
+        "dailyBudget": 20000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      },
+      {
+        "name": "清河店",
+        "sourceStore": "第5号档口川湘府美食城店",
+        "profileId": "pmvpc1cfclf2h",
+        "key": "267168671|32346101|cpc-manual",
+        "dailyBudget": 12000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+      }
+    ],
+    "revision": "ffb3a87d4110326ce918e1093dd35e80ad4218b7fdb65c9d0ae35c00738f4c94"
   }
 }

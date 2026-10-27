@@ -6,11 +6,18 @@ export const TRIAL_STORES=Object.freeze({
  '金融城店':'29363511','保利中心店':'32022526','安贞店':'28944820',
  '第2号档口利康金桥美食城':'30703865','第5号档口川湘府美食城店':'32346101',
 });
-export function trialTask(task,date,dinnerBudget){
+export function trialTask(task,date,dinnerBudget,config){
  const id=TRIAL_STORES[task.sourceStore];
- if(date!==TRIAL_DATE||!id||task.platform!=='美团'||task.status==='unmatched'||task.status==='platform_unavailable')return task;
- if(!Number.isFinite(dinnerBudget)||dinnerBudget<=0)throw Error('测试全天预算无效：'+task.sourceStore);
- return {...task,targetBudget:dinnerBudget,fleetTrialDate:date,fleetTrialStoreId:id,pauseReason:'',
-  status:task.period==='午餐'?'auto':'fleet_trial_skip',
-  action:task.period==='午餐'?`龙虾店长测试：上午直接设置全天预算 ${dinnerBudget} 元`:'龙虾店长测试：全天预算上午已设置，跳过晚餐调整'};
+ if(!id||task.platform!=='美团')return task;
+ if(!config||config.schema!==1||config.budgetMode!=='split')throw Error('八店龙虾统一预算配置尚未同步，禁止设置预算');
+ const row=config.stores.find(r=>r.sourceStore===task.sourceStore);
+ const t=config.templates.find(t=>t.id===row?.templateId);
+ if(!row||row.key.split('|')[1]!==id||!t||t.shares.length!==6||t.shares.reduce((a,b)=>a+b,0)!==10000)throw Error('龙虾门店身份或模板无效');
+ const amounts=t.shares.map(s=>Math.floor(row.dailyBudget*s/10000));
+ const order=t.shares.map((s,i)=>({i,r:row.dailyBudget*s%10000})).sort((a,b)=>b.r-a.r||a.i-b.i);
+ for(let i=0,left=row.dailyBudget-amounts.reduce((a,b)=>a+b,0);i<left;i++)amounts[order[i].i]++;
+ const lunch=amounts.slice(0,3).reduce((a,b)=>a+b,0),targetBudget=(task.period==='午餐'?lunch:row.dailyBudget)/100;
+ if(!Number.isInteger(targetBudget)||targetBudget<=0)throw Error('平台预算须为整元');
+ return {...task,targetBudget,longxiaRevision:config.revision,fleetTrialStoreId:id,
+  action:task.status==='auto'?`龙虾模板：设置${task.period==='午餐'?'午餐上限':'全天累计上限'} ${targetBudget} 元`:task.action};
 }

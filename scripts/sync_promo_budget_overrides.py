@@ -141,11 +141,15 @@ def main() -> int:
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     data = merge_missing_defaults(normalize_store_names(data), defaults)
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-    TARGET.write_text(text, encoding="utf-8")
+    tmp = TARGET.with_name(TARGET.name + f".{os.getpid()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(TARGET)
     if COPY_PATH:
         copy_target = Path(COPY_PATH)
         copy_target.parent.mkdir(parents=True, exist_ok=True)
-        copy_target.write_text(text, encoding="utf-8")
+        tmp = copy_target.with_name(copy_target.name + f".{os.getpid()}.tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(copy_target)
     print(f"已同步云端预算配置：{TARGET}")
     return 0
 

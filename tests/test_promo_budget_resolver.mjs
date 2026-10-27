@@ -53,6 +53,6 @@ const baoliMeituanDinner = resolveBudget({
   fallback: 140,
   dateContext: weekdayDinnerContext,
 });
-assert.equal(baoliMeituanDinner.budget, 140);
+assert.equal(baoliMeituanDinner.budget, 120); // 龙虾全天计划预算
 
 console.log("promo budget resolver holiday tests passed");

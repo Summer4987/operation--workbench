@@ -1312,6 +1312,31 @@ async function hydrateBudgetOverrides() {
   }
 }
 
+function renderLongxiaEditor(config, sync) {
+  if (!config) return '';
+  window.longxiaDraft = JSON.parse(JSON.stringify(config));
+  return `<section class="budget-platform-section" id="longxiaEditor"><h3>美团 · 龙虾门店模板</h3>
+  <p>上午设置午餐上限；下午设置全天累计上限；17:00 恢复本规则暂停的推广。全天预算每日相同，六段比例统一计算。</p>
+  <div class="budget-edit-row"><label>选择门店<select id="longxiaStore">${config.stores.map(r=>`<option value="${escapeHtml(r.profileId)}">${escapeHtml(r.name)}</option>`).join('')}</select></label><label>选择模板<select id="longxiaTemplate"></select></label><label>全天预算（元）<input id="longxiaDaily" type="number" min="1" max="9999" step="1"></label></div>
+  <div id="longxiaAmounts"></div><p id="longxiaSyncStatus">${escapeHtml(longxiaSyncText(config,sync))}</p>
+  <details><summary>管理分时模板（修改后同步所有引用门店）</summary><div id="longxiaTemplateFields"></div></details>
+  <p>点击下方“保存”发布当前设置。云端保存与 Mac mini 接收分开确认；预算任务在午晚设置窗口执行。</p></section>`;
+}
+function longxiaSyncText(c,s){return s?.revision===c.revision&&s.status==='applied'?'Mac mini 已接收此版本；平台实际预算以执行回读为准':s?.revision===c.revision?s.message||'等待 Mac mini 接收':'等待 Mac mini 接收此版本';}
+function bindLongxiaEditor(){
+ const draft=window.longxiaDraft,store=document.querySelector('#longxiaStore');if(!draft||!store)return;
+ const select=document.querySelector('#longxiaTemplate'),daily=document.querySelector('#longxiaDaily');
+ const row=()=>draft.stores.find(r=>r.profileId===store.value);
+ const show=()=>{const r=row();select.innerHTML=draft.templates.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}</option>`).join('');select.value=r.templateId;daily.value=r.dailyBudget/100;showTemplate();};
+ const showTemplate=()=>{const r=row(),t=draft.templates.find(t=>t.id===r.templateId);const amounts=t.shares.map(s=>Math.floor(r.dailyBudget*s/10000)),order=t.shares.map((s,i)=>({i,remainder:r.dailyBudget*s%10000})).sort((a,b)=>b.remainder-a.remainder||a.i-b.i);for(let i=0,left=r.dailyBudget-amounts.reduce((a,b)=>a+b,0);i<left;i++)amounts[order[i].i]++;
+ const labels=['10:30–11:00','11:00–12:00','12:00–12:30','17:00–18:00','18:00–19:00','19:00–20:00'];
+ document.querySelector('#longxiaAmounts').innerHTML=`<p><strong>午餐上限 ¥${(amounts.slice(0,3).reduce((a,b)=>a+b,0)/100).toFixed(2)}</strong> · 晚餐新增 ¥${(amounts.slice(3).reduce((a,b)=>a+b,0)/100).toFixed(2)} · 全天累计上限 ¥${(r.dailyBudget/100).toFixed(2)}</p><div class="longxia-periods">${labels.map((label,i)=>`<article><strong>${label}</strong><p>${t.shares[i]/100}% · ¥${(amounts[i]/100).toFixed(2)}</p></article>`).join('')}</div>`;
+ document.querySelector('#longxiaTemplateFields').innerHTML=`<label>模板名称<input data-lx="name" value="${escapeHtml(t.name)}" maxlength="40"></label><div class="longxia-periods">${labels.map((label,i)=>`<label>${label}（%）<input data-share="${i}" type="number" min="0" max="100" step="0.01" value="${t.shares[i]/100}"></label>`).join('')}</div><label>最低出价（元）<input data-lx="minBid" type="number" step="0.10" value="${t.minBid/100}"></label><label>最高出价（元）<input data-lx="maxBid" type="number" step="0.10" value="${t.maxBid/100}"></label><p>六段比例合计须为 100%；换算后的午餐上限须为整元。</p>`;
+ document.querySelectorAll('#longxiaTemplateFields input').forEach(input=>input.onchange=()=>{if(input.dataset.share!==undefined)t.shares[Number(input.dataset.share)]=Math.round(Number(input.value)*100);else t[input.dataset.lx]=input.dataset.lx==='name'?input.value:Math.round(Number(input.value)*100);showTemplate();});
+ };
+ store.onchange=show;select.onchange=()=>{row().templateId=select.value;showTemplate();};daily.onchange=()=>{row().dailyBudget=Math.round(Number(daily.value)*100);showTemplate();};show();
+}
+
 function renderBudgetEditor(budget, saved) {
   const container = document.querySelector("#budgetEditorRows");
   if (!container) return;
@@ -1321,8 +1346,8 @@ function renderBudgetEditor(budget, saved) {
     ["周末午餐", "weekendLunchBudget"],
     ["周末晚餐", "weekendDinnerBudget"],
   ];
-  container.innerHTML = ["饿了么", "美团"].map((platform) => {
-    const names = platformBudgetStores(budget, saved, platform);
+  container.innerHTML = renderLongxiaEditor(saved.longxia,saved.longxiaSync) + ["饿了么", "美团"].map((platform) => {
+    const names = platformBudgetStores(budget, saved, platform).filter(name=>platform!=="美团"||!saved.longxia?.stores.some(r=>canonicalStoreName(r.sourceStore)===canonicalStoreName(name)));
     return `
       <section class="budget-platform-section">
         <h3>${escapeHtml(platform)}</h3>
@@ -1339,6 +1364,7 @@ function renderBudgetEditor(budget, saved) {
       </section>
     `;
   }).join("");
+  bindLongxiaEditor();
 }
 
 function collectBudgetEditorPayload() {
@@ -1355,7 +1381,7 @@ function collectBudgetEditorPayload() {
     });
     if (!Object.keys(stores[store]).length) delete stores[store];
   });
-  return { stores };
+  return { ...data.budget.overrides, stores: {...data.budget.overrides.stores,...stores}, longxia: window.longxiaDraft };
 }
 
 async function saveBudgetEditor() {
@@ -1377,7 +1403,7 @@ async function saveBudgetEditor() {
     applyBudgetOverrides(payload, new Date().toLocaleString("zh-CN", { hour12: false }));
     renderBudget();
     status.className = "save-status success";
-    status.textContent = `已保存到云端：${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+    status.textContent = "已保存云端，等待 Mac mini 接收；此提示不代表平台预算已修改。";
     button.textContent = "已保存";
   } catch (error) {
     status.className = "save-status error";
@@ -1886,3 +1912,5 @@ loadDailyOrderPendingSummary();
 loadDailyOrderAdminFrame();
 loadDailyReportFrame();
 loadInventoryBoardFrame();
+
+setInterval(async()=>{const el=document.querySelector('#longxiaSyncStatus');if(!el||!data.budget?.overrides?.longxia)return;try{const response=await fetch(PROMO_BUDGET_OVERRIDES_URL,{cache:'no-store'});if(!response.ok)return;const p=await response.json();el.textContent=longxiaSyncText(data.budget.overrides.longxia,p.longxiaSync);}catch{}},15000);

@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import agent_inbox, agent_wecom, wecom_files
+from . import agent_inbox, agent_wecom, wecom_files, longxia_config
 from .db import (
     connect,
     create_import,
@@ -361,15 +361,25 @@ def notify_daily_inventory_warnings(request: Request):
 @app.get("/api/promo-budget-overrides")
 def promo_budget_overrides(request: Request):
     _require_operation_auth(request)
-    return _read_promo_budget_overrides()
+    data = _read_promo_budget_overrides()
+    try:
+        data["longxiaSync"] = json.loads(PROMO_BUDGET_PATH.with_name("longxia_sync_status.json").read_text())
+    except (OSError, ValueError):
+        data["longxiaSync"] = {"status": "waiting"}
+    return data
 
 
 @app.post("/api/promo-budget-overrides")
 async def save_promo_budget_overrides(request: Request, payload: dict):
     _require_operation_auth(request)
-    data = _validate_promo_budget_overrides(payload)
+    existing = _read_promo_budget_overrides()
+    if payload.get("longxia", {}).get("revision") != existing.get("longxia", {}).get("revision"):
+        raise HTTPException(status_code=409, detail="预算配置已更新，请刷新后再保存")
+    data = _validate_promo_budget_overrides({**existing, **payload})
     PROMO_BUDGET_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PROMO_BUDGET_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = PROMO_BUDGET_PATH.with_suffix(".tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(PROMO_BUDGET_PATH)
     return {"status": "success", "data": data}
 
 
@@ -775,11 +785,11 @@ def _inbound_template_path() -> Path | None:
 
 def _read_promo_budget_overrides() -> dict:
     if not PROMO_BUDGET_PATH.exists():
-        return {"stores": {}}
+        return _validate_promo_budget_overrides({"stores": {}})
     try:
         return _validate_promo_budget_overrides(json.loads(PROMO_BUDGET_PATH.read_text(encoding="utf-8")))
-    except Exception:
-        return {"stores": {}}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="预算配置损坏，停止使用并等待修复") from exc
 
 
 def _validate_promo_budget_overrides(payload: dict) -> dict:
@@ -828,7 +838,11 @@ def _validate_promo_budget_overrides(payload: dict) -> dict:
                 clean_store[platform_key] = clean_budget
         if clean_store:
             clean["stores"][str(store_name)] = clean_store
-    return clean
+    try:
+        clean["longxia"] = longxia_config.validate(payload.get("longxia", longxia_config.DEFAULT))
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return longxia_config.project(clean)
 
 
 def _validate_weekend_preset(payload: dict) -> dict:
