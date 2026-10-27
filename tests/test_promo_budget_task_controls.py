@@ -18,9 +18,12 @@ class BudgetTaskControlTests(unittest.TestCase):
             def preview():
                 subprocess.run([NODE, str(runtime / 'scripts/build_promo_budget_preview.mjs')], env=env, check=True, capture_output=True)
                 return json.loads((runtime / 'outputs/promo_budget_preview/latest.json').read_text())
-            paused = preview()
             control_path = runtime / 'config/promo_budget_task_controls.json'
             controls = json.loads(control_path.read_text())
+            self.assertNotIn('pausedFrom', controls['meituanStores']['万象城店'])
+            controls['meituanStores']['万象城店']['pausedFrom'] = '2026-10-14'
+            control_path.write_text(json.dumps(controls, ensure_ascii=False))
+            paused = preview()
             controls['meituanStores']['万象城店'].pop('pausedFrom')
             control_path.write_text(json.dumps(controls, ensure_ascii=False))
             baseline = preview()

@@ -5,8 +5,8 @@
       "keywords": [
         "万象城"
       ],
-      "pausedFrom": "2026-10-14",
-      "reason": "用户要求暂停美团预算设置，等待用户通知恢复，无自动恢复日期"
+      "resumedOn": "2026-10-27",
+      "reason": "用户通知恢复美团预算设置任务"
     },
     "朝阳门店": {
       "directAccountId": "direct_chaoyangmen",
