@@ -97,6 +97,18 @@ class VerificationAlerts(unittest.TestCase):
         self.assertIn('检测到验证或访问限制，需人工检查', self.sent[0])
         self.assertNotIn('门店1', self.sent[0])
 
+    def test_ninth_store_and_sixteen_store_capacity(self):
+        for count in (9, 16):
+            value = status()
+            value['stores'] += [{'id': str(i), 'name': f'门店{i}', 'paused': False, 'message': '正常'} for i in range(8, count)]
+            challenge(value, count - 1)
+            path = self.path.with_name(f'notify-{count}.json')
+            self.assertEqual(notify.process_status(value, path, self.send, NOW)['attempted'], 1)
+            self.assertIn(f'门店{count - 1}', self.sent[-1])
+        value['stores'].append({'id': '17', 'paused': False})
+        with self.assertRaises(ValueError):
+            notify.process_status(value, self.path, self.send, NOW)
+
 
 if __name__ == '__main__':
     unittest.main()

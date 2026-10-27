@@ -31,7 +31,7 @@ def validate(payload):
         clean['templates'].append(dict(id=tid,name=name.strip(),shares=shares,minBid=low,maxBid=high))
     rows=payload.get('stores')
     if not isinstance(rows,list) or len(rows)!=len(DEFAULT['stores']):
-        raise ValueError('八店清单不完整')
+        raise ValueError('已授权门店清单不完整')
     known={r['profileId']:r for r in DEFAULT['stores']}
     clean['stores']=[]
     for row in rows:

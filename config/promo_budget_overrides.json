@@ -36,9 +36,9 @@
         "weekendDinnerBudget": 80
       },
       "美团": {
-        "lunchBudget": 80,
+        "lunchBudget": 84,
         "dinnerBudget": 120,
-        "weekendLunchBudget": 60,
+        "weekendLunchBudget": 56,
         "weekendDinnerBudget": 80
       }
     },
@@ -428,10 +428,28 @@
             "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
           }
         }
+      },
+      {
+        "name": "滨江店",
+        "sourceStore": "滨江店",
+        "profileId": "pmvqr8lioaavq",
+        "key": "267168671|34062471|cpc-manual",
+        "dailyBudget": 12000,
+        "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32",
+        "dayTypes": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+          }
+        }
       }
     ],
     "rounding": "yuan",
-    "budgetSettingsRevision": "66fc5a3ddd4cbd52e1d1b4b1a0f706bc898dc3d77ab8772efbe57828cb015918",
+    "budgetSettingsRevision": "e11acfe734abc34c312afe24961f798c94c9142ac09c387612b69c22334321e9",
     "calendar": {
       "chinaHolidays": {
         "2026-01-01": "元旦",
@@ -477,7 +495,7 @@
         "2026-10-10": "国庆节调休上班"
       }
     },
-    "revision": "ebbbbdab480d8180fa099fa365ef99eee16162978c17aa0303726c298c5a442a"
+    "revision": "dec78a97b0287be2a5b0754941a85314eb35daa202066ac4f78c697773949515"
   },
   "budgetSettings": {
     "schema": 1,
@@ -550,12 +568,12 @@
             "weekday": {
               "dailyBudget": 12000,
               "lunchBudget": 8000,
-              "templateId": null
+              "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
             },
             "weekend": {
               "dailyBudget": 8000,
               "lunchBudget": 6000,
-              "templateId": null
+              "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
             }
           },
           "饿了么": {
@@ -963,6 +981,6 @@
         }
       }
     ],
-    "revision": "66fc5a3ddd4cbd52e1d1b4b1a0f706bc898dc3d77ab8772efbe57828cb015918"
+    "revision": "e11acfe734abc34c312afe24961f798c94c9142ac09c387612b69c22334321e9"
   }
 }

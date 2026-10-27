@@ -23,7 +23,7 @@ def verification_stores(status, now):
     if type(generated) is not int or not -60000 <= now - generated <= 90000:
         raise ValueError('Stale fleet status')
     stores = status.get('stores')
-    if not isinstance(stores, list) or len(stores) != 8 or any(not isinstance(s, dict) or not s.get('id') for s in stores):
+    if not isinstance(stores, list) or not 1 <= len(stores) <= 16 or any(not isinstance(s, dict) or not s.get('id') for s in stores):
         raise ValueError('Invalid store list')
     if len({s['id'] for s in stores}) != len(stores):
         raise ValueError('Duplicate store identity')

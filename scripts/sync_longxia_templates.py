@@ -24,7 +24,7 @@ def main():
         raise RuntimeError('模板同步仅允许在 Mac mini 生产主机执行')
     data=transport.read_remote_ssh()
     c=data.get('longxia',{})
-    if c.get('schema') not in (1,2) or c.get('budgetMode')!='split' or len(c.get('stores',[]))!=8 or len(c.get('revision',''))!=64:
+    if c.get('schema') not in (1,2) or c.get('budgetMode')!='split' or not 1<=len(c.get('stores',[]))<=16 or len(c.get('revision',''))!=64:
         raise RuntimeError('云端龙虾统一配置无效，保留本地配置')
     home=Path.home()
     for runtime in ('production','node-runtime'):

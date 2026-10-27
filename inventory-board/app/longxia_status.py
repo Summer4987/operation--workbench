@@ -16,9 +16,10 @@ def read(path,now=None):
         raw=json.loads(path.read_text())
         if not isinstance(raw,dict) or raw.get('schema')!=1 or type(raw.get('generatedAt')) is not int or raw['generatedAt']>now+60000:raise ValueError('状态版本或时间无效')
         stores=raw.get('stores')
-        if not isinstance(stores,list) or len(stores)!=8 or any(not isinstance(s,dict) for s in stores):raise ValueError('门店清单无效')
+        if not isinstance(stores,list) or not 1<=len(stores)<=16 or any(not isinstance(s,dict) for s in stores):raise ValueError('门店清单无效')
         known={s['profileId'] for s in DEFAULT['stores']}
-        if {s.get('id') for s in stores}!=known:raise ValueError('门店身份不匹配')
+        identities={s.get('id') for s in stores}
+        if len(identities)!=len(stores) or not known.issubset(identities):raise ValueError('门店身份不匹配')
         # Exporter and relay only publish business status. Fail closed if raw fields leak.
         if set(raw)-TOP_FIELDS or any(set(s)-STORE_FIELDS for s in stores):raise ValueError('状态含未授权字段')
         age=now-raw['generatedAt']

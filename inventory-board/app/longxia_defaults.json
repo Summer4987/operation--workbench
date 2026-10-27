@@ -121,6 +121,14 @@
       "key": "267168671|32346101|cpc-manual",
       "dailyBudget": 12000,
       "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "滨江店",
+      "sourceStore": "滨江店",
+      "profileId": "pmvqr8lioaavq",
+      "key": "267168671|34062471|cpc-manual",
+      "dailyBudget": 12000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
     }
   ]
 }

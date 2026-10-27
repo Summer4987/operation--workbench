@@ -57,6 +57,16 @@ import longxia_config as config
 import budget_settings as settings
 p=pathlib.Path('/opt/inventory-board/data/promo_budget_overrides.json')
 data=json.loads(p.read_text());p.with_name(p.name+suffix).write_bytes(p.read_bytes())
+# Registration comes only from the reviewed GitHub defaults, never from a browser row label.
+registered={r['profileId'] for r in data.get('longxia',{}).get('stores',[])}
+selections={r['sourceStore']:r['platforms']['美团'] for r in data.get('budgetSettings',{}).get('entries',[])}
+for original in config.DEFAULT['stores']:
+ if original['profileId'] not in registered:
+  row=dict(original)
+  if data.get('longxia',{}).get('schema')==2:
+   days=selections[row['sourceStore']]
+   row['dayTypes']={day:{'dailyBudget':v['dailyBudget'],'templateId':v.get('templateId') or row['templateId']} for day,v in days.items()}
+  data['longxia']['stores'].append(row)
 data['longxia']=config.validate(data.get('longxia',config.DEFAULT))
 data['budgetSettings']=settings.validate(data.get('budgetSettings'),data['longxia']);settings.project(data)
 tmp=p.with_suffix('.tmp');tmp.write_text(json.dumps(data,ensure_ascii=False,indent=2));tmp.replace(p)
