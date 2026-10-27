@@ -2,6 +2,7 @@
 import json
 import os
 import socket
+import shlex
 import sys
 import time
 from datetime import datetime
@@ -27,24 +28,43 @@ def main():
     home=Path.home()
     for runtime in ('production','node-runtime'):
         atomic(home/'Library/Application Support/xiong-operation'/runtime/'config/promo_budget_overrides.json',data)
-    ack=home/'Library/Application Support/xiong-dianjin-fleet-test/fleet-sync-status.json'
-    if ack.exists():
-        status=json.loads(ack.read_text())
-        command=['ssh','-n','-o','BatchMode=yes','-o','ConnectTimeout=8','-i',str(transport.SSH_IDENTITY),'ubuntu@139.155.148.169',
-                 "sudo -n tee /opt/inventory-board/data/longxia_sync_status.json.tmp > /dev/null && sudo -n mv /opt/inventory-board/data/longxia_sync_status.json.tmp /opt/inventory-board/data/longxia_sync_status.json"]
-        command.remove('-n')
-        subprocess.run(command,input=json.dumps(status),text=True,check=True,timeout=15,capture_output=True)
+    publish_status()
     print(datetime.now().isoformat(timespec='seconds'), '龙虾云端模板已同步至生产配置；平台预算由午晚任务处理', flush=True)
+
+
+def publish_status():
+    home=Path.home()
+    runtime=home/'Library/Application Support/xiong-dianjin-fleet-test'
+    files={}
+    for local,remote in [('fleet-sync-status.json','longxia_sync_status.json'),('fleet-public-status.json','longxia_fleet_status.json')]:
+        source=runtime/local
+        if source.is_file() and source.stat().st_size<=524288:
+            files[remote]=json.loads(source.read_text())
+    if not files:return
+    program="""import json,sys,pathlib,os
+root=pathlib.Path('/opt/inventory-board/data')
+for name,data in json.load(sys.stdin).items():
+ if name not in ('longxia_sync_status.json','longxia_fleet_status.json'):raise ValueError('Invalid status file')
+ path=root/name;temporary=path.with_name(name+'.'+str(os.getpid())+'.tmp')
+ temporary.write_text(json.dumps(data,ensure_ascii=False));temporary.replace(path)
+"""
+    command=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=8','-i',str(transport.SSH_IDENTITY),'ubuntu@139.155.148.169','sudo -n python3 -c '+shlex.quote(program)]
+    subprocess.run(command,input=json.dumps(files),text=True,check=True,timeout=15,capture_output=True)
 
 if __name__=='__main__':
     if '--daemon' not in sys.argv:
         main()
     else:
-        # A persistent worker avoids macOS deferring nondemand StartInterval spawns.
+        next_templates=0
+        # Status upload is read-only and does not touch the merchant browser.
         while True:
             started=time.monotonic()
             try:
-                main()
+                if started>=next_templates:
+                    next_templates=started+60
+                    main()
+                else:
+                    publish_status()
             except Exception as exc:
-                print(datetime.now().isoformat(timespec='seconds'), '模板同步失败，保留配置：'+type(exc).__name__, file=sys.stderr, flush=True)
-            time.sleep(max(1,60-(time.monotonic()-started)))
+                print(datetime.now().isoformat(timespec='seconds'), '同步失败，保留配置：'+type(exc).__name__, file=sys.stderr, flush=True)
+            time.sleep(max(1,15-(time.monotonic()-started)))

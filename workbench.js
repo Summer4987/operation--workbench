@@ -1471,19 +1471,52 @@ function renderBudget() {
   );
 }
 
+let biddingSnapshot = null, biddingFetchBusy = false, biddingFetchError = '', biddingLogStore = '';
+const biddingMoney = n => Number.isSafeInteger(n) ? `¥${(n / 100).toFixed(2)}` : '—';
+const biddingTime = n => Number.isFinite(n) ? new Date(n).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '尚未采集';
+const biddingStatusLabels = {inspection_paused:'本店巡检暂停',pending:'保存待核对',error:'需要处理',lunch_paused:'午餐达标停投',promotion_paused:'推广已暂停',running:'巡检中',stopped:'巡检未启动'};
 function renderBidding() {
-  text("biddingStatus", "建设中");
-  text("biddingCount", "框架保留");
-  text("biddingSummary", "建设中：旧的推广出价调整逻辑已删除。此页只保留页面框架，等待接入新的调整规则。");
-  document.querySelector("#bidding")?.classList.remove("alert");
-  rows(
-    "biddingRows",
-    [
-      { label: "规则状态", value: "待接入", detail: "等待新的出价调整逻辑。" },
-      { label: "旧逻辑", value: "已移除", detail: "旧审批队列、旧出价建议和旧执行计划不再展示。" },
-    ],
-    (item) => `<div class="good-row"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
-  );
+  const s = biddingSnapshot, available = !!s?.available;
+  const online = available && s.online && Date.now() - s.generatedAt <= 90000 && !biddingFetchError;
+  text('biddingStatus', biddingFetchError ? '看板连接异常' : !available ? '等待回传' : online ? 'Mac mini 在线' : '回传已过期');
+  const badge = document.querySelector('#biddingStatus');
+  if (badge) badge.className = `tag ${online ? 'good' : 'planning'}`;
+  text('biddingCount', available ? `${s.summary.storeCount} 家门店 · ${s.on ? s.readOnly ? '只读巡检' : '真实调价' : '巡检已停止'}` : '龙虾店长 · 门店总览');
+  text('biddingSummary', biddingFetchError || (!available ? s?.message || '正在连接 Mac mini…' : `${online ? 'Mac mini 正常回传' : '回传已过期，以下为最后一次状态'} · 状态时间 ${biddingTime(s.generatedAt)}。看板每 15 秒刷新；消耗与出价以各店回读时间为准，午餐达标后等待晚餐期间保留最后读数。`));
+  document.querySelector('#bidding')?.classList.toggle('alert', !!available && (!online || s.summary.errors > 0));
+  const root = document.querySelector('#biddingRows');
+  if (!root) return;
+  if (!available) { root.innerHTML = '<div class="fleet-empty">等待 Mac mini 回传真实门店数据</div>'; return; }
+  const current = s.stores.find(x => x.id === s.current)?.name;
+  root.innerHTML = `<div class="remote-fleet-stats">
+    <article><span>已配置 / 已绑定</span><strong>${s.summary.storeCount} / ${s.summary.boundCount}</strong><small>龙虾店长同一份门店清单</small></article>
+    <article><span>今日已花 · 有效读数</span><strong>${biddingMoney(s.summary.spend)}</strong><small>${s.summary.coverage} / ${s.summary.storeCount} 家有今日回读</small></article>
+    <article><span>巡检状态</span><strong>${s.on ? s.readOnly ? '只读巡检' : '真实调价中' : '已停止'}</strong><small>${escapeHtml(s.busy ? `正在检查：${current || '门店'}` : '逐店检查；通常每店 5 分钟')}</small></article>
+    <article><span>需处理 / 午餐达标停投</span><strong>${s.summary.errors + s.summary.inspectionPaused} / ${s.summary.lunchPaused}</strong><small>午餐达标停投按规则于 17:00 恢复</small></article>
+  </div><div class="remote-fleet-toolbar"><h3>门店与分时模板</h3><a href="#budget">修改门店预算 / 模板 →</a></div>
+  <div class="remote-fleet-table-wrap"><table class="remote-fleet-table"><thead><tr><th>门店 / 身份</th><th>预算 / 已花</th><th>模板 / 授权范围</th><th>最近回读出价</th><th>当前结果</th></tr></thead><tbody>
+    ${s.stores.map(x => `<tr class="fleet-row-${escapeHtml(x.status)}">
+      <td data-label="门店"><strong>${escapeHtml(x.name)}</strong><small>${escapeHtml(x.storeName || (x.bound ? '身份已绑定' : '尚未绑定'))}</small><small>${x.accountType === 'chain' ? '连锁账号' : '独立账号'}</small></td>
+      <td data-label="预算与消耗"><strong>${biddingMoney(x.spend)} 已花</strong><small>平台当前上限 ${biddingMoney(x.platformBudget)}</small><small>全天 ${biddingMoney(x.dailyBudget)} · 午餐 ${biddingMoney(x.lunchBudget)} · 晚餐新增 ${biddingMoney(x.dinnerBudget)}</small><small>当前累计目标 ${biddingMoney(x.expected)} · 已花−目标 ${x.gap === null ? '暂无可比读数' : `${x.gap >= 0 ? '+' : '−'}${biddingMoney(Math.abs(x.gap))}`}</small></td>
+      <td data-label="模板"><strong>${escapeHtml(x.templateName || '未配置模板')}</strong><small>${biddingMoney(x.minBid)}–${biddingMoney(x.maxBid)}</small><small>${x.amounts ? x.amounts.map(biddingMoney).join(' / ') : '等待模板换算'}</small></td>
+      <td data-label="最近出价"><strong>${biddingMoney(x.bid)}</strong><small>${escapeHtml(x.bidScope || '出价时段未回读')}</small><small>${escapeHtml(biddingTime(x.snapshotAt))}</small></td>
+      <td data-label="状态"><span class="remote-fleet-pill ${['error','pending','inspection_paused'].includes(x.status) ? 'warning' : ''}">${escapeHtml(biddingStatusLabels[x.status] || '等待检查')}</span><p>${escapeHtml(x.message)}</p><small>${x.resultAt ? `检查时间 ${escapeHtml(biddingTime(x.resultAt))}` : ''}</small>${x.nextDue ? `<small>下次检查 ${escapeHtml(biddingTime(x.nextDue))}</small>` : ''}</td>
+    </tr>`).join('')}
+  </tbody></table></div><div class="remote-fleet-toolbar"><h3>真实巡检记录</h3><label>门店 <select id="biddingLogStore"><option value="">全部门店</option>${s.stores.map(x=>`<option value="${escapeHtml(x.name)}" ${biddingLogStore===x.name?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select></label></div>
+  <div class="remote-fleet-log">${s.log.slice().reverse().filter(e=>!biddingLogStore||e.name===biddingLogStore).map(e=>`<article><small>${escapeHtml(biddingTime(e.at))} · ${escapeHtml(e.name)}</small><p>${escapeHtml(e.message)}</p></article>`).join('') || '<p>暂无该门店的近期记录</p>'}</div>`;
+  document.querySelector('#biddingLogStore').onchange = e => { biddingLogStore=e.target.value; renderBidding(); };
+}
+async function hydrateBidding() {
+  if (biddingFetchBusy) return;
+  biddingFetchBusy = true;
+  const controller = new AbortController(), timeout = setTimeout(()=>controller.abort(),10000);
+  try {
+    const response = await fetch('/api/longxia-fleet-status', {cache:'no-store',signal:controller.signal});
+    if (!response.ok) throw new Error(response.status===401 ? '登录已过期，请重新登录看板。' : '暂时无法读取 Mac mini 状态，保留最后一次回传。');
+    biddingSnapshot = await response.json();
+    biddingFetchError = '';
+  } catch (e) { biddingFetchError = e.name==='AbortError' ? '状态读取超时，显示最后一次回传。' : e.message || '状态读取失败'; }
+  finally { clearTimeout(timeout); biddingFetchBusy=false; renderBidding(); }
 }
 
 function orderSuggestionGroups(orderSuggestions) {
@@ -1916,3 +1949,6 @@ loadDailyReportFrame();
 loadInventoryBoardFrame();
 
 setInterval(async()=>{const el=document.querySelector('#longxiaSyncStatus');if(!el||!data.budget?.overrides?.longxia)return;try{const response=await fetch(PROMO_BUDGET_OVERRIDES_URL,{cache:'no-store'});if(!response.ok)return;const p=await response.json();el.textContent=longxiaSyncText(data.budget.overrides.longxia,p.longxiaSync);}catch{}},15000);
+
+setTimeout(()=>hydrateBidding(),0);
+setInterval(()=>{renderBidding();if(!document.hidden)hydrateBidding();},15000);

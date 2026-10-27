@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import agent_inbox, agent_wecom, wecom_files, longxia_config
+from . import agent_inbox, agent_wecom, wecom_files, longxia_config, longxia_status
 from .db import (
     connect,
     create_import,
@@ -381,6 +381,12 @@ async def save_promo_budget_overrides(request: Request, payload: dict):
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(PROMO_BUDGET_PATH)
     return {"status": "success", "data": data}
+
+
+@app.get("/api/longxia-fleet-status")
+def longxia_fleet_status(request: Request):
+    _require_operation_auth(request)
+    return longxia_status.read(PROMO_BUDGET_PATH.with_name("longxia_fleet_status.json"))
 
 
 @app.post("/api/import")

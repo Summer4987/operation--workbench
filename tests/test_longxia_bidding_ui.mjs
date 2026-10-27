@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const require=createRequire(process.env.LONGXIA_PACKAGE_JSON||new URL('../dianjin-mac/package.json',import.meta.url));
+const {JSDOM}=require('jsdom');
+const source=fs.readFileSync(new URL('../workbench.js',import.meta.url),'utf8');
+const section=source.slice(source.indexOf('let biddingSnapshot ='),source.indexOf('\nfunction orderSuggestionGroups('));
+const dom=new JSDOM('<section id="bidding"><span id="biddingStatus"></span><div id="biddingCount"></div><p id="biddingSummary"></p><div id="biddingRows"></div></section>',{runScripts:'outside-only'});
+dom.window.eval(`const text=(id,s)=>document.getElementById(id).textContent=s;const escapeHtml=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');`+section+';window.setBidding=s=>{biddingSnapshot=s;biddingFetchError="";renderBidding()};');
+const row={id:'1',name:'万象城店',bound:true,storeName:'真实门店',dailyBudget:12000,lunchBudget:7200,dinnerBudget:4800,platformBudget:12000,spend:7283,expected:7200,gap:83,bid:30,bidScope:'午餐',snapshotAt:Date.now()-3600000,templateName:'住宅混合区',minBid:30,maxBid:90,amounts:[1200,4200,1800,1800,1800,1200],status:'lunch_paused',message:'午餐已达标，17:00 恢复',pending:0};
+const state={available:true,online:true,generatedAt:Date.now(),on:true,readOnly:false,busy:false,stores:[row],summary:{storeCount:1,boundCount:1,spend:7283,coverage:1,errors:0,inspectionPaused:0,lunchPaused:1},log:[{at:Date.now(),name:row.name,message:'<img src=x onerror=alert(1)>'}]};
+dom.window.setBidding(state);
+const d=dom.window.document;
+assert.equal(d.querySelector('#biddingStatus').textContent,'Mac mini 在线');assert.equal(d.querySelectorAll('tbody tr').length,1);assert.match(d.querySelector('#biddingRows').textContent,/午餐达标停投/);assert.match(d.querySelector('#biddingRows').textContent,/¥72.83/);assert.equal(d.querySelectorAll('img').length,0);
+state.generatedAt=Date.now()-100000;dom.window.eval('renderBidding()');assert.match(d.querySelector('#biddingSummary').textContent,/过期/);assert.equal(d.querySelectorAll('tbody tr').length,1);
+state.generatedAt=Date.now();dom.window.fetch=async()=>{throw Error('网络中断')};await dom.window.hydrateBidding();assert.notEqual(d.querySelector('#biddingStatus').textContent,'Mac mini 在线');assert.match(d.querySelector('#biddingSummary').textContent,/网络中断/);assert.equal(d.querySelectorAll('tbody tr').length,1);
+dom.window.setBidding({available:false,message:'等待首次回传'});assert.match(d.querySelector('#biddingRows').textContent,/等待/);
+console.log('远程首页、真实金额、正常停投、过期离线、网络失败保留数据与文本转义通过');

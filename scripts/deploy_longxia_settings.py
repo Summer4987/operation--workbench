@@ -25,11 +25,17 @@ def main():
     new=(ROOT/'inventory-board/app/main.py').read_text()
     for start,end in [('@app.get("/api/promo-budget-overrides")','@app.post("/api/import")'),('def _read_promo_budget_overrides()', 'def _validate_weekend_preset(')]:
         current=current.replace(between(current,start,end),between(new,start,end))
+    if 'from . import longxia_status' not in current:current=current.replace('from fastapi import ', 'from . import longxia_status\nfrom fastapi import ',1)
     if 'from . import longxia_config' not in current:current=current.replace('from fastapi import ', 'from . import longxia_config\nfrom fastapi import ',1)
     ast.parse(current)
     files={target+'/app/main.py':current}
-    for name in ('longxia_config.py','longxia_defaults.json'):
+    for name in ('longxia_config.py','longxia_defaults.json','longxia_status.py'):
         files[target+'/app/'+name]=(ROOT/'inventory-board/app'/name).read_text()
+    index=subprocess.check_output(SSH+['cat /var/www/html/operation-workbench/index.html'],text=True)
+    start='<section class="center-section" id="bidding">'
+    end='<section class="center-section" id="balances">'
+    index=index.replace(between(index,start,end),between((ROOT/'index.html').read_text(),start,end))
+    files['/var/www/html/operation-workbench/index.html']=index
     for name in ('workbench.js','workbench.css'):
         files['/var/www/html/operation-workbench/'+name]=(ROOT/name).read_text()
     payload=json.dumps({'files':files,'active':active,'target':target},ensure_ascii=False)
