@@ -25,16 +25,18 @@ def main():
     new=(ROOT/'inventory-board/app/main.py').read_text()
     for start,end in [('@app.get("/api/promo-budget-overrides")','@app.post("/api/import")'),('def _read_promo_budget_overrides()', 'def _validate_weekend_preset(')]:
         current=current.replace(between(current,start,end),between(new,start,end))
+    if 'from . import budget_settings' not in current:current=current.replace('from fastapi import ', 'from . import budget_settings\nfrom fastapi import ',1)
     if 'from . import longxia_status' not in current:current=current.replace('from fastapi import ', 'from . import longxia_status\nfrom fastapi import ',1)
     if 'from . import longxia_config' not in current:current=current.replace('from fastapi import ', 'from . import longxia_config\nfrom fastapi import ',1)
     ast.parse(current)
     files={target+'/app/main.py':current}
-    for name in ('longxia_config.py','longxia_defaults.json','longxia_status.py'):
+    for name in ('longxia_config.py','longxia_defaults.json','longxia_status.py','budget_settings.py','budget_totals_baseline.json'):
         files[target+'/app/'+name]=(ROOT/'inventory-board/app'/name).read_text()
     index=subprocess.check_output(SSH+['cat /var/www/html/operation-workbench/index.html'],text=True,stdin=subprocess.DEVNULL)
-    start='<section class="center-section" id="bidding">'
-    end='<section class="center-section" id="balances">'
-    index=index.replace(between(index,start,end),between((ROOT/'index.html').read_text(),start,end))
+    for first,last in [('budget','bidding'),('bidding','balances')]:
+        start=f'<section class="center-section" id="{first}">'
+        end=f'<section class="center-section" id="{last}">'
+        index=index.replace(between(index,start,end),between((ROOT/'index.html').read_text(),start,end))
     files['/var/www/html/operation-workbench/index.html']=index
     for name in ('workbench.js','workbench.css'):
         files['/var/www/html/operation-workbench/'+name]=(ROOT/name).read_text()
@@ -52,9 +54,11 @@ for name,text in files.items():
  temp=p.with_name(p.name+'.longxia-tmp');temp.write_text(text);temp.replace(p)
 sys.path.insert(0,str(target/'app'))
 import longxia_config as config
+import budget_settings as settings
 p=pathlib.Path('/opt/inventory-board/data/promo_budget_overrides.json')
 data=json.loads(p.read_text());p.with_name(p.name+suffix).write_bytes(p.read_bytes())
-data['longxia']=config.validate(data.get('longxia',config.DEFAULT));config.project(data)
+data['longxia']=config.validate(data.get('longxia',config.DEFAULT))
+data['budgetSettings']=settings.validate(data.get('budgetSettings'),data['longxia']);settings.project(data)
 tmp=p.with_suffix('.tmp');tmp.write_text(json.dumps(data,ensure_ascii=False,indent=2));tmp.replace(p)
 override=pathlib.Path('/etc/systemd/system/inventory-board.service.d/zz-github-release.conf')
 if override.exists():override.with_name(override.name+suffix).write_bytes(override.read_bytes())

@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import agent_inbox, agent_wecom, wecom_files, longxia_config, longxia_status
+from . import agent_inbox, agent_wecom, wecom_files, longxia_config, longxia_status, budget_settings
 from .db import (
     connect,
     create_import,
@@ -373,6 +373,8 @@ def promo_budget_overrides(request: Request):
 async def save_promo_budget_overrides(request: Request, payload: dict):
     _require_operation_auth(request)
     existing = _read_promo_budget_overrides()
+    if payload.get("budgetSettings", {}).get("revision") != existing.get("budgetSettings", {}).get("revision"):
+        raise HTTPException(status_code=409, detail="门店预算设置已更新，请刷新后再保存")
     if payload.get("longxia", {}).get("revision") != existing.get("longxia", {}).get("revision"):
         raise HTTPException(status_code=409, detail="预算配置已更新，请刷新后再保存")
     data = _validate_promo_budget_overrides({**existing, **payload})
@@ -848,7 +850,11 @@ def _validate_promo_budget_overrides(payload: dict) -> dict:
         clean["longxia"] = longxia_config.validate(payload.get("longxia", longxia_config.DEFAULT))
     except (ValueError, TypeError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return longxia_config.project(clean)
+    try:
+        clean["budgetSettings"]=budget_settings.validate(payload.get("budgetSettings"),clean["longxia"])
+    except (ValueError,TypeError,KeyError) as exc:
+        raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return budget_settings.project(clean)
 
 
 def _validate_weekend_preset(payload: dict) -> dict:

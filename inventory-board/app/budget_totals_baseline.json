@@ -1,0 +1,467 @@
+{
+  "schema": 1,
+  "source": "改造前生产预算备份 2026-10-27",
+  "stores": [
+    {
+      "sourceStore": "安贞店",
+      "name": "安贞店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "保利中心店",
+      "name": "保利中心店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 10000,
+            "lunchBudget": 7000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 14000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 10000,
+            "lunchBudget": 6000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "滨江店",
+      "name": "滨江店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "朝阳门店",
+      "name": "朝阳门店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 20000,
+            "lunchBudget": 12000
+          },
+          "weekend": {
+            "dailyBudget": 10000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 20000,
+            "lunchBudget": 12000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "第2号档口利康金桥美食城",
+      "name": "中关村",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 20000,
+            "lunchBudget": 12000
+          },
+          "weekend": {
+            "dailyBudget": 12000,
+            "lunchBudget": 8000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 20000,
+            "lunchBudget": 12000
+          },
+          "weekend": {
+            "dailyBudget": 10000,
+            "lunchBudget": 6000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "第5号档口川湘府美食城店",
+      "name": "清河店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 9000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "光谷店",
+      "name": "光谷店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 13000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 9000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "金融城店",
+      "name": "金融城店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 9000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 14000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "金融街店",
+      "name": "金融街店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 9000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "丽泽门店",
+      "name": "丽泽门店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 10000,
+            "lunchBudget": 6000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 13000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "双井店",
+      "name": "双井店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 14000,
+            "lunchBudget": 8000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "万松园店",
+      "name": "万松园店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "万象城店",
+      "name": "万象城店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 6000
+          },
+          "weekend": {
+            "dailyBudget": 12000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 6000
+          },
+          "weekend": {
+            "dailyBudget": 11800,
+            "lunchBudget": 6000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "望京店",
+      "name": "望京店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 6000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 9000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "五一广场店",
+      "name": "五一广场店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 7000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 12000,
+            "lunchBudget": 6000
+          },
+          "weekend": {
+            "dailyBudget": 8000,
+            "lunchBudget": 5000
+          }
+        }
+      }
+    },
+    {
+      "sourceStore": "银泰城店",
+      "name": "银泰城店",
+      "platforms": {
+        "美团": {
+          "weekday": {
+            "dailyBudget": 15000,
+            "lunchBudget": 10000
+          },
+          "weekend": {
+            "dailyBudget": 9000,
+            "lunchBudget": 6000
+          }
+        },
+        "饿了么": {
+          "weekday": {
+            "dailyBudget": 16000,
+            "lunchBudget": 12000
+          },
+          "weekend": {
+            "dailyBudget": 10000,
+            "lunchBudget": 6000
+          }
+        }
+      }
+    }
+  ],
+  "calendar": {
+    "chinaHolidays": {
+      "2026-01-01": "元旦",
+      "2026-01-02": "元旦",
+      "2026-01-03": "元旦",
+      "2026-02-15": "春节",
+      "2026-02-16": "春节",
+      "2026-02-17": "春节",
+      "2026-02-18": "春节",
+      "2026-02-19": "春节",
+      "2026-02-20": "春节",
+      "2026-02-21": "春节",
+      "2026-02-22": "春节",
+      "2026-02-23": "春节",
+      "2026-04-04": "清明节",
+      "2026-04-05": "清明节",
+      "2026-04-06": "清明节",
+      "2026-05-01": "劳动节",
+      "2026-05-02": "劳动节",
+      "2026-05-03": "劳动节",
+      "2026-05-04": "劳动节",
+      "2026-05-05": "劳动节",
+      "2026-06-19": "端午节",
+      "2026-06-20": "端午节",
+      "2026-06-21": "端午节",
+      "2026-09-25": "中秋节",
+      "2026-09-26": "中秋节",
+      "2026-09-27": "中秋节",
+      "2026-10-01": "国庆节",
+      "2026-10-02": "国庆节",
+      "2026-10-03": "国庆节",
+      "2026-10-04": "国庆节",
+      "2026-10-05": "国庆节",
+      "2026-10-06": "国庆节",
+      "2026-10-07": "国庆节"
+    },
+    "chinaAdjustedWorkdays": {
+      "2026-01-04": "元旦调休上班",
+      "2026-02-14": "春节调休上班",
+      "2026-02-28": "春节调休上班",
+      "2026-05-09": "劳动节调休上班",
+      "2026-09-20": "国庆节调休上班",
+      "2026-10-10": "国庆节调休上班"
+    }
+  }
+}

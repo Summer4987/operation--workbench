@@ -229,25 +229,25 @@
               <div class="module-head">
                 <div>
                   <p>预算</p>
-                  <h2>云端预算与录入区</h2>
+                  <h2>门店预算与分时模板</h2>
                 </div>
-                <span class="tag ready">上午按钮</span>
+                <span class="tag ready">单日总额保留</span>
               </div>
               <div class="module-body">
                 <div class="big-number" id="budgetCount">-</div>
                 <p id="budgetSummary">等待预算预览。</p>
-                <div class="budget-current-list" id="budgetRows"></div>
                 <div class="budget-editor-panel">
                   <div class="budget-editor-head">
                     <div>
-                      <span>录入预算</span>
-                      <strong>工作日 / 周末</strong>
+                      <span>选择分时模板</span>
+                      <strong>工作日 / 周末及节假日</strong>
                     </div>
-                    <button class="confirm-button" id="budgetSaveButton" type="button">保存到云端</button>
+                    <button class="confirm-button" id="budgetSaveButton" type="button">保存模板并同步</button>
                   </div>
                   <div class="save-status" id="budgetSaveStatus"></div>
                   <div class="budget-editor-grid" id="budgetEditorRows"></div>
                 </div>
+                <details><summary>预算执行配置明细</summary><div class="budget-current-list" id="budgetRows"></div></details>
                 <div class="mini-table" id="budgetRetryRows"></div>
               </div>
             </article>

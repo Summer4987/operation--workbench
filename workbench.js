@@ -1337,52 +1337,36 @@ function bindLongxiaEditor(){
  store.onchange=show;select.onchange=()=>{row().templateId=select.value;showTemplate();};daily.onchange=()=>{row().dailyBudget=Math.round(Number(daily.value)*100);showTemplate();};show();
 }
 
-function renderBudgetEditor(budget, saved) {
-  const container = document.querySelector("#budgetEditorRows");
-  if (!container) return;
-  const fields = [
-    ["工作日午餐", "lunchBudget"],
-    ["工作日晚餐", "dinnerBudget"],
-    ["周末午餐", "weekendLunchBudget"],
-    ["周末晚餐", "weekendDinnerBudget"],
-  ];
-  container.innerHTML = renderLongxiaEditor(saved.longxia,saved.longxiaSync) + ["饿了么", "美团"].map((platform) => {
-    const names = platformBudgetStores(budget, saved, platform).filter(name=>platform!=="美团"||!saved.longxia?.stores.some(r=>canonicalStoreName(r.sourceStore)===canonicalStoreName(name)));
-    return `
-      <section class="budget-platform-section">
-        <h3>${escapeHtml(platform)}</h3>
-        <div class="budget-platform-rows">
-          ${names.map((store) => `
-            <div class="budget-edit-row" data-store="${escapeHtml(store)}" data-platform="${escapeHtml(platform)}">
-              <strong>${escapeHtml(shortStore(store))}</strong>
-              ${fields.map(([label, field]) => `
-                <label>${label}<input data-platform="${platform}" data-field="${field}" type="number" min="1" step="1" value="${platformBudget(saved, store, platform, field) || ""}"></label>
-              `).join("")}
-            </div>
-          `).join("") || '<div class="empty-line">暂无该平台预算门店</div>'}
-        </div>
-      </section>
-    `;
-  }).join("");
-  bindLongxiaEditor();
+let budgetEditorStore='',budgetEditorPlatform='美团';
+function budgetDayAmounts(value,templates){
+ const t=templates.find(t=>t.id===value.templateId);
+ if(!t)return {amounts:null,lunch:value.lunchBudget,dinner:value.dailyBudget-value.lunchBudget};
+ const total=value.dailyBudget/100,a=t.shares.map(s=>Math.floor(total*s/10000)),order=t.shares.map((s,i)=>({i,r:total*s%10000})).sort((x,y)=>y.r-x.r||x.i-y.i);
+ for(let i=0,left=total-a.reduce((x,y)=>x+y,0);i<left;i++)a[order[i].i]++;
+ const amounts=a.map(v=>v*100),lunch=amounts.slice(0,3).reduce((x,y)=>x+y,0);return {amounts,lunch,dinner:value.dailyBudget-lunch};
+}
+function renderBudgetEditor(budget,saved){
+ const container=document.querySelector('#budgetEditorRows');if(!container)return;
+ if(!saved.budgetSettings){container.innerHTML='<p>正在读取完整门店与原有预算…</p>';return;}
+ window.budgetSettingsDraft=JSON.parse(JSON.stringify(saved.budgetSettings));
+ const draft=window.budgetSettingsDraft,templates=saved.longxia.templates;
+ if(!draft.entries.some(r=>r.sourceStore===budgetEditorStore))budgetEditorStore=draft.entries[0].sourceStore;
+ container.innerHTML=`<section class="budget-platform-section unified-budget-editor"><h3>全部门店 · 分时模板设置</h3><p>各店原有单日总预算已保留并锁定。工作日、周末及节假日分别选择模板，自动计算午餐上限和晚餐金额；保存后同步到 Mac mini。</p><div class="budget-selection"><label>选择门店<select id="budgetStoreSelect">${draft.entries.map(r=>`<option value="${escapeHtml(r.sourceStore)}" ${r.sourceStore===budgetEditorStore?'selected':''}>${escapeHtml(r.name)}</option>`).join('')}</select></label><label>选择平台<select id="budgetPlatformSelect"><option ${budgetEditorPlatform==='美团'?'selected':''}>美团</option><option ${budgetEditorPlatform==='饿了么'?'selected':''}>饿了么</option></select></label></div><p id="budgetTodayContext"></p><div id="budgetDayCards" class="budget-day-cards"></div><p id="longxiaSyncStatus">${escapeHtml(longxiaSyncText(saved.longxia,saved.longxiaSync))}</p><h3>全店单日总预算 · 保留原金额</h3><div id="budgetTotalsOverview" class="budget-totals-overview"></div></section>`;
+ const render=()=>{
+  const row=draft.entries.find(r=>r.sourceStore===budgetEditorStore),days=row.platforms[budgetEditorPlatform],managed=budgetEditorPlatform==='美团'&&saved.longxia.stores.some(r=>r.sourceStore===row.sourceStore);
+  const date=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),week=new Date(date+'T00:00:00Z').getUTCDay(),calendar=saved.longxia.calendar||{},holiday=!calendar.chinaAdjustedWorkdays?.[date]&&(!!calendar.chinaHolidays?.[date]||week===0||week===6);
+  document.querySelector('#budgetTodayContext').textContent=`今日 ${date}：${holiday?'周末及节假日':'工作日'} · ${managed?'本店已接入龙虾自动调价':'本店使用预算执行任务'}。调休上班日按工作日执行。`;
+  document.querySelector('#budgetDayCards').innerHTML=['weekday','weekend'].map(day=>{
+   const v=days[day],calc=budgetDayAmounts(v,templates),labels=['10:30–11:00','11:00–12:00','12:00–12:30','17:00–18:00','18:00–19:00','19:00–20:00'];
+   return `<article class="budget-day-card"><h4>${day==='weekday'?'工作日':'周末及节假日'}</h4><span>原单日总预算 · 固定保留</span><strong class="budget-fixed-total" data-fixed-total="${v.dailyBudget}">${biddingMoney(v.dailyBudget)}</strong><label>分时模板<select data-budget-day="${day}">${managed?'':'<option value="">沿用原午晚分配 · 可选择模板</option>'}${templates.map(t=>`<option value="${escapeHtml(t.id)}" ${v.templateId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></label><p><b>午餐上限 ${biddingMoney(calc.lunch)}</b> · 晚餐新增 ${biddingMoney(calc.dinner)}</p><p>下午平台累计上限 ${biddingMoney(v.dailyBudget)}</p><div class="longxia-periods">${labels.map((label,i)=>`<article><strong>${label}</strong><p>${calc.amounts?biddingMoney(calc.amounts[i]):'选模板后计算'}</p></article>`).join('')}</div><small>自动按整元分配，全天合计保持不变。</small></article>`;
+  }).join('');
+  document.querySelectorAll('[data-budget-day]').forEach(select=>select.onchange=()=>{days[select.dataset.budgetDay].templateId=select.value||null;render();});
+  document.querySelector('#budgetTotalsOverview').innerHTML=`<table><thead><tr><th>门店</th><th>工作日总预算</th><th>周末及节假日总预算</th><th>模板</th></tr></thead><tbody>${draft.entries.map(r=>{const p=r.platforms[budgetEditorPlatform];return `<tr><td>${escapeHtml(r.name)}</td><td>${biddingMoney(p.weekday.dailyBudget)}</td><td>${biddingMoney(p.weekend.dailyBudget)}</td><td>${escapeHtml(templates.find(t=>t.id===p.weekday.templateId)?.name||'原分配')} / ${escapeHtml(templates.find(t=>t.id===p.weekend.templateId)?.name||'原分配')}</td></tr>`}).join('')}</tbody></table>`;
+ };
+ document.querySelector('#budgetStoreSelect').onchange=e=>{budgetEditorStore=e.target.value;render();};document.querySelector('#budgetPlatformSelect').onchange=e=>{budgetEditorPlatform=e.target.value;render();};render();
 }
 
-function collectBudgetEditorPayload() {
-  const stores = {};
-  document.querySelectorAll(".budget-edit-row").forEach((row) => {
-    const store = canonicalStoreName(row.dataset.store);
-    stores[store] = stores[store] || {};
-    row.querySelectorAll("input").forEach((input) => {
-      const value = Number(input.value || 0);
-      if (value <= 0) return;
-      const platform = input.dataset.platform;
-      stores[store][platform] = stores[store][platform] || {};
-      stores[store][platform][input.dataset.field] = value;
-    });
-    if (!Object.keys(stores[store]).length) delete stores[store];
-  });
-  return { ...data.budget.overrides, stores: {...data.budget.overrides.stores,...stores}, longxia: window.longxiaDraft };
-}
+function collectBudgetEditorPayload(){return {...data.budget.overrides,budgetSettings:window.budgetSettingsDraft};}
 
 async function saveBudgetEditor() {
   const button = document.querySelector("#budgetSaveButton");
@@ -1424,7 +1408,7 @@ function renderBudget() {
   const meituan = budget.meituan_lunch || [];
   text("metricBudget", `${summary.total_initial_budget_items || eleme.length + meituan.length} 项`);
   text("metricBudgetMeta", `饿了么 ${eleme.length} 自动 · 美团 ${meituan.length} 自动`);
-  text("budgetCount", `${eleme.length + meituan.length} 项`);
+  text("budgetCount", saved.budgetSettings ? `${saved.budgetSettings.entries.length} 家门店 · 2 个平台` : `${eleme.length + meituan.length} 项`);
   const affectedByLatestRun = retrySummary.affected_by_latest_run_count || 0;
   const retryGuide = (retry.repair_guides || [])[0] || {};
   const retryGuideStep = (retryGuide.checklist || [])[0] || "";

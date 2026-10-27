@@ -1,0 +1,14 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';import {createRequire} from 'node:module';
+const require=createRequire(process.env.LONGXIA_PACKAGE_JSON||new URL('../dianjin-mac/package.json',import.meta.url)),{JSDOM}=require('jsdom');
+const baseline=JSON.parse(fs.readFileSync(new URL('../inventory-board/app/budget_totals_baseline.json',import.meta.url))),config=JSON.parse(fs.readFileSync(new URL('../inventory-board/app/longxia_defaults.json',import.meta.url)));
+const entries=JSON.parse(JSON.stringify(baseline.stores));for(const r of entries)for(const [platform,days] of Object.entries(r.platforms))for(const v of Object.values(days))v.templateId=platform==='美团'?config.stores.find(s=>s.sourceStore===r.sourceStore)?.templateId||null:null;
+const saved={budgetSettings:{schema:1,entries},longxia:config};
+const dom=new JSDOM('<div id="budgetEditorRows"></div>',{runScripts:'outside-only'}),d=dom.window.document,source=fs.readFileSync(new URL('../workbench.js',import.meta.url),'utf8');dom.window.saved=saved;
+dom.window.eval(`const escapeHtml=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');const biddingMoney=n=>'¥'+(n/100).toFixed(2);const longxiaSyncText=()=>'';const data={budget:{overrides:saved}};`+source.slice(source.indexOf("let budgetEditorStore="),source.indexOf('\nasync function saveBudgetEditor()')));
+dom.window.renderBudgetEditor({},saved);assert.equal(d.querySelector('#budgetStoreSelect').options.length,16);assert.equal(d.querySelectorAll('input').length,0);assert.equal(d.querySelectorAll('.budget-day-card').length,2);
+const store=d.querySelector('#budgetStoreSelect');store.value='朝阳门店';store.onchange({target:store});let totals=()=>[...d.querySelectorAll('[data-fixed-total]')].map(e=>e.dataset.fixedTotal);assert.deepEqual(totals(),['20000','10000']);
+const before=entries.flatMap(r=>Object.values(r.platforms).flatMap(days=>Object.values(days).map(v=>v.dailyBudget)));
+let select=d.querySelector('[data-budget-day="weekday"]');select.value=config.templates[1].id;select.onchange();assert.deepEqual(totals(),['20000','10000']);assert.match(d.querySelector('.budget-day-card').textContent,/120.00/);
+const payload=dom.window.collectBudgetEditorPayload();const after=payload.budgetSettings.entries.flatMap(r=>Object.values(r.platforms).flatMap(days=>Object.values(days).map(v=>v.dailyBudget)));assert.deepEqual(Array.from(after),before);
+const platform=d.querySelector('#budgetPlatformSelect');platform.value='饿了么';platform.onchange({target:platform});assert.deepEqual(totals(),['20000','8000']);
+assert.equal(d.querySelectorAll('#budgetTotalsOverview tbody tr').length,16);console.log('全部门店、两个平台、工作日/周末节假日、总预算只读与选模板不改总额通过');

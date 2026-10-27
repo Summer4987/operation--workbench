@@ -6,7 +6,7 @@ SOURCE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" == "$(git -C "$SOURCE_ROOT" rev-parse origin/main)" ]] || exit 64
 for runtime in production node-runtime; do
  destination="$HOME/Library/Application Support/xiong-operation/$runtime"
- for relative in scripts/build_promo_budget_preview.mjs scripts/fleet-budget-trial.mjs scripts/sync_promo_budget_overrides.py scripts/sync_longxia_templates.py; do
+ for relative in scripts/build_promo_budget_preview.mjs scripts/fleet-budget-trial.mjs scripts/promo_budget_resolver.mjs scripts/sync_promo_budget_overrides.py scripts/sync_longxia_templates.py; do
   mkdir -p "$destination/${relative:h}"
   cp "$SOURCE_ROOT/$relative" "$destination/$relative.tmp"
   mv "$destination/$relative.tmp" "$destination/$relative"

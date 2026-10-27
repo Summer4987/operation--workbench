@@ -6,12 +6,16 @@ from pathlib import Path
 DEFAULT = json.loads(Path(__file__).with_name('longxia_defaults.json').read_text())
 
 def validate(payload):
-    if not isinstance(payload, dict) or payload.get('schema') != 1 or payload.get('budgetMode') != 'split' or payload.get('periods') != DEFAULT['periods']:
+    if not isinstance(payload, dict) or payload.get('schema') not in (1,2) or payload.get('budgetMode') != 'split' or payload.get('periods') != DEFAULT['periods']:
         raise ValueError('龙虾模板版本或推广时段无效')
     templates = payload.get('templates')
     if not isinstance(templates, list) or not 1 <= len(templates) <= 30:
         raise ValueError('需要 1–30 个模板')
     clean = {k: DEFAULT[k] for k in ('schema', 'budgetMode', 'periods')}
+    clean['schema']=payload['schema']
+    if payload['schema']==2:
+        if payload.get('rounding')!='yuan' or not isinstance(payload.get('calendar'),dict):raise ValueError('分日预算或日历版本无效')
+        clean.update(rounding='yuan',calendar=payload['calendar'],budgetSettingsRevision=payload.get('budgetSettingsRevision',''))
     clean['templates'] = []
     ids = set()
     for t in templates:
@@ -40,9 +44,16 @@ def validate(payload):
         t=next(t for t in clean['templates'] if t['id']==row['templateId'])
         # Platform budget editor accepts whole yuan. Reject fractional lunch caps.
         amounts=allocate(budget,t['shares'])
-        if sum(amounts[:3])%100 or sum(amounts[:3])<100:
+        if payload['schema']==1 and (sum(amounts[:3])%100 or sum(amounts[:3])<100):
             raise ValueError('模板换算的午餐预算须为至少 1 元的整数，请调整全天预算或比例')
-        clean['stores'].append({**original,'dailyBudget':budget,'templateId':row['templateId']})
+        item={**original,'dailyBudget':budget,'templateId':row['templateId']}
+        if payload['schema']==2:
+            days=row.get('dayTypes',{})
+            if set(days)!={'weekday','weekend'}:raise ValueError('缺少分日预算')
+            for value in days.values():
+                if type(value.get('dailyBudget')) is not int or value['dailyBudget']<=0 or value['dailyBudget']%100 or value.get('templateId') not in ids:raise ValueError('分日预算或模板无效')
+            item['dayTypes']=days
+        clean['stores'].append(item)
     clean['revision']=hashlib.sha256(json.dumps(clean,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     return clean
 

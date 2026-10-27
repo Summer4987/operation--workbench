@@ -172,6 +172,7 @@ function directMeituanAccountForStore(storeName) {
 
 function budgetFor(platform, storeName, period, fallback) {
   const resolution = resolveBudget({ overrides, platform, storeName, period, fallback, dateContext });
+  if(overrides.budgetSettings?.entries?.some(r=>canonicalStoreName(r.sourceStore)===canonicalStoreName(storeName)&&r.platforms?.[platform]))return resolution.budget;
   return applyWeekendPresetIfNeeded(resolution.budget, period, resolution, weekendPreset);
 }
 
