@@ -2,6 +2,9 @@
 import json
 import os
 import socket
+import sys
+import time
+from datetime import datetime
 import subprocess
 from pathlib import Path
 import sync_promo_budget_overrides as transport
@@ -31,7 +34,17 @@ def main():
                  "sudo -n tee /opt/inventory-board/data/longxia_sync_status.json.tmp > /dev/null && sudo -n mv /opt/inventory-board/data/longxia_sync_status.json.tmp /opt/inventory-board/data/longxia_sync_status.json"]
         command.remove('-n')
         subprocess.run(command,input=json.dumps(status),text=True,check=True,timeout=15,capture_output=True)
-    print('龙虾云端模板已同步至生产配置；平台预算由午晚任务处理')
+    print(datetime.now().isoformat(timespec='seconds'), '龙虾云端模板已同步至生产配置；平台预算由午晚任务处理', flush=True)
 
 if __name__=='__main__':
-    main()
+    if '--daemon' not in sys.argv:
+        main()
+    else:
+        # A persistent worker avoids macOS deferring nondemand StartInterval spawns.
+        while True:
+            started=time.monotonic()
+            try:
+                main()
+            except Exception as exc:
+                print(datetime.now().isoformat(timespec='seconds'), '模板同步失败，保留配置：'+type(exc).__name__, file=sys.stderr, flush=True)
+            time.sleep(max(1,60-(time.monotonic()-started)))

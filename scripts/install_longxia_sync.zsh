@@ -19,7 +19,7 @@ home=Path.home()
 label='com.summer.operation.longxia-template-sync'
 log=home/'Library/Logs/xiong-dianjin-fleet-test'
 log.mkdir(parents=True,exist_ok=True)
-p={'Label':label,'ProcessType':'Interactive','ProgramArguments':['/usr/bin/python3',str(home/'Library/Application Support/xiong-operation/production/scripts/sync_longxia_templates.py')],'StartInterval':60,'RunAtLoad':True,'StandardOutPath':str(log/'template-sync.log'),'StandardErrorPath':str(log/'template-sync.error.log')}
+p={'Label':label,'ProcessType':'Interactive','ProgramArguments':['/usr/bin/python3',str(home/'Library/Application Support/xiong-operation/production/scripts/sync_longxia_templates.py'),'--daemon'],'KeepAlive':True,'ThrottleInterval':10,'RunAtLoad':True,'StandardOutPath':str(log/'template-sync.log'),'StandardErrorPath':str(log/'template-sync.error.log')}
 (home/'Library/LaunchAgents'/f'{label}.plist').write_bytes(plistlib.dumps(p))
 PY
 label=com.summer.operation.longxia-template-sync
