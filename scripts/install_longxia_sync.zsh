@@ -25,3 +25,4 @@ PY
 label=com.summer.operation.longxia-template-sync
 launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$label.plist"
+launchctl kickstart "gui/$(id -u)/$label"
