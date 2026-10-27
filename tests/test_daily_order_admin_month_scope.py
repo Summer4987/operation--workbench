@@ -243,7 +243,7 @@ def test_public_store_order_history_requires_remembered_order_ids(tmp_path, monk
     assert items[0]["items"][0]["name"] == "洋葱"
 
 
-def test_order_notification_includes_details_even_with_custom_prefix(monkeypatch):
+def test_order_notification_only_contains_store_name_even_with_custom_prefix(monkeypatch):
     module = load_daily_order_module()
     monkeypatch.setenv("DAILY_ORDER_NOTIFY_MESSAGE", "有门店下单啦！")
     order = {
@@ -263,11 +263,37 @@ def test_order_notification_includes_details_even_with_custom_prefix(monkeypatch
 
     message = module._order_message(order)
 
-    assert "有门店下单啦！" in message
-    assert "门店：银泰城店" in message
-    assert "订单号：DO-TEST" in message
-    assert "渠道：快驴" in message
-    assert "- 西兰花 100件" in message
+    assert message == "银泰城店下单了！"
+
+
+def test_order_notification_uses_excel_group_without_order_details(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setenv("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "https://example.test/excel-group")
+    monkeypatch.setenv("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "wecom")
+    monkeypatch.setenv("DAILY_ORDER_NOTIFY_WEBHOOK", "https://example.test/old-group")
+    calls = []
+    monkeypatch.setattr(module, "_send_notify_text", lambda *args: calls.append(args))
+
+    order = {"store_name": "银泰城店", "items": [{"name": "秘密商品", "quantity": 10}]}
+    module._notify_order(order)
+    monkeypatch.delenv("DAILY_ORDER_NOTIFY_WEBHOOK")
+    module._notify_order(order)
+
+    assert calls == [("https://example.test/excel-group", "wecom", "银泰城店下单了！")] * 2
+
+
+def test_order_notification_legacy_fallback_and_unconfigured_skip(monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.delenv("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", raising=False)
+    monkeypatch.delenv("DAILY_ORDER_WECHAT_NOTIFY_TYPE", raising=False)
+    monkeypatch.setenv("DAILY_ORDER_NOTIFY_WEBHOOK", "https://example.test/legacy")
+    monkeypatch.setenv("DAILY_ORDER_NOTIFY_TYPE", "wecom")
+    calls = []
+    monkeypatch.setattr(module, "_send_notify_text", lambda *args: calls.append(args))
+    module._notify_order({"store_name": "金融城店"})
+    monkeypatch.delenv("DAILY_ORDER_NOTIFY_WEBHOOK")
+    module._notify_order({"store_name": "金融城店"})
+    assert calls == [("https://example.test/legacy", "wecom", "金融城店下单了！")]
 
 
 def test_order_lines_can_filter_by_exact_date(tmp_path, monkeypatch):
@@ -364,3 +390,35 @@ def test_wechat_digest_send_does_not_attach_excel_link(tmp_path, monkeypatch):
     assert "excel" not in payload
     assert calls
     assert all("order-lines.xlsx" not in text for text in calls)
+
+
+def test_submit_notifies_only_after_order_is_saved(tmp_path, monkeypatch):
+    module = load_daily_order_module()
+    monkeypatch.setattr(module, "SUBMISSION_DIR", tmp_path / "orders")
+    monkeypatch.setattr(module, "ORDER_LINES_PATH", tmp_path / "lines.csv")
+    monkeypatch.setattr(module, "_require_store_order_auth", lambda request: None)
+    monkeypatch.setattr(module, "_notify_wechat_addon", lambda order: None)
+    monkeypatch.setenv("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "https://example.test/excel-group")
+    monkeypatch.setenv("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "wecom")
+    calls = []
+
+    def capture(*args):
+        assert list((tmp_path / "orders").glob("*.json"))
+        assert (tmp_path / "lines.csv").exists()
+        calls.append(args)
+
+    monkeypatch.setattr(module, "_send_notify_text", capture)
+    catalog = module._load_catalog()
+    store = module._store_records(catalog)
+    store_name = next(iter(store))
+    product = next(item for item in catalog["items"] if module._is_orderable(item) and item["sku"] != "MEAL-001")
+    client = TestClient(module.app)
+    response = client.post("/daily-order/api/orders", json={"store_name": store_name, "items": []})
+    assert response.status_code == 400
+    assert calls == []
+    response = client.post("/daily-order/api/orders", json={
+        "store_name": store_name,
+        "items": [{"sku": product["sku"], "quantity": max(1, module._to_number(product.get("min_quantity")))}],
+    })
+    assert response.status_code == 200
+    assert calls == [("https://example.test/excel-group", "wecom", f"{store_name}下单了！")]

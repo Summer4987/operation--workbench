@@ -41,7 +41,7 @@ if any(c in target for c in '\n\r"\\%'):
 
 result = {
     'mode': 'apply' if apply else 'preview',
-    'store_order_notifications': 'disabled',
+    'store_order_notifications': 'store name only, same daily-supply group',
     'digest_target': 'existing daily-supply order notification group',
     'target_fingerprint': fingerprint(target),
     'previous_store_target_fingerprint': fingerprint(before.get('DAILY_ORDER_NOTIFY_WEBHOOK', '')),
@@ -70,7 +70,7 @@ if apply:
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'restart', 'daily-order.service'], check=True)
     after = service_env('daily-order.service')
-    assert not after.get('DAILY_ORDER_NOTIFY_WEBHOOK'), 'Store notifications remain enabled'
+    assert not after.get('DAILY_ORDER_NOTIFY_WEBHOOK'), 'Legacy separate store notification target remains configured'
     assert after.get('DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK') == target, 'Digest target mismatch'
     assert after.get('DAILY_ORDER_WECHAT_NOTIFY_TYPE') == 'wecom'
     result['running_service_verified'] = True

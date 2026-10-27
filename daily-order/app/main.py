@@ -1377,12 +1377,13 @@ def _require_logistics_ingest(request: Request) -> None:
 
 
 def _notify_order(order: dict) -> None:
-    webhook = os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
+    # Share the daily-supply order/Excel destination, including deployments that
+    # intentionally unset the old per-order webhook.
+    webhook = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_WEBHOOK", "").strip() or os.environ.get("DAILY_ORDER_NOTIFY_WEBHOOK", "").strip()
     if not webhook:
         return
-    notify_type = os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "generic").strip().lower()
-    text = _order_message(order)
-    _send_notify_text(webhook, notify_type, text, {"order": order})
+    notify_type = os.environ.get("DAILY_ORDER_WECHAT_NOTIFY_TYPE", "").strip().lower() or os.environ.get("DAILY_ORDER_NOTIFY_TYPE", "wecom").strip().lower()
+    _send_notify_text(webhook, notify_type, _order_message(order))
 
 
 def _notify_wechat_groups(order: dict) -> None:
@@ -1580,27 +1581,8 @@ def _format_number(value) -> str:
 
 
 def _order_message(order: dict) -> str:
-    message = os.environ.get("DAILY_ORDER_NOTIFY_MESSAGE", "").strip()
-    channels = sorted({item.get("purchase_channel", "") for item in order.get("items") or [] if item.get("purchase_channel")})
-    lines = []
-    if message:
-        lines.append(message)
-    lines.extend(
-        [
-            f"门店：{order.get('store_name') or '未命名门店'}",
-            f"订单号：{order.get('order_id', '')}",
-            f"时间：{order.get('submitted_at', '')}",
-            f"渠道：{'、'.join(channels) if channels else '未分类'}",
-            "商品：",
-        ]
-    )
-    for item in (order.get("items") or [])[:8]:
-        spec = f" {item.get('spec')}" if item.get("spec") else ""
-        lines.append(f"- {item.get('name', '')}{spec} {_format_number(item.get('quantity'))}{item.get('unit', '')}")
-    remaining = max(0, len(order.get("items") or []) - 8)
-    if remaining:
-        lines.append(f"还有 {remaining} 项，后台查看完整订单。")
-    return "\n".join(lines)
+    store_name = str(order.get("store_name") or "未命名门店").strip()
+    return f"{store_name}下单了！"
 
 
 def _rows_to_xlsx(headers: list[str], rows: list[dict], sheet_name: str) -> bytes:
