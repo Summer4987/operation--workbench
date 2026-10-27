@@ -9,6 +9,7 @@ from datetime import datetime
 import subprocess
 from pathlib import Path
 import sync_promo_budget_overrides as transport
+import longxia_verification_notify as verification_notify
 
 
 def atomic(path, data):
@@ -53,12 +54,18 @@ for name,data in json.load(sys.stdin).items():
 
 if __name__=='__main__':
     if '--daemon' not in sys.argv:
+        verification_notify.check()
         main()
     else:
         next_templates=0
         # Status upload is read-only and does not touch the merchant browser.
         while True:
             started=time.monotonic()
+            # Alert directly from local status before any cloud transport, including during an SSH outage.
+            try:
+                verification_notify.check()
+            except Exception as exc:
+                print(datetime.now().isoformat(timespec='seconds'), '验证码提醒检查失败：'+type(exc).__name__, file=sys.stderr, flush=True)
             try:
                 if started>=next_templates:
                     next_templates=started+60
