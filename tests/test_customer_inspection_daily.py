@@ -39,6 +39,9 @@ class DailyRotation(unittest.TestCase):
         self.assertFalse(daily.identity('熊小小牛排饭POKEBEAR（第30档','中关村店','meituan'))
         self.assertFalse(daily.identity('熊小小牛排饭POKEBEAR（第3档','中关村店','taobao-shangou'))
         self.assertTrue(daily.identity('熊小小牛排饭POKEBEAR（第4号档','清河店','meituan'))
+        self.assertTrue(daily.identity('熊小小牛排饭POKEBEAR（第4号','清河店','taobao-shangou'))
+        self.assertTrue(daily.identity('熊小小牛排饭POKEBEAR（第2号','中关村店','taobao-shangou'))
+        self.assertFalse(daily.identity('熊小小牛排饭POKEBEAR（第40号','清河店','taobao-shangou'))
 
     def test_split_address_control_requires_adjacent_observed_labels(self):
         switch=dict(text='切换',x=1015,y=151);address=dict(text='地址',x=1012,y=191)

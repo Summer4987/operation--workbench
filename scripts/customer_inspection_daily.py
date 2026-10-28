@@ -39,8 +39,8 @@ def plan(day, config):
 
 def identity(text, store, platform):
     aliases = {'朝阳门店': ['朝阳门', '第B2档口', '第B2'],
-               '中关村店': ['中关村', '第3档口', '第3档', '第3号档'] if platform == 'meituan' else ['中关村', '第2号档口', '第2号档', '第2档'],
-               '清河店': ['清河', '第4号档口', '第4号档', '第4档'], '丽泽店': ['丽泽', '第13档口']}
+               '中关村店': ['中关村', '第3档口', '第3档', '第3号档'] if platform == 'meituan' else ['中关村', '第2号档口', '第2号档', '第2档', '第2号'],
+               '清河店': ['清河', '第4号档口', '第4号档', '第4档', '第4号'], '丽泽店': ['丽泽', '第13档口']}
     return any(compact(a) in compact(text) for a in aliases.get(store, [store.removesuffix('店')]))
 
 
@@ -282,7 +282,7 @@ def preflight(config):
     return adb
 
 
-def execute(day, config, retry_failed=False):
+def execute(day, config, retry_failed=False, platforms=None):
     group = plan(day, config)
     expected = {(p,s['name']) for s in group['stores'] for p in PACKAGES}
     existing = set()
@@ -306,7 +306,7 @@ def execute(day, config, retry_failed=False):
     records = [dict(platform=p,store=s['name'],status='not_attempted',note='计划内，尚未采集') for s in group['stores'] for p in PACKAGES]
     for i, record in enumerate(records):
         previous = prior_records.get((record['platform'], record['store']))
-        if previous and previous['status'] in ACCEPTED:
+        if previous:
             records[i] = previous
     report = dict(date=day, records=records, limitations=['每日4店轮换；每店双平台最多5分钟，重试最多一次。', '验证码停止该平台；轮换覆盖不代表全部采集成功。', 'OCR自动核验记录没有人工逐图复核；地址仅为配送参考位置。'])
     def save():
@@ -319,7 +319,7 @@ def execute(day, config, retry_failed=False):
             remaining = config['store_budget_seconds']
             for platform in PACKAGES:
                 record = next(r for r in records if r['store'] == store['name'] and r['platform'] == platform)
-                if record['status'] in ACCEPTED:
+                if record['status'] in ACCEPTED or (platforms is not None and platform not in platforms):
                     continue
                 if platform in blocked:
                     record.update(status='blocked_human_verification', note=blocked[platform]); continue
@@ -355,6 +355,7 @@ def execute(day, config, retry_failed=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--platform', choices=PACKAGES, help='仅补采指定平台，保留另一平台状态')
     parser.add_argument('--retry-failed', action='store_true', help='补采当天未成功项，保留成功项和旧批次记录')
     parser.add_argument('--plan', action='store_true')
     parser.add_argument('--preflight', action='store_true')
@@ -373,7 +374,7 @@ def main():
         except BlockingIOError: print('巡查任务正在运行'); return
         def timeout(signum,frame): raise TimeoutError('每店双平台5分钟硬上限；该平台未完成')
         signal.signal(signal.SIGALRM,timeout)
-        execute(args.date,config,retry_failed=args.retry_failed)
+        execute(args.date,config,retry_failed=args.retry_failed,platforms={args.platform} if args.platform else None)
 
 
 if __name__ == '__main__': main()
