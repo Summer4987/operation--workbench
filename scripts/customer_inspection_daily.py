@@ -134,6 +134,15 @@ class Navigator(Capture):
             self.back()
         raise RuntimeError('无法定位已核实的商家搜索入口')
 
+    def focus_address(self, field):
+        # Taobao OCR merges the city label with its adjacent input. The text
+        # midpoint falls on the non-editable search icon; focus inside the
+        # visually verified input to its right, on the same observed row.
+        if self.args.platform == 'taobao-shangou' and self.store['city'] in field['text'] and field['x'] < 400:
+            self.click(dict(field, x=600))
+        else:
+            self.click(field)
+
     def address(self):
         # Search-result location controls are safer than a guessed homepage tap.
         _, rows = self.observe()
@@ -170,11 +179,11 @@ class Navigator(Capture):
         field = self.find(rows, ['搜索', '输入地址', '小区', '写字楼'], lambda r: 190 < r['y'] < 420 and r['x'] > 220)
         if field is None:
             raise RuntimeError('地址搜索框无法确认')
-        self.click(field)
+        self.focus_address(field)
         # MT opens a separate address-search page; focus its observed field.
         _, rows = self.observe()
         field = self.find(rows, ['搜索', '输入', '小区', '写字楼'], lambda r: 180 < r['y'] < 420 and r['x'] > 220)
-        if field: self.click(field)
+        if field: self.focus_address(field)
         self.type_text(self.store['address'])
         _, rows = self.observe()
         target = self.find(rows, [compact(self.store['address'])], lambda r: 430 < r['y'] < 1800)
