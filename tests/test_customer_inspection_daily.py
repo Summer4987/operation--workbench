@@ -49,6 +49,13 @@ class DailyRotation(unittest.TestCase):
         self.assertEqual(daily.location_control([dict(text='熊小小',x=242,y=167),row],'taobao-shangou'),row)
         self.assertIsNone(daily.location_control([dict(text='丁口几',x=1007,y=211)],'taobao-shangou'))
 
+    def test_city_dropdown_accepts_merged_placeholder_and_pending_gps(self):
+        row=dict(text='成都~ Q 请输入地址',x=263,y=288)
+        self.assertEqual(daily.city_control([row]),dict(row,x=100))
+        pending=dict(text='定位中v',x=141,y=274)
+        self.assertEqual(daily.city_control([pending]),pending)
+        self.assertIsNone(daily.city_control([dict(text='北京市西城区',x=279,y=600)]))
+
     def test_merged_city_label_focuses_editable_input(self):
         nav=object.__new__(daily.Navigator)
         nav.args=type('Args',(),dict(platform='taobao-shangou'))()

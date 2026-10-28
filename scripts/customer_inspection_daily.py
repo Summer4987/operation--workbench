@@ -61,6 +61,16 @@ def location_control(rows, platform):
     return None
 
 
+def city_control(rows):
+    for row in rows:
+        if row['x'] < 400 and 200 < row['y'] < 410 and any(
+            compact(row['text']).startswith(c) for c in ('成都','北京','武汉','杭州','长沙','定位中','定位失败')
+        ):
+            # Taobao can merge the city and input placeholder into one box.
+            return dict(row, x=100) if row['x'] >= 210 else row
+    return None
+
+
 class Navigator(Capture):
     def __init__(self, args, store):
         super().__init__(args)
@@ -164,8 +174,7 @@ class Navigator(Capture):
             _, rows = self.observe()
         else:
             raise RuntimeError('地址选择页加载后仍未确认')
-        city = next((r for r in rows if r['x'] < 210 and 200 < r['y'] < 410
-                     and any(compact(r['text']).startswith(c) for c in ['成都','北京','武汉','杭州','长沙','定位中','定位失败'])), None)
+        city = city_control(rows)
         if city is None:
             raise RuntimeError('地址页城市控件无法确认')
         if self.store['city'] not in city['text']:
