@@ -27,7 +27,7 @@ def verification(rows):
 
 def category_target(rows):
     return next((row for row in rows if row["x"] < 245 and row["y"] > 320
-                 and ("牛排饭" in compact(row["text"]) or "STEAK" in compact(row["text"]))), None)
+                 and compact(row["text"]) in {"牛排饭", "STEAK", "牛排饭STEAK"}), None)
 
 
 def header_valid(rows):

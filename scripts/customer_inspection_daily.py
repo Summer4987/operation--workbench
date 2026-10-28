@@ -105,7 +105,7 @@ class Navigator(Capture):
         # Return to an observed search input; never type into an unconfirmed page.
         for _ in range(7):
             _, rows = self.observe()
-            if header_valid(rows) or category_target(rows):
+            if header_valid(rows):
                 self.back(); continue
             if self.find(rows,['选择收货地址','搜索地址','热门城市']):
                 self.back(); continue
@@ -229,7 +229,7 @@ def preflight(config):
     return adb
 
 
-def execute(day, config):
+def execute(day, config, retry_failed=False):
     group = plan(day, config)
     expected = {(p,s['name']) for s in group['stores'] for p in PACKAGES}
     existing = set()
@@ -242,9 +242,19 @@ def execute(day, config):
     source.mkdir(parents=True, exist_ok=True)
     manifest = source / 'reviewed-progress.json'
     # Calendar retries never replay an already attempted batch, including partials.
+    if manifest.exists() and not retry_failed:
+        print('今日批次已执行，不自动重复换地址；补采使用 --retry-failed'); publish(source); return
+    prior_records = {}
     if manifest.exists():
-        print('今日批次已执行，不自动重复换地址'); publish(source); return
+        prior = json.loads(manifest.read_text())
+        archive = source / ('attempt-' + datetime.now().strftime('%H%M%S%f') + '.json')
+        write_json(archive, prior)
+        prior_records = {(r['platform'], r['store']): r for r in prior['records']}
     records = [dict(platform=p,store=s['name'],status='not_attempted',note='计划内，尚未采集') for s in group['stores'] for p in PACKAGES]
+    for i, record in enumerate(records):
+        previous = prior_records.get((record['platform'], record['store']))
+        if previous and previous['status'] in ACCEPTED:
+            records[i] = previous
     report = dict(date=day, records=records, limitations=['每日4店轮换；每店双平台最多5分钟，重试最多一次。', '验证码停止该平台；轮换覆盖不代表全部采集成功。', 'OCR自动核验记录没有人工逐图复核；地址仅为配送参考位置。'])
     def save():
         report['updated_at'] = datetime.now(ZoneInfo('Asia/Shanghai')).isoformat()
@@ -256,6 +266,8 @@ def execute(day, config):
             remaining = config['store_budget_seconds']
             for platform in PACKAGES:
                 record = next(r for r in records if r['store'] == store['name'] and r['platform'] == platform)
+                if record['status'] in ACCEPTED:
+                    continue
                 if platform in blocked:
                     record.update(status='blocked_human_verification', note=blocked[platform]); continue
                 started = time.monotonic()
@@ -273,8 +285,9 @@ def execute(day, config):
                     else: record.update(status='recapture_needed',note=text[:240])
                 finally:
                     signal.alarm(0)
-                    for temporary in collector.directory.glob('nav-*.png'):
-                        temporary.unlink(missing_ok=True)
+                    if record['status'] in ACCEPTED:
+                        for temporary in collector.directory.glob('nav-*.png'):
+                            temporary.unlink(missing_ok=True)
                     record['elapsed_seconds'] = round(time.monotonic()-started,1)
                     remaining = max(0,remaining-record['elapsed_seconds'])
                     save()
@@ -289,6 +302,7 @@ def execute(day, config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--retry-failed', action='store_true', help='补采当天未成功项，保留成功项和旧批次记录')
     parser.add_argument('--plan', action='store_true')
     parser.add_argument('--preflight', action='store_true')
     parser.add_argument('--date', default=datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat())
@@ -306,7 +320,7 @@ def main():
         except BlockingIOError: print('巡查任务正在运行'); return
         def timeout(signum,frame): raise TimeoutError('每店双平台5分钟硬上限；该平台未完成')
         signal.signal(signal.SIGALRM,timeout)
-        execute(args.date,config)
+        execute(args.date,config,retry_failed=args.retry_failed)
 
 
 if __name__ == '__main__': main()
