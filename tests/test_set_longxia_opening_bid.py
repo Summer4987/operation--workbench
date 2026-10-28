@@ -1,4 +1,5 @@
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -11,6 +12,11 @@ class OpeningConfigTests(unittest.TestCase):
   original=copy.deepcopy(data);updated=updated_config(data)
   self.assertEqual(data,original);self.assertEqual(updated['longxia']['templates'][0]['minBid'],40)
   updated['longxia']['templates'][0]['minBid']=30;self.assertEqual(updated,original)
+ def test_both_repository_seed_configs_use_the_fixed_floor(self):
+  root=Path(__file__).resolve().parents[1]
+  for path in [root/'inventory-board/app/longxia_defaults.json',root/'config/promo_budget_overrides.json']:
+   data=json.loads(path.read_text());config=data.get('longxia',data)
+   self.assertTrue(config['templates']);self.assertTrue(all(t['minBid']==40 for t in config['templates']))
  def test_conflicting_ceiling_is_rejected(self):
   with self.assertRaises(ValueError):updated_config({'longxia':{'templates':[{'minBid':10,'maxBid':30}]}})
 if __name__=='__main__':unittest.main()

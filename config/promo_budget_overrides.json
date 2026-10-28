@@ -266,7 +266,7 @@
           1500,
           0
         ],
-        "minBid": 30,
+        "minBid": 40,
         "maxBid": 90
       },
       {
@@ -280,7 +280,7 @@
           1500,
           1000
         ],
-        "minBid": 30,
+        "minBid": 40,
         "maxBid": 90
       }
     ],
@@ -495,7 +495,7 @@
         "2026-10-10": "国庆节调休上班"
       }
     },
-    "revision": "dec78a97b0287be2a5b0754941a85314eb35daa202066ac4f78c697773949515"
+    "revision": "22ad237451de837de815b9de727ebd527d53be3c1522317d6fab7f034d543ccb"
   },
   "budgetSettings": {
     "schema": 1,
