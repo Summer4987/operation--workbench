@@ -1,5 +1,7 @@
 # 客户端巡检结果
 
+2026-10-28：按用户要求停用每日采集及自动发布提醒。`enabled: false` 是当前生产状态；安装入口在停用状态会卸载相关定时任务，避免误装恢复。历史结果及原图保留。以下轮换说明仅作历史记录。
+
 ## 每日4店生产任务
 
 `config/customer-inspection-rotation.json` 是轮换配置，2026-10-26成都为第一组，随后北京东部4店、北京西部4店、武汉2店+杭州滨江+长沙五一广场，4天循环。每天北京时间10:30，由生产Mac mini 的 `com.summer.customer-inspection-daily` LaunchAgent执行，本机Codex/MacBook不必在线。Mac mini须处于登录运行状态、安卓机保持连接授权；关机期间不能采集。睡眠恢复时launchd可能补触发，不跨天回放旧批次。

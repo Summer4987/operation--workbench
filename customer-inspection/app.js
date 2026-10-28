@@ -13,10 +13,9 @@ function render(){
  const images=rows.reduce((sum,r)=>sum+(r.images||[]).length,0);
  const cities=[...new Set(rows.map(r=>r.city))];
  $("updated").textContent=`采集日期 ${current.date} · 发布于 ${current.published_at}（北京时间）`;
- const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
- $("message").textContent=current.date!==today?"当前展示历史采集结果，今天尚无本日期的新图。":rows.length&&!rows.every(accepted)?"本批次有缺失或待核实项，请查看各门店状态。":"";
+ $("message").textContent="历史采集记录 · 自动采集已停用，缺失项不再补采或提醒。";
  $("summary").replaceChildren();
- for(const [label,value,sub] of [["已完成",`${completed}/${rows.length}`,"店铺 × 平台"],["已核验原图",images,"张"],["本批次门店",new Set(rows.map(r=>r.city+r.store)).size,cities.join("、")||"无记录"],["待处理",rows.length-completed,"缺失 / 阻塞 / 待核实"]]){const box=element("div",undefined,"metric");box.append(element("span",label),element("strong",value),element("span",sub));$("summary").append(box);}
+ for(const [label,value,sub] of [["已完成",`${completed}/${rows.length}`,"店铺 × 平台"],["已核验原图",images,"张"],["本批次门店",new Set(rows.map(r=>r.city+r.store)).size,cities.join("、")||"无记录"],["历史缺失",rows.length-completed,"任务已停用 · 无需处理"]]){const box=element("div",undefined,"metric");box.append(element("span",label),element("strong",value),element("span",sub));$("summary").append(box);}
  $("results").replaceChildren();
  for(const key of [...new Set(rows.map(r=>`${r.city}\n${r.store}`))]){
   const group=rows.filter(r=>`${r.city}\n${r.store}`===key),section=element("article",undefined,"store"),head=element("div",undefined,"store-head");head.append(element("h2",group[0].store),element("span",group[0].city));section.append(head);const panels=element("div",undefined,"platforms");

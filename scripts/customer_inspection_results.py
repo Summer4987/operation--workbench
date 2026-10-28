@@ -161,6 +161,9 @@ def main():
         if not args.source:parser.error('--source required')
         print(json.dumps(build(args.source,args.build_only),ensure_ascii=False));return
     if args.watch:
+        config=json.loads((ROOT/'config/customer-inspection-rotation.json').read_text())
+        if not config.get('enabled',True):
+            print('客户端采集及自动发布提醒已停用，保留历史结果');return
         date=now()[:10]
         for p in sorted(RUNTIME.glob(f'{date}*/reviewed-progress.json')):publish(p.parent)
     elif args.source:publish(args.source)

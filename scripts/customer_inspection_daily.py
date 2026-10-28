@@ -364,6 +364,8 @@ def main():
     config = json.loads(CONFIG.read_text()); group = plan(args.date,config)
     if args.plan:
         print(json.dumps(dict(date=args.date,time=config['time'],group=group),ensure_ascii=False,indent=2)); return
+    if not config.get('enabled', True):
+        print(config.get('disabled_reason', '客户端自动采集已停用')); return
     if args.preflight:
         preflight(config); print('设备已授权；轮换配置有效；未操作平台'); return
     if args.date != datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat():

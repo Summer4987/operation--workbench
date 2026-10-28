@@ -1,4 +1,6 @@
 {
+  "enabled": false,
+  "disabled_reason": "2026-10-28：按用户要求剔除每日客户端采集，停止验证和失败提醒，保留历史结果。",
   "anchor_date": "2026-10-26",
   "time": "10:30",
   "timezone": "Asia/Shanghai",

@@ -1,6 +1,12 @@
 #!/bin/zsh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if /usr/bin/python3 -c 'import json,sys;sys.exit(0 if json.load(open(sys.argv[1])).get("enabled",True) else 1)' "$ROOT/config/customer-inspection-rotation.json"; then
+  :
+else
+  /bin/zsh "$ROOT/scripts/disable_customer_inspection.zsh"
+  exit 0
+fi
 export CUSTOMER_RESULTS_ROOT="$ROOT"
 /usr/bin/python3 - <<'PY'
 import os,plistlib

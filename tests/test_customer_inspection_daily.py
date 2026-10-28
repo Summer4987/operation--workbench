@@ -163,6 +163,11 @@ class DailyRotation(unittest.TestCase):
             self.assertEqual(records[0],blocked)
             self.assertEqual(calls,['taobao-shangou']*4)
 
+    def test_disabled_main_does_not_touch_device_or_publish(self):
+        with patch.object(sys,'argv',['daily','--date','2026-10-28','--retry-failed']),patch.object(daily,'preflight') as preflight,patch.object(daily,'execute') as execute:
+            daily.main()
+            preflight.assert_not_called();execute.assert_not_called()
+
     def test_already_complete_chengdu_not_recollected(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(daily,'RUNTIME',Path(tmp)),patch.object(daily,'preflight') as preflight:
             source=Path(tmp)/'2026-10-26-chengdu';source.mkdir()
