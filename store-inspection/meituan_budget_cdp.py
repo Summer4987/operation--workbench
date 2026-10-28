@@ -367,8 +367,13 @@ def wait_budget(page, *, timeout_seconds: int = 15) -> float | None:
 
 
 def setting_snapshot(page) -> dict:
-    return page.evaluate(
-        """() => {
+    # The merchant shell contains no CPC controls. Inspect its loaded iframe;
+    # a navigating/detached frame is temporary and must not abort the store.
+    snapshots = []
+    for frame in page.frames:
+        try:
+            snapshots.append(frame.evaluate(
+"""() => {
             const text = document.body.innerText || '';
             const wrappers = [...document.querySelectorAll('.isomor-cpc-fresh-right-wrapper, [class*=right-wrapper]')]
                 .map((el) => {
@@ -389,7 +394,10 @@ def setting_snapshot(page) -> dict:
                 rangeMax: rangeMatch ? Number(rangeMatch[2]) : null,
             };
         }"""
-    )
+            ))
+        except Exception:
+            continue
+    return next((item for item in snapshots if item.get("wrappers")), snapshots[0] if snapshots else {})
 
 
 def wait_setting_ready(page, *, timeout_seconds: int = 35) -> dict:

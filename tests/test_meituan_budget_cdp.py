@@ -357,6 +357,20 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertEqual(page.frames[0].actions, [])
 
+    def test_setting_snapshot_reads_cpc_iframe_instead_of_merchant_shell(self) -> None:
+        shell = mock.Mock(); shell.evaluate.return_value = {"text": "商家首页", "wrappers": []}
+        cpc = mock.Mock(); cpc.evaluate.return_value = {"text": "推广预算", "rangeMax": 1.3, "wrappers": [{"text": "120元", "cursor": "pointer"}]}
+        page = types.SimpleNamespace(frames=[shell, cpc])
+        self.assertIs(self.module.setting_snapshot(page), cpc.evaluate.return_value)
+        with mock.patch.object(self.module, "read_budget", return_value=120), mock.patch.object(self.module.time, "sleep") as sleep:
+            self.assertEqual(self.module.wait_setting_ready(page)["rangeMax"], 1.3)
+            sleep.assert_not_called()
+
+    def test_setting_snapshot_tolerates_a_frame_replaced_during_navigation(self) -> None:
+        detached = mock.Mock(); detached.evaluate.side_effect = RuntimeError("Execution context was destroyed")
+        cpc = mock.Mock(); cpc.evaluate.return_value = {"wrappers": [{"text": "120元"}]}
+        self.assertEqual(self.module.setting_snapshot(types.SimpleNamespace(frames=[detached, cpc])), cpc.evaluate.return_value)
+
     def test_current_day_spend_ignores_stale_today_card(self) -> None:
         text = "今日 07-21 17:04 更新，指标解读\n推广花费\n80.01元\n昨日130元"
 
