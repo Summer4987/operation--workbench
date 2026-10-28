@@ -741,6 +741,9 @@ def open_budget_modal(page) -> None:
     if opened():
         return
 
+    if opened():
+        return
+
     for selector in [
         ".isomor-cpc-fresh-budget-number",
         ".isomor-cpc-fresh-used-wrapper",
@@ -935,6 +938,9 @@ def fill_budget_with_recovery(page, target: float) -> tuple[str, str, int]:
 
 def confirm_button_locator(page):
     locator_specs = [
+        # October 2026 budget v2 uses 保存设置 instead of 确定.
+        lambda frame: frame.get_by_role("button", name=re.compile(r"^\s*保存设置\s*$")),
+        lambda frame: frame.get_by_text("保存设置", exact=True),
         lambda frame: frame.get_by_role("button", name=re.compile(r"^\s*确定\s*$")),
         lambda frame: frame.get_by_text("确定", exact=True),
     ]

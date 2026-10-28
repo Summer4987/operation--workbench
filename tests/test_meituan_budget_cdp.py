@@ -318,6 +318,27 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         locator.click()
         self.assertTrue(page.frame.confirm.clicked)
 
+    def test_budget_v2_save_button_is_recognized_before_legacy_confirm(self) -> None:
+        save = FakeLocator()
+        unrelated = FakeLocator()
+        class Frame:
+            def get_by_role(self, role, *, name):
+                return FakeLocator([save] if name.search("保存设置") else [unrelated])
+            def get_by_text(self, text, **kwargs):
+                return FakeLocator([save] if text == "保存设置" else [unrelated])
+        page = types.SimpleNamespace(frames=[Frame()])
+        self.assertIs(self.module.confirm_button_locator(page), save)
+
+    def test_confirm_does_not_accept_hidden_budget_v2_save(self) -> None:
+        hidden = FakeLocator(visible=False)
+        legacy = FakeLocator()
+        class Frame:
+            def get_by_role(self, role, *, name):
+                return FakeLocator([hidden] if name.search("保存设置") else [legacy])
+            def get_by_text(self, text, **kwargs):
+                return FakeLocator([hidden] if text == "保存设置" else [legacy])
+        self.assertIs(self.module.confirm_button_locator(types.SimpleNamespace(frames=[Frame()])), legacy)
+
     def test_click_confirm_button_forces_click_when_overlay_intercepts(self) -> None:
         page = FakeConfirmPage()
         locator = FakeLocator(fail_normal_click=True)
@@ -505,13 +526,17 @@ class MeituanBudgetCdpTests(unittest.TestCase):
                                     self.module.confirm_budget_with_recovery(page, 70.0)
 
     def test_wanxiangcheng_pause_is_platform_and_store_scoped_and_has_no_expiry(self) -> None:
-        paused = {"sourceStore": "万象城店", "keyword": "万象城"}
-        self.assertFalse(self.module.task_paused(paused, "2026-10-13"))
-        self.assertTrue(self.module.task_paused(paused, "2026-10-14"))
-        self.assertTrue(self.module.task_paused(paused, "2027-10-14"))
-        self.assertFalse(self.module.task_paused({"keyword": "金融城"}, "2026-10-14"))
-        self.assertFalse(self.module.task_control({"keyword": "万象城"}).get("skipWhenRestricted", False))
-        self.assertTrue(self.module.task_control({"keyword": "雅宝"})["skipWhenRestricted"])
+        # Test the historical pause rule with a fixture; production controls
+        # legitimately resume stores and must not change this unit test.
+        controls = types.SimpleNamespace(read_text=lambda **kwargs: '{"meituanStores":{"万象城店":{"keywords":["万象城"],"pausedFrom":"2026-10-14"},"朝阳门店":{"keywords":["雅宝"],"skipWhenRestricted":true}}}')
+        with mock.patch.object(self.module, "TASK_CONTROLS_PATH", controls):
+            paused = {"sourceStore": "万象城店", "keyword": "万象城"}
+            self.assertFalse(self.module.task_paused(paused, "2026-10-13"))
+            self.assertTrue(self.module.task_paused(paused, "2026-10-14"))
+            self.assertTrue(self.module.task_paused(paused, "2027-10-14"))
+            self.assertFalse(self.module.task_paused({"keyword": "金融城"}, "2026-10-14"))
+            self.assertFalse(self.module.task_control({"keyword": "万象城"}).get("skipWhenRestricted", False))
+            self.assertTrue(self.module.task_control({"keyword": "雅宝"})["skipWhenRestricted"])
 
     def test_paused_task_cannot_open_browser_even_with_stale_preview(self) -> None:
         context = mock.Mock()
