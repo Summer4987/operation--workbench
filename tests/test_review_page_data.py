@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from review_page_data import TZ, build_summary, eleme_reviews, meituan_review, store_aliases, match_store, verify_all_store_scope
-from collect_review_pages import paged, Collector, validate_eleme_review_ids
+from collect_review_pages import paged, Collector, validate_eleme_review_ids, satisfaction_reviews
 
 NOW = datetime(2026, 10, 15, 12, tzinfo=TZ)
 
@@ -31,6 +31,31 @@ class ReviewPageTests(unittest.TestCase):
         ]:
             with self.subTest(rows=rows), self.assertRaises(RuntimeError):
                 validate_eleme_review_ids(rows)
+
+    def rating_group(self, *scores):
+        return dict(shopName='熊小小牛排饭POKEBEAR(银泰城店)', shopId=1,
+                    orderRateInfos=[dict(rateId=str(n), serviceRating=score,
+                                       ratingAt='2026-10-14T00:00:00') for n, score in enumerate(scores, 1)])
+
+    def test_bad_order_with_five_star_followup_keeps_only_matching_review(self):
+        rows = satisfaction_reviews(self.rating_group(1, 5), store_aliases(), 'BAD_REVIEW')
+        self.assertEqual([(r['review_id'], r['rating']) for r in rows], [('1', 1)])
+        self.assertTrue(rows[0]['negative'])
+
+    def test_each_native_filter_selects_its_own_reviews_inside_an_order(self):
+        group = self.rating_group(2, 3, 5)
+        self.assertEqual([r['rating'] for r in satisfaction_reviews(group, [], 'BAD_REVIEW')], [2])
+        self.assertEqual([r['rating'] for r in satisfaction_reviews(group, [], 'MEDIUM_REVIEW')], [3])
+
+    def test_unrelated_or_malformed_order_still_fails_collection(self):
+        for group, kind in [(self.rating_group(4, 5), 'BAD_REVIEW'),
+                            (self.rating_group(1, 5), 'MEDIUM_REVIEW'),
+                            (self.rating_group(1, None), 'BAD_REVIEW')]:
+            with self.subTest(group=group, kind=kind), self.assertRaises(RuntimeError):
+                satisfaction_reviews(group, [], kind)
+        group = self.rating_group(1);group['orderRateInfos'][0]['ratingAt']='invalid'
+        with self.assertRaisesRegex(RuntimeError, '有效日期'):
+            satisfaction_reviews(group, [], 'BAD_REVIEW')
 
     def test_all_store_scope_accepts_platform_all_or_all_leaf_stores(self):
         for selected in [[], [-1], ["-1"], [11, 12]]:

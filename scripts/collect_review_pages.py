@@ -94,6 +94,19 @@ def validate_eleme_review_ids(rows):
     return seen
 
 
+def satisfaction_reviews(item, aliases, kind):
+    """The native star filter selects orders, including other-star follow-ups."""
+    expected = {'BAD_REVIEW': {1, 2}, 'MEDIUM_REVIEW': {3}}[kind]
+    rows = eleme_reviews(item, aliases)
+    if any(not row['review_id'] or row['rating'] is None or not re_date(row['date']) for row in rows):
+        raise RuntimeError('淘宝评价缺少有效日期、ID或满意度星级')
+    matching = [row for row in rows if row['rating'] in expected]
+    # Keep detecting ineffective filters; a wholly unrelated order is invalid.
+    if not matching:
+        raise RuntimeError('淘宝满意度星级与筛选不一致')
+    return matching
+
+
 class Collector:
     def __init__(self, playwright, old, start, end):
         self.pw, self.old, self.start, self.end = playwright, old, start, end
@@ -248,9 +261,7 @@ class Collector:
             raw = paged(reviews_page,'rateInfos')
             validate_eleme_review_ids(raw)
             for item in raw:
-                for row in eleme_reviews(item,self.aliases):
-                    if not row['negative']:
-                        raise RuntimeError('淘宝满意度星级与筛选不一致')
+                for row in satisfaction_reviews(item, self.aliases, kind):
                     if self.start <= row['date'] <= self.end:
                         records[row['review_id']]=row
         scope['store_scope']='all_stores'
