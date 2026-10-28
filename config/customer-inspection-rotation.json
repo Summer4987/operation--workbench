@@ -22,7 +22,7 @@
       {"name": "金融街店", "city": "北京", "address": "金融街购物中心"},
       {"name": "中关村店", "city": "北京", "address": "中关村广场"},
       {"name": "丽泽店", "city": "北京", "address": "丽泽商务区"},
-      {"name": "清河店", "city": "北京", "address": "上地开拓路1号"}
+      {"name": "清河店", "city": "北京", "address": "开拓路1号"}
     ]},
     {"name": "武汉、杭州、长沙", "stores": [
       {"name": "万松园店", "city": "武汉", "address": "万松园"},
