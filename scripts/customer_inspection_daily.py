@@ -165,7 +165,7 @@ class Navigator(Capture):
         else:
             raise RuntimeError('地址选择页加载后仍未确认')
         city = next((r for r in rows if r['x'] < 210 and 200 < r['y'] < 410
-                     and any(compact(r['text']).startswith(c) for c in ['成都','北京','武汉','杭州','长沙'])), None)
+                     and any(compact(r['text']).startswith(c) for c in ['成都','北京','武汉','杭州','长沙','定位中','定位失败'])), None)
         if city is None:
             raise RuntimeError('地址页城市控件无法确认')
         if self.store['city'] not in city['text']:
