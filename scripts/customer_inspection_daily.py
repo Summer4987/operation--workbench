@@ -169,7 +169,8 @@ class Navigator(Capture):
         self.click(switch)
         _, rows = self.observe()
         for _ in range(5):
-            if self.find(rows, ['选择收货地址', '选择地址', '新增地址', '搜索地址', '收货地址']): break
+            if (self.find(rows, ['选择收货地址', '选择地址', '新增地址', '搜索地址', '收货地址'])
+                    and city_control(rows) is not None): break
             self.pause(2)
             _, rows = self.observe()
         else:
