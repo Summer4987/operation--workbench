@@ -118,6 +118,8 @@ class Navigator(Capture):
         # Return to an observed search input; never type into an unconfirmed page.
         for _ in range(7):
             _, rows = self.observe()
+            if location_control(rows, self.args.platform) is not None:
+                return
             if self.find(rows,['跳过'],lambda r:r['y']<400 and r['x']>800):
                 self.pause(3); continue
             if header_valid(rows) or (self.find(rows,['点餐','点菜'],lambda r:r['x']<210 and 200<r['y']<700)
@@ -185,7 +187,12 @@ class Navigator(Capture):
             if target is None:
                 raise RuntimeError('城市选择页没有目标城市；不盲点')
             self.click(target)
-            _, rows = self.observe()
+            for _ in range(5):
+                _, rows = self.observe()
+                if city_control(rows) is not None: break
+                self.pause(2)
+            else:
+                raise RuntimeError('选择城市后地址页未就绪')
         field = self.find(rows, ['搜索', '输入地址', '小区', '写字楼'], lambda r: 190 < r['y'] < 420 and r['x'] > 220)
         if field is None:
             raise RuntimeError('地址搜索框无法确认')
@@ -206,6 +213,9 @@ class Navigator(Capture):
     def merchant(self):
         for _ in range(4):
             path, rows = self.observe()
+            if len(rows) < 12 and location_control(rows,self.args.platform) is not None:
+                self.pause(2)
+                path, rows = self.observe()
             row = next((r for r in rows if 300 < r['y'] < 2100 and '熊小小牛排饭' in compact(r['text'])
                         and identity(r['text'], self.args.store, self.args.platform)), None)
             if row:
