@@ -539,6 +539,7 @@ def open_headquarters_budget_page(context, task: dict):
         time.sleep(0.5)
     if "门店推广" not in page_text(page):
         raise RuntimeError(f"总部账号已切到分门店 {selected}，但页面没有出现门店推广入口")
+    existing_pages = set(context.pages)
     if not click_visible_text(page, "门店推广"):
         raise RuntimeError(f"总部账号已切到分门店 {selected}，但点击门店推广失败")
     expected_wm_id = wm_poi_id(task)
@@ -546,6 +547,10 @@ def open_headquarters_budget_page(context, task: dict):
     for attempt in range(40):
         time.sleep(0.5)
         for candidate in reversed(context.pages):
+            # A matching store id in an old tab does not refresh its auth token.
+            # Only this navigation or a newly opened popup belongs to this task.
+            if candidate is not page and candidate in existing_pages:
+                continue
             promo_url = recent_promo_url_from_page(candidate)
             if promo_url and f"wmPoiId={expected_wm_id}" in promo_url:
                 return candidate, candidate is not page, promo_url

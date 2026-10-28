@@ -357,6 +357,22 @@ class MeituanBudgetCdpTests(unittest.TestCase):
 
         self.assertEqual(page.frames[0].actions, [])
 
+    def test_headquarters_navigation_ignores_matching_store_in_old_promo_tab(self) -> None:
+        current = FakePage("https://e.waimai.meituan.com/")
+        stale = FakePage("https://e.waimai.meituan.com/#old?wmPoiId=30703865")
+        context = FakeContext([current, stale])
+        landing = "https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId=30703865"
+        with mock.patch.object(self.module.time, "sleep"), \
+             mock.patch.object(self.module, "select_headquarters_store", return_value="第3档口"), \
+             mock.patch.object(self.module, "dismiss_common_modals"), \
+             mock.patch.object(self.module, "page_text", return_value="门店推广"), \
+             mock.patch.object(self.module, "click_visible_text", return_value=True), \
+             mock.patch.object(self.module, "recent_promo_url_from_page", side_effect=lambda page: landing if page is stale else None) as lookup, \
+             mock.patch.object(self.module, "recent_promo_landing_url_from_page", return_value=landing):
+            page, _, _ = self.module.open_headquarters_budget_page(context, {"keyword": "第3档口"})
+        self.assertIs(page, current)
+        self.assertNotIn(mock.call(stale), lookup.call_args_list)
+
     def test_setting_snapshot_reads_cpc_iframe_instead_of_merchant_shell(self) -> None:
         shell = mock.Mock(); shell.evaluate.return_value = {"text": "商家首页", "wrappers": []}
         cpc = mock.Mock(); cpc.evaluate.return_value = {"text": "推广预算", "rangeMax": 1.3, "wrappers": [{"text": "120元", "cursor": "pointer"}]}
