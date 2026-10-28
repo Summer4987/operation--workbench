@@ -108,6 +108,8 @@ class Navigator(Capture):
         # Return to an observed search input; never type into an unconfirmed page.
         for _ in range(7):
             _, rows = self.observe()
+            if self.find(rows,['跳过'],lambda r:r['y']<400 and r['x']>800):
+                self.pause(3); continue
             if header_valid(rows) or (self.find(rows,['点餐','点菜'],lambda r:r['x']<210 and 200<r['y']<700)
                                       and self.find(rows,['评价'],lambda r:r['y']<700)):
                 self.back(); continue
@@ -195,6 +197,8 @@ class Navigator(Capture):
         raise RuntimeError('有限搜索内没有找到准确门店，未使用其他门店替代')
 
     def collect(self):
+        # Start at the app launcher, not a stale in-merchant search/activity.
+        self.command(self.adb + ['shell','am','force-stop',PACKAGES[self.args.platform]])
         self.command(self.adb + ['shell', 'monkey', '-p', PACKAGES[self.args.platform], '-c', 'android.intent.category.LAUNCHER', '1'])
         self.pause(2)
         self.search_results()
