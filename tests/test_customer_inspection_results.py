@@ -40,6 +40,10 @@ class ReviewedResults(unittest.TestCase):
             self.assertEqual(result['records'][0]['status'],'ocr_verified')
             self.assertIn('未人工逐图复核',result['records'][0]['review_method'])
 
-    def test_navigation_is_idempotent_and_preserves_live_content(self):
-        html='              <a href="#direct-messages">直营门店消息复盘</a>\n        <section class="center-section" id="budget">custom'
-        result=module.add_entry(html);self.assertEqual(module.add_entry(result),result);self.assertIn('custom',result)
+    def test_retired_entry_removal_preserves_other_live_content(self):
+        html='<main>live budget settings</main>\n  <a href="#customer-inspection">客户端巡检结果</a>\n  <section class="center-section" id="customer-inspection"><div>old</div><iframe></iframe></section>\n<section id="budget">custom budget</section>'
+        result=module.remove_entry(html)
+        self.assertNotIn('customer-inspection',result)
+        self.assertIn('live budget settings',result)
+        self.assertIn('<section id="budget">custom budget</section>',result)
+        self.assertEqual(module.remove_entry(result),result)

@@ -20,27 +20,13 @@ RUNTIME = Path(os.environ.get('CUSTOMER_INSPECTION_HOME',str(HOME / 'Library/App
 URL = 'http://139.155.148.169/operation-workbench/customer-inspection/'
 CITY = {'银泰城店':'成都','保利中心店':'成都','万象城店':'成都','金融城店':'成都','万松园店':'武汉','光谷店':'武汉','滨江店':'杭州','五一广场店':'长沙'}
 PLATFORMS = {'meituan', 'taobao-shangou'}
-NAV = '              <a href="#customer-inspection">客户端巡检结果</a>\n'
-SECTION = '''        <section class="center-section report-section" id="customer-inspection">
-          <div class="section-head"><p>顾客端实采</p><h2>客户端巡检结果</h2></div>
-          <iframe class="daily-report-frame" data-report-src="customer-inspection/" sandbox="allow-same-origin allow-scripts allow-popups" title="客户端巡检结果"></iframe>
-        </section>
-
-'''
-
 def now():
     return datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S')
 
-def add_entry(html):
-    if 'href="#customer-inspection"' not in html:
-        anchor='              <a href="#direct-messages">直营门店消息复盘</a>\n'
-        if anchor not in html: raise ValueError('Expected navigation anchor absent')
-        html=html.replace(anchor,anchor+NAV,1)
-    if 'id="customer-inspection"' not in html:
-        anchor='        <section class="center-section" id="budget">'
-        if anchor not in html: raise ValueError('Expected section anchor absent')
-        html=html.replace(anchor,SECTION+anchor,1)
-    return html
+def remove_entry(html):
+    """Remove only the retired inspection navigation and iframe section."""
+    html = re.sub(r'^[ \t]*<a\b[^>]*href=[\"\']#customer-inspection[\"\'][^>]*>.*?</a>[ \t]*\n?', '', html, flags=re.M)
+    return re.sub(r'^[ \t]*<section\b[^>]*id=[\"\']customer-inspection[\"\'][^>]*>.*?</section>[ \t]*\n?', '', html, flags=re.M | re.S)
 
 def write_json(path, data):
     path.parent.mkdir(parents=True,exist_ok=True)
@@ -110,16 +96,6 @@ def publish(source):
     for name in [f'{date}.json','index.json']:
         run(['scp','-q','-i',str(HOME/'.ssh/xiong_operation_cloud_ed25519'),str(stage/'data'/name),f'{server}:{remote}/customer-inspection/data/{name}.tmp'])
         run(ssh+[server,f'chmod 644 {remote}/customer-inspection/data/{name}.tmp && mv {remote}/customer-inspection/data/{name}.tmp {remote}/customer-inspection/data/{name}'])
-    # Preserve any unrelated live homepage updates when inserting this entry.
-    patch='from pathlib import Path\np=Path("'+remote+'/index.html")\nh=p.read_text()\n'+f'nav={NAV!r}\nsection={SECTION!r}\n'+'''a='              <a href="#direct-messages">直营门店消息复盘</a>\\n'
-b='        <section class="center-section" id="budget">'
-if 'href="#customer-inspection"' not in h:
- assert a in h;h=h.replace(a,a+nav,1)
-if 'id="customer-inspection"' not in h:
- assert b in h;h=h.replace(b,section+b,1)
-t=p.with_suffix('.inspection.tmp');t.write_text(h);t.chmod(0o644);t.replace(p)
-'''
-    run(ssh+[server,'python3 -'],input=patch.encode())
     # Verify actual deployed bytes for page, manifest, and every original via loopback.
     checks={f'{remote}/customer-inspection/index.html':hashlib.sha256((ROOT/'customer-inspection/index.html').read_bytes()).hexdigest(),f'{remote}/customer-inspection/data/{date}.json':hashlib.sha256((stage/'data'/f'{date}.json').read_bytes()).hexdigest()}
     for r in report['records']:
@@ -143,7 +119,6 @@ for p,d in checks.items():
  with opener.open(url,timeout=15) as r:
   assert r.status==200 and '/login' not in r.geturl(),p
   assert hashlib.sha256(r.read()).hexdigest()==d,p
-with opener.open(base+'/operation-workbench/',timeout=15) as r:assert 'id="customer-inspection"' in r.read().decode()
 print(json.dumps({'verified_http_files':len(checks),'authenticated_http':True}))
 """.replace('CHECKS',repr(checks))
     run(ssh+[server,'sudo -n python3 -'],input=verify.encode())
