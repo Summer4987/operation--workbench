@@ -38,9 +38,9 @@ def plan(day, config):
 
 
 def identity(text, store, platform):
-    aliases = {'朝阳门店': ['朝阳门', '第B2档口'],
-               '中关村店': ['中关村', '第3档口'] if platform == 'meituan' else ['中关村', '第2号档口'],
-               '清河店': ['清河', '第4号档口'], '丽泽店': ['丽泽', '第13档口']}
+    aliases = {'朝阳门店': ['朝阳门', '第B2档口', '第B2'],
+               '中关村店': ['中关村', '第3档口', '第3档', '第3号档'] if platform == 'meituan' else ['中关村', '第2号档口', '第2号档', '第2档'],
+               '清河店': ['清河', '第4号档口', '第4号档', '第4档'], '丽泽店': ['丽泽', '第13档口']}
     return any(compact(a) in compact(text) for a in aliases.get(store, [store.removesuffix('店')]))
 
 
