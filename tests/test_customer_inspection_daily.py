@@ -42,6 +42,13 @@ class DailyRotation(unittest.TestCase):
         self.assertIsNone(daily.location_control([switch],'meituan'))
         self.assertIsNone(daily.location_control([switch,dict(text='地址',x=300,y=191)],'meituan'))
 
+    def test_taobao_sticky_filter_is_not_location(self):
+        for label in ['筛选','新人红包','堂食店','30分钟达','好评如潮']:
+            self.assertIsNone(daily.location_control([dict(text=label,x=1007,y=143)],'taobao-shangou'))
+        row=dict(text='◎ 中建 天、',x=946,y=169)
+        self.assertEqual(daily.location_control([dict(text='熊小小',x=242,y=167),row],'taobao-shangou'),row)
+        self.assertIsNone(daily.location_control([dict(text='丁口几',x=1007,y=211)],'taobao-shangou'))
+
     def test_wrong_result_never_clicked_and_search_is_bounded(self):
         nav=object.__new__(daily.Navigator)
         nav.args=type('Args',(),dict(store='安贞店',platform='meituan'))()

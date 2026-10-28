@@ -53,6 +53,8 @@ def location_control(rows, platform):
     if switch and any(compact(r['text']) == '地址' and abs(r['x']-switch['x']) < 60
                       and abs(r['y']-switch['y']) < 100 for r in rows): return switch
     if platform == 'taobao-shangou':
+        if not any('熊小小' in r['text'] and 100 < r['y'] < 220 and 130 < r['x'] < 850 for r in rows):
+            return None
         return next((r for r in rows if 870 < r['x'] < 1070 and 100 < r['y'] < 220
                      and len(compact(r['text'])) >= 2
                      and not any(w in r['text'] for w in ('搜索','筛选','红包','堂食','分钟','好评'))),None)
