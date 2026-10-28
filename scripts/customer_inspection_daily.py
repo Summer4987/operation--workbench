@@ -231,7 +231,9 @@ class Navigator(Capture):
         if not header_valid(rows):
             expand = self.find(rows, ['点餐', '点菜'], lambda r: r['x'] < 210 and r['y'] < 650)
             if expand is None: raise RuntimeError('进店顶部满减未确认')
-            self.click(expand)
+            # The arrow beside 点餐 is a distinct control; the label only
+            # selects the existing tab and does not restore the store header.
+            self.click(dict(expand, x=150))
             first, rows = self.observe()
         if not header_valid(rows): raise RuntimeError('店名/顶部红包满减不完整，未通过核验')
         # Reject an explicitly different visible suffix even if search entry was correct.
