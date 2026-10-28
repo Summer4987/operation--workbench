@@ -187,9 +187,12 @@ class Navigator(Capture):
             if target is None:
                 raise RuntimeError('城市选择页没有目标城市；不盲点')
             self.click(target)
-            for _ in range(5):
+            for attempt in range(5):
                 _, rows = self.observe()
                 if city_control(rows) is not None: break
+                if attempt == 1 and self.find(rows,['选择城市']):
+                    retry = next((r for r in rows if compact(r['text']).rstrip('市') == self.store['city'] and r['y'] > 300), None)
+                    if retry is not None: self.click(retry)
                 self.pause(2)
             else:
                 raise RuntimeError('选择城市后地址页未就绪')
