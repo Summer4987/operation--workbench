@@ -49,6 +49,30 @@ class DailyRotation(unittest.TestCase):
         self.assertEqual(daily.location_control([dict(text='熊小小',x=242,y=167),row],'taobao-shangou'),row)
         self.assertIsNone(daily.location_control([dict(text='丁口几',x=1007,y=211)],'taobao-shangou'))
 
+    def test_merged_city_label_focuses_editable_input(self):
+        nav=object.__new__(daily.Navigator)
+        nav.args=type('Args',(),dict(platform='taobao-shangou'))()
+        nav.store={'city':'北京'}
+        merged=dict(text='北京市> Q请输入地址',x=279,y=288)
+        with patch.object(nav,'click') as click:
+            nav.focus_address(merged)
+            self.assertEqual(click.call_args.args[0]['x'],600)
+            self.assertEqual(click.call_args.args[0]['y'],288)
+            separate=dict(text='Q请输入地址',x=347,y=288)
+            nav.focus_address(separate)
+            self.assertEqual(click.call_args.args[0],separate)
+
+    def test_home_logo_does_not_send_back_instead_of_search(self):
+        nav=object.__new__(daily.Navigator)
+        logo=dict(text='熊小小&原切谷饲牛排饭',x=203,y=1861)
+        placeholder=dict(text='Q 饿作剧派对',x=191,y=260)
+        submit=dict(text='搜索',x=961,y=260)
+        focused=dict(text='饿作剧派对',x=239,y=169)
+        with patch.object(nav,'observe',side_effect=[(None,[logo,placeholder,submit]),(None,[focused])]),patch.object(nav,'click'),patch.object(nav,'type_text') as typed,patch.object(nav,'back') as back:
+            nav.search_results()
+            back.assert_not_called()
+            typed.assert_called_once_with('熊小小')
+
     def test_wrong_result_never_clicked_and_search_is_bounded(self):
         nav=object.__new__(daily.Navigator)
         nav.args=type('Args',(),dict(store='安贞店',platform='meituan'))()
