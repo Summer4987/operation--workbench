@@ -108,7 +108,8 @@ class Navigator(Capture):
         # Return to an observed search input; never type into an unconfirmed page.
         for _ in range(7):
             _, rows = self.observe()
-            if header_valid(rows):
+            if header_valid(rows) or (self.find(rows,['点餐','点菜'],lambda r:r['x']<210 and 200<r['y']<700)
+                                      and self.find(rows,['评价'],lambda r:r['y']<700)):
                 self.back(); continue
             if self.find(rows,['选择收货地址','搜索地址','热门城市']):
                 self.back(); continue
