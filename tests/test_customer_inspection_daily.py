@@ -71,6 +71,7 @@ class DailyRotation(unittest.TestCase):
 
     def test_home_logo_does_not_send_back_instead_of_search(self):
         nav=object.__new__(daily.Navigator)
+        nav.args=type('Args',(),dict(platform='meituan'))()
         logo=dict(text='熊小小&原切谷饲牛排饭',x=203,y=1861)
         placeholder=dict(text='Q 饿作剧派对',x=191,y=260)
         submit=dict(text='搜索',x=961,y=260)
@@ -90,6 +91,7 @@ class DailyRotation(unittest.TestCase):
 
     def test_meituan_promoted_query_is_focused_instead_of_submitted(self):
         nav=object.__new__(daily.Navigator)
+        nav.args=type('Args',(),dict(platform='meituan'))()
         placeholder=dict(text='Q 饿作剧派对',x=191,y=260)
         submit=dict(text='搜索',x=961,y=260)
         focused=dict(text='饿作剧派对',x=400,y=165)
