@@ -54,7 +54,8 @@ def location_control(rows, platform):
                       and abs(r['y']-switch['y']) < 100 for r in rows): return switch
     if platform == 'taobao-shangou':
         return next((r for r in rows if 870 < r['x'] < 1070 and 100 < r['y'] < 220
-                     and len(compact(r['text'])) >= 2 and '搜索' not in r['text']),None)
+                     and len(compact(r['text'])) >= 2
+                     and not any(w in r['text'] for w in ('搜索','筛选','红包','堂食','分钟','好评'))),None)
     return None
 
 
@@ -132,12 +133,23 @@ class Navigator(Capture):
         # Search-result location controls are safer than a guessed homepage tap.
         _, rows = self.observe()
         switch = location_control(rows,self.args.platform)
+        for _ in range(4):
+            if switch is not None: break
+            self.foreground()
+            self.command(self.adb + ['shell','input','swipe','540','650','540','2150','400'])
+            self.pause()
+            _, rows = self.observe()
+            switch = location_control(rows,self.args.platform)
         if switch is None:
             raise RuntimeError('搜索结果没有可确认的地址切换入口')
         self.click(switch)
         _, rows = self.observe()
-        if not self.find(rows, ['选择收货地址', '选择地址', '新增地址', '搜索地址']):
-            raise RuntimeError('地址选择页未确认')
+        for _ in range(5):
+            if self.find(rows, ['选择收货地址', '选择地址', '新增地址', '搜索地址', '收货地址']): break
+            self.pause(2)
+            _, rows = self.observe()
+        else:
+            raise RuntimeError('地址选择页加载后仍未确认')
         city = next((r for r in rows if r['x'] < 210 and 200 < r['y'] < 410
                      and any(compact(r['text']).startswith(c) for c in ['成都','北京','武汉','杭州','长沙'])), None)
         if city is None:

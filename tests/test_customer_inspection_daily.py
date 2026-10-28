@@ -80,6 +80,25 @@ class DailyRotation(unittest.TestCase):
             daily.execute('2026-10-27',self.config)
             self.assertEqual(len(calls),5) # No platform operations on calendar retry.
 
+    def test_explicit_retry_preserves_accepted_records_and_archives_failure(self):
+        calls=[]
+        class FakeNavigator:
+            def __init__(self,args,store):
+                self.args=args;self.directory=Path(args.output)/args.platform/store['name'];self.directory.mkdir(parents=True,exist_ok=True)
+            def collect(self):
+                calls.append((self.args.platform,self.args.store))
+                return dict(status='recapture_needed',note='仍失败，保留证据')
+        with tempfile.TemporaryDirectory() as tmp,patch.object(daily,'RUNTIME',Path(tmp)),patch.object(daily,'Navigator',FakeNavigator),patch.object(daily,'preflight',return_value='/adb'),patch.object(daily,'publish'),patch.object(daily.signal,'alarm'):
+            source=Path(tmp)/'2026-10-27-daily-four';source.mkdir()
+            accepted=dict(platform='meituan',store='朝阳门店',status='ocr_verified',files=[{'sha256':'original'}])
+            (source/'reviewed-progress.json').write_text(json.dumps(dict(records=[accepted])))
+            daily.execute('2026-10-27',self.config,retry_failed=True)
+            records=json.loads((source/'reviewed-progress.json').read_text())['records']
+            self.assertEqual(records[0],accepted)
+            self.assertEqual(len(calls),7)
+            self.assertNotIn(('meituan','朝阳门店'),calls)
+            self.assertEqual(len(list(source.glob('attempt-*.json'))),1)
+
     def test_already_complete_chengdu_not_recollected(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(daily,'RUNTIME',Path(tmp)),patch.object(daily,'preflight') as preflight:
             source=Path(tmp)/'2026-10-26-chengdu';source.mkdir()
