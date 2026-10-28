@@ -146,6 +146,23 @@ class DailyRotation(unittest.TestCase):
             self.assertNotIn(('meituan','朝阳门店'),calls)
             self.assertEqual(len(list(source.glob('attempt-*.json'))),1)
 
+    def test_platform_only_retry_preserves_verification_block_on_other_platform(self):
+        calls=[]
+        class FakeNavigator:
+            def __init__(self,args,store):
+                self.args=args;self.directory=Path(args.output)/args.platform/store['name'];self.directory.mkdir(parents=True,exist_ok=True)
+            def collect(self):
+                calls.append(self.args.platform)
+                return dict(status='recapture_needed',note='本测试不创建图片')
+        with tempfile.TemporaryDirectory() as tmp,patch.object(daily,'RUNTIME',Path(tmp)),patch.object(daily,'Navigator',FakeNavigator),patch.object(daily,'preflight',return_value='/adb'),patch.object(daily,'publish'),patch.object(daily.signal,'alarm'):
+            source=Path(tmp)/'2026-10-27-daily-four';source.mkdir()
+            blocked=dict(platform='meituan',store='朝阳门店',status='blocked_human_verification',note='需要人工验证')
+            (source/'reviewed-progress.json').write_text(json.dumps(dict(records=[blocked])))
+            daily.execute('2026-10-27',self.config,retry_failed=True,platforms={'taobao-shangou'})
+            records=json.loads((source/'reviewed-progress.json').read_text())['records']
+            self.assertEqual(records[0],blocked)
+            self.assertEqual(calls,['taobao-shangou']*4)
+
     def test_already_complete_chengdu_not_recollected(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(daily,'RUNTIME',Path(tmp)),patch.object(daily,'preflight') as preflight:
             source=Path(tmp)/'2026-10-26-chengdu';source.mkdir()
