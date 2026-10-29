@@ -129,6 +129,62 @@
       "key": "267168671|34062471|cpc-manual",
       "dailyBudget": 12000,
       "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "金融街店",
+      "sourceStore": "金融街店",
+      "profileId": "pmvteq78mbyaq",
+      "key": "267168671|31264210|cpc-manual",
+      "dailyBudget": 15000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "丽泽店",
+      "sourceStore": "丽泽门店",
+      "profileId": "pmvterqf35u0r",
+      "key": "267168671|32914406|cpc-manual",
+      "dailyBudget": 10000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "双井店",
+      "sourceStore": "双井店",
+      "profileId": "pmvtetl7rszcl",
+      "key": "267168671|32949755|cpc-manual",
+      "dailyBudget": 12000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "望京店",
+      "sourceStore": "望京店",
+      "profileId": "pmvtett176w26",
+      "key": "267168671|33766612|cpc-manual",
+      "dailyBudget": 12000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "光谷店",
+      "sourceStore": "光谷店",
+      "profileId": "pmvteu34megl5",
+      "key": "267168671|33283802|cpc-manual",
+      "dailyBudget": 12000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "万松园店",
+      "sourceStore": "万松园店",
+      "profileId": "pmvteugmpzd11",
+      "key": "267168671|34570503|cpc-manual",
+      "dailyBudget": 15000,
+      "templateId": "543f7d9d-8e61-4952-ae80-97b41eb9ab32"
+    },
+    {
+      "name": "五一广场店",
+      "sourceStore": "五一广场店",
+      "profileId": "pmvteuo4mz5bd",
+      "key": "267168671|32744963|cpc-manual",
+      "dailyBudget": 12000,
+      "templateId": "ee46e818-ac0b-40ba-89b8-63d7a3790d2b"
     }
   ]
 }

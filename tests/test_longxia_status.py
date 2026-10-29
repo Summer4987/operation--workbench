@@ -6,6 +6,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 package=types.ModuleType('longxia_test_app');package.__path__=[str(ROOT/'inventory-board/app')];sys.modules[package.__name__]=package
 spec=importlib.util.spec_from_file_location('longxia_test_app.longxia_status',ROOT/'inventory-board/app/longxia_status.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -23,8 +24,11 @@ class LongxiaStatusTests(unittest.TestCase):
   for mutate in [lambda d:d.update(cookie='secret'),lambda d:d['stores'][0].update(rawSnapshot={}),lambda d:d['stores'][0].update(id='wrong'),lambda d:d.update(generatedAt=NOW+60001),lambda d:d['stores'].__setitem__(0,None)]:
    d=copy.deepcopy(self.data);mutate(d);self.write(d);self.assertFalse(m.read(self.file,NOW)['available'])
  def test_new_row_is_visible_without_authorizing_platform_actions(self):
-  self.assertEqual(len(self.data['stores']),9)
+  # A partial historical authorization must still display newly added local rows.
+  known=m.DEFAULT['stores'][:9];self.data['stores']=self.data['stores'][:9]
   self.data['stores'].append({'id':'not-yet-authorized','name':'新门店','bound':False,'dailyBudget':None})
-  self.write();self.assertTrue(m.read(self.file,NOW)['online'])
-  self.assertEqual(len(m.read(self.file,NOW)['stores']),10)
+  self.write()
+  with patch.object(m,'DEFAULT',{'stores':known}):
+   self.assertTrue(m.read(self.file,NOW)['online'])
+   self.assertEqual(len(m.read(self.file,NOW)['stores']),10)
 if __name__=='__main__':unittest.main()

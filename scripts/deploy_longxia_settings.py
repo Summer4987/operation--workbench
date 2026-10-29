@@ -1,5 +1,7 @@
 """Deploy only the reviewed budget API sections and UI from a clean main checkout."""
 import ast
+import copy
+import inspect
 import json
 import socket
 import shlex
@@ -12,6 +14,28 @@ SSH=['ssh','-o','BatchMode=yes','-i',str(Path.home()/'.ssh/xiong_operation_cloud
 def between(text,start,end):
     if text.count(start)!=1 or text.count(end)!=1:raise RuntimeError('后端代码标记不唯一，拒绝覆盖')
     return text[text.index(start):text.index(end)]
+
+def register_missing_stores(data, defaults):
+    """Register reviewed bindings and fill only missing Meituan template choices."""
+    updated = copy.deepcopy(data)
+    registered = {row['profileId'] for row in updated['longxia']['stores']}
+    selections = {row['sourceStore']: row['platforms']['美团']
+                  for row in updated.get('budgetSettings', {}).get('entries', [])}
+    for original in defaults['stores']:
+        if original['profileId'] in registered:
+            continue
+        row = copy.deepcopy(original)
+        if updated['longxia'].get('schema') == 2:
+            days = selections[row['sourceStore']]
+            for value in days.values():
+                if not value.get('templateId'):
+                    value['templateId'] = row['templateId']
+            row['dayTypes'] = {day: {'dailyBudget': value['dailyBudget'],
+                                    'templateId': value['templateId']}
+                              for day, value in days.items()}
+        updated['longxia']['stores'].append(row)
+        registered.add(row['profileId'])
+    return updated
 
 def main():
     if 'mini' not in socket.gethostname().lower():raise RuntimeError('只能由 Mac mini 发布')
@@ -42,7 +66,7 @@ def main():
         files['/var/www/html/operation-workbench/'+name]=(ROOT/name).read_text()
     payload=json.dumps({'files':files,'active':active,'target':target},ensure_ascii=False)
     # Fixed server-side script; data is passed through stdin, never interpolated into shell.
-    remote="""import json,sys,time,pathlib,shutil,re
+    remote="""import json,sys,time,pathlib,shutil,re,os,stat
 payload=json.load(sys.stdin);files=payload['files'];target=pathlib.Path(payload['target'])
 if not target.exists():shutil.copytree(payload['active'],target,symlinks=True,ignore=shutil.ignore_patterns('__pycache__'))
 suffix='.backup-longxia-'+str(int(time.time()))
@@ -56,20 +80,19 @@ sys.path.insert(0,str(target/'app'))
 import longxia_config as config
 import budget_settings as settings
 p=pathlib.Path('/opt/inventory-board/data/promo_budget_overrides.json')
-data=json.loads(p.read_text());p.with_name(p.name+suffix).write_bytes(p.read_bytes())
-# Registration comes only from the reviewed GitHub defaults, never from a browser row label.
-registered={r['profileId'] for r in data.get('longxia',{}).get('stores',[])}
-selections={r['sourceStore']:r['platforms']['美团'] for r in data.get('budgetSettings',{}).get('entries',[])}
-for original in config.DEFAULT['stores']:
- if original['profileId'] not in registered:
-  row=dict(original)
-  if data.get('longxia',{}).get('schema')==2:
-   days=selections[row['sourceStore']]
-   row['dayTypes']={day:{'dailyBudget':v['dailyBudget'],'templateId':v.get('templateId') or row['templateId']} for day,v in days.items()}
-  data['longxia']['stores'].append(row)
+original=p.read_bytes();metadata=p.stat();data=json.loads(original)
+backup=p.with_name(p.name+suffix);backup.write_bytes(original);backup.chmod(0o600)
+# Registration comes only from reviewed GitHub bindings, with existing totals preserved.
+data=register_missing_stores(data,config.DEFAULT)
 data['longxia']=config.validate(data.get('longxia',config.DEFAULT))
 data['budgetSettings']=settings.validate(data.get('budgetSettings'),data['longxia']);settings.project(data)
-tmp=p.with_suffix('.tmp');tmp.write_text(json.dumps(data,ensure_ascii=False,indent=2));tmp.replace(p)
+if p.read_bytes()!=original:raise RuntimeError('预算配置已变化，拒绝覆盖')
+tmp=p.with_name(p.name+'.register-'+str(os.getpid())+'.tmp')
+try:
+ tmp.write_text(json.dumps(data,ensure_ascii=False,indent=2))
+ os.chown(tmp,metadata.st_uid,metadata.st_gid);os.chmod(tmp,stat.S_IMODE(metadata.st_mode))
+ tmp.replace(p)
+finally:tmp.unlink(missing_ok=True)
 override=pathlib.Path('/etc/systemd/system/inventory-board.service.d/zz-github-release.conf')
 if override.exists():override.with_name(override.name+suffix).write_bytes(override.read_bytes())
 previous=override.read_text() if override.exists() else '[Service]\\n'
@@ -78,6 +101,7 @@ previous=re.sub(r'^WorkingDirectory=.*$',line,previous,flags=re.M) if 'WorkingDi
 override.write_text(previous)
 print('预算 API、模板与看板已发布到正式服务版本目录；运行数据已保留')
 """
+    remote = 'import copy\n' + inspect.getsource(register_missing_stores) + remote
     subprocess.run(SSH+['sudo -n python3 -c '+shlex.quote(remote)],input=payload,text=True,check=True)
     subprocess.run(SSH+['sudo systemctl daemon-reload && sudo systemctl restart inventory-board && systemctl is-active inventory-board'],check=True,stdin=subprocess.DEVNULL)
     subprocess.run(['curl','--retry','3','--retry-delay','1','--retry-all-errors','--location','--fail','--silent','--output','/dev/null','http://139.155.148.169/operation-workbench/'],check=True)
