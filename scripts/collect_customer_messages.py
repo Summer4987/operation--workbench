@@ -147,6 +147,19 @@ def canonical_chat_title(title):
     title=re.sub(r'^(?:今日|昨日|\d+[./]\d+)?#\d+(?:单)?\s*','',str(title).strip())
     return re.sub(r'\s+','',title)
 
+def mt_all_customer_pagination(query, payload):
+    """Only ALL paginates the visible 全部顾客消息 list.
+
+    AFTER_SALE is loaded in parallel and can still have older pages after
+    the ALL list has ended; its cursor cannot verify this list's coverage.
+    """
+    if query.get('groupCode') != 'ALL' or not payload.get('success'):
+        return None
+    data = payload.get('data') or {}
+    return dict(total=data.get('total'), hasNext=data.get('hasNext'),
+                count=len(data.get('data') or []))
+
+
 def mt_list(page,observations,window_start):
     page.get_by_text('全部顾客消息',exact=True).dispatch_event('click')
     wait(page,lambda:observations,'美团全部顾客消息接口返回')
@@ -270,9 +283,10 @@ def meituan(pw,scope,account,keyword):
             if path.endswith('/getChatInfosByType'):
                 remember(data.get('chats'));return
             query=r.request.post_data_json
-            if query.get('groupCode')!='AFTER_SALE' or not payload.get('success'):return
+            pagination=mt_all_customer_pagination(query,payload)
+            if pagination is None:return
             remember(data.get('data'))
-            observations.append(dict(total=data.get('total'),hasNext=data.get('hasNext'),count=len(data.get('data') or [])))
+            observations.append(pagination)
         except Exception:pass
     page.on('response',response)
     try:

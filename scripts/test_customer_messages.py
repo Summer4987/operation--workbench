@@ -8,6 +8,17 @@ from customer_message_data import stamp,normalize,merge_messages,scope_status,pr
 from render_customer_messages import page
 
 class DataTests(unittest.TestCase):
+ def test_all_customer_coverage_ignores_parallel_after_sale_pagination(self):
+  from collect_customer_messages import mt_all_customer_pagination
+  visible=dict(success=True,data=dict(total=5,hasNext=False,data=[{}]*5))
+  after_sale=dict(success=True,data=dict(total=560,hasNext=True,data=[{}]*20))
+  observations=[]
+  for group,payload in [('ALL',visible),('AFTER_SALE',after_sale)]:
+   pagination=mt_all_customer_pagination(dict(groupCode=group),payload)
+   if pagination is not None:observations.append(pagination)
+  self.assertEqual(observations,[dict(total=5,hasNext=False,count=5)])
+  self.assertIsNone(mt_all_customer_pagination(dict(groupCode='ALL'),dict(success=False,data=visible['data'])))
+  self.assertTrue(mt_all_customer_pagination(dict(groupCode='ALL'),after_sale)['hasNext'])
  def test_dates_and_rollover(self):
   today=date(2026,10,15)
   self.assertEqual(stamp('昨天',today),'2026-10-14')
