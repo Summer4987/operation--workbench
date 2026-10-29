@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 
@@ -218,3 +219,14 @@ def test_main_fixture_dry_run_writes_evidence(tmp_path, monkeypatch, capsys):
     assert parsed["records"][0]["pickup_code"] == "8-1234"
     assert stdout["evidence_dir"] == str(evidence_dir)
     assert json.loads(latest_path.read_text(encoding="utf-8"))["evidence_dir"] == str(evidence_dir)
+
+
+def test_retired_real_capture_never_connects_to_phone(monkeypatch, tmp_path):
+    module = load_module()
+    monkeypatch.setattr(sys, 'argv', ['cainiao_logistics_capture.py', '--commit', '--evidence-dir', str(tmp_path / 'not-created')])
+    def forbidden(*args, **kwargs):
+        raise AssertionError('已取消任务不得访问手机或提交物流')
+    monkeypatch.setattr(module, 'capture_from_device', forbidden)
+    monkeypatch.setattr(module, 'post_logistics_record', forbidden)
+    assert module.main() == 2
+    assert not (tmp_path / 'not-created').exists()

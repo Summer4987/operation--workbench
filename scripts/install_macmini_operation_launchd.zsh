@@ -637,6 +637,7 @@ if (( SCRIPTS_ONLY )); then
 fi
 
 # Retired permanently; also remove installations from older releases.
+/bin/zsh "$SOURCE_ROOT/scripts/uninstall_cainiao_logistics_launchd.zsh"
 /bin/zsh "$SOURCE_ROOT/scripts/uninstall_daily_order_wechat_delivery.zsh"
 
 write_plist() {

@@ -602,6 +602,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if not args.fixture_ui_dump or args.commit:
+        print("菜鸟采集任务已取消；仅保留离线样本解析。", file=sys.stderr)
+        return 2
     evidence_dir = Path(args.evidence_dir).expanduser() if args.evidence_dir else OUTPUT_DIR / timestamp_text()
     evidence_dir.mkdir(parents=True, exist_ok=True)
     summary: dict[str, Any] = {

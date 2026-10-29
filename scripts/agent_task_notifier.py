@@ -167,7 +167,7 @@ def load_schedule_issue_tasks() -> dict[str, dict[str, Any]]:
             continue
         status = str(row.get("status") or "")
         label = str(row.get("label") or "")
-        if not label:
+        if not label or label == "com.summer.operation.cainiao-logistics":
             continue
         if status not in {"failed", "missing", "warning"}:
             continue
@@ -505,6 +505,8 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
 
     selected_ids = set(getattr(args, "task_id", None) or [])
     for task_id, task in sorted(task_candidates.items()):
+        if task_id in {"ops.cainiao_logistics", "schedule.com.summer.operation.cainiao-logistics"}:
+            continue  # Permanently retired, including old failure reminders.
         if selected_ids and task_id not in selected_ids:
             continue
         if not isinstance(task, dict):

@@ -102,7 +102,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             tasks = self.original_schedule_loader()
         self.assertNotIn("schedule.com.summer.operation.cainiao-logistics", tasks)
 
-    def test_cainiao_schedule_failures_remain_reportable(self) -> None:
+    def test_retired_cainiao_schedule_failures_are_silent(self) -> None:
         for status in ("failed", "missing", "warning"):
             with self.subTest(status=status), mock.patch.object(
                 self.notifier.hermes_schedule_status, "collect_status", return_value={
@@ -113,7 +113,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
                 }
             ):
                 tasks = self.original_schedule_loader()
-                self.assertEqual(tasks["schedule.com.summer.operation.cainiao-logistics"]["status"], status)
+                self.assertNotIn("schedule.com.summer.operation.cainiao-logistics", tasks)
 
     def test_inventory_business_failure_is_still_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
