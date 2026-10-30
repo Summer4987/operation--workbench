@@ -4,7 +4,17 @@ import time
 from pathlib import Path
 from .longxia_config import DEFAULT
 
-STORE_FIELDS={'id','name','bound','storeName','accountType','templateName','dailyBudget','lunchBudget','dinnerBudget','minBid','maxBid','platformBudget','spend','expected','gap','bid','bidScope','snapshotAt','day','status','pending','paused','promotionStatus','message','resultAt','nextDue','amounts'}
+STORE_FIELDS={'id','name','bound','storeName','accountType','templateName','dailyBudget','lunchBudget','dinnerBudget','minBid','maxBid','platformBudget','spend','expected','gap','bid','bidScope','snapshotAt','day','status','pending','paused','promotionStatus','message','resultAt','nextDue','amounts','learning'}
+LEARNING_TEXT_FIELDS={'mode','status','message','note'}
+LEARNING_NUMBER_FIELDS={'samples','days','responseSamples','averageDailySpend','completeDays','suggestedBid','referenceBid','suggestedStep','suggestedWaitMinutes'}
+
+def valid_learning(value):
+    if value is None:return True
+    if not isinstance(value,dict) or set(value)-(LEARNING_TEXT_FIELDS|LEARNING_NUMBER_FIELDS):return False
+    if value.get('mode')!='shadow':return False
+    return (all(isinstance(v,str) and len(v)<=1200 for k,v in value.items() if k in LEARNING_TEXT_FIELDS)
+            and all(v is None or type(v) is int and v>=0 for k,v in value.items() if k in LEARNING_NUMBER_FIELDS))
+
 TOP_FIELDS={'schema','generatedAt','day','version','on','readOnly','busy','current','trial','sync','summary','stores','log'}
 
 def read(path,now=None):
@@ -22,6 +32,7 @@ def read(path,now=None):
         if len(identities)!=len(stores) or not known.issubset(identities):raise ValueError('门店身份不匹配')
         # Exporter and relay only publish business status. Fail closed if raw fields leak.
         if set(raw)-TOP_FIELDS or any(set(s)-STORE_FIELDS for s in stores):raise ValueError('状态含未授权字段')
+        if any(not valid_learning(s.get('learning')) for s in stores):raise ValueError('学习建议格式无效')
         age=now-raw['generatedAt']
         return {**raw,'available':True,'online':age<=90000,'ageMs':max(0,age),'serverTime':now,'message':'Mac mini 正常回传' if age<=90000 else 'Mac mini 回传已过期，以下为最后一次状态'}
     except (OSError,ValueError,TypeError,KeyError):

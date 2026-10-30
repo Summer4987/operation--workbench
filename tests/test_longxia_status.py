@@ -23,6 +23,16 @@ class LongxiaStatusTests(unittest.TestCase):
   self.assertFalse(m.read(self.file,NOW)['available'])
   for mutate in [lambda d:d.update(cookie='secret'),lambda d:d['stores'][0].update(rawSnapshot={}),lambda d:d['stores'][0].update(id='wrong'),lambda d:d.update(generatedAt=NOW+60001),lambda d:d['stores'].__setitem__(0,None)]:
    d=copy.deepcopy(self.data);mutate(d);self.write(d);self.assertFalse(m.read(self.file,NOW)['available'])
+ def test_learning_summary_keeps_new_status_online(self):
+  learning={'mode':'shadow','status':'collecting','message':'学习积累中','samples':1,'days':1,'responseSamples':0,'averageDailySpend':None,'completeDays':0,'suggestedBid':30,'referenceBid':40,'suggestedStep':10,'suggestedWaitMinutes':5,'note':''}
+  self.data['stores'][0]['learning']=learning;self.write()
+  result=m.read(self.file,NOW)
+  self.assertTrue(result['available']);self.assertTrue(result['online']);self.assertEqual(result['stores'][0]['learning'],learning)
+  self.data['generatedAt']=NOW+15000;self.data['stores'][0]['spend']=1234;self.write()
+  result=m.read(self.file,NOW+15000);self.assertEqual(result['generatedAt'],NOW+15000);self.assertEqual(result['stores'][0]['spend'],1234)
+ def test_learning_rejects_unknown_fields_and_invalid_types(self):
+  for learning in [{'mode':'shadow','cookie':'secret'},{'mode':'shadow','rawSnapshot':{}},{'mode':'live'},{'mode':'shadow','samples':True},{'mode':'shadow','samples':-1},{'mode':'shadow','note':{}},[],{'mode':'shadow','note':'x'*1201}]:
+   self.data['stores'][0]['learning']=learning;self.write();self.assertFalse(m.read(self.file,NOW)['available'])
  def test_new_row_is_visible_without_authorizing_platform_actions(self):
   # A partial historical authorization must still display newly added local rows.
   known=m.DEFAULT['stores'][:9];self.data['stores']=self.data['stores'][:9]

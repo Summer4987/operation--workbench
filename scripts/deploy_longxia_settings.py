@@ -6,6 +6,7 @@ import json
 import socket
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -37,6 +38,31 @@ def register_missing_stores(data, defaults):
         registered.add(row['profileId'])
     return updated
 
+def deploy_status_only(active):
+    """Update the status validator without writing budgets, templates, or UI."""
+    source=(ROOT/'inventory-board/app/longxia_status.py').read_text()
+    remote="""import json,sys,pathlib,shutil,time,os,stat
+payload=json.load(sys.stdin);active=pathlib.Path(payload['active'])
+path=active/'app/longxia_status.py';source=payload['source']
+compile(source,str(path),'exec')
+metadata=path.stat();backup=path.with_name(path.name+'.backup-status-'+str(time.time_ns()))
+shutil.copy2(path,backup)
+tmp=path.with_name(path.name+'.status-'+str(os.getpid())+'.tmp')
+try:
+ tmp.write_text(source);os.chown(tmp,metadata.st_uid,metadata.st_gid);os.chmod(tmp,stat.S_IMODE(metadata.st_mode));tmp.replace(path)
+ sys.path.insert(0,str(active))
+ from app import longxia_status
+ result=longxia_status.read('/opt/inventory-board/data/longxia_fleet_status.json')
+ if not result.get('available') or not result.get('online'):raise RuntimeError('最新生产状态未通过校验，恢复原模块')
+ print(json.dumps({'available':result['available'],'online':result['online'],'version':result.get('version'),'generatedAt':result['generatedAt'],'stores':len(result['stores'])}))
+except Exception:
+ shutil.copy2(backup,path);raise
+finally:tmp.unlink(missing_ok=True)
+"""
+    subprocess.run(SSH+['sudo -n python3 -c '+shlex.quote(remote)],input=json.dumps({'active':active,'source':source}),text=True,check=True)
+    subprocess.run(SSH+['sudo systemctl restart inventory-board && systemctl is-active inventory-board'],check=True,stdin=subprocess.DEVNULL)
+    subprocess.run(['curl','--retry','3','--retry-delay','1','--retry-all-errors','--location','--fail','--silent','--output','/dev/null','http://139.155.148.169/operation-workbench/'],check=True)
+
 def main():
     if 'mini' not in socket.gethostname().lower():raise RuntimeError('只能由 Mac mini 发布')
     git=lambda *args:subprocess.check_output(['git','-C',str(ROOT),*args],text=True).strip()
@@ -44,6 +70,9 @@ def main():
     active=subprocess.check_output(SSH+['systemctl show inventory-board -p WorkingDirectory --value'],text=True,stdin=subprocess.DEVNULL).strip()
     if active!='/opt/inventory-board' and not (active.startswith('/opt/operation-workbench-releases/') and active.endswith('/inventory-board')):
         raise RuntimeError('未知服务目录，拒绝覆盖')
+    if '--status-only' in sys.argv:
+        deploy_status_only(active)
+        return
     target='/opt/operation-workbench-releases/longxia-'+git('rev-parse','HEAD')+'/inventory-board'
     current=subprocess.check_output(SSH+['cat '+shlex.quote(active+'/app/main.py')],text=True,stdin=subprocess.DEVNULL)
     new=(ROOT/'inventory-board/app/main.py').read_text()
