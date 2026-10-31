@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import json
+import math
 from datetime import datetime, timezone, timedelta
 import os
 import re
@@ -1176,14 +1177,12 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         return {"store": task.get("store"), "keyword": task.get("keyword"), "ok": True,
                 "skipped": True, "failure_type": "user_paused", "message": task_control(task).get("reason")}
     skip_restricted = task_control(task).get("skipWhenRestricted", False)
-    target = float(task["targetBudget"])
-    if target < 50:
-        return {
-            "store": task.get("store"), "keyword": task.get("keyword"),
-            "targetBudget": target, "ok": True, "skipped": True,
-            "failure_type": "below_platform_minimum",
-            "message": f"目标预算{target:g}元低于平台最低50元，保留原预算，下一时段再按预设执行。",
-        }
+    requested_target = float(task["targetBudget"])
+    if not math.isfinite(requested_target) or requested_target <= 0:
+        raise ValueError("目标预算必须是有效的正数")
+    # Meituan CPC daily budgets have a 50 yuan platform minimum. Apply the
+    # effective cap before preflight, spend checks, save and read-back alike.
+    target = max(50.0, requested_target)
     try:
         wm_id = wm_poi_id(task)
     except RuntimeError:
@@ -1219,6 +1218,8 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
         "wmPoiId": wm_id,
         "directMeituanAccountId": task.get("directMeituanAccountId") or "",
         "targetBudget": target,
+        "requestedTargetBudget": requested_target,
+        "minimumBudgetApplied": target != requested_target,
         "ok": False,
     }
     try:
