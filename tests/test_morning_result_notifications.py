@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 from unittest.mock import patch
 from types import SimpleNamespace
 
@@ -26,9 +27,10 @@ class MorningResultNotificationsTests(unittest.TestCase):
                 return SimpleNamespace(name=name, returncode=1, output="配置同步失败", log_path=Path("test.log"))
             return result
         with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(ops, "WORKSPACE", Path(stack.enter_context(tempfile.TemporaryDirectory()))))
             stack.enter_context(patch.object(sys, "argv", ["test", "--mode", mode]))
             stack.enter_context(patch.object(ops, "morning_ops_lock", return_value=contextlib.nullcontext()))
-            for name in ("cleanup_chrome_sessions", "refresh_final_status", "ensure_backend_chrome"):
+            for name in ("cleanup_chrome_sessions", "refresh_final_status", "ensure_backend_chrome", "publish_final_status"):
                 stack.enter_context(patch.object(ops, name))
             stack.enter_context(patch.object(ops, "run_step", side_effect=run_step))
             stack.enter_context(patch.object(ops, "run_step_with_pause", return_value=result))

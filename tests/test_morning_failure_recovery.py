@@ -49,7 +49,7 @@ def test_headquarters_failure_does_not_abort_healthy_collection_or_eleme_budget(
         stack.enter_context(patch.object(sys, 'argv', ['run','--mode','commit']))
         stack.enter_context(patch.object(ops, 'WORKSPACE', tmp_path))
         stack.enter_context(patch.object(ops, 'morning_ops_lock', return_value=contextlib.nullcontext()))
-        for name in ['cleanup_chrome_sessions','refresh_final_status','ensure_backend_chrome','record_task_run','flush_result_notifications','publish_budget_result']:
+        for name in ['cleanup_chrome_sessions','refresh_final_status','ensure_backend_chrome','record_task_run','flush_result_notifications','publish_budget_result','publish_final_status']:
             stack.enter_context(patch.object(ops, name))
         stack.enter_context(patch.object(ops, 'run_step', side_effect=run))
         stack.enter_context(patch.object(ops, 'run_step_with_pause', side_effect=submit))

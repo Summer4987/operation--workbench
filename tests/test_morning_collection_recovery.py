@@ -67,9 +67,10 @@ class BudgetConfigurationTests(unittest.TestCase):
             calls.append(name)
             return failed if name == '同步云端预算配置' else ok
         with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(ops, "WORKSPACE", Path(stack.enter_context(tempfile.TemporaryDirectory()))))
             stack.enter_context(patch.object(sys, 'argv', ['test', '--mode', 'commit']))
             stack.enter_context(patch.object(ops, 'morning_ops_lock', return_value=contextlib.nullcontext()))
-            for name in ['cleanup_chrome_sessions', 'refresh_final_status', 'ensure_backend_chrome', 'record_task_run', 'flush_result_notifications', 'publish_budget_result']:
+            for name in ['cleanup_chrome_sessions', 'refresh_final_status', 'ensure_backend_chrome', 'record_task_run', 'flush_result_notifications', 'publish_budget_result', 'publish_final_status']:
                 stack.enter_context(patch.object(ops, name))
             stack.enter_context(patch.object(ops, 'run_step', side_effect=run))
             pause = stack.enter_context(patch.object(ops, 'run_step_with_pause', return_value=ok))
