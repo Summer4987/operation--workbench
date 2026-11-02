@@ -105,3 +105,25 @@ def test_only_direct_meituan_login_failures_can_continue_to_store_isolation():
     assert direct_failures_can_be_isolated(direct_failed, True)
     assert not direct_failures_can_be_isolated(direct_failed, False)
     assert not direct_failures_can_be_isolated(mixed_failed, True)
+
+
+def test_transient_navigation_failure_retries_on_a_dedicated_tab():
+    page = mock.Mock()
+    page.frames = []
+    page.title.return_value = '商家首页'
+    page.url = 'https://e.waimai.meituan.com/'
+    page.evaluate.return_value = '全部门店 门店推广'
+    context = mock.Mock()
+    context.new_page.return_value = page
+    config = {'platforms': {'meituan': {'name': '美团', 'entry_url': preflight.MEITUAN_BUDGET_URL}}}
+    with mock.patch.object(preflight.cdp, 'load_config', return_value=config), \
+         mock.patch.object(preflight.cdp, 'cdp_available', return_value=True), \
+         mock.patch.object(preflight.cdp, 'connect_browser', return_value=(mock.Mock(),mock.Mock())), \
+         mock.patch.object(preflight.cdp, 'first_context', return_value=context), \
+         mock.patch.object(preflight.cdp, 'disconnect_browser'), \
+         mock.patch.object(preflight.cdp, 'goto_backend_page', side_effect=[TimeoutError(),None]) as navigate:
+        rows = preflight.check_common_platforms('budget', 0)
+    assert rows[0]['status'] == 'ok'
+    assert navigate.call_count == 2
+    page.close.assert_called_once()
+    context.new_page.assert_called_once()

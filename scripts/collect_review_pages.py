@@ -270,6 +270,9 @@ class Collector:
 
     def meituan(self,page,account,scope,old):
         captured={}
+        if account['type'] == 'headquarters':
+            from meituan_headquarters_context import ensure_headquarters_scope
+            ensure_headquarters_scope(page)
         def receive(response):
             path=urlparse(response.url).path
             if path in ['/gw/customer/comment/list','/gw/customer/comment/chain/scores','/gw/customer/comment/poi/scores']:
@@ -331,6 +334,7 @@ def re_date(value):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--account',action='append',help='只重试指定账号；默认全部')
+    parser.add_argument('--retry-failed', action='store_true', help='保留今天已采集成功的账号，仅补失败项')
     args=parser.parse_args()
     if 'mini' not in platform.node().lower():
         raise SystemExit('只允许在 Mac mini 生产主机读取平台登录态')
@@ -349,6 +353,10 @@ def main():
         unknown=set(args.account)-{a['id'] for a in accounts}
         if unknown:raise SystemExit('未知账号：'+','.join(sorted(unknown)))
         accounts=[a for a in accounts if a['id'] in args.account]
+    if args.retry_failed and old.get('target_date') == end:
+        accounts=[a for a in accounts if not (
+            scopes.get(a['id'],{}).get('collected_at','').startswith(now.date().isoformat()) and
+            all(scopes.get(a['id'],{}).get(k)=='ready' for k in ['reviews_status','ratings_status']))]
     with sync_playwright() as pw:
         collector=Collector(pw,old,start,end)
         for account in accounts:

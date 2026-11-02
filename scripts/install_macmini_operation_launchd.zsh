@@ -541,8 +541,17 @@ fi
 
 echo "[\$(date '+%F %T')] 开始上午运营采集。" >> "\$LOG_DIR/scheduler.log"
 set +e
-run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-5400}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" >> "\$LOG_DIR/scheduler.log" 2>&1
+run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-5400}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" --source scheduled >> "\$LOG_DIR/scheduler.log" 2>&1
 rc="\$?"
+# Poll for restored login/network within the existing morning execution window.
+# Successful platform steps are checkpointed; the main lock prevents overlap.
+while [[ "\$rc" -eq 1 && "\$(date +%H%M)" -lt 1050 ]]; do
+  sleep 300
+  [[ "\$(date +%H%M)" -le 1050 ]] || break
+  echo "[\$(date '+%F %T')] 自动续跑当天失败项，已完成步骤保留。" >> "\$LOG_DIR/scheduler.log"
+  run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-5400}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" --source scheduled --resume >> "\$LOG_DIR/scheduler.log" 2>&1
+  rc="\$?"
+done
 set -e
 if [[ "\$rc" -ne 0 ]]; then
   echo "[\$(date '+%F %T')] 上午运营采集异常结束，退出码：\$rc" >> "\$LOG_DIR/scheduler.log"

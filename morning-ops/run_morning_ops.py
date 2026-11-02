@@ -48,6 +48,9 @@ NODE = Path("/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependenc
 REPORT_VENV_PYTHON = REPORT_DIR / ".venv" / "bin" / "python"
 REPORT_PYTHON = REPORT_VENV_PYTHON if REPORT_VENV_PYTHON.exists() else Path("/usr/bin/python3")
 TASK_ID = "ops.morning_collection"
+sys.path.insert(0, str(WORKSPACE / "scripts"))
+from morning_recovery_state import RecoveryState
+RECOVERY = None
 DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS = 1800
 
 
@@ -227,6 +230,11 @@ def wait_for_manual_resume(reason: str, *, timeout_minutes: int = 60) -> bool:
 def run_step(name: str, args: list[str], *, required: bool = True, timeout_seconds: int | None = None) -> StepResult:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
+    if RECOVERY and RECOVERY.completed(name):
+        message = f"{name}本日已验证成功，保留结果，仅补跑失败步骤。"
+        print(message, flush=True)
+        record_task_run("success", message, name, log_path, returncode=0)
+        return StepResult(name, 0, message, log_path)
     print(f"\n== {name} ==", flush=True)
     record_task_run("running", f"{name}开始。", name, log_path)
     output = ""
@@ -253,6 +261,8 @@ def run_step(name: str, args: list[str], *, required: bool = True, timeout_secon
             )
             log.write(output)
             returncode = 124
+    if RECOVERY:
+        RECOVERY.record(name, returncode == 0)
     if returncode == 0:
         print(f"{name}完成。", flush=True)
         record_task_run("success", f"{name}完成。", name, log_path, returncode=0)
@@ -364,6 +374,26 @@ def publish_budget_result(period: str, since_epoch: float, log_path: Path) -> bo
         return False
 
 
+def publish_final_status(mode: str, log_path: Path) -> bool:
+    if mode != "commit" or not is_production_environment():
+        return True
+    try:
+        result = subprocess.run(
+            ["/bin/zsh", str(WORKBENCH_DEPLOY_RUNNER)], cwd=WORKSPACE,
+            env={**os.environ, "OPERATION_CLOUD_DEPLOY_MODE": "data-only"},
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=300,
+        )
+        with log_path.open("a", encoding="utf-8") as log:
+            log.write("\n最终状态发布：\n" + (result.stdout or ""))
+        if result.returncode == 0:
+            return True
+    except Exception as exc:
+        print(f"最终状态发布未完成：{type(exc).__name__}", file=sys.stderr)
+    record_task_run("failed", "采集已结束，但最终状态云端同步失败，等待自动续跑。", "最终状态发布", log_path, returncode=1)
+    refresh_final_status()
+    return False
+
+
 def flush_result_notifications(*task_ids: str) -> None:
     """Deliver now; persisted signatures retain failed sends for scheduled retry."""
     try:
@@ -397,13 +427,21 @@ def main() -> int:
         default=os.environ.get("MORNING_OPS_SOURCE", "scheduled"),
         help="运行来源标记，用于区分 launchd 定时、手动入口或排障补跑。",
     )
+    parser.add_argument("--resume", action="store_true", help="仅续跑当天同模式和时段的失败步骤")
     args = parser.parse_args()
+    global RECOVERY
     with morning_ops_lock(args.source):
         run_started_epoch = time.time()
         budget_result_recorded = False
         log_path = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.log"
         budget_period = resolve_budget_period(args.budget_period)
         budget_time = BUDGET_PERIODS[budget_period]["time"]
+        RECOVERY = RecoveryState(
+            WORKSPACE / "outputs/morning_recovery" / f"{args.mode}-{budget_period}.json",
+            day=datetime.now().strftime("%F"), period=budget_period, mode=args.mode,
+            started=run_started_epoch, resume=args.resume,
+        )
+        run_started_epoch = RECOVERY.data["started"]
         skip_eleme_budget = env_flag("MORNING_SKIP_ELEME_BUDGET")
         record_task_run(
             "running",
@@ -416,6 +454,7 @@ def main() -> int:
             skip_eleme_budget=str(skip_eleme_budget).lower(),
         )
         print(f"运营一键采集开始：日报 + 双平台余额巡检 + {budget_period}推广预算（{args.mode}，来源：{args.source}）。", flush=True)
+        record_task_run("success", "运行参数和当天恢复检查点已就绪。", "初始化", log_path, returncode=0)
         cleanup_chrome_sessions("任务开始前 Chrome 会话清理")
         failures: list[dict[str, object]] = []
         try:
@@ -437,7 +476,7 @@ def main() -> int:
                 )
                 if preflight.returncode != 0:
                     add_failure(failures, "总部平台登录态预检", preflight)
-                    raise RuntimeError("总部美团/饿了么登录态预检失败，已停止对应正式动作。")
+                    print("总部平台预检异常：各采集器和预算提交前分别校验；正常平台和独立账号继续。", flush=True)
                 direct_preflight = run_step(
                     "直营美团逐账号登录态预检",
                     [
@@ -459,10 +498,10 @@ def main() -> int:
                         flush=True,
                     )
                 ensure_backend_chrome(report_python)
-                result = run_step("双平台评价页及门店评分采集", [report_python, str(WORKSPACE / "scripts" / "collect_review_pages.py")], required=False, timeout_seconds=900)
+                result = run_step("双平台评价页及门店评分采集", [report_python, str(WORKSPACE / "scripts" / "collect_review_pages.py"), *(["--retry-failed"] if args.resume else [])], required=False, timeout_seconds=900)
                 if result.returncode != 0:
                     add_failure(failures, "评价页及门店评分采集", result)
-                result = run_step("直营双平台客服消息采集", [report_python, str(WORKSPACE / "scripts" / "collect_customer_messages.py")], required=False, timeout_seconds=1500)
+                result = run_step("直营双平台客服消息采集", [report_python, str(WORKSPACE / "scripts" / "collect_customer_messages.py"), *(["--retry-failed"] if args.resume else [])], required=False, timeout_seconds=1500)
                 if result.returncode != 0:
                     add_failure(failures, "直营双平台客服消息采集", result)
                 result = run_step("评价看板生成", [report_python, str(REPORT_AUTOMATION), "process-downloaded-reviews"], required=False, timeout_seconds=180)
@@ -514,7 +553,16 @@ def main() -> int:
                 for platform in ['饿了么', '美团']:
                     record_task_run('skipped', '预算配置同步或预览失败，未执行预算提交。', f'{platform}{budget_period}预算真实提交', log_path)
             else:
-                if skip_eleme_budget:
+                eleme_ready = skip_eleme_budget or (RECOVERY and RECOVERY.completed(f"饿了么{budget_period}预算真实提交")) or run_step(
+                    "饿了么预算提交前登录态复核",
+                    [report_python, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--platform", "eleme"],
+                    required=False, timeout_seconds=180,
+                ).returncode == 0
+                if not eleme_ready:
+                    blocked = StepResult("饿了么预算提交前登录态复核", 66, "平台未通过登录态复核，未提交", log_path)
+                    add_failure(failures, blocked.name, blocked)
+                    record_task_run('failed', blocked.output, f'饿了么{budget_period}预算真实提交', log_path, returncode=66)
+                elif skip_eleme_budget:
                     record_task_run('skipped', '按临时运营设置跳过淘宝闪购预算，未提交。', f'饿了么{budget_period}预算真实提交', log_path)
                     print(
                         f"按临时运营设置跳过饿了么{budget_period}预算；美团预算及其它采集、看板任务照常执行。",
@@ -533,23 +581,33 @@ def main() -> int:
                     "MEITUAN_BUDGET_TIMEOUT_SECONDS",
                     DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS,
                 )
-                result = run_step_with_pause(
-                    f"美团{budget_period}预算真实提交",
-                    [
-                        str(REPORT_PYTHON),
-                        str(MEITUAN_BUDGET_CDP_RUNNER),
-                        "--period",
-                        budget_period,
-                        "--mode",
-                        "commit",
-                        "--limit",
-                        "all",
-                    ],
-                    required=False,
-                    timeout_seconds=meituan_budget_timeout,
-                )
-                if result.returncode != 0:
-                    add_failure(failures, f"美团{budget_period}预算", result)
+                meituan_ready = (RECOVERY and RECOVERY.completed(f"美团{budget_period}预算真实提交")) or run_step(
+                    "美团预算提交前登录态复核",
+                    [report_python, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--platform", "meituan"],
+                    required=False, timeout_seconds=180,
+                ).returncode == 0
+                if not meituan_ready:
+                    blocked = StepResult("美团预算提交前登录态复核", 66, "平台未通过登录态复核，未提交", log_path)
+                    add_failure(failures, blocked.name, blocked)
+                    record_task_run('failed', blocked.output, f'美团{budget_period}预算真实提交', log_path, returncode=66)
+                else:
+                    result = run_step_with_pause(
+                        f"美团{budget_period}预算真实提交",
+                        [
+                            str(REPORT_PYTHON),
+                            str(MEITUAN_BUDGET_CDP_RUNNER),
+                            "--period",
+                            budget_period,
+                            "--mode",
+                            "commit",
+                            "--limit",
+                            "all",
+                        ],
+                        required=False,
+                        timeout_seconds=meituan_budget_timeout,
+                    )
+                    if result.returncode != 0:
+                        add_failure(failures, f"美团{budget_period}预算", result)
                 budget_result_recorded = publish_budget_result(budget_period, run_started_epoch, log_path)
                 flush_result_notifications("growth.promo_budget")
             # Balance alerts are independent of whether budget submission ran.
@@ -589,6 +647,7 @@ def main() -> int:
                     failure_details=json.dumps(failures, ensure_ascii=False),
                 )
                 refresh_final_status()
+                publish_final_status(args.mode, log_path)
                 return 1
             print("\n运营一键采集完成。", flush=True)
             record_task_run(
@@ -602,7 +661,7 @@ def main() -> int:
                 budget_period=budget_period,
             )
             refresh_final_status()
-            return 0
+            return 0 if publish_final_status(args.mode, log_path) else 1
         except Exception as exc:
             cleanup_chrome_sessions("异常后 Chrome 会话清理")
             print(f"\n运营一键采集失败：{exc}", file=sys.stderr, flush=True)

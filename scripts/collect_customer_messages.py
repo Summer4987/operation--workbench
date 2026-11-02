@@ -290,6 +290,9 @@ def meituan(pw,scope,account,keyword):
         except Exception:pass
     page.on('response',response)
     try:
+        if account.get('headquarters'):
+            from meituan_headquarters_context import ensure_headquarters_scope
+            ensure_headquarters_scope(page)
         page.goto(MT_URL,wait_until='domcontentloaded',timeout=60000)
         wait(page,lambda:page.get_by_text('全部顾客消息',exact=True).count(),'美团客服工作台')
         dismiss(page)
@@ -518,6 +521,7 @@ def main():
     ap.add_argument('--lookback',type=int,default=3,choices=range(1,8),help='重查最近几天，补获跨天或延迟记录')
     ap.add_argument('--store',action='append')
     ap.add_argument('--platform',choices=['美团','淘宝闪购'],action='append')
+    ap.add_argument('--retry-failed', action='store_true', help='仅补采今天尚未完整采集的门店平台范围')
     args=ap.parse_args();datetime.strptime(args.date,'%Y-%m-%d')
     if 'mini' not in platform.node().lower():raise SystemExit('仅允许在 Mac mini 生产主机采集')
     from playwright.sync_api import sync_playwright
@@ -529,12 +533,15 @@ def main():
     existing=OUT/args.date/'snapshot.json'
     previous_snapshot=json.loads(existing.read_text()) if existing.exists() else {}
     run_id=datetime.now(TZ).strftime('%Y%m%dT%H%M%S%f')
-    if (args.store or args.platform) and existing.exists():snapshot=json.loads(existing.read_text())
+    if (args.store or args.platform or args.retry_failed) and existing.exists():snapshot=json.loads(existing.read_text())
     with sync_playwright() as pw:
         for c in config:
             if args.store and c['store'] not in args.store:continue
             for plat in args.platform or ['美团','淘宝闪购']:
                 key=c['store']+'|'+plat
+                prior=snapshot.get('scopes',{}).get(key,{})
+                if args.retry_failed and prior.get('status')=='ready' and prior.get('collected_at','').startswith(datetime.now(TZ).date().isoformat()):
+                    continue
                 for attempt in range(2):
                     scope=dict(store=c['store'],platform=plat,date=args.date,window_start=(datetime.strptime(args.date,'%Y-%m-%d').date()-timedelta(days=args.lookback-1)).isoformat(),collected_at=datetime.now(TZ).isoformat(timespec='seconds'),sessions=[],errors=[],list_complete=False)
                     try:

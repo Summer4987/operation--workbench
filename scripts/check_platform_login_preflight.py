@@ -116,7 +116,7 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                 continue
             if scope == "budget" and key not in {"eleme", "meituan"}:
                 continue
-            page = cdp.reusable_page(context)
+            page = context.new_page()
             url = platform.get("download_url") or platform.get("entry_url")
             if scope == "realtime" and key == "eleme":
                 url = ELEME_REALTIME_URL
@@ -128,7 +128,16 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
             if scope == "budget" and key == "meituan":
                 ready_texts = MEITUAN_BUDGET_READY_TEXTS
             try:
-                cdp.goto_backend_page(page, url, timeout=90_000)
+                # Retry transport/navigation failures on our own tab. Never recycle
+                # a collector's selected store or retry an actual login challenge.
+                for attempt in range(2):
+                    try:
+                        cdp.goto_backend_page(page, url, timeout=30_000)
+                        break
+                    except Exception:
+                        if attempt:
+                            raise
+                        page.wait_for_timeout(1500)
                 page.wait_for_timeout(wait_ms)
                 results.append(
                     classify_page(
@@ -148,6 +157,8 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                         "url": url,
                     }
                 )
+            finally:
+                page.close()
     finally:
         cdp.disconnect_browser(playwright, browser)
     return results
