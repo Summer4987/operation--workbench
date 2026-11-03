@@ -438,7 +438,7 @@ def dismiss_common_modals(page) -> None:
     # Close informational prompts in both the merchant shell and promo iframe.
     # Never click confirmation, enrolment, payment or security actions.
     for frame in page.frames:
-        for label in ("稍后处理", "我知道了", "知道了"):
+        for label in ("稍后处理", "我知道了", "知道了", "已知悉"):
             try:
                 locator = frame.get_by_text(label, exact=True)
                 for index in range(min(locator.count(), 4)):

@@ -349,6 +349,16 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIn("强制点击确定", message)
         self.assertEqual(locator.click_kwargs[-1].get("force"), True)
 
+    def test_common_modal_acknowledges_pickup_notice_without_following_offer(self) -> None:
+        notice = FakeLocator()
+        frame = mock.Mock()
+        frame.get_by_text.side_effect = lambda label, **kwargs: FakeLocator([notice] if label == "已知悉" else [])
+        page = types.SimpleNamespace(frames=[frame])
+        self.module.dismiss_common_modals(page)
+        self.assertTrue(notice.clicked)
+        self.assertIn(mock.call("已知悉", exact=True), frame.get_by_text.call_args_list)
+        self.assertNotIn(mock.call("跳转自取页", exact=True), frame.get_by_text.call_args_list)
+
     def test_budget_onboarding_is_dismissed_until_no_step_remains(self) -> None:
         page = FakeOnboardingPage(["next", "next", "close", ""])
 
