@@ -64,6 +64,23 @@ def read_session_with_retry(page, read):
         page.wait_for_timeout(1000)
 
 
+def record_session_issue(scope, item, reason):
+    """Only positively identified group chats are optional; keep other failures blocking."""
+    if item.get('group') is True:
+        scope.setdefault('skipped_group_chats', []).append(dict(
+            id=item.get('id', ''), reason=reason, status='skipped'))
+    else:
+        scope.setdefault('errors', []).append(reason)
+
+
+def append_captured_session(scope, item, session):
+    if item.get('group') is True and scope_status(dict(
+            list_complete=True, errors=[], sessions=[session])) != 'ready':
+        record_session_issue(scope, item, '三方群聊历史或附件不完整，按规则跳过')
+        return
+    scope['sessions'].append(session)
+
+
 def dismiss(page):
     for name in ['跳过全部','我知道了','知道了','暂不体验']:
         for loc in page.get_by_text(name,exact=True).all():
@@ -302,11 +319,11 @@ def meituan(pw,scope,account,keyword):
         scope.update(list_complete=complete,scanned_sessions=len(sessions),sessions=[],errors=[])
         for item in sessions:
             latest=stamp(item.get('latest'))
-            if not latest:scope['errors'].append('无法识别会话最近日期');continue
+            if not latest:record_session_issue(scope,item,'无法识别会话最近日期');continue
             if latest[:10]<scope.get('window_start',scope['date']):continue
             if account.get('headquarters') and not item.get('group') and scope['store'].replace('店','') not in item['label']:continue
             try:
-                session=read_session_with_retry(page,lambda:mt_history(page,item,scope['date'],scope.get('window_start')))
+                session=(mt_history(page,item,scope['date'],scope.get('window_start')) if item.get('group') is True else read_session_with_retry(page,lambda:mt_history(page,item,scope['date'],scope.get('window_start'))))
                 if account.get('headquarters') and item.get('group'):
                     merchants={match_store(m['sender'],'美团',aliases) for m in session['messages'] if m['role']=='merchant'}-{''}
                     resolved=unique_group_store(merchants,native_hints.get(canonical_chat_title(item['label'].split('\n')[0]),set()))
@@ -315,13 +332,13 @@ def meituan(pw,scope,account,keyword):
                             for msg in session['messages']:
                                 for attachment in msg.get('media',[]):attachment.pop('url',None)
                             scope.setdefault('unassigned_sessions',[]).append(session)
-                            scope['errors'].append('总部三方群聊所属门店暂未核实，已本机留档，不能按无消息处理')
+                            record_session_issue(scope,item,'总部三方群聊所属门店暂未核实，已本机留档，按规则跳过')
                         continue
                 if not any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
-                    if not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['label'].split('\n')[0])
+                    if not session['history_complete']:record_session_issue(scope,item,'会话历史未完整：'+item['label'].split('\n')[0])
                     continue
-                save_media(page,scope,session);scope['sessions'].append(session)
-            except Exception as e:scope['errors'].append(safe_error(e))
+                save_media(page,scope,session);append_captured_session(scope,item,session)
+            except Exception as e:record_session_issue(scope,item,safe_error(e))
         scope['list_basis']='已核对全部顾客消息接口返回及界面分页/日期边界；总部按所属门店匹配' if complete else '未到达会话列表末尾'
     finally:
         page.close();browser.close()
@@ -475,15 +492,15 @@ def eleme(pw,scope,config,*,recover=False):
         scope.update(list_complete=complete,scanned_sessions=len(sessions),expected_sessions=expected,sessions=[],errors=[],list_basis='虚拟列表逐屏去重并核对总高度/行高对应的会话数')
         for item in sessions:
             latest=stamp(item['latest'])
-            if not latest:scope['errors'].append('无法识别会话日期：'+item['title']);continue
+            if not latest:record_session_issue(scope,item,'无法识别会话日期：'+item['title']);continue
             if latest[:10]<scope.get('window_start',scope['date']):continue
             try:
                 scope['stage']='淘宝会话历史采集'
                 session=read_session_with_retry(page,lambda:el_history(page,frame,item,scope['date'],scope.get('window_start')))
                 if any((scope.get('window_start',scope['date'])<=m['timestamp'][:10]<=scope['date']) or m['needs_review'] for m in session['messages']):
-                    save_media(page,scope,session,frame);scope['sessions'].append(session)
-                elif not session['history_complete']:scope['errors'].append('会话历史未完整：'+item['title'])
-            except Exception as e:scope['errors'].append(safe_error(e))
+                    save_media(page,scope,session,frame);append_captured_session(scope,item,session)
+                elif not session['history_complete']:record_session_issue(scope,item,'会话历史未完整：'+item['title'])
+            except Exception as e:record_session_issue(scope,item,safe_error(e))
     finally:
         if owned:page.close()
         browser.close()

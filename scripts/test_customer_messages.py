@@ -19,6 +19,31 @@ class DataTests(unittest.TestCase):
   self.assertEqual(observations,[dict(total=5,hasNext=False,count=5)])
   self.assertIsNone(mt_all_customer_pagination(dict(groupCode='ALL'),dict(success=False,data=visible['data'])))
   self.assertTrue(mt_all_customer_pagination(dict(groupCode='ALL'),after_sale)['hasNext'])
+ def test_optional_group_failure_is_logged_without_blocking_scope(self):
+  from collect_customer_messages import record_session_issue
+  scope=dict(list_complete=True,errors=[],sessions=[])
+  record_session_issue(scope,dict(id='group-1',group=True),'三方群聊正文与归属超时')
+  self.assertEqual(scope_status(scope),'ready')
+  self.assertEqual(scope['skipped_group_chats'][0]['status'],'skipped')
+  record_session_issue(scope,dict(id='customer-1',group=False),'顾客单聊正文超时')
+  self.assertEqual(scope_status(scope),'partial')
+ def test_group_history_and_attachment_failures_are_skipped_but_customer_is_required(self):
+  from collect_customer_messages import append_captured_session
+  for session in [dict(history_complete=False,messages=[]),dict(history_complete=True,messages=[dict(on_target_date=True,needs_review=False,media=[dict(kind='image',status='failed')])])]:
+   scope=dict(list_complete=True,errors=[],sessions=[])
+   append_captured_session(scope,dict(id='group-1',group=True),session)
+   self.assertEqual(scope['sessions'],[])
+   self.assertEqual(len(scope['skipped_group_chats']),1)
+   self.assertEqual(scope_status(scope),'ready')
+   append_captured_session(scope,dict(id='customer-1'),session)
+   self.assertEqual(scope_status(scope),'partial')
+ def test_group_skip_never_bypasses_list_or_login_failures(self):
+  from collect_customer_messages import record_session_issue
+  scope=dict(list_complete=False,errors=[],sessions=[])
+  record_session_issue(scope,dict(group=True),'群聊超时')
+  self.assertEqual(scope_status(scope),'partial')
+  scope.update(error='登录失效')
+  self.assertEqual(scope_status(scope),'failed')
  def test_dates_and_rollover(self):
   today=date(2026,10,15)
   self.assertEqual(stamp('昨天',today),'2026-10-14')
