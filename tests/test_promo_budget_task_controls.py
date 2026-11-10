@@ -39,6 +39,21 @@ class BudgetTaskControlTests(unittest.TestCase):
                         self.assertEqual(a['status'], 'paused')
                         self.assertEqual(a['targetBudget'], b['targetBudget'])
 
+    def test_guanggu_budget_policy_starts_on_november_11(self):
+        with tempfile.TemporaryDirectory() as folder:
+            env = {**os.environ, 'OPERATION_BUDGET_RUNTIME_ROOT': folder}
+            subprocess.run(['/bin/zsh', str(ROOT / 'scripts/install_promo_budget_runtime.zsh')], env=env, check=True, capture_output=True)
+            runtime = Path(folder)
+            for date, active in [('2026-11-10', False), ('2026-11-11', True), ('2026-11-14', True)]:
+                subprocess.run([NODE, str(runtime / 'scripts/build_promo_budget_preview.mjs')],
+                               env={**env, 'PROMO_BUDGET_DATE': date}, check=True, capture_output=True)
+                preview = json.loads((runtime / 'outputs/promo_budget_preview/latest.json').read_text())
+                lunch, dinner = (next(row for row in preview[period] if row['sourceStore'] == '光谷店')
+                                 for period in ('meituan_lunch', 'meituan_dinner'))
+                self.assertEqual(lunch['status'], 'auto')
+                self.assertEqual(lunch['targetBudget'] == 50, active)
+                self.assertEqual(dinner['status'], 'paused' if active else 'auto')
+
     def test_restricted_skip_is_explicit_in_result_message(self):
         import sys
         sys.path.insert(0, str(ROOT))

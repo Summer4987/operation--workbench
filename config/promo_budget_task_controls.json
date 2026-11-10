@@ -16,6 +16,15 @@
         "B2档口"
       ],
       "skipWhenRestricted": true
+    },
+    "光谷店": {
+      "keywords": [
+        "光谷"
+      ],
+      "lunchBudgetFrom": "2026-11-11",
+      "lunchBudget": 50,
+      "dinnerPausedFrom": "2026-11-11",
+      "reason": "光谷店全天预算由上午设为50元，晚间跳过"
     }
   }
 }

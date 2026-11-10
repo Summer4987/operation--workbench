@@ -76,9 +76,11 @@ function meituanTask(store, period) {
   const directAccount = directMeituanAccountForStore(store.name);
   const meituanName = matchMeituanName(store.name);
   const control = taskControls.meituanStores?.[store.name] || {};
-  const paused = Boolean(control.pausedFrom && dateContext.date >= control.pausedFrom);
+  const pausedFrom = control.pausedFrom || (period === "晚餐" ? control.dinnerPausedFrom : null);
+  const paused = Boolean(pausedFrom && dateContext.date >= pausedFrom);
   const promoEnabled = store.meituanPromoEnabled !== false;
-  const targetBudget = budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
+  const fixedLunchBudget = period === "午餐" && control.lunchBudgetFrom && dateContext.date >= control.lunchBudgetFrom;
+  const targetBudget = fixedLunchBudget ? control.lunchBudget : budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
   return trialTask({
     platform: "美团",
     store: meituanName,

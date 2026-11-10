@@ -95,7 +95,8 @@ def task_control(task: dict) -> dict:
 def task_paused(task: dict, date: str = "") -> bool:
     control = task_control(task)
     date = date or datetime.now(timezone(timedelta(hours=8))).date().isoformat()
-    return bool(control.get("pausedFrom") and date >= control["pausedFrom"])
+    paused_from = control.get("pausedFrom") or (control.get("dinnerPausedFrom") if task.get("period") == "晚餐" else None)
+    return bool(paused_from and date >= paused_from)
 
 
 class PromotionRestricted(RuntimeError):
@@ -156,7 +157,7 @@ def check_promotion_restriction(text: str) -> None:
 def load_tasks(period: str) -> list[dict]:
     payload = json.loads(PREVIEW_PATH.read_text(encoding="utf-8"))
     key = "meituan_dinner" if period == "晚餐" else "meituan_lunch"
-    return [item for item in payload.get(key, []) if item.get("status") == "auto" and not task_paused(item)]
+    return [item for item in payload.get(key, []) if item.get("status") == "auto" and not task_paused({**item, "period": period})]
 
 
 def resolve_period(period: str) -> str:
@@ -1176,8 +1177,11 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     if task_paused(task):
         return {"store": task.get("store"), "keyword": task.get("keyword"), "ok": True,
                 "skipped": True, "failure_type": "user_paused", "message": task_control(task).get("reason")}
-    skip_restricted = task_control(task).get("skipWhenRestricted", False)
-    requested_target = float(task["targetBudget"])
+    control = task_control(task)
+    skip_restricted = control.get("skipWhenRestricted", False)
+    date = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
+    fixed_lunch_budget = task.get("period") == "午餐" and control.get("lunchBudgetFrom") and date >= control["lunchBudgetFrom"]
+    requested_target = float(control["lunchBudget"] if fixed_lunch_budget else task["targetBudget"])
     if not math.isfinite(requested_target) or requested_target <= 0:
         raise ValueError("目标预算必须是有效的正数")
     # Meituan CPC daily budgets have a 50 yuan platform minimum. Apply the
