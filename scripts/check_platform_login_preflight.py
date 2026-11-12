@@ -190,7 +190,9 @@ def check_direct_meituan_accounts(wait_ms: int) -> list[dict[str, Any]]:
             "--wait-ms",
             str(wait_ms),
         ]
-        timeout_seconds = max(45, int(wait_ms / 1000) + 45)
+        # Covers bounded CDP recovery plus both read-only page checks. The old
+        # 48-second outer limit killed the child before recovery could finish.
+        timeout_seconds = 150 + 2 * int(wait_ms / 1000)
         try:
             completed = subprocess.run(
                 cmd,

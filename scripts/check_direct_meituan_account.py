@@ -7,9 +7,9 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from direct_meituan_browser import connect_store_browser
 CONFIG_PATH = ROOT / "config" / "direct_meituan_accounts.json"
 OUTPUT_DIR = ROOT / "outputs" / "direct_meituan_account_check"
 WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
@@ -53,7 +53,7 @@ def compact_text(value: str, limit: int = 500) -> str:
 
 
 def check_page(page, page_key: str, url: str, wait_ms: int) -> dict:
-    page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+    page.goto(url, wait_until="domcontentloaded", timeout=25_000)
     page.wait_for_timeout(wait_ms)
     title = page.title()
     current_url = page.url
@@ -91,10 +91,12 @@ def resolve_browser_executable(browser_executable: str | None) -> str | None:
     return None
 
 
-def get_page_from_attached_chrome(playwright, debug_port: int):
-    browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{debug_port}")
+def get_page_from_attached_chrome(playwright, account: dict):
+    browser = connect_store_browser(playwright, account, allow_recovery=True)
     context = browser.contexts[0] if browser.contexts else browser.new_context()
-    page = context.pages[0] if context.pages else context.new_page()
+    # A short-lived probe tab leaves no utility worlds on the user's old tabs.
+    page = context.new_page()
+    page.set_default_timeout(5_000)
     return browser, context, page
 
 
@@ -131,11 +133,10 @@ def run_check(
     with sync_playwright() as p:
         attached_browser = None
         if debug_port:
-            try:
-                attached_browser, context, page = get_page_from_attached_chrome(p, int(debug_port))
-                connection_mode = f"cdp:127.0.0.1:{debug_port}"
-            except Exception:
-                attached_browser = None
+            # Never launch a second persistent context against a busy profile
+            # after a CDP timeout: report/recover the real connection failure.
+            attached_browser, context, page = get_page_from_attached_chrome(p, account)
+            connection_mode = f"cdp:127.0.0.1:{debug_port}"
         if not attached_browser:
             launch_options = {
                 "user_data_dir": str(profile_dir),
@@ -153,7 +154,9 @@ def run_check(
                     continue
                 results.append(check_page(page, page_key, url, wait_ms))
         finally:
-            if not attached_browser:
+            if attached_browser:
+                page.close()
+            else:
                 context.close()
 
     failed = [item for item in results if item["status"] != "ok"]

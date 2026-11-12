@@ -69,7 +69,7 @@ class FakeChromium:
         self.browser = browser
         self.endpoints: list[str] = []
 
-    def connect_over_cdp(self, endpoint: str) -> FakeBrowser:
+    def connect_over_cdp(self, endpoint: str, **_kwargs) -> FakeBrowser:
         self.endpoints.append(endpoint)
         return self.browser
 
@@ -317,6 +317,19 @@ class MeituanBudgetCdpTests(unittest.TestCase):
         self.assertIs(locator, page.frame.confirm)
         locator.click()
         self.assertTrue(page.frame.confirm.clicked)
+
+    def test_direct_connection_recovers_only_when_preflight_opts_in(self) -> None:
+        context = FakeContext([])
+        account = {"id": "direct_yintaicheng", "debug_port": 19224}
+        task = {"directMeituanAccountId": account["id"]}
+        for allow_recovery in (False, True):
+            with mock.patch.object(self.module, "cdp_available", return_value=True), \
+                 mock.patch.object(self.module, "connect_store_browser", return_value=FakeBrowser(context)) as connect:
+                result = self.module.context_for_task(
+                    object(), {}, [], task, {account["id"]: account}, allow_recovery=allow_recovery,
+                )
+            self.assertIs(result, context)
+            self.assertEqual(connect.call_args.kwargs, {"allow_recovery": allow_recovery})
 
     def test_budget_v2_save_button_is_recognized_before_legacy_confirm(self) -> None:
         save = FakeLocator()

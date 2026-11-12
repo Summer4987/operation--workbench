@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 import os
 import re
 import signal
+import sys
 import time
 from pathlib import Path
 from urllib.error import URLError
@@ -26,6 +27,8 @@ if Path(WORKING_NODE).exists():
 from playwright.sync_api import sync_playwright
 
 WORKSPACE = ROOT.parent
+sys.path.insert(0, str(WORKSPACE / "scripts"))
+from direct_meituan_browser import CONNECT_TIMEOUT_MS, connect_store_browser
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
 EVIDENCE_DIR = WORKSPACE / "outputs" / "meituan_budget_automation" / "evidence"
@@ -1362,6 +1365,8 @@ def context_for_task(
     launched_contexts: list[object],
     task: dict,
     direct_accounts: dict[str, dict],
+    *,
+    allow_recovery: bool = False,
 ):
     account_id = task.get("directMeituanAccountId") or ""
     if not account_id:
@@ -1370,7 +1375,7 @@ def context_for_task(
         if endpoint not in contexts:
             if not cdp_available(debug_port):
                 raise RuntimeError(f"总部美团账号 CDP 端口不可用：{debug_port}")
-            browser = playwright.chromium.connect_over_cdp(endpoint)
+            browser = playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
             contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
         return contexts[endpoint]
 
@@ -1382,7 +1387,7 @@ def context_for_task(
         raise RuntimeError(f"直营美团账号未配置 debug_port：{account_id}")
     endpoint = f"http://127.0.0.1:{int(debug_port)}"
     if endpoint not in contexts and cdp_available(int(debug_port)):
-        browser = playwright.chromium.connect_over_cdp(endpoint)
+        browser = connect_store_browser(playwright, account, allow_recovery=allow_recovery)
         contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
     if endpoint not in contexts:
         profile_dir = Path(account["profile_dir"]).expanduser()
@@ -1632,7 +1637,10 @@ def main() -> int:
                     account_label = f" [{account_id}]" if account_id else ""
                     print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
                     with store_hard_timeout(task):
-                        context = context_for_task(playwright, contexts, launched_contexts, task, direct_accounts)
+                        context = context_for_task(
+                            playwright, contexts, launched_contexts, task, direct_accounts,
+                            allow_recovery=args.preflight,
+                        )
                         task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
                     result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
                     results.append(result)

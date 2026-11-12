@@ -74,6 +74,7 @@ def test_direct_meituan_preflight_checks_promo_page_and_isolates_timeout():
             results = check_direct_meituan_accounts(1200)
 
     assert "home,promo_balance" in run.call_args.args[0]
+    assert run.call_args.kwargs["timeout"] >= 150
     assert results[0]["account_id"] == "direct_test"
     assert results[0]["status"] == "auth_block"
     assert "登录态检查超过" in results[0]["message"]
