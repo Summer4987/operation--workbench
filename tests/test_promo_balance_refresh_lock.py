@@ -57,6 +57,21 @@ class PromoBalanceLockTests(unittest.TestCase):
         self.assertIn('本轮实时采集跳过', result.stdout)
         self.assertFalse(self.marker.exists())
 
+    def test_installed_realtime_entry_preserves_the_browser_lock(self):
+        installer = RUNNER.with_name('install_macmini_operation_launchd.zsh')
+        env = dict(os.environ, HOME=str(self.home), OPERATION_RUNTIME_ROOT=str(self.root))
+        env.pop('OPERATION_REALTIME_LOCK_HELD', None)
+        result = subprocess.run(['/bin/zsh', str(installer), '--scripts-only'], env=env,
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installed = self.home / 'Library/Scripts/xiong-operation/run_realtime_order_income.zsh'
+        with self.lock_path.open('a+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = subprocess.run(['/bin/zsh', str(installed)], env=env,
+                                    capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('本轮实时采集跳过', result.stdout)
+
     def test_free_lock_runs_refresh_and_releases_both_locks(self):
         result = self.run_refresh()
         self.assertEqual(result.returncode, 0, result.stderr)
