@@ -128,3 +128,26 @@ def test_transient_navigation_failure_retries_on_a_dedicated_tab():
     assert navigate.call_count == 2
     page.close.assert_called_once()
     context.new_page.assert_called_once()
+
+
+def test_realtime_meituan_checks_authenticated_shell_instead_of_download_frame():
+    page = mock.Mock()
+    page.frames = []
+    page.title.return_value = '美团外卖商家版'
+    page.url = 'https://e.waimai.meituan.com/new_fe/login_gw#/login'
+    page.evaluate.return_value = '账号登录 验证码登录'
+    context = mock.Mock()
+    context.new_page.return_value = page
+    config = {'platforms': {'meituan': {'name': '美团',
+        'download_url': 'https://waimaieapp.meituan.com/bizdata_pc/report/download',
+        'ready_texts': ['报表下载']}}}
+    with mock.patch.object(preflight.cdp, 'load_config', return_value=config), \
+         mock.patch.object(preflight.cdp, 'cdp_available', return_value=True), \
+         mock.patch.object(preflight.cdp, 'connect_browser', return_value=(mock.Mock(), mock.Mock())), \
+         mock.patch.object(preflight.cdp, 'first_context', return_value=context), \
+         mock.patch.object(preflight.cdp, 'disconnect_browser'), \
+         mock.patch.object(preflight.cdp, 'goto_backend_page') as navigate:
+        rows = preflight.check_common_platforms('realtime', 0)
+    navigate.assert_called_once_with(page, preflight.MEITUAN_REALTIME_URL, timeout=30_000)
+    assert rows[0]['status'] == 'auth_block'
+    page.close.assert_called_once()

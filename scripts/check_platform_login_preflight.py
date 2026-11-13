@@ -44,6 +44,7 @@ LOGIN_BLOCKERS = [
 ]
 
 ELEME_REALTIME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
+MEITUAN_REALTIME_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/business"
 ELEME_BUDGET_URL = "https://melody.shop.ele.me/app/unit/vas__bid#app.unit.vas.bid"
 MEITUAN_BUDGET_URL = "https://e.waimai.meituan.com/"
 MEITUAN_BUDGET_READY_TEXTS = ["美团外卖商家版", "全部门店", "门店推广"]
@@ -120,11 +121,15 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
             url = platform.get("download_url") or platform.get("entry_url")
             if scope == "realtime" and key == "eleme":
                 url = ELEME_REALTIME_URL
+            elif scope == "realtime" and key == "meituan":
+                url = MEITUAN_REALTIME_URL
             elif scope == "budget" and key == "eleme":
                 url = ELEME_BUDGET_URL
             elif scope == "budget" and key == "meituan":
                 url = MEITUAN_BUDGET_URL
             ready_texts = [str(item) for item in platform.get("ready_texts") or []]
+            if scope == "realtime" and key == "meituan":
+                ready_texts = ["全部门店", "今日实时"]
             if scope == "budget" and key == "meituan":
                 ready_texts = MEITUAN_BUDGET_READY_TEXTS
             try:
