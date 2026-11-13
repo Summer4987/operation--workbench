@@ -78,7 +78,7 @@ def connect_account(playwright, account: dict, *, visible: bool):
         if not browser.contexts:
             raise RuntimeError(f"CDP 端口 {debug_port} 已连接，但没有可复用的浏览器上下文。")
         context = browser.contexts[0]
-        page = context.pages[0] if context.pages else context.new_page()
+        page = context.new_page()
         return "cdp", browser, context, page
 
     profile_dir = Path(account["profile_dir"]).expanduser()
@@ -131,11 +131,18 @@ def collect_account(account: dict, *, visible: bool, wait_seconds: int) -> tuple
         try:
             page.on("response", handle_response)
             page.goto(target_url, wait_until="domcontentloaded", timeout=90_000)
-            deadline = time.time() + wait_seconds
-            while time.time() < deadline:
-                page.wait_for_timeout(1000)
-                text = body_text(page, timeout=5000)
-                if account_payload is not None or "账户余额" in text or "立即充值" in text:
+            for attempt in range(2):
+                if attempt:
+                    page.reload(wait_until="domcontentloaded", timeout=30_000)
+                deadline = time.time() + wait_seconds
+                while time.time() < deadline:
+                    page.wait_for_timeout(1000)
+                    text = body_text(page, timeout=5000)
+                    if (account_balance_from_payload(account_payload or {}) is not None
+                            or balance_from_page_text(text) is not None):
+                        break
+                if (account_balance_from_payload(account_payload or {}) is not None
+                        or balance_from_page_text(text) is not None):
                     break
         finally:
             try:
@@ -144,6 +151,8 @@ def collect_account(account: dict, *, visible: bool, wait_seconds: int) -> tuple
                 pass
             if mode == "launch":
                 context.close()
+            else:
+                page.close()
 
     balance = account_balance_from_payload(account_payload or {})
     source = "Chrome CDP接口读取"
