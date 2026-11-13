@@ -22,6 +22,7 @@ if Path(WORKING_NODE).exists():
 sys.path.insert(0, str(ROOT / "business-report-dashboard"))
 from chrome_cdp_reports import date_with_dashes  # noqa: E402
 from check_direct_meituan_account import MAC_CHROME, load_account, resolve_browser_executable  # noqa: E402
+from direct_meituan_browser import connect_store_browser
 from download_direct_meituan_daily import cdp_available  # noqa: E402
 
 
@@ -50,7 +51,7 @@ def enabled_account_ids() -> list[str]:
 def launch_context(playwright, account: dict, visible: bool, browser_executable: str | None):
     debug_port = account.get("debug_port")
     if debug_port and cdp_available(int(debug_port)):
-        browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{int(debug_port)}")
+        browser = connect_store_browser(playwright, account, allow_recovery=True)
         if not browser.contexts:
             raise RuntimeError(f"CDP 端口 {int(debug_port)} 已连接，但没有可复用的浏览器上下文。")
         context = browser.contexts[0]

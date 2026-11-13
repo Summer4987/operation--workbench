@@ -1,4 +1,4 @@
-"""Bounded CDP attachment and preflight-only recovery of an isolated store Chrome.
+"""Bounded CDP attachment and read-only recovery of an isolated store Chrome.
 
 Never saves platform settings. Recovery preserves the on-disk login profile and
 is restricted to the production Mac mini, an exact profile/port pair, and one
@@ -18,7 +18,7 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-CONNECT_TIMEOUT_MS = 10_000
+CONNECT_TIMEOUT_MS = 30_000
 RECOVERY_COOLDOWN_SECONDS = 300
 
 
@@ -109,10 +109,21 @@ def restart_store_browser(account: dict) -> None:
         raise RuntimeError("该门店 Chrome 重启后调试端口未就绪。")
 
 
+def connect_cdp_browser(playwright, endpoint: str):
+    """Retry attachment only, before callers can navigate or submit anything."""
+    try:
+        return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+    except Exception:
+        # A live port/WebSocket does not mean Chrome finished attaching its targets.
+        print("Chrome CDP 接入未完成，等待后重试一次。", flush=True)
+        time.sleep(1)
+        return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+
+
 def connect_store_browser(playwright, account: dict, *, allow_recovery: bool = False):
     endpoint = f"http://127.0.0.1:{int(account['debug_port'])}"
     try:
-        return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+        return connect_cdp_browser(playwright, endpoint)
     except Exception as exc:
         # Login/selector/business errors never reach this connection-only handler.
         if not allow_recovery:

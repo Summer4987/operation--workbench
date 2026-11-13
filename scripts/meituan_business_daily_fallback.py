@@ -14,6 +14,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
+from direct_meituan_browser import connect_store_browser
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / 'business-report-dashboard/data/direct/business_fallback'
 STATUS_DIR = ROOT / 'outputs/direct_meituan_daily'
@@ -103,7 +105,7 @@ def collect(account, target_date, reason='报表下载失败'):
     from playwright.sync_api import sync_playwright
     captured = {}
     with sync_playwright() as pw:
-        browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{account['debug_port']}",timeout=12000)
+        browser = connect_store_browser(pw, account, allow_recovery=True)
         page = browser.contexts[0].new_page()
         def receive(response):
             key = next((k for k,path in PATHS.items() if urlparse(response.url).path == path), None)

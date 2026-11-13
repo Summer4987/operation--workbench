@@ -5,6 +5,7 @@ UI opening may update read receipts. Browser popups are dismissed only by known
 informational controls, never by send/refund/confirm-action controls.
 """
 from __future__ import annotations
+
 import argparse
 import base64
 import hashlib
@@ -15,6 +16,8 @@ import shutil
 import time
 from datetime import datetime,timedelta
 from urllib.parse import urlparse,parse_qs
+
+from direct_meituan_browser import connect_cdp_browser
 from review_page_data import match_store,store_aliases
 from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store,apply_reference_media_policy
 
@@ -277,7 +280,7 @@ def mt_group_history(page,item,target,window_start=None):
     return dict(**item,messages=messages,history_complete=stable>=4,history_basis='三方群聊已滚动到顶部连续5次复核；平台仅显示日期的消息不补造时分秒')
 
 def meituan(pw,scope,account,keyword):
-    browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{account["port"]}',timeout=10000)
+    browser=connect_cdp_browser(pw, f'http://127.0.0.1:{account["port"]}')
     page=browser.contexts[0].new_page();page.set_default_timeout(12000)
     observations=[];native_hints={};aliases=store_aliases()
     def remember(rows):
@@ -458,7 +461,7 @@ def ensure_eleme_customer_shop(page,config):
 
 def eleme(pw,scope,config,*,recover=False):
     from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,NEUTRAL_CONTEXT_URL
-    browser=pw.chromium.connect_over_cdp(f'http://127.0.0.1:{int(config.get("eleme_debug_port",9222))}',timeout=10000)
+    browser=connect_cdp_browser(pw, f'http://127.0.0.1:{int(config.get("eleme_debug_port",9222))}')
     # The merchant shell shares store context across tabs. Switch inside a valid existing shell.
     page=next((pg for context in browser.contexts for pg in context.pages if 'melody.shop.ele.me/app/' in pg.url and has_visible_switcher(pg)),None)
     owned=page is None
@@ -515,7 +518,7 @@ def is_eleme_headquarters_context(page):
 def restore_eleme_headquarters(pw):
     """Restore the nationwide/all-store organization token before downstream jobs."""
     from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,GROUP_ID,NEUTRAL_CONTEXT_URL
-    browser=pw.chromium.connect_over_cdp('http://127.0.0.1:9222',timeout=10000)
+    browser=connect_cdp_browser(pw, 'http://127.0.0.1:9222')
     page=next((pg for ctx in browser.contexts for pg in ctx.pages if 'melody.shop.ele.me/app' in pg.url and has_visible_switcher(pg)),None)
     owned=page is None
     try:

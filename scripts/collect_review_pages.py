@@ -20,6 +20,8 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from review_page_data import (ROOT, SNAPSHOT, TZ, eleme_reviews, match_store,
                               meituan_review, read_snapshot, refresh_payloads, score_value, store_aliases, verify_all_store_scope)
 
+from direct_meituan_browser import connect_cdp_browser
+
 MT_URL = 'https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home'
 ELE_URL = 'https://melody.shop.ele.me/app/unit/comments#app.unit.comments'
 MAX_PAGES = 100
@@ -138,7 +140,7 @@ class Collector:
                      ratings_status='failed', reviews_status='failed', ratings=old.get('ratings', {}), records=[])
         browser = page = None
         try:
-            browser = self.pw.chromium.connect_over_cdp(f"http://127.0.0.1:{account['port']}", timeout=10000)
+            browser = connect_cdp_browser(self.pw, f"http://127.0.0.1:{account['port']}")
             if account['type'] == 'single':
                 identities = []
                 for existing in browser.contexts[0].pages:

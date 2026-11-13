@@ -10,6 +10,9 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from direct_meituan_browser import connect_store_browser
+
 from balance_coverage import apply_direct_coverage
 from cdp_meituan_balance import (
     ACCOUNT_INFO_API_KEY,
@@ -71,7 +74,7 @@ def cdp_available(port: int) -> bool:
 def connect_account(playwright, account: dict, *, visible: bool):
     debug_port = int(account.get("debug_port") or 0)
     if debug_port and cdp_available(debug_port):
-        browser = playwright.chromium.connect_over_cdp(cdp_url(debug_port))
+        browser = connect_store_browser(playwright, account, allow_recovery=True)
         if not browser.contexts:
             raise RuntimeError(f"CDP 端口 {debug_port} 已连接，但没有可复用的浏览器上下文。")
         context = browser.contexts[0]

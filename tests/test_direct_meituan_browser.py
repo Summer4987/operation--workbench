@@ -13,6 +13,9 @@ import check_direct_meituan_account as checker
 
 class RecoveryTests(unittest.TestCase):
     def setUp(self):
+        sleep = mock.patch.object(recovery.time, "sleep")
+        sleep.start()
+        self.addCleanup(sleep.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.profile = pathlib.Path(self.temp.name).resolve()
@@ -25,16 +28,37 @@ class RecoveryTests(unittest.TestCase):
             result = recovery.connect_store_browser(p, self.account, allow_recovery=True)
         self.assertIs(result, p.chromium.connect_over_cdp.return_value)
         restart.assert_not_called()
-        p.chromium.connect_over_cdp.assert_called_once_with("http://127.0.0.1:19224", timeout=10_000)
+        p.chromium.connect_over_cdp.assert_called_once_with("http://127.0.0.1:19224", timeout=30_000)
+
+    def test_slow_attach_retries_without_restarting(self):
+        p = mock.Mock()
+        browser = object()
+        p.chromium.connect_over_cdp.side_effect = [TimeoutError("slow attachment"), browser]
+        with mock.patch.object(recovery, "restart_store_browser") as restart:
+            self.assertIs(recovery.connect_store_browser(p, self.account, allow_recovery=True), browser)
+        restart.assert_not_called()
+        self.assertEqual(p.chromium.connect_over_cdp.call_args_list, [
+            mock.call("http://127.0.0.1:19224", timeout=30_000),
+            mock.call("http://127.0.0.1:19224", timeout=30_000),
+        ])
+
+    def test_commit_connection_failure_is_bounded(self):
+        p = mock.Mock()
+        p.chromium.connect_over_cdp.side_effect = TimeoutError("stalled")
+        with mock.patch.object(recovery, "restart_store_browser") as restart:
+            with self.assertRaises(TimeoutError):
+                recovery.connect_store_browser(p, self.account)
+        self.assertEqual(p.chromium.connect_over_cdp.call_count, 2)
+        restart.assert_not_called()
 
     def test_timeout_recovers_once_and_reconnects(self):
         p = mock.Mock()
         browser = object()
-        p.chromium.connect_over_cdp.side_effect = [TimeoutError("stalled tab"), browser]
+        p.chromium.connect_over_cdp.side_effect = [TimeoutError("stalled tab"), TimeoutError("stalled tab"), browser]
         with mock.patch.object(recovery, "restart_store_browser") as restart:
             self.assertIs(recovery.connect_store_browser(p, self.account, allow_recovery=True), browser)
         restart.assert_called_once_with(self.account)
-        self.assertEqual(p.chromium.connect_over_cdp.call_count, 2)
+        self.assertEqual(p.chromium.connect_over_cdp.call_count, 3)
 
     def test_commit_default_never_restarts(self):
         p = mock.Mock()
@@ -51,7 +75,7 @@ class RecoveryTests(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 recovery.connect_store_browser(p, self.account, allow_recovery=True)
         restart.assert_called_once()
-        self.assertEqual(p.chromium.connect_over_cdp.call_count, 2)
+        self.assertEqual(p.chromium.connect_over_cdp.call_count, 3)
 
     def test_exact_profile_and_port_matching(self):
         self.assertTrue(recovery.matches_browser(self.command, self.profile, 19224))

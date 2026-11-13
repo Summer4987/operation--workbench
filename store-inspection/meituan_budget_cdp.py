@@ -28,7 +28,7 @@ from playwright.sync_api import sync_playwright
 
 WORKSPACE = ROOT.parent
 sys.path.insert(0, str(WORKSPACE / "scripts"))
-from direct_meituan_browser import CONNECT_TIMEOUT_MS, connect_store_browser
+from direct_meituan_browser import connect_cdp_browser, connect_store_browser
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
 EVIDENCE_DIR = WORKSPACE / "outputs" / "meituan_budget_automation" / "evidence"
@@ -1375,7 +1375,7 @@ def context_for_task(
         if endpoint not in contexts:
             if not cdp_available(debug_port):
                 raise RuntimeError(f"总部美团账号 CDP 端口不可用：{debug_port}")
-            browser = playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+            browser = connect_cdp_browser(playwright, endpoint)
             contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
         return contexts[endpoint]
 
