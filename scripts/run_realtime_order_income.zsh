@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="${OPERATION_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 LOG_DIR="$ROOT/outputs/realtime_order_income/logs"
 mkdir -p "$LOG_DIR"
 
@@ -13,6 +13,30 @@ if [ ! -x "$PYTHON" ]; then
   PYTHON="python3"
 fi
 export PYTHONPATH="$ROOT/business-report-dashboard/.venv/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+# The morning run, realtime collection and balance refresh share browser profiles.
+if [[ "${OPERATION_REALTIME_LOCK_HELD:-0}" != "1" ]]; then
+  "$PYTHON" - "$ROOT" "$0" "$@" <<'PYLOCK'
+import fcntl
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+lock_path = Path(sys.argv[1]) / "outputs/locks/morning-ops.lock"
+lock_path.parent.mkdir(parents=True, exist_ok=True)
+with lock_path.open("a+") as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("运营任务正在使用生产浏览器，本轮实时采集跳过。", flush=True)
+        raise SystemExit(0)
+    env = dict(os.environ, OPERATION_REALTIME_LOCK_HELD="1")
+    result = subprocess.run(["/bin/zsh", sys.argv[2], *sys.argv[3:]], env=env)
+    raise SystemExit(result.returncode)
+PYLOCK
+  exit "$?"
+fi
+
 TASK_ID="ops.realtime_order_income"
 TASK_STEP="初始化"
 TASK_STATE_FINALIZED="false"

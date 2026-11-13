@@ -45,6 +45,18 @@ class PromoBalanceLockTests(unittest.TestCase):
         logs = list((self.home / 'Library/Logs/xiong-operation/promo_balance_refresh').glob('*.log'))
         self.assertIn('本轮独立余额刷新跳过', logs[0].read_text())
 
+    def test_realtime_collection_uses_the_same_browser_lock(self):
+        runner = RUNNER.with_name('run_realtime_order_income.zsh')
+        env = dict(os.environ, HOME=str(self.home), OPERATION_ROOT=str(self.root))
+        env.pop('OPERATION_REALTIME_LOCK_HELD', None)
+        with self.lock_path.open('a+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = subprocess.run(['/bin/zsh', str(runner)], env=env,
+                                    capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('本轮实时采集跳过', result.stdout)
+        self.assertFalse(self.marker.exists())
+
     def test_free_lock_runs_refresh_and_releases_both_locks(self):
         result = self.run_refresh()
         self.assertEqual(result.returncode, 0, result.stderr)
