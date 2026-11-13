@@ -16,6 +16,28 @@ from scripts.realtime_order_income import (
 )
 
 
+def test_connection_failure_saves_current_failure_without_overwriting_success(monkeypatch, tmp_path):
+    import json
+    from scripts import realtime_order_income as collector
+
+    latest = tmp_path / 'latest.json'
+    latest.write_text('{"status":"ok","generated_at":"previous success"}')
+    monkeypatch.setattr(collector, 'LATEST_PATH', latest)
+    monkeypatch.setattr(collector, 'FAILED_PATH', tmp_path / 'last_failed.json')
+    monkeypatch.setattr(collector, 'OUTPUT_DIR', tmp_path)
+    monkeypatch.setattr('sys.argv', ['realtime_order_income.py'])
+
+    def fail_connect(_config):
+        raise RuntimeError('Chrome/CDP 接入超时')
+
+    monkeypatch.setattr(collector, 'connect_browser', fail_connect)
+    assert collector.main() == 1
+    assert json.loads(latest.read_text())['generated_at'] == 'previous success'
+    failure = json.loads((tmp_path / 'last_failed.json').read_text())
+    assert failure['status'] == 'failed'
+    assert 'Chrome/CDP' in failure['errors'][0]
+
+
 def test_meituan_api_ignores_valid_order_amount_as_income():
     record = build_api_record(
         {

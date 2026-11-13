@@ -4,8 +4,10 @@ set -euo pipefail
 SCRIPTS_ONLY=0
 if [[ "${1:-}" == "--scripts-only" && $# -eq 1 ]]; then
   SCRIPTS_ONLY=1
+elif [[ "${1:-}" == "--realtime-only" && $# -eq 1 ]]; then
+  :
 elif (( $# > 0 )); then
-  echo "用法：scripts/install_macmini_operation_launchd.zsh [--scripts-only]" >&2
+  echo "用法：scripts/install_macmini_operation_launchd.zsh [--scripts-only|--realtime-only]" >&2
   exit 2
 fi
 
@@ -150,13 +152,20 @@ ensure_browser_env() {
 }
 
 latest_failure_message() {
-  REALTIME_ROOT="\$ROOT" "\$PYTHON" - <<'PY'
+  REALTIME_ROOT="\$ROOT" REALTIME_COLLECT_RC="\${COLLECT_RC:-1}" REALTIME_COLLECTION_STARTED_AT="\${COLLECTION_STARTED_AT:-0}" "\$PYTHON" - <<'PY'
 import json
 import os
 from pathlib import Path
 
 path = Path(os.environ["REALTIME_ROOT"]) / "outputs" / "realtime_order_income" / "last_failed.json"
+rc = int(os.environ.get("REALTIME_COLLECT_RC", "1"))
+if rc in {124, 137, 143}:
+    print(f"实时单量收入采集超时被终止（退出码 {rc}），已保留上一份成功数据；请检查本轮日志中的 Chrome/CDP 连接和平台采集步骤。")
+    raise SystemExit
 try:
+    if path.stat().st_mtime < float(os.environ.get("REALTIME_COLLECTION_STARTED_AT", "0")):
+        print(f"实时单量收入采集失败（退出码 {rc}），本轮未生成失败明细；已保留上一份成功数据，请查看本轮采集日志。")
+        raise SystemExit
     payload = json.loads(path.read_text(encoding="utf-8"))
 except Exception:
     print("实时单量收入采集失败，已保留上一份成功数据。")
@@ -285,6 +294,7 @@ fi
   record_task_run "\$TASK_ID" running --message "实时单量收入采集开始。" --step "\$TASK_STEP" --log-path "\$LOG_FILE"
   TASK_STEP="采集平台实时单量"
   record_task_run "\$TASK_ID" running --message "\$TASK_STEP" --step "\$TASK_STEP" --log-path "\$LOG_FILE"
+  COLLECTION_STARTED_AT="\$(date +%s)"
   COLLECT_RC=0
   run_with_timeout "\${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "\$PYTHON" "\$ROOT/scripts/realtime_order_income.py" || COLLECT_RC=\$?
   if [[ "\$COLLECT_RC" -ne 0 && "\${REALTIME_COLLECT_RETRY_ATTEMPTS:-1}" -gt 0 ]]; then

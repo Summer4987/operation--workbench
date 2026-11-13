@@ -146,17 +146,15 @@ def connect_browser(config: dict):
     sync_playwright = require_playwright()
     playwright = sync_playwright().start()
     try:
-        browser = playwright.chromium.connect_over_cdp(debug_url(config))
+        browser = playwright.chromium.connect_over_cdp(debug_url(config), timeout=20_000)
     except Exception:
         ensure_cdp_page_target(config)
         try:
-            browser = playwright.chromium.connect_over_cdp(debug_url(config))
+            browser = playwright.chromium.connect_over_cdp(debug_url(config), timeout=20_000)
             return playwright, browser
-        except Exception:
-            pass
-        playwright.stop()
-        print("没有连上常用 Chrome。请先完全退出普通 Chrome，再重新双击桌面的一键采集。")
-        raise SystemExit(2)
+        except Exception as exc:
+            playwright.stop()
+            raise RuntimeError("Chrome/CDP 接入超时或失败，两次连接均未完成；请检查 Mac mini 总部 Chrome。") from exc
     return playwright, browser
 
 

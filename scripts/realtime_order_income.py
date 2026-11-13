@@ -1448,7 +1448,19 @@ def main() -> int:
 
     config = load_config()
     rules = load_realtime_rules()
-    playwright, browser = connect_browser(config)
+    log("连接生产 Chrome/CDP")
+    try:
+        playwright, browser = connect_browser(config)
+    except Exception as exc:
+        message = f"Chrome/CDP 连接失败：{exc}"
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            save_payload([], [message])
+        except RuntimeError:
+            # save_payload records the failure before rejecting incomplete data.
+            pass
+        print(message, file=sys.stderr, flush=True)
+        return 1
     records: list[dict[str, Any]] = []
     errors: list[str] = []
     try:

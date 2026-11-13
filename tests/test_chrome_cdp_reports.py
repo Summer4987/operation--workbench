@@ -31,6 +31,35 @@ class ChromeCdpReportsTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.module = load_module()
 
+    def test_cdp_attachment_has_a_bound_and_retries_once(self):
+        driver = mock.Mock()
+        driver.chromium.connect_over_cdp.side_effect = [TimeoutError('stalled'), driver.browser]
+        manager = mock.Mock()
+        manager.start.return_value = driver
+        with mock.patch.object(self.module, 'cdp_available', return_value=True), \
+             mock.patch.object(self.module, 'ensure_cdp_page_target'), \
+             mock.patch.object(self.module, 'require_playwright', return_value=lambda: manager):
+            result = self.module.connect_browser({'chrome': {'debug_port': 9222}})
+        self.assertEqual(result, (driver, driver.browser))
+        self.assertEqual(driver.chromium.connect_over_cdp.call_args_list, [
+            mock.call('http://127.0.0.1:9222', timeout=20_000),
+            mock.call('http://127.0.0.1:9222', timeout=20_000),
+        ])
+        driver.stop.assert_not_called()
+
+    def test_failed_cdp_attachment_stops_driver_and_reports_current_error(self):
+        driver = mock.Mock()
+        driver.chromium.connect_over_cdp.side_effect = TimeoutError('stalled')
+        manager = mock.Mock()
+        manager.start.return_value = driver
+        with mock.patch.object(self.module, 'cdp_available', return_value=True), \
+             mock.patch.object(self.module, 'ensure_cdp_page_target'), \
+             mock.patch.object(self.module, 'require_playwright', return_value=lambda: manager):
+            with self.assertRaisesRegex(RuntimeError, 'Chrome/CDP 接入超时'):
+                self.module.connect_browser({'chrome': {'debug_port': 9222}})
+        self.assertEqual(driver.chromium.connect_over_cdp.call_count, 2)
+        driver.stop.assert_called_once()
+
     def run_paid_field_metadata(self, metadata):
         frame = mock.Mock()
         self.module.meituan_customer_paid_field(frame)

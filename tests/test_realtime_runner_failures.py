@@ -17,6 +17,8 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
             for collection_rc, deploy_failure, expected_step in [
                 (0, 0, None),
                 (1, 0, '采集平台实时单量'),
+                (143, 0, '采集平台实时单量'),
+                (2, 0, '采集平台实时单量'),
                 (0, 1, '发布工作台云端数据'),
                 (0, 2, '发布最终工作台状态'),
             ]:
@@ -33,10 +35,15 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
             'summary': {'platform_store_count': 17, 'missing_count': 5},
             'errors': ['饿了么采集不完整：仅完成 6/11 个目标门店'],
         }, ensure_ascii=False))
+        failure = tmp_path / 'outputs/realtime_order_income/last_failed.json'
+        os.utime(failure, (1, 1))
         for name in ['cleanup_chrome_tabs', 'check_platform_login_preflight', 'build_realtime_collection_status',
                      'build_task_health', 'build_workbench_data', 'ops_notify']:
             (scripts / f'{name}.py').write_text('pass\n')
-        (scripts / 'realtime_order_income.py').write_text(f'raise SystemExit({collection_rc})\n')
+        collector = ''
+        if collection_rc == 1:
+            collector = f'import os\nos.utime({str(failure)!r}, None)\n'
+        (scripts / 'realtime_order_income.py').write_text(collector + f'raise SystemExit({collection_rc})\n')
         records = tmp_path / 'records.jsonl'
         (scripts / 'record_task_run.py').write_text(
             'import json,sys\nfrom pathlib import Path\n'
@@ -70,13 +77,16 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
             'REALTIME_COLLECT_RETRY_ATTEMPTS': '0', 'ALLOW_VPN_PLATFORM_ROUTE': '1'}, capture_output=True, timeout=30)
         events = [json.loads(line) for line in records.read_text().splitlines()]
         terminal = events[-1]
-        assert result.returncode == (1 if expected_step else 0), result.stderr.decode()
+        assert result.returncode == (collection_rc or 1 if expected_step else 0), result.stderr.decode()
         assert terminal[1] == ('failed' if expected_step else 'success')
         if expected_step:
             assert terminal[terminal.index('--step') + 1] == expected_step
             message = terminal[terminal.index('--message') + 1]
-            if collection_rc:
+            if collection_rc == 1:
                 assert '6/11' in message
+            elif collection_rc:
+                assert '6/11' not in message
+                assert ('超时被终止' if collection_rc == 143 else '本轮未生成失败明细') in message
             else:
                 assert expected_step in message
                 assert '6/11' not in message
