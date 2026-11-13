@@ -81,7 +81,7 @@ def pause_message(pause: dict) -> str:
 
 def launch_context(playwright, account: dict, visible: bool, browser_executable: str | None):
     debug_port = account.get("debug_port")
-    if debug_port and cdp_available(int(debug_port)):
+    if debug_port:
         browser = connect_store_browser(playwright, account, allow_recovery=True)
         if not browser.contexts:
             raise RuntimeError(f"CDP 端口 {int(debug_port)} 已连接，但没有可复用的浏览器上下文。")

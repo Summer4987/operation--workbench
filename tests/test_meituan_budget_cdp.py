@@ -331,6 +331,16 @@ class MeituanBudgetCdpTests(unittest.TestCase):
             self.assertIs(result, context)
             self.assertEqual(connect.call_args.kwargs, {"allow_recovery": allow_recovery})
 
+    def test_unavailable_direct_port_does_not_launch_another_profile(self) -> None:
+        playwright = mock.Mock()
+        account = {"id": "direct_yintaicheng", "debug_port": 19224}
+        task = {"directMeituanAccountId": account["id"]}
+        with mock.patch.object(self.module, "cdp_available", return_value=False), \
+             mock.patch.object(self.module, "connect_store_browser", side_effect=TimeoutError("CDP unavailable")):
+            with self.assertRaises(TimeoutError):
+                self.module.context_for_task(playwright, {}, [], task, {account["id"]: account})
+        playwright.chromium.launch_persistent_context.assert_not_called()
+
     def test_budget_v2_save_button_is_recognized_before_legacy_confirm(self) -> None:
         save = FakeLocator()
         unrelated = FakeLocator()

@@ -1386,23 +1386,9 @@ def context_for_task(
     if not debug_port:
         raise RuntimeError(f"直营美团账号未配置 debug_port：{account_id}")
     endpoint = f"http://127.0.0.1:{int(debug_port)}"
-    if endpoint not in contexts and cdp_available(int(debug_port)):
+    if endpoint not in contexts:
         browser = connect_store_browser(playwright, account, allow_recovery=allow_recovery)
         contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
-    if endpoint not in contexts:
-        profile_dir = Path(account["profile_dir"]).expanduser()
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        options = {
-            "user_data_dir": str(profile_dir),
-            "headless": os.environ.get("MEITUAN_DIRECT_BUDGET_HEADLESS", "0") == "1",
-            "accept_downloads": False,
-            "viewport": {"width": 1440, "height": 950},
-        }
-        if MAC_CHROME.exists():
-            options["executable_path"] = str(MAC_CHROME)
-        context = playwright.chromium.launch_persistent_context(**options)
-        contexts[endpoint] = context
-        launched_contexts.append(context)
     return contexts[endpoint]
 
 

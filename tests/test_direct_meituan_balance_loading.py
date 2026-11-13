@@ -7,6 +7,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'store-inspection'))
 import cdp_direct_meituan_balance as balance
+import download_direct_meituan_daily as daily
+import download_direct_meituan_reviews as reviews
 
 
 class DirectBalanceLoadingTests(unittest.TestCase):
@@ -19,6 +21,20 @@ class DirectBalanceLoadingTests(unittest.TestCase):
             mode, _, context, page = balance.connect_account(playwright, {'debug_port': 19225}, visible=False)
         self.assertEqual(mode, 'cdp')
         self.assertIs(page, context.new_page.return_value)
+
+    def test_unavailable_configured_port_never_launches_a_second_profile(self):
+        account = {'id': 'direct_jinrongcheng', 'debug_port': 19226}
+        for module in [balance, daily, reviews]:
+            with self.subTest(module=module.__name__):
+                playwright = mock.Mock()
+                with mock.patch.object(module, 'cdp_available', return_value=False), \
+                     mock.patch.object(module, 'connect_store_browser', side_effect=TimeoutError('CDP unavailable')):
+                    with self.assertRaises(TimeoutError):
+                        if module is balance:
+                            module.connect_account(playwright, account, visible=False)
+                        else:
+                            module.launch_context(playwright, account, False, None)
+                playwright.chromium.launch_persistent_context.assert_not_called()
 
     def collect_with_texts(self, texts, wait_seconds):
         page = mock.Mock()
