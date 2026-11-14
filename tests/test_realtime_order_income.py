@@ -463,6 +463,35 @@ def test_meituan_verify_slider_page_is_detected_before_store_switch():
     assert page_requires_login(page, "美团")
 
 
+def test_account_help_text_does_not_turn_realtime_data_into_a_login_page():
+    page = FakePage("美团外卖商家版 全部门店 今日实时 营业收入 登录安全提醒 修改登录密码 获取验证码帮助",
+                    "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/business")
+    assert not page_requires_login(page, "美团")
+
+
+def test_chat_login_frame_does_not_block_authenticated_business_data():
+    page = FakePage("全部门店 今日实时 营业收入", "https://e.waimai.meituan.com/")
+    page.frames = [FakeTarget("美团外卖商家版 账号登录 验证码登录 忘记密码",
+                             "https://e.waimai.meituan.com/new_fe/imChat_gw")]
+    assert not page_requires_login(page, "美团")
+
+
+def test_real_login_route_is_distinguished_from_a_verification_challenge():
+    from scripts.realtime_order_income import page_auth_block_reason
+
+    login = FakePage("账号登录 验证码登录", "https://e.waimai.meituan.com/new_fe/login_gw#/login")
+    challenge = FakePage("身份核实", "https://verify.meituan.com/v2/app/general_page?requestCode=private")
+    assert "要求重新登录" in page_auth_block_reason(login, "美团")
+    assert "安全验证页" in page_auth_block_reason(challenge, "美团")
+    assert "requestCode" not in page_auth_block_reason(challenge, "美团")
+
+
+def test_expired_session_in_business_frame_still_blocks_collection():
+    page = FakePage("全部门店", "https://e.waimai.meituan.com/")
+    page.frames = [FakeTarget("登录已过期，请重新登录", "https://waimaieapp.meituan.com/igate/bizdata/business")]
+    assert page_requires_login(page, "美团")
+
+
 class FakeRealtimeTarget:
     def __init__(self, result, url: str = "https://e.waimai.meituan.com/"):
         self.result = result

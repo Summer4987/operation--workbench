@@ -9,6 +9,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -959,23 +960,38 @@ def meituan_realtime_switch_diagnostics(page) -> str:
     return "；".join(snapshots)[:1200]
 
 
-def page_requires_login(page, platform: str) -> bool:
-    login_markers = ["账号登录", "验证码登录", "忘记密码", "登录", "安全验证", "验证码", "身份核实", "拖动滑块"]
-    platform_markers = {
-        "美团": ["美团外卖商家版", "e.waimai.meituan.com/new_fe/login", "verify.meituan.com"],
-        "饿了么": ["饿了么", "melody.shop.ele.me"],
-    }
+def page_auth_block_reason(page, platform: str) -> str:
+    """Separate actionable login/challenge pages from incidental account text."""
+    form_markers = ["账号登录", "验证码登录", "忘记密码", "扫码登录"]
+    expired_markers = ["请先登录", "请重新登录", "需要重新登录", "登录已失效", "登录已过期", "登录态失效"]
+    challenge_markers = ["身份核实", "拖动滑块", "拖动下方滑块", "请完成安全验证", "请输入验证码", "请完成验证码"]
     for target in [page, *page.frames]:
         try:
-            text = target.evaluate("() => document.body ? document.body.innerText.slice(0, 1200) : ''")
             url = getattr(target, "url", "") or ""
+            # Chat has its own session; its login iframe does not block reports.
+            if target is not page and "/new_fe/imChat" in url:
+                continue
+            text = target.evaluate("() => document.body ? document.body.innerText.slice(0, 2400) : ''")
         except Exception:
             continue
-        if any(marker in url or marker in text for marker in platform_markers.get(platform, [])) and any(
-            marker in text for marker in login_markers
-        ):
-            return True
-    return False
+        parts = urlsplit(url)
+        host = parts.hostname or ""
+        belongs_to_platform = (
+            (platform == "美团" and (host == "meituan.com" or host.endswith(".meituan.com")))
+            or (platform == "饿了么" and (host == "ele.me" or host.endswith(".ele.me")))
+        )
+        if not belongs_to_platform:
+            continue
+        if host == "verify.meituan.com" or any(marker in text for marker in challenge_markers):
+            return f"{platform}安全验证页等待人工处理（{host}{parts.path}）"
+        login_route = re.search(r"/(?:new_fe/)?(?:login(?:_gw)?|signin)(?:/|$)", parts.path)
+        if login_route or sum(marker in text for marker in form_markers) >= 2 or any(marker in text for marker in expired_markers):
+            return f"{platform}登录页要求重新登录（{host}{parts.path}）"
+    return ""
+
+
+def page_requires_login(page, platform: str) -> bool:
+    return bool(page_auth_block_reason(page, platform))
 
 
 def page_snapshot_text(page, limit: int = 6000) -> str:
@@ -1300,8 +1316,9 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
         log("美团：进入实时经营页")
         page.goto(MEITUAN_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
         page.wait_for_timeout(7000)
-        if page_requires_login(page, "美团"):
-            raise RuntimeError("美团登录态失效：当前打开的是登录/验证码页面")
+        auth_reason = page_auth_block_reason(page, "美团")
+        if auth_reason:
+            raise RuntimeError(auth_reason)
         click_meituan_all_stores(page)
         click_meituan_realtime_and_scroll(page)
         dom_records.extend(parse_meituan_dom_across_scroll(page))
