@@ -11,6 +11,7 @@ import signal
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.error import URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import urlopen
@@ -29,6 +30,7 @@ from playwright.sync_api import sync_playwright
 WORKSPACE = ROOT.parent
 sys.path.insert(0, str(WORKSPACE / "scripts"))
 from direct_meituan_browser import connect_cdp_browser, connect_store_browser
+import platform_auth_guard as auth_guard
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
 EVIDENCE_DIR = WORKSPACE / "outputs" / "meituan_budget_automation" / "evidence"
@@ -1338,8 +1340,13 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
 def execute_task_with_store_retries(context, base_url: str, task: dict, *, commit: bool, preflight: bool) -> dict:
     attempts = max(2, STORE_RETRY_ATTEMPTS) if preflight or commit else 1
     last_record: dict | None = None
+    probe = SimpleNamespace(url="", context=context)
+    if not task.get('directMeituanAccountId'):
+        auth_guard.begin_page_attempt(probe)
     for attempt in range(1, attempts + 1):
         try:
+            if not task.get('directMeituanAccountId'):
+                auth_guard.require_access('美团')
             with store_hard_timeout(task):
                 record = execute_task(context, base_url, task, commit=commit, preflight=preflight)
         except Exception as exc:
@@ -1349,8 +1356,20 @@ def execute_task_with_store_retries(context, base_url: str, task: dict, *, commi
                           ok=False, error=str(exc), failure_type=classify_failure(str(exc)))
         record["attempt"] = attempt
         last_record = record
+        if not task.get('directMeituanAccountId'):
+            challenge = auth_guard.current_meituan_challenge(probe)
+            if challenge is not None:
+                auth_guard.block('美团', '美团预算执行遇到安全验证', challenge.url)
+                try:
+                    challenge.bring_to_front()
+                except Exception:
+                    pass
+                if not record.get('ok'):
+                    record.update(failure_type='auth_block', error='美团安全验证等待人工处理，停止总部门店自动重试。')
         if record.get("ok"):
             return record
+        if record.get("failure_type") == "auth_block" and not task.get('directMeituanAccountId'):
+            auth_guard.block('美团', str(record.get('error') or '美团预算遇到安全验证'))
         if record.get("failure_type") in {"auth_block", "store_mapping", "page_structure_changed", "platform_budget_locked"}:
             return record
         print(f"门店级重试：{task.get('keyword')} 第 {attempt}/{attempts} 次失败：{record.get('error')}", flush=True)
@@ -1620,6 +1639,8 @@ def main() -> int:
             for task in tasks:
                 try:
                     account_id = task.get("directMeituanAccountId") or ""
+                    if not account_id:
+                        auth_guard.require_access("美团")
                     account_label = f" [{account_id}]" if account_id else ""
                     print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
                     with store_hard_timeout(task):
@@ -1636,6 +1657,8 @@ def main() -> int:
                             flush=True,
                         )
                 except Exception as exc:
+                    if not task.get("directMeituanAccountId") and auth_guard.is_auth_failure(exc):
+                        auth_guard.block("美团", str(exc))
                     results.append({
                         "store": task.get("store"),
                         "keyword": task.get("keyword"),

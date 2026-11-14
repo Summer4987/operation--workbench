@@ -12,6 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RealtimeRunnerFailureTests(unittest.TestCase):
+    def test_auth_failure_stops_retry_but_transport_failure_still_retries(self):
+        for installed in [False, True]:
+            for auth_failure in [False, True]:
+                with self.subTest(installed=installed, auth_failure=auth_failure):
+                    with tempfile.TemporaryDirectory() as directory:
+                        self.check_runner(Path(directory), installed, 1, 0, '采集平台实时单量',
+                                          auth_failure=auth_failure, retry_attempts=1)
+
     def test_terminal_state_uses_current_failure(self):
         for installed in [False, True]:
             for collection_rc, deploy_failure, expected_step in [
@@ -26,9 +34,11 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
                     with tempfile.TemporaryDirectory() as directory:
                         self.check_runner(Path(directory), installed, collection_rc, deploy_failure, expected_step)
 
-    def check_runner(self, tmp_path, installed, collection_rc, deploy_failure, expected_step):
+    def check_runner(self, tmp_path, installed, collection_rc, deploy_failure, expected_step,
+                     auth_failure=False, retry_attempts=0):
         scripts = tmp_path / 'scripts'
         scripts.mkdir()
+        shutil.copy2(ROOT / 'scripts/platform_auth_guard.py', scripts / 'platform_auth_guard.py')
         (tmp_path / 'outputs/realtime_order_income').mkdir(parents=True)
         # Deliberately leave a stale collection failure, as on the production host.
         (tmp_path / 'outputs/realtime_order_income/last_failed.json').write_text(json.dumps({
@@ -40,9 +50,13 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
         for name in ['cleanup_chrome_tabs', 'check_platform_login_preflight', 'build_realtime_collection_status',
                      'build_task_health', 'build_workbench_data', 'ops_notify']:
             (scripts / f'{name}.py').write_text('pass\n')
-        collector = ''
+        calls = tmp_path / 'collector-calls'
+        collector = f'from pathlib import Path\np=Path({str(calls)!r})\np.write_text(p.read_text()+"1" if p.exists() else "1")\n'
         if collection_rc == 1:
-            collector = f'import os\nos.utime({str(failure)!r}, None)\n'
+            if auth_failure:
+                collector += 'import json\n' + f'Path({str(failure)!r}).write_text(json.dumps({{"errors":["美团安全验证等待人工处理"]}}))\n'
+            else:
+                collector += f'import os\nos.utime({str(failure)!r}, None)\n'
         (scripts / 'realtime_order_income.py').write_text(collector + f'raise SystemExit({collection_rc})\n')
         records = tmp_path / 'records.jsonl'
         (scripts / 'record_task_run.py').write_text(
@@ -74,7 +88,10 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
         path = scripts / 'run_realtime_order_income.zsh'
         path.write_text(runner)
         result = subprocess.run(['/bin/zsh', str(path)], env={**os.environ, 'HOME': str(tmp_path),
-            'REALTIME_COLLECT_RETRY_ATTEMPTS': '0', 'ALLOW_VPN_PLATFORM_ROUTE': '1'}, capture_output=True, timeout=30)
+            'REALTIME_COLLECT_RETRY_ATTEMPTS': str(retry_attempts), 'REALTIME_COLLECT_RETRY_DELAY_SECONDS': '0',
+            'ALLOW_VPN_PLATFORM_ROUTE': '1'}, capture_output=True, timeout=30)
+        expected_calls = 2 if retry_attempts and not auth_failure and collection_rc else 1
+        assert len(calls.read_text()) == expected_calls
         events = [json.loads(line) for line in records.read_text().splitlines()]
         terminal = events[-1]
         assert result.returncode == (collection_rc or 1 if expected_step else 0), result.stderr.decode()
@@ -83,7 +100,7 @@ class RealtimeRunnerFailureTests(unittest.TestCase):
             assert terminal[terminal.index('--step') + 1] == expected_step
             message = terminal[terminal.index('--message') + 1]
             if collection_rc == 1:
-                assert '6/11' in message
+                assert ('安全验证' if auth_failure else '6/11') in message
             elif collection_rc:
                 assert '6/11' not in message
                 assert ('超时被终止' if collection_rc == 143 else '本轮未生成失败明细') in message

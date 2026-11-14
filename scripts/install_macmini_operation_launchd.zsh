@@ -297,7 +297,9 @@ fi
   COLLECTION_STARTED_AT="\$(date +%s)"
   COLLECT_RC=0
   run_with_timeout "\${REALTIME_COLLECT_TIMEOUT_SECONDS:-300}" "\$PYTHON" "\$ROOT/scripts/realtime_order_income.py" || COLLECT_RC=\$?
-  if [[ "\$COLLECT_RC" -ne 0 && "\${REALTIME_COLLECT_RETRY_ATTEMPTS:-1}" -gt 0 ]]; then
+  if [[ "\$COLLECT_RC" -ne 0 ]] && "\$PYTHON" "\$ROOT/scripts/platform_auth_guard.py" failure-needs-human --failure-path "\$ROOT/outputs/realtime_order_income/last_failed.json" --since "\$COLLECTION_STARTED_AT"; then
+    echo "本轮遇到登录/安全验证，停止自动重试；保留验证页，等待人工完成后确认恢复。"
+  elif [[ "\$COLLECT_RC" -ne 0 && "\${REALTIME_COLLECT_RETRY_ATTEMPTS:-1}" -gt 0 ]]; then
     echo "首次实时采集未通过完整性校验，清理浏览器标签页后自动重试一次。"
     run_with_timeout "\${CHROME_TAB_CLEANUP_TIMEOUT_SECONDS:-20}" "\$PYTHON" "\$ROOT/scripts/cleanup_chrome_tabs.py" || true
     sleep "\${REALTIME_COLLECT_RETRY_DELAY_SECONDS:-5}"

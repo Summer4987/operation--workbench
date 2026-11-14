@@ -1,7 +1,13 @@
 import subprocess
+import pytest
 from unittest import mock
 
 import scripts.check_platform_login_preflight as preflight
+
+
+@pytest.fixture(autouse=True)
+def isolated_auth_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(preflight.cdp.auth_guard, 'STATE_DIR', tmp_path / 'auth')
 from scripts.check_platform_login_preflight import (
     ELEME_BUDGET_URL,
     ELEME_REALTIME_URL,
@@ -150,4 +156,31 @@ def test_realtime_meituan_checks_authenticated_shell_instead_of_download_frame()
         rows = preflight.check_common_platforms('realtime', 0)
     navigate.assert_called_once_with(page, preflight.MEITUAN_REALTIME_URL, timeout=30_000)
     assert rows[0]['status'] == 'auth_block'
-    page.close.assert_called_once()
+    page.close.assert_not_called()
+    page.bring_to_front.assert_called_once()
+
+
+def test_pending_headquarters_verification_never_connects_or_opens_a_page():
+    config = {'platforms': {'meituan': {'name': '美团', 'entry_url': preflight.MEITUAN_BUDGET_URL}}}
+    preflight.cdp.auth_guard.block('美团', '安全验证')
+    with mock.patch.object(preflight.cdp, 'load_config', return_value=config), \
+         mock.patch.object(preflight.cdp, 'connect_browser') as connect, \
+         mock.patch.object(preflight.cdp, 'start_chrome') as start:
+        rows = preflight.check_common_platforms('budget', 0, 'meituan')
+    assert rows[0]['status'] == 'auth_block'
+    assert rows[0]['from_auth_guard']
+    connect.assert_not_called()
+    start.assert_not_called()
+
+
+@pytest.mark.parametrize('from_guard,expected_notifications', [(True, 0), (False, 1)])
+def test_only_new_auth_failures_notify(from_guard, expected_notifications):
+    row = {'platform': '美团', 'status': 'auth_block', 'from_auth_guard': from_guard,
+           'message': '安全验证等待人工处理'}
+    payload = {'status': 'failed', 'summary': {'check_count': 1, 'failed_count': 1},
+               'checks': [row], 'failed_checks': [row]}
+    with mock.patch('sys.argv', ['preflight', '--notify']), \
+         mock.patch.object(preflight, 'build_payload', return_value=payload), \
+         mock.patch.object(preflight, 'write_payload'), mock.patch.object(preflight, 'notify') as notify:
+        assert preflight.main() == 66
+    assert notify.call_count == expected_notifications

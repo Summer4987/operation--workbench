@@ -6,6 +6,7 @@ import signal
 import sys
 import types
 import unittest
+import tempfile
 from unittest import mock
 
 
@@ -168,6 +169,41 @@ class MeituanBudgetCdpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.module = load_module()
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        state_patch = mock.patch.object(self.module.auth_guard, 'STATE_DIR', pathlib.Path(directory.name))
+        state_patch.start()
+        self.addCleanup(state_patch.stop)
+
+    def test_pending_headquarters_verification_keeps_direct_accounts_independent(self):
+        self.module.auth_guard.block('美团', '安全验证')
+        with mock.patch.object(self.module, 'execute_task', return_value={'ok': True}) as execute:
+            blocked = self.module.execute_task_with_store_retries(object(), 'https://test',
+                        {'keyword': '丽泽'}, commit=True, preflight=False)
+            self.assertEqual(blocked['failure_type'], 'auth_block')
+            execute.assert_not_called()
+            direct = self.module.execute_task_with_store_retries(object(), 'https://test',
+                        {'keyword': '银泰城', 'directMeituanAccountId': 'direct_yintaicheng'}, commit=True, preflight=False)
+            self.assertTrue(direct['ok'])
+            execute.assert_called_once()
+
+    def test_new_verification_overrides_generic_navigation_error_without_retry(self):
+        context = FakeContext([])
+        challenge = mock.Mock(url='https://verify.meituan.com/v2/app/general_page?requestCode=private')
+
+        def trigger_challenge(*args, **kwargs):
+            context.pages.append(challenge)
+            return {'ok': False, 'failure_type': 'store_mapping', 'error': '没有找到全部门店'}
+
+        with mock.patch.object(self.module, 'execute_task', side_effect=trigger_challenge) as execute:
+            result = self.module.execute_task_with_store_retries(context, 'https://test',
+                        {'keyword': '丽泽'}, commit=True, preflight=False)
+        self.assertEqual(result['failure_type'], 'auth_block')
+        execute.assert_called_once()
+        challenge.bring_to_front.assert_called_once()
+        self.assertIsNotNone(self.module.auth_guard.pending('美团'))
 
     def test_store_timeout_retries_only_current_store(self):
         task = dict(keyword='丽泽', targetBudget=120)

@@ -18,6 +18,8 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT.parent / "scripts"))
+import platform_auth_guard as auth_guard
 CONFIG_PATH = ROOT / "chrome_cdp_config.json"
 ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/unit/comments#app.unit.comments"
 MEITUAN_COMMENTS_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw"

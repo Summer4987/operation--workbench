@@ -67,6 +67,7 @@ def collect_eleme() -> tuple[list[dict], str]:
 
 
 def collect_meituan() -> tuple[list[dict], str]:
+    cdp_meituan_balance.cdp.auth_guard.require_access("美团")
     payload = run_isolated_collector(
         Path(cdp_meituan_balance.__file__),
         cdp_meituan_balance.OUTPUT_JSON,

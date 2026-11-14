@@ -1,3 +1,4 @@
+import pytest
 from scripts.realtime_order_income import (
     apply_account_out_platform_rules,
     apply_closed_store_rules,
@@ -14,6 +15,12 @@ from scripts.realtime_order_income import (
     realtime_validation_errors,
     save_eleme_rank_request,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolated_auth_state(tmp_path, monkeypatch):
+    from scripts import realtime_order_income as collector
+    monkeypatch.setattr(collector.auth_guard, 'STATE_DIR', tmp_path / 'auth')
 
 
 def test_connection_failure_saves_current_failure_without_overwriting_success(monkeypatch, tmp_path):
@@ -496,15 +503,35 @@ def test_separate_verification_tab_is_fronted_before_report_actions():
     from types import SimpleNamespace
     from unittest.mock import Mock
     import pytest
-    from scripts.realtime_order_income import raise_if_meituan_verification
+    from scripts.realtime_order_income import raise_if_meituan_verification, auth_guard
 
     verification = Mock(url='https://verify.meituan.com/v2/app/general_page?requestCode=private')
     page = FakePage('全部门店', 'https://e.waimai.meituan.com/')
-    page.context = SimpleNamespace(pages=[page, verification])
+    page.context = SimpleNamespace(pages=[page])
+    auth_guard.begin_page_attempt(page)
+    page.context.pages.append(verification)
     with pytest.raises(RuntimeError, match='验证中心') as error:
         raise_if_meituan_verification(page)
     verification.bring_to_front.assert_called_once()
     assert 'requestCode' not in str(error.value)
+
+
+def test_pending_platform_does_not_connect_browser_or_overwrite_last_success(monkeypatch, tmp_path):
+    import json
+    from unittest.mock import Mock
+    from scripts import realtime_order_income as collector
+    latest = tmp_path / 'latest.json'
+    latest.write_text('{"status":"ok","generated_at":"last success"}')
+    monkeypatch.setattr(collector, 'LATEST_PATH', latest)
+    monkeypatch.setattr(collector, 'FAILED_PATH', tmp_path / 'failed.json')
+    monkeypatch.setattr(collector, 'OUTPUT_DIR', tmp_path)
+    monkeypatch.setattr('sys.argv', ['collector', '--platform', 'meituan'])
+    connection = Mock()
+    monkeypatch.setattr(collector, 'connect_browser', connection)
+    collector.auth_guard.block('美团', '安全验证')
+    assert collector.main() == 1
+    connection.assert_not_called()
+    assert json.loads(latest.read_text())['generated_at'] == 'last success'
 
 
 class FakeRealtimeTarget:

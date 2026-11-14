@@ -1,5 +1,28 @@
 # Mac mini 出门远程维护手册
 
+## 验证码等待与恢复
+
+总部平台出现真实登录/验证码阻塞后，运行状态写入
+`outputs/platform_auth_guard/`，不进入 GitHub。实时采集、总部登录预检、
+美团总部余额及预算入口会停止再次打开该平台；其它平台和美团独立账号继续。
+等待状态不会按时间自动解除。旧验证标签页不等同于本轮新触发的验证。
+
+查看状态（不连接浏览器）：
+
+```zsh
+business-report-dashboard/.venv/bin/python scripts/platform_auth_guard.py status --platform 美团
+```
+
+只有用户明确告知已完成对应验证后，才恢复平台访问：
+
+```zsh
+business-report-dashboard/.venv/bin/python scripts/platform_auth_guard.py release --platform 美团 --confirmed
+```
+
+恢复后先做对应平台只读复核，再续跑未完成项。如果仍遇验证码会重新进入等待。
+释放验证等待不代表授权预算、出价、订货等正式操作；这些操作仍沿用原有授权、
+时间窗口和生产锁。验证页保留在 Mac mini，不能通过重启或自动尝试验证码解除等待。
+
 ## 当前远程入口
 
 Mac mini 同时保留两个 SSH 入口：

@@ -17,6 +17,7 @@ REPORT_DIR = ROOT / "business-report-dashboard"
 sys.path.insert(0, str(REPORT_DIR))
 
 from chrome_cdp_reports import (  # noqa: E402
+    auth_guard,
     click_text,
     connect_browser,
     disconnect_browser,
@@ -792,6 +793,10 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
         except Exception:
             pass
         page.wait_for_timeout(18_000)
+        auth_reason = page_auth_block_reason(page, "饿了么")
+        if auth_reason:
+            auth_guard.block("饿了么", auth_reason, page.url)
+            raise auth_guard.PlatformAuthBlocked(auth_reason)
         dismiss_eleme_blocking_overlays(page)
         if not captured_rank_request:
             try:
@@ -995,10 +1000,9 @@ def page_requires_login(page, platform: str) -> bool:
 
 
 def raise_if_meituan_verification(page) -> None:
-    context = getattr(page, "context", None)
-    for candidate in getattr(context, "pages", []):
-        if urlsplit(getattr(candidate, "url", "") or "").hostname != "verify.meituan.com":
-            continue
+    candidate = auth_guard.current_meituan_challenge(page)
+    if candidate is not None:
+        auth_guard.block("美团", "美团安全验证等待人工处理", candidate.url)
         try:
             candidate.bring_to_front()
         except Exception:
@@ -1322,7 +1326,9 @@ def parse_meituan_dom_across_scroll(page, steps: int = 8, max_pages: int = 4) ->
 
 
 def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
+    auth_guard.require_access("美团")
     page = new_platform_page(context)
+    auth_guard.begin_page_attempt(page)
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(min(timeout_ms, 30_000))
     api_records, handler = collect_api_responses(page, "美团")
@@ -1335,6 +1341,7 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
         raise_if_meituan_verification(page)
         auth_reason = page_auth_block_reason(page, "美团")
         if auth_reason:
+            auth_guard.block("美团", auth_reason, page.url)
             raise RuntimeError(auth_reason)
         click_meituan_all_stores(page)
         click_meituan_realtime_and_scroll(page)
@@ -1482,6 +1489,16 @@ def main() -> int:
 
     config = load_config()
     rules = load_realtime_rules()
+    requested = {"all": ["美团", "饿了么"], "meituan": ["美团"], "eleme": ["饿了么"]}[args.platform]
+    if all(auth_guard.pending(platform) for platform in requested):
+        errors = [f"{platform}采集失败：安全验证待人工确认，本轮不打开后台。" for platform in requested]
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            save_payload([], errors)
+        except RuntimeError:
+            pass
+        print("；".join(errors), file=sys.stderr)
+        return 1
     log("连接生产 Chrome/CDP")
     try:
         playwright, browser = connect_browser(config)
@@ -1503,6 +1520,7 @@ def main() -> int:
             eleme_records: list[dict[str, Any]] = []
             for attempt in range(1, 3):
                 try:
+                    auth_guard.require_access("饿了么")
                     eleme_records = scrape_eleme(context, args.timeout_ms)
                     completed = platform_target_count(eleme_records, "饿了么")
                     if completed >= len(TARGET_STORES):
@@ -1511,6 +1529,10 @@ def main() -> int:
                     close_platform_pages(context, ["melody.shop.ele.me", "lsycm.alibaba.com"])
                     context = first_context(browser)
                 except Exception as exc:
+                    if auth_guard.is_auth_failure(exc):
+                        auth_guard.block("饿了么", str(exc))
+                        errors.append(f"饿了么采集失败：{exc}")
+                        break
                     if attempt >= 2:
                         errors.append(f"饿了么采集失败：{exc}")
                     else:
@@ -1525,6 +1547,8 @@ def main() -> int:
             try:
                 records.extend(scrape_meituan(context, args.timeout_ms))
             except Exception as exc:
+                if auth_guard.is_auth_failure(exc):
+                    auth_guard.block("美团", str(exc))
                 if closed_page_error(exc):
                     try:
                         log("美团：浏览器连接已关闭，重新连接后再试一次")

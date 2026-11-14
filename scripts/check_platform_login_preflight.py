@@ -98,6 +98,21 @@ def classify_page(platform: str, title: str, url: str, body: str, ready_texts: l
 
 def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") -> list[dict[str, Any]]:
     config = cdp.load_config()
+    results: list[dict[str, Any]] = []
+    selected = {}
+    for key, platform in config.get("platforms", {}).items():
+        if platform_filter and key != platform_filter:
+            continue
+        label = "美团" if key == "meituan" else "饿了么" if key == "eleme" else ""
+        hold = cdp.auth_guard.pending(label) if label else None
+        if hold:
+            results.append({"platform": str(platform.get("name") or label), "status": "auth_block",
+                            "message": "等待人工确认已完成验证，本轮不重新打开后台。",
+                            "url": hold.get("page_url", ""), "from_auth_guard": True})
+        else:
+            selected[key] = platform
+    if not selected:
+        return results
     if not cdp.cdp_available(config):
         if not cdp.start_chrome(wait_seconds=45):
             return [
@@ -109,15 +124,15 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                 }
             ]
     playwright, browser = cdp.connect_browser(config)
-    results: list[dict[str, Any]] = []
     try:
         context = cdp.first_context(browser)
-        for key, platform in config.get("platforms", {}).items():
+        for key, platform in selected.items():
             if platform_filter and key != platform_filter:
                 continue
             if scope == "budget" and key not in {"eleme", "meituan"}:
                 continue
             page = context.new_page()
+            preserve_page = False
             url = platform.get("download_url") or platform.get("entry_url")
             if scope == "realtime" and key == "eleme":
                 url = ELEME_REALTIME_URL
@@ -144,15 +159,22 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                             raise
                         page.wait_for_timeout(1500)
                 page.wait_for_timeout(wait_ms)
-                results.append(
-                    classify_page(
+                row = classify_page(
                         str(platform.get("name") or key),
                         page.title(),
                         page.url,
                         page_text(page),
                         ready_texts,
                     )
-                )
+                results.append(row)
+                if row["status"] == "auth_block":
+                    label = "美团" if key == "meituan" else "饿了么"
+                    cdp.auth_guard.block(label, "、".join(row["blocking_texts"]), row["url"])
+                    preserve_page = True
+                    try:
+                        page.bring_to_front()
+                    except Exception:
+                        pass
             except Exception as exc:
                 results.append(
                     {
@@ -163,7 +185,8 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                     }
                 )
             finally:
-                page.close()
+                if not preserve_page:
+                    page.close()
     finally:
         cdp.disconnect_browser(playwright, browser)
     return results
@@ -321,8 +344,10 @@ def main() -> int:
     if payload["status"] != "ok":
         notice = build_notice(args.scope, payload["failed_checks"], args.continue_on_direct_failure)
         print(notice)
-        if args.notify:
+        if args.notify and any(not item.get("from_auth_guard") for item in payload["failed_checks"]):
             notify(notice)
+        elif args.notify:
+            print("验证等待已记录，本轮不重复发送同一验证通知。")
         if direct_failures_can_be_isolated(payload["failed_checks"], args.continue_on_direct_failure):
             print("直营美团失败账号已告警，由后续单店预检隔离；总部及其它账号继续。")
             return 0

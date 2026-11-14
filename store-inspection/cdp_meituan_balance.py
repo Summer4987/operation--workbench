@@ -228,6 +228,8 @@ def body_text(page, *, timeout: int = 10000) -> str:
 
 
 def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[dict]]:
+    cdp.auth_guard.require_access("美团")
+    cdp.auth_guard.begin_page_attempt(page)
     wm_poi_id = store_wm_poi_id(store)
     if not wm_poi_id:
         return None, []
@@ -260,6 +262,7 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
         latest_text = ""
         while time.time() < deadline:
             page.wait_for_timeout(1000)
+            check_verification()
             latest_text = body_text(page, timeout=5000)
             if account_payload is not None:
                 return latest_text
@@ -267,10 +270,21 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
                 return latest_text
         return latest_text or body_text(page)
 
+    def check_verification() -> None:
+        if "/new_fe/login" in urlsplit(page.url).path:
+            cdp.auth_guard.block("美团", "美团余额巡检登录页要求重新登录", page.url)
+            raise cdp.auth_guard.PlatformAuthBlocked("美团余额巡检登录页要求重新登录，停止自动刷新和单店重试。")
+        challenge = cdp.auth_guard.current_meituan_challenge(page)
+        if challenge is not None:
+            cdp.auth_guard.block("美团", "美团余额巡检遇到安全验证", challenge.url)
+            challenge.bring_to_front()
+            raise cdp.auth_guard.PlatformAuthBlocked("美团余额巡检等待安全验证，停止自动刷新和单店重试。")
+
     page.on("response", handle_response)
     try:
         cdp.goto_backend_page(page, promo_url, timeout=90_000)
         page.wait_for_timeout(4000)
+        check_verification()
         cdp.goto_backend_page(page, target_url, timeout=90_000)
         text = wait_for_account_ready()
         if account_payload is None:
@@ -317,12 +331,14 @@ def collect_store(page, store: dict, base_url: str) -> tuple[dict | None, list[d
 
 
 def collect_balances() -> tuple[list[dict], list[dict], str]:
+    cdp.auth_guard.require_access("美团")
     base_url = recent_meituan_promo_url() or FALLBACK_URL
     config = cdp.load_config()
     playwright, browser = cdp.connect_browser(config)
+    page = None
     try:
         context = cdp.first_context(browser)
-        page = cdp.reusable_page(context)
+        page = context.new_page()
         items = []
         network_candidates = []
         for store in STORES:
@@ -339,14 +355,19 @@ def collect_balances() -> tuple[list[dict], list[dict], str]:
                         item = retried
                         item["retry_attempted"] = True
                 except Exception as exc:
+                    if cdp.auth_guard.is_auth_failure(exc):
+                        raise
                     item["retry_attempted"] = True
                     item["retry_error_type"] = type(exc).__name__
                 finally:
-                    retry_page.close()
+                    if not cdp.auth_guard.pending("美团") and urlsplit(retry_page.url).hostname != "verify.meituan.com" and "/new_fe/login" not in urlsplit(retry_page.url).path:
+                        retry_page.close()
             if item:
                 items.append(item)
         return items, network_candidates, base_url
     finally:
+        if page is not None and not cdp.auth_guard.pending("美团"):
+            page.close()
         cdp.disconnect_browser(playwright, browser)
 
 
