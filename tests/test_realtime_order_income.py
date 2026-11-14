@@ -492,6 +492,21 @@ def test_expired_session_in_business_frame_still_blocks_collection():
     assert page_requires_login(page, "美团")
 
 
+def test_separate_verification_tab_is_fronted_before_report_actions():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import pytest
+    from scripts.realtime_order_income import raise_if_meituan_verification
+
+    verification = Mock(url='https://verify.meituan.com/v2/app/general_page?requestCode=private')
+    page = FakePage('全部门店', 'https://e.waimai.meituan.com/')
+    page.context = SimpleNamespace(pages=[page, verification])
+    with pytest.raises(RuntimeError, match='验证中心') as error:
+        raise_if_meituan_verification(page)
+    verification.bring_to_front.assert_called_once()
+    assert 'requestCode' not in str(error.value)
+
+
 class FakeRealtimeTarget:
     def __init__(self, result, url: str = "https://e.waimai.meituan.com/"):
         self.result = result

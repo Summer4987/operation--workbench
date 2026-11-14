@@ -8,7 +8,7 @@ from scripts import cleanup_chrome_tabs as cleanup
 
 class BrowserTaskProtectionTests(unittest.TestCase):
     def test_active_budget_or_collector_prevents_tab_reads_and_closes(self):
-        for task in ['meituan_budget_cdp.py', 'collect_customer_messages.py', 'collect_review_pages.py']:
+        for task in ['meituan_budget_cdp.py', 'collect_customer_messages.py', 'collect_review_pages.py', 'realtime_order_income.py']:
             with self.subTest(task=task), patch.object(cleanup, 'active_browser_tasks', return_value=[task]), \
                  patch.object(cleanup, 'read_json') as read:
                 result = cleanup.cleanup_port(9222, dry_run=False, max_per_category=1)
@@ -37,6 +37,18 @@ class BrowserTaskProtectionTests(unittest.TestCase):
     def test_unavailable_process_inspection_defers_cleanup(self):
         with patch.object(cleanup.subprocess, 'run', side_effect=OSError('unavailable')):
             self.assertEqual(cleanup.active_browser_tasks(), ['process_inspection_unavailable'])
+
+    def test_all_verification_tabs_survive_idle_cleanup(self):
+        tabs = [dict(type='page', id=str(n), title='验证中心',
+                     url='https://verify.meituan.com/v2/app/general_page?requestCode=private') for n in range(2)]
+        tabs += [dict(type='page', id='login', title='美团外卖商家版',
+                      url='https://e.waimai.meituan.com/new_fe/login_gw#/login')]
+        with patch.object(cleanup, 'active_browser_tasks', return_value=[]), \
+             patch.object(cleanup, 'read_json', return_value=tabs), patch.object(cleanup, 'urlopen') as close:
+            result = cleanup.cleanup_port(9222, dry_run=False, max_per_category=1)
+        self.assertEqual(result['closed_count'], 0)
+        self.assertEqual(result['kept_count'], 3)
+        close.assert_not_called()
 
 
 if __name__ == '__main__':

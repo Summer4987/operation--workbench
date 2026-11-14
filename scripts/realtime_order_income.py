@@ -994,6 +994,18 @@ def page_requires_login(page, platform: str) -> bool:
     return bool(page_auth_block_reason(page, platform))
 
 
+def raise_if_meituan_verification(page) -> None:
+    context = getattr(page, "context", None)
+    for candidate in getattr(context, "pages", []):
+        if urlsplit(getattr(candidate, "url", "") or "").hostname != "verify.meituan.com":
+            continue
+        try:
+            candidate.bring_to_front()
+        except Exception:
+            pass
+        raise RuntimeError("美团安全验证等待人工处理：已保留并前置 Mac mini 的“验证中心”标签页。")
+
+
 def page_snapshot_text(page, limit: int = 6000) -> str:
     parts: list[str] = []
     for target in [page, *page.frames]:
@@ -1141,9 +1153,11 @@ def click_meituan_all_stores_option(target) -> bool:
 
 
 def click_meituan_all_stores(page) -> None:
+    raise_if_meituan_verification(page)
     if meituan_all_stores_active(page):
         return
     for attempt in range(3):
+        raise_if_meituan_verification(page)
         for target in [page, *page.frames]:
             if click_meituan_store_dropdown(target):
                 page.wait_for_timeout(1200)
@@ -1167,6 +1181,7 @@ def click_meituan_all_stores(page) -> None:
 
 
 def click_meituan_realtime_and_scroll(page) -> None:
+    raise_if_meituan_verification(page)
     for target in [page, *page.frames]:
         try:
             target.get_by_text("营收", exact=False).first.click(timeout=2000)
@@ -1287,6 +1302,7 @@ def parse_meituan_dom_across_scroll(page, steps: int = 8, max_pages: int = 4) ->
     records: list[dict[str, Any]] = []
     visited_pages: set[int] = set()
     for page_number in range(1, max_pages + 1):
+        raise_if_meituan_verification(page)
         if page_number > 1 and not click_meituan_rank_page(page, page_number):
             break
         visited_pages.add(page_number)
@@ -1316,6 +1332,7 @@ def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
         log("美团：进入实时经营页")
         page.goto(MEITUAN_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
         page.wait_for_timeout(7000)
+        raise_if_meituan_verification(page)
         auth_reason = page_auth_block_reason(page, "美团")
         if auth_reason:
             raise RuntimeError(auth_reason)

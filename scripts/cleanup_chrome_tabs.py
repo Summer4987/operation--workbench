@@ -21,7 +21,18 @@ PROTECTED_SCRIPTS = {
     'meituan_budget_cdp.py', 'eleme_dianjin_adapter.mjs',
     'collect_review_pages.py', 'collect_customer_messages.py',
     'download_direct_meituan_daily.py',
+    'realtime_order_income.py',
 }
+
+
+def authentication_tab(url: str, title: str) -> bool:
+    """Keep challenges available for the person who must solve them."""
+    return (
+        any(label in title for label in ("验证中心", "安全验证", "身份核实"))
+        or bool(re.match(r"^https://verify\.meituan\.com(?:/|$)", url))
+        or bool(re.match(r"^https://e\.waimai\.meituan\.com/new_fe/login", url))
+        or bool(re.match(r"^https://melody\.shop\.ele\.me/login(?:[/?#]|$)", url))
+    )
 
 
 def active_browser_tasks() -> list[str]:
@@ -129,6 +140,9 @@ def cleanup_port(port: int, *, dry_run: bool, max_per_category: int) -> dict:
         tab_id = str(tab.get("id") or "")
         url = str(tab.get("url") or "")
         title = str(tab.get("title") or "")
+        if authentication_tab(url, title):
+            kept.append({"id": tab_id, "title": title, "url": url, "reason": "authentication_required"})
+            continue
         category = tab_category(url)
         if category:
             count = seen_categories.get(category, 0)
