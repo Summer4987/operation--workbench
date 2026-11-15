@@ -927,44 +927,18 @@ def build_payload_parallel(period: str, tasks: list[dict[str, Any]], workers: in
 
 
 def build_payload(period: str, stores: list[str], limit: int | None, *, quiet: bool = False, workers: int = 1) -> dict[str, Any]:
-    helpers = require_helpers()
+    # This consumer never opens merchant pages, including when the fleet is offline.
+    try:
+        from .longxia_promo_snapshot import read_records
+    except ImportError:
+        from longxia_promo_snapshot import read_records
     tasks = filter_tasks(load_meituan_tasks(period), stores)
     if limit is not None:
         tasks = tasks[:limit]
-    if workers > 1 and len(tasks) > 1:
-        return build_payload_parallel(period, tasks, workers, quiet=quiet)
-
-    direct_accounts = helpers["load_direct_meituan_accounts"]()
-    base_url = helpers["recent_meituan_promo_url"]() or HEADQUARTERS_HOME_URL
-
-    results: list[dict[str, Any]] = []
-    with helpers["sync_playwright"]() as playwright:
-        contexts: dict[str, Any] = {}
-        launched_contexts: list[Any] = []
-        try:
-            for task in tasks:
-                if not quiet:
-                    print(f"读取美团推广消耗：{task.get('keyword') or task.get('store')}", flush=True)
-                record = query_task(task, helpers, playwright, contexts, launched_contexts, base_url, direct_accounts)
-                if should_retry_query(record):
-                    if not quiet:
-                        print(f"重试美团推广消耗：{task.get('keyword') or task.get('store')}", flush=True)
-                    time.sleep(3)
-                    retry_record = query_task(task, helpers, playwright, contexts, launched_contexts, base_url, direct_accounts)
-                    retry_record["retry_after"] = {
-                        "failure_type": record.get("failure_type") or "",
-                        "error": compact_error_message(str(record.get("error") or "")),
-                    }
-                    record = retry_record
-                results.append(record)
-        finally:
-            for context in launched_contexts:
-                try:
-                    context.close()
-                except Exception:
-                    pass
-
-    return payload_from_results(period, results)
+    payload = payload_from_results(period, read_records(tasks))
+    payload["source"] = "longxia_snapshot"
+    payload["message"] = "数据来源：龙虾店长现有快照；本查询不访问美团后台。\n" + payload["message"]
+    return payload
 
 
 def payload_from_results(period: str, results: list[dict[str, Any]]) -> dict[str, Any]:

@@ -154,3 +154,21 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_delegated_meituan_is_visible_and_never_reported_as_verified_balance():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('delegated_balance_status', ROOT / 'scripts/build_promo_balance_status.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    payload = {
+        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'collected_platforms': ['饿了么'],
+        'delegated_platforms': {'美团': {'status': 'delegated', 'source': 'longxia_snapshot', 'message': '龙虾统一读取；账户余额未核实。'}},
+        'items': [{'platform': '饿了么', 'store_name': name, 'balance': 500} for name in ('朝阳门店', '银泰城店', '万象城店', '金融城店', '保利中心店')],
+    }
+    result = module.build_status(payload)
+    assert '余额未核实' in result['message']
+    assert result['status'] == 'warning'
+    assert not module.direct_coverage_rows(payload)
+    assert next(row for row in module.platform_rows(payload, []) if row['platform'] == '美团')['status'] == 'delegated'

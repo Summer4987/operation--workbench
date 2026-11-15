@@ -214,7 +214,7 @@ def check_direct_meituan_accounts(wait_ms: int) -> list[dict[str, Any]]:
             "--account",
             account_id,
             "--pages",
-            "home,promo_balance",
+            "home",
             "--wait-ms",
             str(wait_ms),
         ]

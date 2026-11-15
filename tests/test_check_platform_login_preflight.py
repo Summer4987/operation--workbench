@@ -8,6 +8,7 @@ import scripts.check_platform_login_preflight as preflight
 @pytest.fixture(autouse=True)
 def isolated_auth_state(tmp_path, monkeypatch):
     monkeypatch.setattr(preflight.cdp.auth_guard, 'STATE_DIR', tmp_path / 'auth')
+    monkeypatch.setattr(preflight.cdp.auth_guard, 'notify_block', mock.Mock())
 from scripts.check_platform_login_preflight import (
     ELEME_BUDGET_URL,
     ELEME_REALTIME_URL,
@@ -70,7 +71,7 @@ def test_meituan_budget_login_preflight_uses_headquarters_shell():
     assert "--preflight" in open("scripts/run_current_budget.zsh", encoding="utf-8").read()
 
 
-def test_direct_meituan_preflight_checks_promo_page_and_isolates_timeout():
+def test_direct_meituan_preflight_checks_home_only_and_isolates_timeout():
     with mock.patch.object(preflight, "direct_accounts_enabled", return_value=["direct_test"]):
         with mock.patch.object(
             preflight.subprocess,
@@ -79,7 +80,7 @@ def test_direct_meituan_preflight_checks_promo_page_and_isolates_timeout():
         ) as run:
             results = check_direct_meituan_accounts(1200)
 
-    assert "home,promo_balance" in run.call_args.args[0]
+    assert run.call_args.args[0][run.call_args.args[0].index("--pages") + 1] == "home"
     assert run.call_args.kwargs["timeout"] >= 150
     assert results[0]["account_id"] == "direct_test"
     assert results[0]["status"] == "auth_block"

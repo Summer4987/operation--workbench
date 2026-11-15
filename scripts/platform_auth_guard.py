@@ -10,6 +10,8 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
+import subprocess
+import sys
 from urllib.parse import urlsplit
 
 STATE_DIR = Path(__file__).resolve().parents[1] / "outputs/platform_auth_guard"
@@ -55,13 +57,34 @@ def safe_url(url: str) -> str:
 def block(platform: str, reason: str, url: str = "") -> dict:
     existing = pending(platform)
     if existing:
+        notify_block(platform, existing)
         return existing
     reason = re.sub(r"https?://[^\s）)]+", lambda match: safe_url(match.group()), reason)
     payload = {"platform": platform, "status": "blocked", "reason": reason[:800],
                "detected_at": datetime.now().isoformat(timespec="seconds"),
                "page_url": safe_url(url), "resume_requires": "manual_verification_confirmation"}
     write_state(platform, payload)
+    notify_block(platform, payload)
     return payload
+
+
+def notify_block(platform: str, payload: dict) -> None:
+    """Push a newly blocked platform once; failed delivery can be retried."""
+    if payload.get("notified_at"):
+        return
+    message = (f"【上午运营｜{platform}安全验证需处理】\n"
+               f"检测时间：{payload.get('detected_at', '')}\n"
+               f"原因：{payload.get('reason', '')}\n"
+               "已暂停该平台访问，不自动重试；其他可执行任务继续。\n"
+               "请在 Mac mini 对应浏览器页面完成验证，再确认恢复。")
+    try:
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name("ops_notify.py")), message],
+                                capture_output=True, timeout=15, check=False)
+        if result.returncode == 0:
+            payload["notified_at"] = datetime.now().isoformat(timespec="seconds")
+            write_state(platform, payload)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def require_access(platform: str) -> None:

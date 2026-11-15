@@ -362,12 +362,16 @@ def platform_rows(payload: dict, failures: list[dict]) -> list[dict]:
                 },
             )
         )
+    for row in rows:
+        delegated = (payload.get("delegated_platforms") or {}).get(row["platform"])
+        if delegated:
+            row.update(delegated)
     extra = [item for item in failures if item["platform"] not in PLATFORMS]
     return rows + extra
 
 
 def direct_coverage_rows(payload: dict) -> list[dict]:
-    coverage = build_direct_coverage(balance_items(payload), {"饿了么", "美团"})
+    coverage = build_direct_coverage(balance_items(payload), set(payload.get("collected_platforms", ["饿了么", "美团"])))
     rows = []
     for scope in coverage.get("scopes") or []:
         if not scope.get("missing_count"):
@@ -420,7 +424,7 @@ def build_status(payload: dict) -> dict:
     summary = payload.get("summary") or {}
     failures = split_platform_failures(payload.get("message") or "") if payload.get("status") == "failed" else []
     items = balance_items(payload)
-    direct_coverage = build_direct_coverage(items, {"饿了么", "美团"})
+    direct_coverage = build_direct_coverage(items, set(payload.get("collected_platforms", ["饿了么", "美团"])))
     coverage_rows = direct_coverage_rows(payload)
     warnings = [] if is_stale else low_balance_items(payload)
     excluded_warnings = [] if is_stale else excluded_low_balance_items(payload)
@@ -465,6 +469,11 @@ def build_status(payload: dict) -> dict:
         status = "ok"
         message = f"推广余额巡检正常，{store_count} 条余额结果。"
 
+    delegated = payload.get("delegated_platforms") or {}
+    if delegated:
+        message += " " + " ".join(row["message"] for row in delegated.values())
+        if status == "ok":
+            status = "warning"
     human_action = ""
     if failures:
         human_action = failures[0].get("human_action", "")

@@ -9,6 +9,7 @@ from scripts import platform_auth_guard as guard
 @pytest.fixture(autouse=True)
 def isolated_state(tmp_path, monkeypatch):
     monkeypatch.setattr(guard, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(guard.subprocess, "run", mock.Mock(return_value=SimpleNamespace(returncode=0)))
 
 
 def test_block_is_platform_specific_persistent_and_requires_confirmation():
@@ -60,3 +61,17 @@ def test_only_current_auth_failure_suppresses_retry(tmp_path):
     assert not guard.failure_needs_human(path, 2)
     path.write_text(json.dumps({"errors": ["Chrome/CDP 接入超时"]}))
     assert not guard.failure_needs_human(path, 0)
+
+
+def test_verification_push_is_once_per_incident_and_retries_failed_delivery():
+    guard.subprocess.run.return_value.returncode = 1
+    guard.block("美团", "安全验证")
+    assert not guard.pending("美团").get("notified_at")
+    guard.subprocess.run.return_value.returncode = 0
+    guard.block("美团", "安全验证")
+    guard.block("美团", "安全验证")
+    assert guard.subprocess.run.call_count == 2
+    assert guard.pending("美团")["notified_at"]
+    guard.release("美团", confirmed=True)
+    guard.block("美团", "新一次安全验证")
+    assert guard.subprocess.run.call_count == 3

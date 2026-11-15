@@ -67,47 +67,11 @@ def collect_eleme() -> tuple[list[dict], str]:
 
 
 def collect_meituan() -> tuple[list[dict], str]:
-    cdp_meituan_balance.cdp.auth_guard.require_access("美团")
-    payload = run_isolated_collector(
-        Path(cdp_meituan_balance.__file__),
-        cdp_meituan_balance.OUTPUT_JSON,
-    )
-    items = payload.get("items") or []
-    ok_items = [item for item in items if not item.get("error")]
-    if not ok_items:
-        raise RuntimeError("美团 CDP 接口没有读取到门店余额。")
-    if len(ok_items) < len(items):
-        missing = len(items) - len(ok_items)
-        raise RuntimeError(f"美团 CDP 有 {missing} 家门店未解析到账户余额。")
-    response_url = next((item.get("account_response_url") for item in ok_items if item.get("account_response_url")), "")
-    base_url = str(payload.get("base_url") or "")
-    return ok_items, response_url or (base_url.split("?")[0] if base_url else "")
+    raise RuntimeError("美团推广读取已统一交由龙虾店长；禁止独立逐店余额采集。")
 
 
 def collect_direct_meituan() -> tuple[list[dict], str]:
-    payload = run_isolated_collector(
-        Path(cdp_direct_meituan_balance.__file__),
-        cdp_direct_meituan_balance.OUTPUT_JSON,
-        "--all",
-        "--wait-seconds",
-        "20",
-    )
-    items = payload.get("items") or []
-    errors: list[str] = []
-    source_url = next(
-        (str(item.get("account_response_url") or item.get("page_url") or "") for item in items if item),
-        "",
-    )
-    if payload.get("status") == "failed":
-        errors.append(str(payload.get("message") or "直营美团余额采集失败。"))
-    failed_items = [item for item in items if item.get("error")]
-    if errors or failed_items:
-        failed_names = [str(item.get("store_name") or "未知门店") for item in failed_items]
-        detail = "；".join([*errors, *(f"{name}：未读取到余额" for name in failed_names)])
-        raise RuntimeError(detail or "直营美团余额采集不完整。")
-    if not items:
-        raise RuntimeError("直营美团账号没有读取到余额。")
-    return items, source_url
+    raise RuntimeError("美团推广读取已统一交由龙虾店长；禁止独立逐店余额采集。")
 
 
 def is_direct_meituan_item(item: dict) -> bool:
@@ -133,8 +97,6 @@ def collect_all_balances() -> tuple[dict, bool]:
 
     for platform_name, collector in [
         ("饿了么", collect_eleme),
-        ("美团", collect_meituan),
-        ("美团直营", collect_direct_meituan),
     ]:
         try:
             platform_items, source_url = collector()
@@ -150,8 +112,13 @@ def collect_all_balances() -> tuple[dict, bool]:
             errors.append(f"{platform_name}：{exc}")
             print(f"{platform_name} CDP 失败：{exc}", flush=True)
 
-    data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么", "美团"})
+    data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么"})
     data["source"] = "cdp_all_balances"
+    data["collected_platforms"] = ["饿了么"]
+    data["delegated_platforms"] = {"美团": {
+        "source": "longxia_snapshot", "status": "delegated",
+        "message": "美团推广数据由龙虾店长统一读取；本任务不进入单店推广页。龙虾快照未提供账户余额，余额未核实。",
+    }}
     data["source_urls"] = source_urls
     data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if errors:
