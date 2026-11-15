@@ -30,7 +30,15 @@ _HELD = {}
 
 
 class AccountAccessError(RuntimeError):
-    pass
+    code = 'coordination_error'
+
+
+class AccountQueueBusy(AccountAccessError):
+    code = 'queue_busy'
+
+
+class AccountVerificationRequired(AccountAccessError):
+    code = 'auth_block'
 
 
 def production_enabled():
@@ -88,7 +96,7 @@ class Coordinator:
 
     def require(self, account):
         if self.pending(account):
-            raise AccountAccessError('美团同账号安全验证待人工确认；所有程序暂停该账号，不自动重试')
+            raise AccountVerificationRequired('美团同账号安全验证待人工确认；所有程序暂停该账号，不自动重试')
 
     @staticmethod
     def write(path, data):
@@ -141,7 +149,7 @@ class Coordinator:
                     break
                 except BlockingIOError:
                     if time.monotonic() >= deadline:
-                        raise AccountAccessError('美团同账号访问队列忙，本轮不重复打开页面')
+                        raise AccountQueueBusy('美团同账号访问队列忙，本轮不重复打开页面')
                     time.sleep(.1)
             try:
                 last = json.loads(accesspath.read_text()) if accesspath.exists() else {}
@@ -219,7 +227,7 @@ def main():
         else:
             print(json.dumps(c.pending(args.account) or {'status': 'released'}, ensure_ascii=False))
     except (AccountAccessError, ValueError) as exc:
-        print(json.dumps({'error': str(exc)}), flush=True)
+        print(json.dumps({'error': str(exc), 'code': getattr(exc, 'code', 'coordination_error')}), flush=True)
         return 73
     return 0
 

@@ -24,7 +24,8 @@ def test_cross_process_account_serialization_and_exit_releases_lock(tmp_path):
         assert json.loads(first.stdout.readline())['acquired']
         same = start(root, wait=.15)
         try:
-            assert '队列忙' in json.loads(same.stdout.readline())['error']
+            busy=json.loads(same.stdout.readline())
+            assert '队列忙' in busy['error'] and busy['code']=='queue_busy'
             assert same.wait(timeout=2) == 73
         finally:
             same.stdin.close()
@@ -85,3 +86,10 @@ def test_decorator_does_not_enter_page_while_account_is_blocked(tmp_path):
     with patch.object(access,'production_enabled',return_value=True), patch.object(access,'Coordinator',return_value=c):
         with pytest.raises(access.AccountAccessError):visit()
     assert visited == []
+
+
+def test_queue_wait_is_distinct_from_verification_and_never_creates_auth_hold(tmp_path):
+    assert access.AccountQueueBusy.code == 'queue_busy'
+    assert access.AccountVerificationRequired.code == 'auth_block'
+    c=access.Coordinator(tmp_path/'access',gap_seconds=0,notify=False)
+    assert c.pending('headquarters') is None

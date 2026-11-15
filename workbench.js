@@ -1458,7 +1458,7 @@ function renderBudget() {
 let biddingSnapshot = null, biddingFetchBusy = false, biddingFetchError = '', biddingLogStore = '';
 const biddingMoney = n => Number.isSafeInteger(n) ? `¥${(n / 100).toFixed(2)}` : '—';
 const biddingTime = n => Number.isFinite(n) ? new Date(n).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '尚未采集';
-const biddingStatusLabels = {inspection_paused:'本店巡检暂停',pending:'保存待核对',error:'需要处理',lunch_paused:'午餐达标停投',promotion_paused:'推广已暂停',running:'巡检中',stopped:'巡检未启动'};
+const biddingStatusLabels = {queue_wait:'账号排队中',inspection_paused:'本店巡检暂停',pending:'保存待核对',error:'需要处理',lunch_paused:'午餐达标停投',promotion_paused:'推广已暂停',running:'巡检中',stopped:'巡检未启动'};
 function renderBidding() {
   const s = biddingSnapshot, available = !!s?.available;
   const online = available && s.online && Date.now() - s.generatedAt <= 90000 && !biddingFetchError;
