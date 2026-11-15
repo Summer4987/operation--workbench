@@ -315,7 +315,7 @@ class MeituanPromoSpendQueryTests(unittest.TestCase):
                 {"keyword": "万象城", "ok": False, "error": "登录失效"},
             ]
         )
-        self.assertIn("美团推广实时消耗巡检", text)
+        self.assertIn("美团推广消耗快照", text)
         self.assertIn("总览：已读到 1/2 家", text)
         self.assertIn("门店   状态   消耗   预算   剩余   用量", text)
         self.assertIn("银泰城", text)
