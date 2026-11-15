@@ -172,3 +172,13 @@ def test_delegated_meituan_is_visible_and_never_reported_as_verified_balance():
     assert result['status'] == 'warning'
     assert not module.direct_coverage_rows(payload)
     assert next(row for row in module.platform_rows(payload, []) if row['platform'] == '美团')['status'] == 'delegated'
+
+
+def test_semicolons_inside_one_transport_error_do_not_invent_platform_failures():
+    module=load_module()
+    message='饿了么：Chrome/CDP 接入超时；两次连接均未完成；请检查 Mac mini 总部 Chrome。'
+    rows=module.split_platform_failures(message)
+    assert len(rows)==1 and rows[0]['platform']=='饿了么'
+    assert '两次连接均未完成；请检查' in rows[0]['message']
+    both=module.split_platform_failures(message+'；美团：安全验证')
+    assert [r['platform'] for r in both]==['饿了么','美团']

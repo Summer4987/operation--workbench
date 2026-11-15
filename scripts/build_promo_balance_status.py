@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -217,7 +218,10 @@ def evidence_sync_status() -> dict[str, Any]:
 
 def split_platform_failures(message: str) -> list[dict]:
     failures: list[dict] = []
-    for raw_part in str(message or "").split("；"):
+    # Tracebacks and recovery hints contain semicolons too. Split only before
+    # an explicit platform label, never manufacture platforms from prose.
+    parts = re.split(r"[；;]\s*(?=(?:饿了么|美团直营|直营美团|美团)\s*[:：])", str(message or ""))
+    for raw_part in parts:
         part = raw_part.strip()
         if not part:
             continue
