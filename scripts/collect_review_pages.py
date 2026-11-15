@@ -21,6 +21,7 @@ from review_page_data import (ROOT, SNAPSHOT, TZ, eleme_reviews, match_store,
                               meituan_review, read_snapshot, refresh_payloads, score_value, store_aliases, verify_all_store_scope)
 
 from direct_meituan_browser import connect_cdp_browser
+import platform_account_access as account_access
 
 MT_URL = 'https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw#/user_comment/home'
 ELE_URL = 'https://melody.shop.ele.me/app/unit/comments#app.unit.comments'
@@ -132,6 +133,7 @@ class Collector:
         return dict(value=value, delta=delta, previous_at=previous_at,
                     collected_at=self.now, source_date=source_date)
 
+    @account_access.serialized(lambda self, account, fn: account_access.for_port(account["port"]) if account["platform"] == "美团" else None)
     def run(self, account, fn):
         key = account['id']
         old = self.old.get('scopes', {}).get(key, {})
@@ -152,6 +154,10 @@ class Collector:
             page.set_default_timeout(10000)
             fn(page, account, scope, old)
         except Exception as e:
+            if account['platform'] == '美团' and account_access.production_enabled():
+                from platform_auth_guard import is_auth_failure
+                if is_auth_failure(e):
+                    account_access.Coordinator().block(account_access.for_port(account['port']), str(e))
             # Playwright exceptions contain signed URLs. Persist only our safe messages.
             scope['message'] = str(e) if type(e) is RuntimeError else f'{type(e).__name__}：页面读取失败，请检查 Mac mini 登录态/浏览器'
         finally:

@@ -29,6 +29,9 @@ def verification_stores(status, now):
         raise ValueError('Duplicate store identity')
     def requires_verification(store):
         reason = str(store.get('message', ''))
+        # Account coordinator owns notification/deduplication for these holds.
+        if reason.startswith('同账号安全验证暂停'):
+            return False
         verification = any(text in reason for text in ('安全验证', '验证码', '页面出现验证或访问限制'))
         return verification and (store.get('paused') is True or store.get('status') == 'error')
     return {s['id']: s for s in stores if requires_verification(s)}
@@ -109,6 +112,15 @@ def send_wecom(text):
 
 
 def check():
+    # Retry delivery from the shared account hold even while browser access is paused.
+    import platform_account_access as accounts
+    if accounts.production_enabled():
+        coordinator = accounts.Coordinator()
+        keys = ['headquarters'] + [p.name[:-len('.hold.json')] for p in coordinator.root.glob('account-*.hold.json')]
+        for key in keys:
+            hold = coordinator.pending(key)
+            if hold and not hold.get('notified_at'):
+                coordinator.block(key, hold.get('reason') or '美团安全验证')
     status = json.loads((FLEET_ROOT / 'fleet-public-status.json').read_text())
     result = process_status(status, FLEET_ROOT / 'fleet-verification-notify.json', send_wecom)
     if result.get('attempted'):

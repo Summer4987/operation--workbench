@@ -26,6 +26,8 @@ from chrome_cdp_reports import (  # noqa: E402
     load_config,
 )
 
+import platform_account_access as account_access
+
 
 ELEME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
 ELEME_STATS_CENTER_URL = ELEME_URL
@@ -1325,6 +1327,7 @@ def parse_meituan_dom_across_scroll(page, steps: int = 8, max_pages: int = 4) ->
     return merge_records(records)
 
 
+@account_access.serialized(lambda *args, **kwargs: account_access.HEADQUARTERS)
 def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
     auth_guard.require_access("美团")
     page = new_platform_page(context)

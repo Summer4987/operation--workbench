@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "scripts"))
 import platform_auth_guard as auth_guard
+import platform_account_access as account_access
 CONFIG_PATH = ROOT / "chrome_cdp_config.json"
 ELEME_COMMENTS_URL = "https://melody.shop.ele.me/app/unit/comments#app.unit.comments"
 MEITUAN_COMMENTS_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/frontweb/ffw/userComment_gw"
@@ -937,6 +938,7 @@ def meituan_report_name_matches_target(name: str, target_date: str) -> bool:
     )
 
 
+@account_access.serialized(lambda *args, **kwargs: account_access.HEADQUARTERS)
 def download_meituan_latest(target_date: str | None = None) -> Path:
     config = load_config()
     platform = config["platforms"]["meituan"]
@@ -1003,6 +1005,7 @@ def meituan_customer_paid_field(frame) -> str | None:
     )
 
 
+@account_access.serialized(lambda *args, **kwargs: account_access.HEADQUARTERS)
 def generate_meituan_report(target_date: str) -> None:
     config = load_config()
     fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
@@ -1263,6 +1266,7 @@ def download_eleme_reviews() -> Path:
         disconnect_browser(playwright, browser)
 
 
+@account_access.serialized(lambda *args, **kwargs: account_access.HEADQUARTERS)
 def download_meituan_reviews() -> Path:
     config = load_config()
     target_compact = yesterday_compact()

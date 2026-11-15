@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from direct_meituan_browser import connect_store_browser
+import platform_account_access as account_access
 CONFIG_PATH = ROOT / "config" / "direct_meituan_accounts.json"
 OUTPUT_DIR = ROOT / "outputs" / "direct_meituan_account_check"
 WORKING_NODE = "/Users/summer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
@@ -100,6 +101,7 @@ def get_page_from_attached_chrome(playwright, account: dict):
     return browser, context, page
 
 
+@account_access.serialized(lambda account_id, *args, **kwargs: account_access.for_direct(account_id))
 def run_check(
     account_id: str,
     visible: bool,

@@ -31,6 +31,7 @@ WORKSPACE = ROOT.parent
 sys.path.insert(0, str(WORKSPACE / "scripts"))
 from direct_meituan_browser import connect_cdp_browser, connect_store_browser
 import platform_auth_guard as auth_guard
+import platform_account_access as account_access
 PREVIEW_PATH = WORKSPACE / "outputs" / "promo_budget_preview" / "latest.json"
 LOG_DIR = WORKSPACE / "outputs" / "meituan_budget_automation"
 EVIDENCE_DIR = WORKSPACE / "outputs" / "meituan_budget_automation" / "evidence"
@@ -1337,6 +1338,7 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     return record
 
 
+@account_access.serialized(lambda context, base_url, task, **kwargs: account_access.for_task(task))
 def execute_task_with_store_retries(context, base_url: str, task: dict, *, commit: bool, preflight: bool) -> dict:
     attempts = max(2, STORE_RETRY_ATTEMPTS) if preflight or commit else 1
     last_record: dict | None = None

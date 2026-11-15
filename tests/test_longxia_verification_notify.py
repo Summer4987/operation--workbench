@@ -112,3 +112,12 @@ class VerificationAlerts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_shared_account_hold_is_not_resent_as_one_alert_per_store():
+    now = 1794710000000
+    status = {'schema': 1, 'generatedAt': now, 'stores': [
+        {'id': 'one', 'paused': True, 'message': '同账号安全验证暂停：龙虾与采集任务均等待人工确认后恢复'},
+        {'id': 'two', 'paused': True, 'message': '同账号安全验证暂停：龙虾与采集任务均等待人工确认后恢复'},
+    ]}
+    assert notify.verification_stores(status, now) == {}

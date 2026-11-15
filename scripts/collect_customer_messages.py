@@ -18,6 +18,7 @@ from datetime import datetime,timedelta
 from urllib.parse import urlparse,parse_qs
 
 from direct_meituan_browser import connect_cdp_browser
+import platform_account_access as account_access
 from review_page_data import match_store,store_aliases
 from customer_message_data import ROOT,TZ,OUT,WEB,stamp,normalize,scope_status,atomic_json,safe_error,media_name,media_type,unique_group_store,apply_reference_media_policy
 
@@ -279,6 +280,7 @@ def mt_group_history(page,item,target,window_start=None):
     for m in messages:m['time_inferred']=True
     return dict(**item,messages=messages,history_complete=stable>=4,history_basis='三方群聊已滚动到顶部连续5次复核；平台仅显示日期的消息不补造时分秒')
 
+@account_access.serialized(lambda pw, scope, account, keyword: account_access.for_port(account["port"]))
 def meituan(pw,scope,account,keyword):
     browser=connect_cdp_browser(pw, f'http://127.0.0.1:{account["port"]}')
     page=browser.contexts[0].new_page();page.set_default_timeout(12000)

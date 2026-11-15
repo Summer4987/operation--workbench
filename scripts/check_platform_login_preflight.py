@@ -25,6 +25,7 @@ if str(REPORT_DIR) not in sys.path:
     sys.path.insert(0, str(REPORT_DIR))
 
 import chrome_cdp_reports as cdp  # noqa: E402
+import platform_account_access as account_access
 
 
 LOGIN_BLOCKERS = [
@@ -147,46 +148,47 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                 ready_texts = ["全部门店", "今日实时"]
             if scope == "budget" and key == "meituan":
                 ready_texts = MEITUAN_BUDGET_READY_TEXTS
-            try:
-                # Retry transport/navigation failures on our own tab. Never recycle
-                # a collector's selected store or retry an actual login challenge.
-                for attempt in range(2):
-                    try:
-                        cdp.goto_backend_page(page, url, timeout=30_000)
-                        break
-                    except Exception:
-                        if attempt:
-                            raise
-                        page.wait_for_timeout(1500)
-                page.wait_for_timeout(wait_ms)
-                row = classify_page(
-                        str(platform.get("name") or key),
-                        page.title(),
-                        page.url,
-                        page_text(page),
-                        ready_texts,
+            with account_access.optional_lease(account_access.HEADQUARTERS if key == "meituan" else None):
+                try:
+                    # Retry transport/navigation failures on our own tab. Never recycle
+                    # a collector's selected store or retry an actual login challenge.
+                    for attempt in range(2):
+                        try:
+                            cdp.goto_backend_page(page, url, timeout=30_000)
+                            break
+                        except Exception:
+                            if attempt:
+                                raise
+                            page.wait_for_timeout(1500)
+                    page.wait_for_timeout(wait_ms)
+                    row = classify_page(
+                            str(platform.get("name") or key),
+                            page.title(),
+                            page.url,
+                            page_text(page),
+                            ready_texts,
+                        )
+                    results.append(row)
+                    if row["status"] == "auth_block":
+                        label = "美团" if key == "meituan" else "饿了么"
+                        cdp.auth_guard.block(label, "、".join(row["blocking_texts"]), row["url"])
+                        preserve_page = True
+                        try:
+                            page.bring_to_front()
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    results.append(
+                        {
+                            "platform": str(platform.get("name") or key),
+                            "status": "page_error",
+                            "message": str(exc),
+                            "url": url,
+                        }
                     )
-                results.append(row)
-                if row["status"] == "auth_block":
-                    label = "美团" if key == "meituan" else "饿了么"
-                    cdp.auth_guard.block(label, "、".join(row["blocking_texts"]), row["url"])
-                    preserve_page = True
-                    try:
-                        page.bring_to_front()
-                    except Exception:
-                        pass
-            except Exception as exc:
-                results.append(
-                    {
-                        "platform": str(platform.get("name") or key),
-                        "status": "page_error",
-                        "message": str(exc),
-                        "url": url,
-                    }
-                )
-            finally:
-                if not preserve_page:
-                    page.close()
+                finally:
+                    if not preserve_page:
+                        page.close()
     finally:
         cdp.disconnect_browser(playwright, browser)
     return results

@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "business-report-dashboard"))
 from chrome_cdp_reports import date_with_dashes  # noqa: E402
 from check_direct_meituan_account import MAC_CHROME, load_account, resolve_browser_executable  # noqa: E402
 from direct_meituan_browser import connect_store_browser
+import platform_account_access as account_access
 from download_direct_meituan_daily import cdp_available  # noqa: E402
 
 
@@ -196,6 +197,7 @@ def write_status(payload: dict) -> Path:
     return output
 
 
+@account_access.serialized(lambda account_id, *args, **kwargs: account_access.for_direct(account_id))
 def run(
     account_id: str,
     target_compact: str,

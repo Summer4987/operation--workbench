@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "business-report-dashboard"))
 from chrome_cdp_reports import validate_meituan_customer_paid_file, meituan_customer_paid_field, date_with_dashes, meituan_history, meituan_report_frame, safe_filename  # noqa: E402
 from check_direct_meituan_account import MAC_CHROME, load_account, resolve_browser_executable  # noqa: E402
 from direct_meituan_browser import connect_store_browser
+import platform_account_access as account_access
 
 
 def require_playwright():
@@ -346,6 +347,7 @@ def validate_basic_daily_file(path: Path, account: dict, target_date: str) -> No
     if not matches or any(number(r.get("有效订单")) is None or number(r.get("营业收入")) is None for r in matches):
         raise RuntimeError("下载报表没有目标门店日期的有效基础数据")
 
+@account_access.serialized(lambda account_id, *args, **kwargs: account_access.for_direct(account_id))
 def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_seconds: int, browser_executable: str | None) -> Path:
     account = load_account(account_id)
     sync_playwright = require_playwright()
