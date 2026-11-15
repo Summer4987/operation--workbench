@@ -8,7 +8,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import time
-from urllib.parse import urlsplit, quote
+from urllib.parse import urlsplit, quote, parse_qsl
 from urllib.request import urlopen
 
 try:
@@ -29,8 +29,17 @@ def tabs(endpoint):
 
 def safe_homepage(tab, all_tabs):
     u=urlsplit(tab.get('url',''))
-    if tab.get('type')!='page' or u.scheme!='https' or u.hostname!='e.waimai.meituan.com' or u.path not in ('','/') or u.query or u.fragment:
+    if tab.get('type')!='page' or u.scheme!='https' or u.hostname!='e.waimai.meituan.com' or u.path not in ('','/'):
         return False
+    # Completed verification can leave callback codes on a read-only business URL.
+    # Values are never logged; editors and login routes remain excluded.
+    fragment=urlsplit(u.fragment)
+    readonly_business=(fragment.scheme=='https' and fragment.hostname=='waimaieapp.meituan.com'
+                       and fragment.path=='/igate/bizdata/business' and not fragment.query and not fragment.fragment)
+    callback_keys={key for key,value in parse_qsl(u.query,keep_blank_values=True)}
+    known_callback={'response_code','request_code','responseCode','requestCode'}
+    if u.fragment and not readonly_business:return False
+    if u.query and (not readonly_business or not callback_keys.issubset(known_callback)):return False
     if any(x in str(tab.get('title','')) for x in ('验证','登录')):
         return False
     # An embedded challenge or editor must remain available to the person using it.
@@ -88,8 +97,8 @@ def recover(endpoint):
                 with urlopen(endpoint+'/json/close/'+quote(str(tab['id']),safe=''),timeout=3) as r:
                     r.read()
                 accounts.Coordinator().write(prior,{'recovered_at':time.strftime('%F %T'),
-                    'target_id':tab['id'],'reason':'read_only_homepage_unresponsive_twice',
+                    'target_id':tab['id'],'reason':'read_only_page_unresponsive_twice',
                     'closed_count':1,'browser_restarted':False})
-                print('已恢复 Chrome 接入：仅关闭连续两次不响应的旧美团首页；登录会话保留。',flush=True)
+                print('已恢复 Chrome 接入：仅关闭连续两次不响应的旧美团只读页；登录会话保留。',flush=True)
                 return True
     return False

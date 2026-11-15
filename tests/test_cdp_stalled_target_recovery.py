@@ -82,3 +82,13 @@ await import('file://'+process.argvProbe);
         assert json.loads(r.stdout)['responsive'] is expected
     rejected=subprocess.run([node,str(script),'ws://example.com:9222/devtools/page/ABC','100'],capture_output=True,text=True,timeout=2)
     assert rejected.returncode==64
+
+
+def test_completed_verification_callback_on_readonly_business_route_is_recoverable():
+    business={**HOME,'url':'https://e.waimai.meituan.com/?response_code=private&requestCode=private#https://waimaieapp.meituan.com/igate/bizdata/business'}
+    assert recovery.safe_homepage(business,[business])
+    for url in ['https://e.waimai.meituan.com/?response_code=private',
+                'https://e.waimai.meituan.com/?ticket=private#https://waimaieapp.meituan.com/igate/bizdata/business',
+                'https://e.waimai.meituan.com/?response_code=private#https://waimaieapp.meituan.com/ad/v1/rpc',
+                'https://e.waimai.meituan.com/#https://verify.meituan.com/igate/bizdata/business']:
+        assert not recovery.safe_homepage({**HOME,'url':url},[HOME])
