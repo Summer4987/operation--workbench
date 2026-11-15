@@ -37,3 +37,11 @@ def test_spend_consumer_never_starts_browser_or_workers_even_without_snapshot(tm
     assert payload['source'] == 'longxia_snapshot'
     assert payload['status'] == 'failed'
     assert payload['items'][0]['today_spend'] is None
+
+
+def test_missing_snapshot_totals_are_unknown_instead_of_zero():
+    from scripts import meituan_promo_spend_query as query
+    payload = query.payload_from_results('all', [{'ok': False, 'error': '等待快照', 'today_spend': None}])
+    assert payload['summary']['today_spend_total'] is None
+    assert '消耗 未知' in payload['message']
+    assert '预算 未知' in payload['message']

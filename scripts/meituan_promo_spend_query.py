@@ -954,7 +954,7 @@ def payload_from_results(period: str, results: list[dict[str, Any]]) -> dict[str
             "store_count": len(results),
             "success_count": len(ok_items),
             "failed_count": len(failed_items),
-            "today_spend_total": round(total, 2),
+            "today_spend_total": round(total, 2) if ok_items else None,
             "elapsed_seconds_total": round(elapsed, 2),
         },
         "items": results,
@@ -1082,10 +1082,10 @@ def format_human(items: list[dict[str, Any]]) -> str:
         level, _ = inspect_level(item)
         level_counts[level] = level_counts.get(level, 0) + 1
     lines = [
-        "美团推广实时消耗巡检：",
+        "美团推广消耗快照：",
         (
-            f"总览：已读到 {len(ok_items)}/{len(items)} 家，今日消耗 {money(total)} 元，"
-            f"当前预算 {money(budget_total)} 元，剩余 {money(remaining_total)} 元；"
+            f"总览：已读到 {len(ok_items)}/{len(items)} 家，已读取门店今日消耗 {money(total if ok_items else None)} 元，"
+            f"已读取预算 {money(budget_total if any(item.get('budget') is not None for item in ok_items) else None)} 元，剩余 {money(remaining_total if any(item.get('remaining_budget') is not None for item in ok_items) else None)} 元；"
             f"正常 {level_counts.get('正常', 0)}，预警 {level_counts.get('预警', 0)}，"
             f"已耗尽 {level_counts.get('已耗尽', 0)}，未核实 {level_counts.get('未核实', 0)}。"
         ),
