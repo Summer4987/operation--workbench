@@ -63,7 +63,7 @@ def test_realtime_runner_preserves_collect_failure_after_followup_failure():
 
     assert "if run_with_timeout \"$seconds\" \"$@\"; then" not in text
     assert "run_with_timeout \"$seconds\" \"$@\"\n  local rc=$?" in text
-    assert "if [[ \"$FINAL_RC\" -eq 0 ]]; then\n    FINAL_RC=\"$rc\"\n  fi" in text
+    assert "if [[ \"$FINAL_RC\" -eq 0 ]]; then\n    FINAL_RC=\"$rc\"" in text
     assert "[[ ! -f \"$ensure_script\" || ! -x \"$ensure_script\" ]]" in text
     assert "python_has_playwright" in text
     assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text
@@ -83,7 +83,7 @@ def test_macmini_installer_emits_realtime_runner_rc_handling():
 
     assert "if run_with_timeout \"\\$seconds\" \"\\$@\"; then" not in text
     assert "run_with_timeout \"\\$seconds\" \"\\$@\"\n  local rc=\\$?" in text
-    assert "if [[ \"\\$FINAL_RC\" -eq 0 ]]; then\n    FINAL_RC=\"\\$rc\"\n  fi" in text
+    assert "if [[ \"\\$FINAL_RC\" -eq 0 ]]; then\n    FINAL_RC=\"\\$rc\"" in text
     assert "[[ ! -f \"\\$ensure_script\" || ! -x \"\\$ensure_script\" ]]" in text
     assert "python_has_playwright" in text
     assert "已用当前 Python 直接确认 Playwright 可用，继续采集" in text
@@ -244,3 +244,25 @@ print "continue-passed-stores:$rc"
     result = subprocess.run(["/bin/zsh", "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "continue-passed-stores:1" in result.stdout
+
+
+def test_budget_wrapper_rejects_subset_success_even_if_child_exit_was_zero():
+    import subprocess
+    source=SCRIPT.read_text()
+    body=source.split('verify_budget_coverage() {',1)[1].split('\nfinalize_interrupted_budget()',1)[0]
+    script='''set -e
+MODE=commit
+PERIOD=晚餐
+PYTHON=/bin/false
+PROMO_RESULT_RUNNER=unused
+RUN_STARTED_EPOCH=0
+FAILED_STEPS=()
+verify_budget_coverage() {'''+body+'''
+# The successfully executed subset must not hide stores that were never run.
+verify_budget_coverage
+(( ${#FAILED_STEPS[@]} == 1 ))
+print "$FAILED_STEPS[1]"
+'''
+    completed=subprocess.run(['/bin/zsh','-c',script],capture_output=True,text=True)
+    assert completed.returncode==0,completed.stderr
+    assert '门店结果未齐' in completed.stdout

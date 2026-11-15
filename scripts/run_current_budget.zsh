@@ -107,6 +107,16 @@ build_promo_result_message() {
     echo "${PERIOD}推广预算执行结束，但双平台门店结果汇总生成失败，请查看日志：$RUN_LOG"
 }
 
+verify_budget_coverage() {
+  if [[ "$MODE" == "commit" ]]; then
+    local coverage_rc=0
+    "$PYTHON" "$PROMO_RESULT_RUNNER" --period "$PERIOD" --since-epoch "$RUN_STARTED_EPOCH" --print-message --check-success || coverage_rc=$?
+    if (( coverage_rc != 0 )); then
+      FAILED_STEPS+=("双平台预算门店结果未齐")
+    fi
+  fi
+}
+
 finalize_interrupted_budget() {
   local rc=$?
   set +e
@@ -426,6 +436,7 @@ if [[ "$MODE" == "commit" ]]; then
 fi
 
 echo
+verify_budget_coverage
 echo "刷新运营总看板数据..."
 run_support_step "推广预算重试策略刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_promo_budget_retry_plan.py || true
 run_support_step "运营总看板数据刷新" "${BUDGET_REFRESH_TIMEOUT_SECONDS:-120}" 1 "$PYTHON" scripts/build_workbench_data.py || true

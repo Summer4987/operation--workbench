@@ -45,3 +45,13 @@ def test_expected_tasks_accepts_eleme_scheduled_and_meituan_auto():
 
     assert [item["store"] for item in result.expected_tasks(preview, "eleme", "晚餐")] == ["饿A"]
     assert [item["store"] for item in result.expected_tasks(preview, "meituan", "晚餐")] == ["美A"]
+
+
+def test_cli_fails_closed_for_partial_or_missing_budget_coverage(tmp_path,monkeypatch,capsys):
+    payload={'status':'failed','period':'晚餐','platforms':{'meituan':{'success_count':4,'total':15,'failed_count':11}},'message':'美团成功 4/15 家'}
+    monkeypatch.setattr(result,'build_result',lambda period,since:payload)
+    monkeypatch.setattr(result.sys,'argv',['result','--period','晚餐','--since-epoch','0','--output',str(tmp_path/'result.json'),'--check-success','--print-message'])
+    assert result.main()==1
+    assert '4/15' in capsys.readouterr().out
+    payload['status']='success'
+    assert result.main()==0

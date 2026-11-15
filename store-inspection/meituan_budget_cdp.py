@@ -1396,7 +1396,7 @@ def context_for_task(
         if endpoint not in contexts:
             if not cdp_available(debug_port):
                 raise RuntimeError(f"总部美团账号 CDP 端口不可用：{debug_port}")
-            browser = connect_cdp_browser(playwright, endpoint)
+            browser = connect_cdp_browser(playwright, endpoint, recover_stalled=allow_recovery)
             contexts[endpoint] = browser.contexts[0] if browser.contexts else browser.new_context()
         return contexts[endpoint]
 

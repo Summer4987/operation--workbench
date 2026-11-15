@@ -157,6 +157,13 @@ def connect_browser(config: dict):
             return playwright, browser
         except Exception as exc:
             playwright.stop()
+            from cdp_stalled_target_recovery import recover
+            if recover(debug_url(config)):
+                fresh = sync_playwright().start()
+                try:
+                    return fresh, fresh.chromium.connect_over_cdp(debug_url(config), timeout=20_000)
+                except Exception:
+                    fresh.stop()
             raise RuntimeError("Chrome/CDP 接入超时或失败，两次连接均未完成；请检查 Mac mini 总部 Chrome。") from exc
     return playwright, browser
 

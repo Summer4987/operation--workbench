@@ -109,7 +109,7 @@ def restart_store_browser(account: dict) -> None:
         raise RuntimeError("该门店 Chrome 重启后调试端口未就绪。")
 
 
-def connect_cdp_browser(playwright, endpoint: str):
+def connect_cdp_browser(playwright, endpoint: str, *, recover_stalled: bool = True):
     """Retry attachment only, before callers can navigate or submit anything."""
     try:
         return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
@@ -117,7 +117,14 @@ def connect_cdp_browser(playwright, endpoint: str):
         # A live port/WebSocket does not mean Chrome finished attaching its targets.
         print("Chrome CDP 接入未完成，等待后重试一次。", flush=True)
         time.sleep(1)
-        return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+        try:
+            return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+        except Exception:
+            if recover_stalled:
+                from cdp_stalled_target_recovery import recover
+                if recover(endpoint):
+                    return playwright.chromium.connect_over_cdp(endpoint, timeout=CONNECT_TIMEOUT_MS)
+            raise
 
 
 def connect_store_browser(playwright, account: dict, *, allow_recovery: bool = False):

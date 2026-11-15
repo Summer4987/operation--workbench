@@ -157,6 +157,7 @@ def main() -> int:
     parser.add_argument("--since-epoch", type=float, required=True)
     parser.add_argument("--output", default=str(OUTPUT_PATH))
     parser.add_argument("--print-message", action="store_true")
+    parser.add_argument("--check-success", action="store_true", help="存在失败或未执行门店时返回非零状态")
     parser.add_argument("--record", action="store_true", help="把真实结果写入预算任务账本，不执行预算")
     parser.add_argument("--log-path", default="")
     args = parser.parse_args()
@@ -180,7 +181,7 @@ def main() -> int:
         print(payload["message"])
     else:
         print(json.dumps(payload, ensure_ascii=False))
-    return 0
+    return 1 if args.check_success and payload["status"] != "success" else 0
 
 
 if __name__ == "__main__":
