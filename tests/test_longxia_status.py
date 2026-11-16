@@ -19,6 +19,10 @@ class LongxiaStatusTests(unittest.TestCase):
  def write(self,data=None):self.file.write_text(json.dumps(self.data if data is None else data))
  def test_live_and_stale(self):
   self.write();self.assertTrue(m.read(self.file,NOW)['online']);self.assertFalse(m.read(self.file,NOW+90001)['online']);self.assertTrue(m.read(self.file,NOW+90001)['available'])
+ def test_opening_bid_is_a_sanitized_money_field(self):
+  self.data['openingBid']=60;self.write();self.assertEqual(m.read(self.file,NOW)['openingBid'],60)
+  for value in ['60',True,-1,55,10001,{'cookie':'secret'}]:
+   self.data['openingBid']=value;self.write();self.assertFalse(m.read(self.file,NOW)['available'])
  def test_missing_and_invalid(self):
   self.assertFalse(m.read(self.file,NOW)['available'])
   for mutate in [lambda d:d.update(cookie='secret'),lambda d:d['stores'][0].update(rawSnapshot={}),lambda d:d['stores'][0].update(id='wrong'),lambda d:d.update(generatedAt=NOW+60001),lambda d:d['stores'].__setitem__(0,None)]:

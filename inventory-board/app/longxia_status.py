@@ -15,7 +15,7 @@ def valid_learning(value):
     return (all(isinstance(v,str) and len(v)<=1200 for k,v in value.items() if k in LEARNING_TEXT_FIELDS)
             and all(v is None or type(v) is int and v>=0 for k,v in value.items() if k in LEARNING_NUMBER_FIELDS))
 
-TOP_FIELDS={'schema','generatedAt','day','version','on','readOnly','busy','current','trial','sync','summary','stores','log'}
+TOP_FIELDS={'schema','generatedAt','day','version','openingBid','on','readOnly','busy','current','trial','sync','summary','stores','log'}
 
 def read(path,now=None):
     now=int(time.time()*1000) if now is None else now
@@ -33,6 +33,8 @@ def read(path,now=None):
         # Exporter and relay only publish business status. Fail closed if raw fields leak.
         if set(raw)-TOP_FIELDS or any(set(s)-STORE_FIELDS for s in stores):raise ValueError('状态含未授权字段')
         if any(not valid_learning(s.get('learning')) for s in stores):raise ValueError('学习建议格式无效')
+        opening=raw.get('openingBid')
+        if opening is not None and (type(opening) is not int or not 10<=opening<=10000 or opening%10):raise ValueError('开场价格式无效')
         age=now-raw['generatedAt']
         return {**raw,'available':True,'online':age<=90000,'ageMs':max(0,age),'serverTime':now,'message':'Mac mini 正常回传' if age<=90000 else 'Mac mini 回传已过期，以下为最后一次状态'}
     except (OSError,ValueError,TypeError,KeyError):
