@@ -52,6 +52,40 @@ def safe_homepage(tab, all_tabs):
     return True
 
 
+def completed_promo_landing(tab, all_tabs):
+    """Only the known CPC index after today's budget is fully verified."""
+    u = urlsplit(tab.get('url', ''))
+    inner = urlsplit(u.fragment)
+    if (tab.get('type') != 'page' or u.scheme != 'https'
+        or u.hostname != 'e.waimai.meituan.com' or u.path not in ('', '/') or u.query
+        or inner.scheme != 'https' or inner.hostname != 'waimaieapp.meituan.com'
+        or inner.path != '/ad/v1/rpc'
+        or inner.fragment != '/subapp/isomor_cpc/pages/index/index'):
+        return False
+    if not {k for k, v in parse_qsl(inner.query, keep_blank_values=True)}.issubset(
+        {'device_uuid', 'bsid', 'appType', 'topOrigin'}
+    ):
+        return False
+    if any(x in str(tab.get('title', '')) for x in ('验证', '登录')):
+        return False
+    for child in all_tabs:
+        if child.get('parentId') == tab.get('id'):
+            url = str(child.get('url', '')).lower()
+            if any(x in url for x in ('verify.', 'login', 'edit', 'recharge', 'payment')):
+                return False
+    try:
+        state = json.loads((ROOT/'outputs/task_runs/latest.json').read_text())
+        budget = state.get('tasks', {}).get('growth.promo_budget', {})
+        return (budget.get('status') == 'success'
+                and str(budget.get('finished_at', '')).startswith(time.strftime('%F')))
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def safe_recoverable(tab, all_tabs):
+    return safe_homepage(tab, all_tabs) or completed_promo_landing(tab, all_tabs)
+
+
 def other_browser_tasks():
     out=subprocess.check_output(['ps','-axo','pid=,args='],text=True,timeout=3)
     protected={'meituan_budget_cdp.py','eleme_dianjin_adapter.mjs','realtime_order_income.py',
@@ -88,17 +122,17 @@ def recover(endpoint):
         with accounts.Coordinator().lease('headquarters',wait_seconds=30):
             original=tabs(endpoint)
             for tab in original:
-                if not safe_homepage(tab,original):continue
+                if not safe_recoverable(tab,original):continue
                 if responsive(tab) is not False or responsive(tab) is not False:continue
                 current=tabs(endpoint)
                 same=next((t for t in current if t.get('id')==tab.get('id')),None)
-                if not same or same.get('url')!=tab.get('url') or not safe_homepage(same,current):continue
+                if not same or same.get('url')!=tab.get('url') or not safe_recoverable(same,current):continue
                 if other_browser_tasks() or accounts.Coordinator().pending('headquarters'):return False
                 with urlopen(endpoint+'/json/close/'+quote(str(tab['id']),safe=''),timeout=3) as r:
                     r.read()
                 accounts.Coordinator().write(prior,{'recovered_at':time.strftime('%F %T'),
-                    'target_id':tab['id'],'reason':'read_only_page_unresponsive_twice',
+                    'target_id':tab['id'],'reason':('read_only_page_unresponsive_twice' if safe_homepage(same,current) else 'completed_budget_landing_unresponsive_twice'),
                     'closed_count':1,'browser_restarted':False})
-                print('已恢复 Chrome 接入：仅关闭连续两次不响应的旧美团只读页；登录会话保留。',flush=True)
+                print('已恢复 Chrome 接入：仅关闭连续两次不响应且符合安全恢复条件的旧美团页面；登录会话保留。',flush=True)
                 return True
     return False

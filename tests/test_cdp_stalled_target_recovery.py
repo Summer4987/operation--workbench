@@ -92,3 +92,20 @@ def test_completed_verification_callback_on_readonly_business_route_is_recoverab
                 'https://e.waimai.meituan.com/?response_code=private#https://waimaieapp.meituan.com/ad/v1/rpc',
                 'https://e.waimai.meituan.com/#https://verify.meituan.com/igate/bizdata/business']:
         assert not recovery.safe_homepage({**HOME,'url':url},[HOME])
+
+
+def test_completed_cpc_landing_requires_today_verified_budget(tmp_path, monkeypatch):
+    import json, time
+    monkeypatch.setattr(recovery, 'ROOT', tmp_path)
+    landing = {**HOME, 'url':'https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc?device_uuid=x&appType=pc#/subapp/isomor_cpc/pages/index/index'}
+    path = tmp_path/'outputs/task_runs/latest.json'
+    path.parent.mkdir(parents=True)
+    for status, date, expected in [('success',time.strftime('%F'),True), ('failed',time.strftime('%F'),False),('running',time.strftime('%F'),False),('success','2020-01-01',False)]:
+        path.write_text(json.dumps({'tasks':{'growth.promo_budget':{'status':status,'finished_at':date+' 08:30:00'}}}))
+        assert recovery.completed_promo_landing(landing,[landing]) is expected
+    path.write_text(json.dumps({'tasks':{'growth.promo_budget':{'status':'success','finished_at':time.strftime('%F')+' 08:30:00'}}}))
+    for suffix in ['?wmPoiId=123#/subapp/isomor_cpc/pages/index/index', '#/edit', '#/subapp/isomor_cpc/pages/recharge/index']:
+        bad={**landing,'url':'https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/ad/v1/rpc'+suffix}
+        assert not recovery.completed_promo_landing(bad,[bad])
+    child={'parentId':landing['id'],'url':'https://verify.meituan.com/'}
+    assert not recovery.completed_promo_landing(landing,[landing,child])
