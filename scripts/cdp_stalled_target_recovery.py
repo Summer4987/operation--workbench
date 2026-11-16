@@ -63,7 +63,7 @@ def completed_promo_landing(tab, all_tabs):
         or inner.fragment != '/subapp/isomor_cpc/pages/index/index'):
         return False
     if not {k for k, v in parse_qsl(inner.query, keep_blank_values=True)}.issubset(
-        {'device_uuid', 'bsid', 'appType', 'topOrigin'}
+        {'device_uuid', 'bsid', 'appType', 'topOrigin', 'region_id', 'userId'}
     ):
         return False
     if any(x in str(tab.get('title', '')) for x in ('验证', '登录')):
