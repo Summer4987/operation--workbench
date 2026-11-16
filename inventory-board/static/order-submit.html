@@ -627,7 +627,11 @@
         setMessage("正在加载商品...");
         try {
           const payload = await fetchJson(`/api/public-order/catalog?token=${encodeURIComponent(token)}`);
-          products = payload.products || [];
+          const catalogProducts = payload.products || [];
+          products = [
+            ...catalogProducts.filter((item) => item.available),
+            ...catalogProducts.filter((item) => !item.available),
+          ];
           authenticatedStore = normalizeStore(payload.authenticated_store);
           stores = (payload.stores || []).map(normalizeStore).filter((store) => store.name);
           if (authenticatedStore.name && !stores.some((store) => store.name === authenticatedStore.name)) {
