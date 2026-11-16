@@ -147,19 +147,33 @@ def clear_store_search(page) -> None:
     page.wait_for_timeout(1_500)
 
 
+def wait_for_store_rows(page, previous: set[str] | None = None) -> set[str]:
+    # Pagination selection changes before the asynchronous table request ends.
+    # A fixed two-second sleep can read page one twice and falsely report 10/16.
+    current: set[str] = set()
+    for _ in range(30):
+        current = extract_shop_ids(page)
+        loading = page.locator('.ant-spin-spinning').count() > 0
+        if current and not loading and (previous is None or current != previous):
+            return current
+        page.wait_for_timeout(500)
+    raise RuntimeError("门店列表加载超时，未确认翻页后的门店数据，拒绝执行预算")
+
+
 def collect_all_shop_ids(page) -> set[str]:
     clear_store_search(page)
-    first_page_ids = extract_shop_ids(page)
+    first_page_ids = wait_for_store_rows(page)
     page_two = visible_locator(page.locator(".ant-pagination-item-2"))
     if page_two is None:
         return first_page_ids
     page_two.click()
-    page.wait_for_timeout(2_000)
-    second_page_ids = extract_shop_ids(page)
-    page_one = visible_locator(page.locator(".ant-pagination-item-1"))
-    if page_one is not None:
-        page_one.click()
-        page.wait_for_timeout(800)
+    try:
+        second_page_ids = wait_for_store_rows(page, first_page_ids)
+    finally:
+        page_one = visible_locator(page.locator(".ant-pagination-item-1"))
+        if page_one is not None:
+            page_one.click()
+            page.wait_for_timeout(800)
     return first_page_ids | second_page_ids
 
 

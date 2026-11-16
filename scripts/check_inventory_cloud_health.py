@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shlex
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -28,10 +31,64 @@ def write_latest(payload: dict[str, Any]) -> None:
     LATEST_PATH.chmod(0o644)
 
 
+def decode_summary_response(response) -> dict[str, Any]:
+    if "/login" in response.geturl() or "json" not in response.headers.get("Content-Type", "").lower():
+        raise ValueError("库存接口返回登录页或非 JSON 内容，需要认证读取。")
+    payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("库存接口 JSON 顶层不是对象。")
+    return payload
+
+
+def fetch_summary_via_production_ssh(timeout: int) -> dict[str, Any]:
+    # Credentials stay on the cloud host. Only the authenticated read result
+    # crosses SSH; never copy its env file or session back to the Mini.
+    remote = """import base64, json, shlex
+from pathlib import Path
+from urllib.request import Request, urlopen
+env = {}
+for line in Path('/etc/inventory-board.env').read_text().splitlines():
+    if line.strip() and not line.lstrip().startswith('#') and '=' in line:
+        key, value = line.split('=', 1)
+        parts = shlex.split(value)
+        env[key] = parts[0] if parts else ''
+password = env.get('INVENTORY_PASSWORD', '')
+headers = {'Accept': 'application/json'}
+if password:
+    auth = env.get('OPERATION_AUTH_USERNAME', 'summer') + ':' + password
+    headers['Authorization'] = 'Basic ' + base64.b64encode(auth.encode()).decode()
+with urlopen(Request('http://127.0.0.1:8000/api/summary', headers=headers), timeout=TIMEOUT) as response:
+    if 'json' not in response.headers.get('Content-Type', '').lower():
+        raise RuntimeError('authenticated inventory endpoint returned non-JSON')
+    data = json.load(response)
+print(json.dumps(data, ensure_ascii=False))
+""".replace('TIMEOUT', str(int(timeout)))
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
+         '-i', str(Path.home() / '.ssh/xiong_operation_cloud_ed25519'),
+         'ubuntu@139.155.148.169', 'sudo -n python3 -c ' + shlex.quote(remote)],
+        capture_output=True, text=True, timeout=timeout + 20,
+    )
+    if result.returncode:
+        raise RuntimeError("库存认证只读检查失败：云端 SSH 或服务不可用。")
+    payload = json.loads(result.stdout)
+    if not isinstance(payload, dict):
+        raise ValueError("库存认证接口 JSON 顶层不是对象。")
+    return payload
+
+
 def fetch_inventory_summary(server: str, timeout: int) -> dict[str, Any]:
     url = f"{server.rstrip('/')}/api/summary"
-    with urlopen(url, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(url, timeout=timeout) as response:
+            return decode_summary_response(response)
+    except Exception:
+        # Production-only fallback for our known server. Custom URLs must never
+        # silently fall back to a different server's data.
+        identity = Path.home() / '.ssh/xiong_operation_cloud_ed25519'
+        if server.rstrip('/') != DEFAULT_SERVER or not identity.is_file() or os.environ.get('AI_BUSINESS_CENTER_ENV') != 'production':
+            raise
+        return fetch_summary_via_production_ssh(timeout)
 
 
 def normalize_summary(payload: dict[str, Any], server: str) -> dict[str, Any]:
