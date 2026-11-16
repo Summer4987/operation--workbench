@@ -130,6 +130,16 @@ class Coordinator:
         self.write(self.paths(account)[2], dict(status='released', confirmed_at=datetime.now().isoformat(timespec='seconds')))
 
     @contextlib.contextmanager
+    def readonly(self, account, *, wait_seconds=120):
+        # HQ business data uses a separate Chrome page and never enters ad
+        # editors. Serialize collectors with each other, not with Longxia.
+        self.require(account)
+        lane = type(self)(self.root / 'readonly', gap_seconds=self.gap, notify=False)
+        with lane.lease(account, wait_seconds=wait_seconds, check_auth=False):
+            self.require(account)
+            yield
+
+    @contextlib.contextmanager
     def priority_request(self, account, priority):
         if priority != 'longxia':
             yield
@@ -209,6 +219,33 @@ def optional_lease(account):
     else:
         with Coordinator().lease(account):
             yield
+
+
+@contextlib.contextmanager
+def optional_readonly_lease(account):
+    if account is None or not production_enabled():
+        yield
+    else:
+        with Coordinator().readonly(account):
+            yield
+
+
+def readonly_headquarters(fn):
+    """Only for reviewed, separate-page HQ business readers, never ad actions."""
+    @functools.wraps(fn)
+    def run(*args, **kwargs):
+        if not production_enabled():
+            return fn(*args, **kwargs)
+        coordinator = Coordinator()
+        with coordinator.readonly(HEADQUARTERS):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                from platform_auth_guard import is_auth_failure
+                if is_auth_failure(exc) and not isinstance(exc, AccountAccessError):
+                    coordinator.block(HEADQUARTERS, str(exc))
+                raise
+    return run
 
 
 def serialized(resolve):

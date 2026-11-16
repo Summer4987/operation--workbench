@@ -125,3 +125,24 @@ def test_priority_ticket_does_not_override_verification_hold(tmp_path):
     with pytest.raises(access.AccountVerificationRequired),c.lease('headquarters',priority='longxia'):
         pass
     assert not list(c.root.glob('*.longxia.*.json'))
+
+
+def test_headquarters_readonly_runs_while_longxia_holds_write_account(tmp_path):
+    root=tmp_path/'access'
+    owner=start(root)
+    try:
+        assert json.loads(owner.stdout.readline())['acquired']
+        c=access.Coordinator(root,gap_seconds=0,notify=False)
+        with c.readonly('headquarters',wait_seconds=.2):
+            # A second collector still cannot overlap the first collector.
+            competing=start(root/'readonly',wait=.15)
+            assert json.loads(competing.stdout.readline())['code']=='queue_busy'
+            competing.stdin.close();competing.wait(timeout=2)
+        blocked=start(root,wait=.15)
+        assert json.loads(blocked.stdout.readline())['code']=='queue_busy'
+        blocked.stdin.close();blocked.wait(timeout=2)
+        c.block('headquarters','安全验证')
+        with pytest.raises(access.AccountVerificationRequired),c.readonly('headquarters'):
+            pass
+    finally:
+        owner.stdin.close();owner.wait(timeout=2)

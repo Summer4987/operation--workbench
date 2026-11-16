@@ -148,7 +148,10 @@ def check_common_platforms(scope: str, wait_ms: int, platform_filter: str = "") 
                 ready_texts = ["全部门店", "今日实时"]
             if scope == "budget" and key == "meituan":
                 ready_texts = MEITUAN_BUDGET_READY_TEXTS
-            with account_access.optional_lease(account_access.HEADQUARTERS if key == "meituan" else None):
+            lease = (account_access.optional_readonly_lease(account_access.HEADQUARTERS)
+                     if scope == "realtime" and key == "meituan"
+                     else account_access.optional_lease(account_access.HEADQUARTERS if key == "meituan" else None))
+            with lease:
                 try:
                     # Retry transport/navigation failures on our own tab. Never recycle
                     # a collector's selected store or retry an actual login challenge.

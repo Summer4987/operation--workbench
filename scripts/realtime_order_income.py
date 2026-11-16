@@ -1018,6 +1018,7 @@ def page_requires_login(page, platform: str) -> bool:
 
 
 def raise_if_meituan_verification(page) -> None:
+    auth_guard.require_access("美团")
     candidate = auth_guard.current_meituan_challenge(page)
     if candidate is not None:
         auth_guard.block("美团", "美团安全验证等待人工处理", candidate.url)
@@ -1343,7 +1344,7 @@ def parse_meituan_dom_across_scroll(page, steps: int = 8, max_pages: int = 4) ->
     return merge_records(records)
 
 
-@account_access.serialized(lambda *args, **kwargs: account_access.HEADQUARTERS)
+@account_access.readonly_headquarters
 def scrape_meituan_once(context, timeout_ms: int) -> list[dict[str, Any]]:
     auth_guard.require_access("美团")
     page = new_platform_page(context)

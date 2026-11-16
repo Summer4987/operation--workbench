@@ -118,11 +118,14 @@ def recover(endpoint):
         prior=OUT/'latest.json'
         if prior.exists() and time.time()-prior.stat().st_mtime<COOLDOWN:return False
         if other_browser_tasks() or accounts.Coordinator().pending('headquarters'):return False
-        # This also keeps Longxia off the account throughout probing and recovery.
-        with accounts.Coordinator().lease('headquarters',wait_seconds=30):
-            original=tabs(endpoint)
-            for tab in original:
-                if not safe_recoverable(tab,original):continue
+        original=tabs(endpoint)
+        for tab in original:
+            if not safe_recoverable(tab,original):continue
+            # Closing a stalled read-only Chrome tab makes no merchant request
+            # and must not wait for Longxia's separate Electron account lease.
+            lane=(accounts.optional_readonly_lease('headquarters') if safe_homepage(tab,original)
+                  else accounts.optional_lease('headquarters'))
+            with lane:
                 if responsive(tab) is not False or responsive(tab) is not False:continue
                 current=tabs(endpoint)
                 same=next((t for t in current if t.get('id')==tab.get('id')),None)
