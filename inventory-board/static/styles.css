@@ -1019,3 +1019,16 @@ select {
     padding: 10px;
   }
 }
+
+/* Inventory card order controls */
+.inventory-order-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.inventory-order-toolbar button { cursor: pointer; }
+.inventory-order-toolbar [aria-pressed="true"] { color: white; background: var(--brand); border-color: var(--brand); }
+.inventory-order-toolbar #orderMessage { font-size: 12px; line-height: 1.5; }
+.card-order-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.order-drag-handle { margin-right: auto; cursor: grab; user-select: none; font-size: 13px; }
+.order-drag-handle:active { cursor: grabbing; }
+.card-order-controls button { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink); cursor: pointer; }
+.card-order-controls button:disabled { opacity: .35; cursor: default; }
+.sku-card.order-drop-target { outline: 3px solid var(--brand); outline-offset: 2px; }
+@media (max-width: 600px) { .inventory-order-toolbar #orderMessage { flex-basis: 100%; } }

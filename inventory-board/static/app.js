@@ -1,5 +1,19 @@
+const INVENTORY_ORDER_KEY = "inventory-card-order-v1";
+
+function readInventoryOrder() {
+  try {
+    const value = JSON.parse(localStorage.getItem(INVENTORY_ORDER_KEY) || "[]");
+    return Array.isArray(value) ? [...new Set(value.filter((sku) => typeof sku === "string"))] : [];
+  } catch {
+    return [];
+  }
+}
+
 const state = {
   inventory: [],
+  cardOrder: readInventoryOrder(),
+  reordering: false,
+  draggedSku: null,
   deliveryMonth: "",
   inboundTemplate: null,
 };
@@ -10,6 +24,9 @@ const els = {
   fileName: document.querySelector("#fileName"),
   message: document.querySelector("#uploadMessage"),
   grid: document.querySelector("#inventoryGrid"),
+  reorder: document.querySelector("#reorderButton"),
+  resetOrder: document.querySelector("#resetOrderButton"),
+  orderMessage: document.querySelector("#orderMessage"),
   productCount: document.querySelector("#productCount"),
   warningCount: document.querySelector("#warningCount"),
   search: document.querySelector("#searchInput"),
@@ -46,6 +63,96 @@ els.form.addEventListener("submit", async (event) => {
     setMessage(error.message, "error");
   }
 });
+
+els.reorder.addEventListener("click", () => {
+  state.reordering = !state.reordering;
+  els.reorder.textContent = state.reordering ? "完成排序" : "调整顺序";
+  els.reorder.setAttribute("aria-pressed", String(state.reordering));
+  els.orderMessage.textContent = state.reordering
+    ? "拖动手柄或点击前移、后移；顺序自动保存到当前浏览器"
+    : "顺序自动保存在当前浏览器";
+  renderInventory();
+});
+
+els.resetOrder.addEventListener("click", () => {
+  state.cardOrder = [];
+  saveInventoryOrder("已恢复默认顺序");
+  renderInventory();
+});
+
+function orderedInventory() {
+  const bySku = new Map(state.inventory.map((item) => [item.sku, item]));
+  const saved = state.cardOrder.filter((sku) => bySku.has(sku));
+  const seen = new Set(saved);
+  return [...saved.map((sku) => bySku.get(sku)), ...state.inventory.filter((item) => !seen.has(item.sku))];
+}
+
+function saveInventoryOrder(message = "顺序已保存到当前浏览器") {
+  try {
+    localStorage.setItem(INVENTORY_ORDER_KEY, JSON.stringify(state.cardOrder));
+    els.orderMessage.textContent = message;
+  } catch {
+    els.orderMessage.textContent = "当前浏览器无法保存顺序，本次调整仅在当前页面生效";
+  }
+}
+
+function moveInventoryCard(sku, targetSku, after = false) {
+  if (!state.reordering || sku === targetSku) return;
+  const order = orderedInventory().map((item) => item.sku);
+  if (!order.includes(sku) || !order.includes(targetSku)) return;
+  order.splice(order.indexOf(sku), 1);
+  order.splice(order.indexOf(targetSku) + (after ? 1 : 0), 0, sku);
+  state.cardOrder = order;
+  saveInventoryOrder();
+  renderInventory();
+}
+
+els.grid.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-order-move]");
+  if (!button || !state.reordering) return;
+  const cards = [...els.grid.querySelectorAll(".sku-card")];
+  const card = button.closest(".sku-card");
+  const direction = Number(button.dataset.orderMove);
+  const target = cards[cards.indexOf(card) + direction];
+  if (target) {
+    moveInventoryCard(card.dataset.sku, target.dataset.sku, direction > 0);
+    const moved = [...els.grid.querySelectorAll(".sku-card")].find((item) => item.dataset.sku === card.dataset.sku);
+    const focus = moved?.querySelector(`[data-order-move="${direction}"]:not(:disabled)`) || moved?.querySelector("[data-order-move]:not(:disabled)");
+    focus?.focus();
+  }
+});
+
+els.grid.addEventListener("dragstart", (event) => {
+  const handle = event.target.closest(".order-drag-handle");
+  if (!state.reordering || !handle) { event.preventDefault(); return; }
+  state.draggedSku = handle.closest(".sku-card").dataset.sku;
+  event.dataTransfer.setData("text/plain", state.draggedSku);
+  event.dataTransfer.effectAllowed = "move";
+});
+
+function clearDropTargets() {
+  els.grid.querySelectorAll(".order-drop-target").forEach((card) => card.classList.remove("order-drop-target"));
+}
+els.grid.addEventListener("dragover", (event) => {
+  const card = event.target.closest(".sku-card");
+  if (!state.reordering || !state.draggedSku || !card) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearDropTargets();
+  card.classList.add("order-drop-target");
+});
+els.grid.addEventListener("drop", (event) => {
+  const card = event.target.closest(".sku-card");
+  if (!state.reordering || !state.draggedSku || !card) return;
+  event.preventDefault();
+  const from = state.draggedSku;
+  const to = card.dataset.sku;
+  const order = orderedInventory().map((item) => item.sku);
+  state.draggedSku = null;
+  clearDropTargets();
+  moveInventoryCard(from, to, order.indexOf(from) < order.indexOf(to));
+});
+els.grid.addEventListener("dragend", () => { state.draggedSku = null; clearDropTargets(); });
 
 els.search.addEventListener("input", renderInventory);
 els.filter.addEventListener("change", renderInventory);
@@ -106,7 +213,7 @@ async function fetchJson(url) {
 function renderInventory() {
   const term = els.search.value.trim().toLowerCase();
   const filter = els.filter.value;
-  const rows = state.inventory.filter((item) => {
+  const rows = orderedInventory().filter((item) => {
     const matchText = `${item.name} ${item.sku}`.toLowerCase().includes(term);
     const balance = Number(item.balance);
     const threshold = Number(item.warning_threshold);
@@ -124,7 +231,12 @@ function renderInventory() {
       const label = balance < 0 ? "负库存" : balance <= threshold ? "需补货" : "正常";
       const ratio = threshold > 0 ? Math.max(0, Math.min(100, (balance / threshold) * 100)) : 100;
       return `
-        <article class="sku-card color-${index % 12} ${status}">
+        <article class="sku-card color-${state.inventory.indexOf(item) % 12} ${status}" data-sku="${escapeHtml(item.sku)}">
+          ${state.reordering ? `<div class="card-order-controls">
+            <span class="order-drag-handle" draggable="true" title="拖动调整顺序">⠿ 拖动</span>
+            <button type="button" data-order-move="-1" aria-label="${shortName(item.name)}前移" ${index === 0 ? "disabled" : ""}>前移</button>
+            <button type="button" data-order-move="1" aria-label="${shortName(item.name)}后移" ${index === rows.length - 1 ? "disabled" : ""}>后移</button>
+          </div>` : ""}
           <div class="sku-top">
             <span class="sku-code">${escapeHtml(item.sku)}</span>
             ${status === "ok" ? "" : `<span class="status-dot">${label}</span>`}

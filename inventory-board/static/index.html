@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>库存看板</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260809-feishu-sync" />
+    <link rel="stylesheet" href="/static/styles.css?v=20261116-card-order" />
   </head>
   <body>
     <main class="shell">
@@ -39,6 +39,12 @@
           <option value="negative">只看负库存</option>
         </select>
       </section>
+
+      <div class="inventory-order-toolbar">
+        <button id="reorderButton" class="secondary-button" type="button" aria-pressed="false">调整顺序</button>
+        <button id="resetOrderButton" class="secondary-button" type="button">恢复默认顺序</button>
+        <span id="orderMessage" role="status" aria-live="polite">顺序自动保存在当前浏览器</span>
+      </div>
 
       <section class="dashboard-grid" id="inventoryGrid" aria-label="库存 SKU 看板">
       </section>
@@ -114,6 +120,6 @@
         </div>
       </section>
     </main>
-    <script src="/static/app.js?v=20260809-feishu-sync"></script>
+    <script src="/static/app.js?v=20261116-card-order"></script>
   </body>
 </html>
