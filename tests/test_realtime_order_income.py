@@ -594,3 +594,28 @@ def test_wansongyuan_platform_records_are_included_and_missing_platform_is_repor
     assert set(store["platforms"]) == {"美团", "饿了么"}
     partial = build_payload(records[:1], [])
     assert {"platform": "饿了么", "store": "万松园"} in partial["missing"]
+
+
+def test_two_upstream_timeouts_stop_pagination(monkeypatch):
+    from unittest.mock import Mock
+    from scripts import realtime_order_income as collector
+    call = Mock(side_effect=TimeoutError('timed out'))
+    monkeypatch.setattr(collector.urllib.request, 'urlopen', call)
+    context = Mock()
+    context.cookies.return_value = []
+    with pytest.raises(collector.PlatformDataUnavailable, match='连续两次'):
+        collector.fetch_eleme_rank_pages(context, {'url':'https://lsycm.alibaba.com/proteinStandardQuery/TG3gM96','payload':{}})
+    assert call.call_count == 2
+    assert collector.build_payload([], ['饿了么平台数据接口暂不可用'])['retryable'] is False
+    assert collector.build_payload([], ['普通页面超时'])['retryable'] is True
+
+
+def test_upstream_retry_policy_ignores_old_failures(tmp_path):
+    import json, os, time
+    from scripts.realtime_retry_policy import stop_retry
+    path=tmp_path/'failure.json'
+    path.write_text(json.dumps({'retryable':False}))
+    since=time.time()-1
+    assert stop_retry(path,since)
+    os.utime(path,(1,1))
+    assert not stop_retry(path,since)

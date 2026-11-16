@@ -6,6 +6,7 @@ import re
 import sys
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,10 @@ LATEST_PATH = OUTPUT_DIR / "latest.json"
 FAILED_PATH = OUTPUT_DIR / "last_failed.json"
 RULES_PATH = ROOT / "config" / "realtime_order_income_rules.json"
 ELEME_REQUEST_CACHE_PATH = OUTPUT_DIR / "eleme_rank_request.json"
+
+class PlatformDataUnavailable(RuntimeError):
+    """Repeated upstream request timeouts; do not refresh the platform again."""
+
 
 TARGET_STORES = {
     "中关村": ["中关村", "中关村店", "第2号档口", "利康金桥", "第3档口", "吉祥美食城"],
@@ -815,6 +820,8 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
                 page_payloads = fetch_eleme_rank_pages(context, captured_rank_request)
                 for payload in page_payloads:
                     api_records.extend(walk_json_records(payload, "饿了么", captured_rank_request["url"]))
+            except PlatformDataUnavailable:
+                raise
             except Exception:
                 pass
         for page_index in range(2, 7):
@@ -873,6 +880,7 @@ def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[di
     headers["content-type"] = "application/json"
     payloads: list[dict[str, Any]] = []
     base_payload = captured_request.get("payload") or {}
+    consecutive_timeouts = 0
     for current in [1, 2, 3, 4]:
         body = dict(base_payload)
         body["current"] = current
@@ -883,8 +891,16 @@ def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[di
             with urllib.request.urlopen(request, timeout=12) as response:
                 text = response.read().decode("utf-8", "replace")
             payload = json.loads(text)
-        except Exception:
+        except Exception as exc:
+            reason = getattr(exc, "reason", exc)
+            if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower():
+                consecutive_timeouts += 1
+                if consecutive_timeouts >= 2:
+                    raise PlatformDataUnavailable("饿了么平台数据接口暂不可用：连续两次请求超时，本轮停止刷新，保留上一份成功数据。") from exc
+            else:
+                consecutive_timeouts = 0
             continue
+        consecutive_timeouts = 0
         payloads.append(payload)
     return payloads
 
@@ -1448,6 +1464,7 @@ def build_payload(items: list[dict[str, Any]], errors: list[str]) -> dict[str, A
         "income_missing": income_missing,
         "account_out": account_out,
         "errors": errors,
+        "retryable": not any("平台数据接口暂不可用" in error for error in errors),
     }
     return payload
 
@@ -1531,6 +1548,9 @@ def main() -> int:
                     log(f"饿了么：仅完成 {completed} 个目标门店，重开页面重试")
                     close_platform_pages(context, ["melody.shop.ele.me", "lsycm.alibaba.com"])
                     context = first_context(browser)
+                except PlatformDataUnavailable as exc:
+                    errors.append(str(exc))
+                    break
                 except Exception as exc:
                     if auth_guard.is_auth_failure(exc):
                         auth_guard.block("饿了么", str(exc))
