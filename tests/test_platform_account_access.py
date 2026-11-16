@@ -93,3 +93,35 @@ def test_queue_wait_is_distinct_from_verification_and_never_creates_auth_hold(tm
     assert access.AccountVerificationRequired.code == 'auth_block'
     c=access.Coordinator(tmp_path/'access',gap_seconds=0,notify=False)
     assert c.pending('headquarters') is None
+
+
+def test_longxia_waiter_goes_before_ordinary_collector(tmp_path):
+    import os
+    root=tmp_path/'access'
+    first=start(root)
+    workers=[]
+    try:
+        assert json.loads(first.stdout.readline())['acquired']
+        ordinary=start(root,wait=3);workers.append(ordinary)
+        high=subprocess.Popen([sys.executable,str(HELPER),'lease','--account','headquarters','--state-root',str(root),'--gap-seconds','0','--wait-seconds','3','--priority','longxia'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True);workers.append(high)
+        deadline=time.monotonic()+2
+        while not list(root.glob('*.longxia.*.json')) and time.monotonic()<deadline:time.sleep(.01)
+        assert list(root.glob('*.longxia.*.json'))
+        first.stdin.close();first.wait(timeout=2)
+        assert json.loads(high.stdout.readline())['acquired']
+        state=json.loads((root/'headquarters.access.json').read_text());assert state['priority']=='longxia'
+        high.stdin.close();high.wait(timeout=2)
+        assert json.loads(ordinary.stdout.readline())['acquired']
+        ordinary.stdin.close();ordinary.wait(timeout=2)
+        assert not list(root.glob('*.longxia.*.json'))
+    finally:
+        for p in [first,*workers]:
+            if p.poll() is None:p.kill();p.wait()
+
+
+def test_priority_ticket_does_not_override_verification_hold(tmp_path):
+    c=access.Coordinator(tmp_path/'access',gap_seconds=0,notify=False)
+    c.block('headquarters','安全验证')
+    with pytest.raises(access.AccountVerificationRequired),c.lease('headquarters',priority='longxia'):
+        pass
+    assert not list(c.root.glob('*.longxia.*.json'))

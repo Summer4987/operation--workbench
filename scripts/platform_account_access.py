@@ -130,7 +130,31 @@ class Coordinator:
         self.write(self.paths(account)[2], dict(status='released', confirmed_at=datetime.now().isoformat(timespec='seconds')))
 
     @contextlib.contextmanager
-    def lease(self, account, *, wait_seconds=120, check_auth=True):
+    def priority_request(self, account, priority):
+        if priority != 'longxia':
+            yield
+            return
+        path = self.root / f'{account}.longxia.{os.getpid()}.{threading.get_ident()}.json'
+        self.write(path, dict(pid=os.getpid(), requested_at=time.time()))
+        try:
+            yield
+        finally:
+            path.unlink(missing_ok=True)
+
+    def longxia_waiting(self, account):
+        for path in self.root.glob(account + '.longxia.*.json'):
+            try:
+                pid = json.loads(path.read_text())['pid']
+                os.kill(int(pid), 0)
+                return True
+            except ProcessLookupError:
+                path.unlink(missing_ok=True)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+        return False
+
+    @contextlib.contextmanager
+    def lease(self, account, *, wait_seconds=120, check_auth=True, priority="normal"):
         token = (os.getpid(), threading.get_ident(), str(self.root.resolve()), account)
         if token in _HELD:
             if check_auth:
@@ -140,33 +164,42 @@ class Coordinator:
         lockpath, accesspath, _ = self.paths(account)
         lockpath.parent.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + wait_seconds
-        with lockpath.open('a+') as lock:
+        with self.priority_request(account, priority), lockpath.open('a+') as lock:
             while True:
                 if check_auth:
                     self.require(account)
-                try:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    if time.monotonic() >= deadline:
-                        raise AccountQueueBusy('美团同账号访问队列忙，本轮不重复打开页面')
-                    time.sleep(.1)
+                acquired = False
+                if priority == 'longxia' or not self.longxia_waiting(account):
+                    try:
+                        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        acquired = True
+                    except BlockingIOError:
+                        pass
+                if acquired:
+                    last = json.loads(accesspath.read_text()) if accesspath.exists() else {}
+                    delay = max(0, min(self.gap, last.get('finished_at', 0) + self.gap - time.time()))
+                    # Never occupy the account while cooling down. A Longxia
+                    # request may arrive during that wait and must go first.
+                    if delay or (priority != 'longxia' and self.longxia_waiting(account)):
+                        fcntl.flock(lock, fcntl.LOCK_UN)
+                    else:
+                        break
+                if time.monotonic() >= deadline:
+                    raise AccountQueueBusy('美团同账号访问队列忙，龙虾店长优先，其他任务等待空闲后执行')
+                time.sleep(.1)
             try:
-                last = json.loads(accesspath.read_text()) if accesspath.exists() else {}
-                delay = max(0, min(self.gap, last.get('finished_at', 0) + self.gap - time.time()))
-                if delay:
-                    time.sleep(delay)
                 if check_auth:
                     self.require(account)
-                self.write(accesspath, dict(pid=os.getpid(), started_at=time.time(), finished_at=last.get('finished_at', 0)))
+                self.write(accesspath, dict(pid=os.getpid(), priority=priority, started_at=time.time(), finished_at=last.get('finished_at', 0)))
                 _HELD[token] = True
                 try:
                     yield
                 finally:
                     _HELD.pop(token, None)
-                    self.write(accesspath, dict(pid=None, finished_at=time.time()))
+                    self.write(accesspath, dict(pid=None, priority=priority, finished_at=time.time()))
             finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)
+
 
 
 @contextlib.contextmanager
@@ -209,6 +242,7 @@ def main():
     ap.add_argument('--state-root', type=Path, default=STATE_ROOT)
     ap.add_argument('--wait-seconds', type=float, default=120)
     ap.add_argument('--gap-seconds', type=float, default=20)
+    ap.add_argument('--priority', choices=['normal', 'longxia'], default='normal')
     ap.add_argument('--reason', default='美团安全验证')
     ap.add_argument('--confirmed', action='store_true')
     args = ap.parse_args()
@@ -216,7 +250,7 @@ def main():
                     notify=production_enabled() and args.state_root == STATE_ROOT)
     try:
         if args.action == 'lease':
-            with c.lease(args.account, wait_seconds=args.wait_seconds):
+            with c.lease(args.account, wait_seconds=args.wait_seconds, priority=args.priority):
                 print(json.dumps({'acquired': True}), flush=True)
                 # EOF on the parent's pipe or process exit releases the kernel lock.
                 sys.stdin.buffer.read()
