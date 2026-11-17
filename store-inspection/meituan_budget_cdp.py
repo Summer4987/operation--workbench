@@ -1612,7 +1612,7 @@ def headquarters_batch_access(tasks):
     with account_access.Coordinator().lease(
         account_access.HEADQUARTERS,
         wait_seconds=wait_seconds,
-        priority="normal",
+        priority="budget",
     ):
         print("已取得美团总部账号批次锁。", flush=True)
         yield
@@ -1627,6 +1627,7 @@ def main() -> int:
     parser.add_argument("--preflight", action="store_true", help="正式提交前只读预检：打开点金页、预算弹窗和输入框，但不保存。")
     parser.add_argument("--preflight-result-output", default="", help="把预检通过/失败门店写入指定 JSON，供整批任务隔离失败门店。")
     args = parser.parse_args()
+    os.environ["MEITUAN_ACCOUNT_PRIORITY"] = "budget"
     period = resolve_period(args.period)
     commit = args.mode == "commit" and not args.preflight
 

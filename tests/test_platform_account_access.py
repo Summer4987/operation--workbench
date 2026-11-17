@@ -11,9 +11,9 @@ from scripts import platform_account_access as access
 HELPER = Path(access.__file__)
 
 
-def start(root, account='headquarters', wait=1):
+def start(root, account='headquarters', wait=1, priority='normal'):
     return subprocess.Popen([sys.executable, str(HELPER), 'lease', '--account', account,
-        '--state-root', str(root), '--gap-seconds', '0', '--wait-seconds', str(wait)],
+        '--state-root', str(root), '--gap-seconds', '0', '--wait-seconds', str(wait), '--priority', priority],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
 
@@ -146,3 +146,59 @@ def test_headquarters_readonly_runs_while_longxia_holds_write_account(tmp_path):
             pass
     finally:
         owner.stdin.close();owner.wait(timeout=2)
+
+
+def test_budget_waiter_runs_after_active_owner_before_longxia_and_collectors(tmp_path):
+    import select
+    root = tmp_path / 'access'
+    owner = start(root, priority='longxia')
+    workers = []
+    try:
+        assert json.loads(owner.stdout.readline())['acquired']
+        ordinary = start(root, wait=5); workers.append(ordinary)
+        longxia = start(root, wait=5, priority='longxia'); workers.append(longxia)
+        budget = start(root, wait=5, priority='budget'); workers.append(budget)
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if list(root.glob('*.budget.*.json')) and list(root.glob('*.longxia.*.json')):
+                break
+            time.sleep(.01)
+        assert list(root.glob('*.budget.*.json'))
+        assert list(root.glob('*.longxia.*.json'))
+        assert not select.select([p.stdout for p in workers], [], [], .1)[0]
+        assert owner.poll() is None  # Priority never interrupts the active operation.
+        owner.stdin.close(); assert owner.wait(timeout=2) == 0
+        assert select.select([budget.stdout], [], [], 2)[0]
+        assert json.loads(budget.stdout.readline())['acquired']
+        assert not select.select([longxia.stdout, ordinary.stdout], [], [], .1)[0]
+        budget.stdin.close(); assert budget.wait(timeout=2) == 0
+        assert select.select([longxia.stdout], [], [], 2)[0]
+        assert json.loads(longxia.stdout.readline())['acquired']
+        longxia.stdin.close(); assert longxia.wait(timeout=2) == 0
+        assert select.select([ordinary.stdout], [], [], 2)[0]
+        assert json.loads(ordinary.stdout.readline())['acquired']
+        ordinary.stdin.close(); assert ordinary.wait(timeout=2) == 0
+        assert not list(root.glob('*.budget.*.json'))
+    finally:
+        for proc in [owner, *workers]:
+            if proc.poll() is None:
+                proc.kill(); proc.wait()
+
+
+def test_inherited_budget_priority_and_verification_hold(tmp_path):
+    c = access.Coordinator(tmp_path / 'access', gap_seconds=0, notify=False)
+    with patch.dict('os.environ', {'MEITUAN_ACCOUNT_PRIORITY': 'budget'}):
+        with c.lease('headquarters'):
+            assert json.loads(c.paths('headquarters')[1].read_text())['priority'] == 'budget'
+        c.block('headquarters', '安全验证')
+        with pytest.raises(access.AccountVerificationRequired), c.lease('headquarters'):
+            pass
+    assert not list(c.root.glob('*.budget.*.json'))
+
+
+def test_dead_budget_request_does_not_starve_longxia(tmp_path):
+    c = access.Coordinator(tmp_path / 'access', gap_seconds=0, notify=False)
+    ticket = c.root / 'headquarters.budget.dead.json'
+    c.write(ticket, {'pid': 99999999})
+    with c.lease('headquarters', priority='longxia', wait_seconds=.5):
+        assert not ticket.exists()

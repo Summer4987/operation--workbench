@@ -27,6 +27,7 @@ STATE_ROOT = ROOT / 'outputs/account_access'
 FLEET_ROOT = Path.home() / 'Library/Application Support/xiong-dianjin-fleet-test'
 HEADQUARTERS = 'headquarters'
 _HELD = {}
+PRIORITIES = {'normal': 0, 'longxia': 1, 'budget': 2}
 
 
 class AccountAccessError(RuntimeError):
@@ -141,18 +142,18 @@ class Coordinator:
 
     @contextlib.contextmanager
     def priority_request(self, account, priority):
-        if priority != 'longxia':
+        if priority == 'normal':
             yield
             return
-        path = self.root / f'{account}.longxia.{os.getpid()}.{threading.get_ident()}.json'
+        path = self.root / f'{account}.{priority}.{os.getpid()}.{threading.get_ident()}.json'
         self.write(path, dict(pid=os.getpid(), requested_at=time.time()))
         try:
             yield
         finally:
             path.unlink(missing_ok=True)
 
-    def longxia_waiting(self, account):
-        for path in self.root.glob(account + '.longxia.*.json'):
+    def priority_waiting(self, account, priority):
+        for path in self.root.glob(account + '.' + priority + '.*.json'):
             try:
                 pid = json.loads(path.read_text())['pid']
                 os.kill(int(pid), 0)
@@ -163,8 +164,16 @@ class Coordinator:
                 continue
         return False
 
+    def higher_priority_waiting(self, account, priority):
+        return any(self.priority_waiting(account, candidate)
+                   for candidate, rank in PRIORITIES.items() if rank > PRIORITIES[priority])
+
     @contextlib.contextmanager
-    def lease(self, account, *, wait_seconds=120, check_auth=True, priority="normal"):
+    def lease(self, account, *, wait_seconds=120, check_auth=True, priority=None):
+        # Budget subprocesses (including login preflight) inherit the same lane.
+        priority = priority or os.environ.get('MEITUAN_ACCOUNT_PRIORITY', 'normal')
+        if priority not in PRIORITIES:
+            raise ValueError('Invalid account priority')
         token = (os.getpid(), threading.get_ident(), str(self.root.resolve()), account)
         if token in _HELD:
             if check_auth:
@@ -179,7 +188,7 @@ class Coordinator:
                 if check_auth:
                     self.require(account)
                 acquired = False
-                if priority == 'longxia' or not self.longxia_waiting(account):
+                if not self.higher_priority_waiting(account, priority):
                     try:
                         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         acquired = True
@@ -188,14 +197,14 @@ class Coordinator:
                 if acquired:
                     last = json.loads(accesspath.read_text()) if accesspath.exists() else {}
                     delay = max(0, min(self.gap, last.get('finished_at', 0) + self.gap - time.time()))
-                    # Never occupy the account while cooling down. A Longxia
-                    # request may arrive during that wait and must go first.
-                    if delay or (priority != 'longxia' and self.longxia_waiting(account)):
+                    # Release during cooldown and recheck priority under the lock.
+                    # An active operation is never interrupted by a new ticket.
+                    if delay or self.higher_priority_waiting(account, priority):
                         fcntl.flock(lock, fcntl.LOCK_UN)
                     else:
                         break
                 if time.monotonic() >= deadline:
-                    raise AccountQueueBusy('美团同账号访问队列忙，龙虾店长优先，其他任务等待空闲后执行')
+                    raise AccountQueueBusy('美团同账号访问队列忙，推广预算优先，其次龙虾店长；等待当前操作结束后执行')
                 time.sleep(.1)
             try:
                 if check_auth:
@@ -279,7 +288,7 @@ def main():
     ap.add_argument('--state-root', type=Path, default=STATE_ROOT)
     ap.add_argument('--wait-seconds', type=float, default=120)
     ap.add_argument('--gap-seconds', type=float, default=20)
-    ap.add_argument('--priority', choices=['normal', 'longxia'], default='normal')
+    ap.add_argument('--priority', choices=list(PRIORITIES), default=None)
     ap.add_argument('--reason', default='美团安全验证')
     ap.add_argument('--confirmed', action='store_true')
     args = ap.parse_args()

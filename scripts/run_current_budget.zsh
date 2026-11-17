@@ -153,6 +153,9 @@ if [[ "$MODE" == "commit" && "${ALLOW_OUTSIDE_BUDGET_WINDOW:-0}" != "1" ]] \
   exit 64
 fi
 
+# Login preflight and all child account operations share budget priority.
+export MEITUAN_ACCOUNT_PRIORITY=budget
+
 echo "== ${TIME_POINT} ${PERIOD}预算初始化 =="
 echo "开始：$(date '+%Y-%m-%d %H:%M:%S')"
 echo "模式：$MODE"
