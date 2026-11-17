@@ -10,8 +10,8 @@ function parseArgs(argv) {
     else if (value === "--output") args.output = argv[++index] || "";
     else throw new Error(`未知参数：${value}`);
   }
-  if (!['10:30', '16:30'].includes(args.time)) {
-    throw new Error("--time 仅支持 10:30 或 16:30");
+  if (!['10:30', '16:00'].includes(args.time)) {
+    throw new Error("--time 仅支持 10:30 或 16:00");
   }
   if (!args.output) {
     args.output = `outputs/dianjin_automation/execution_preview_${args.time.replace(':', '')}.json`;

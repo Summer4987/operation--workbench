@@ -1597,6 +1597,27 @@ def write_preflight_result(output: Path, period: str, results: list[dict]) -> No
     )
 
 
+@contextmanager
+def headquarters_batch_access(tasks):
+    has_headquarters_tasks = any(not task.get("directMeituanAccountId") for task in tasks)
+    if not account_access.production_enabled() or not has_headquarters_tasks:
+        yield
+        return
+
+    wait_seconds = max(0, int(os.environ.get("MEITUAN_BUDGET_BATCH_LOCK_WAIT_SECONDS", "300")))
+    print(
+        f"获取美团总部账号批次锁，最多等待 {wait_seconds} 秒；获取后本批门店串行完成。",
+        flush=True,
+    )
+    with account_access.Coordinator().lease(
+        account_access.HEADQUARTERS,
+        wait_seconds=wait_seconds,
+        priority="normal",
+    ):
+        print("已取得美团总部账号批次锁。", flush=True)
+        yield
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", default="auto", choices=["auto", "午餐", "晚餐"])
@@ -1638,43 +1659,62 @@ def main() -> int:
         contexts: dict[str, object] = {}
         launched_contexts: list[object] = []
         try:
-            for task in tasks:
-                try:
-                    account_id = task.get("directMeituanAccountId") or ""
-                    if not account_id:
-                        auth_guard.require_access("美团")
-                    account_label = f" [{account_id}]" if account_id else ""
-                    print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
-                    with store_hard_timeout(task):
-                        context = context_for_task(
-                            playwright, contexts, launched_contexts, task, direct_accounts,
-                            allow_recovery=args.preflight,
-                        )
-                        task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
-                    result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
-                    results.append(result)
-                    if not result.get("ok"):
-                        print(
-                            f"失败：{task.get('keyword')}：{result.get('failure_type') or 'execution_failed'}：{result.get('error')}",
-                            flush=True,
-                        )
-                except Exception as exc:
-                    if not task.get("directMeituanAccountId") and auth_guard.is_auth_failure(exc):
-                        auth_guard.block("美团", str(exc))
+            try:
+                with headquarters_batch_access(tasks):
+                    for task in tasks:
+                        try:
+                            account_id = task.get("directMeituanAccountId") or ""
+                            if not account_id:
+                                auth_guard.require_access("美团")
+                            account_label = f" [{account_id}]" if account_id else ""
+                            print(f"{task.get('keyword')} -> {task.get('targetBudget')} ({args.mode}){account_label}", flush=True)
+                            with store_hard_timeout(task):
+                                context = context_for_task(
+                                    playwright, contexts, launched_contexts, task, direct_accounts,
+                                    allow_recovery=args.preflight,
+                                )
+                                task_base_url = base_url_for_task(base_url, task, direct_accounts, context)
+                            result = execute_task_with_store_retries(context, task_base_url, task, commit=commit, preflight=args.preflight)
+                            results.append(result)
+                            if not result.get("ok"):
+                                print(
+                                    f"失败：{task.get('keyword')}：{result.get('failure_type') or 'execution_failed'}：{result.get('error')}",
+                                    flush=True,
+                                )
+                        except Exception as exc:
+                            if not task.get("directMeituanAccountId") and auth_guard.is_auth_failure(exc):
+                                auth_guard.block("美团", str(exc))
+                            results.append({
+                                "store": task.get("store"),
+                                "keyword": task.get("keyword"),
+                                "directMeituanAccountId": task.get("directMeituanAccountId") or "",
+                                "targetBudget": task.get("targetBudget"),
+                                "ok": False,
+                                "error": str(exc),
+                                "failure_type": classify_failure(str(exc)),
+                            })
+                            print(f"失败：{task.get('keyword')}：{exc}", flush=True)
+                        finally:
+                            write_run_log(partial_output, period, args.period, args.mode, results, partial=True, preflight=args.preflight)
+                            if args.preflight_result_output:
+                                write_preflight_result(Path(args.preflight_result_output).expanduser(), period, results)
+            except account_access.AccountAccessError as exc:
+                failure_type = getattr(exc, "code", "coordination_error")
+                message = f"美团总部账号批次锁未取得，本批未执行：{exc}"
+                print(message, flush=True)
+                for task in tasks:
                     results.append({
                         "store": task.get("store"),
                         "keyword": task.get("keyword"),
                         "directMeituanAccountId": task.get("directMeituanAccountId") or "",
                         "targetBudget": task.get("targetBudget"),
                         "ok": False,
-                        "error": str(exc),
-                        "failure_type": classify_failure(str(exc)),
+                        "error": message,
+                        "failure_type": failure_type,
                     })
-                    print(f"失败：{task.get('keyword')}：{exc}", flush=True)
-                finally:
-                    write_run_log(partial_output, period, args.period, args.mode, results, partial=True, preflight=args.preflight)
-                    if args.preflight_result_output:
-                        write_preflight_result(Path(args.preflight_result_output).expanduser(), period, results)
+                write_run_log(partial_output, period, args.period, args.mode, results, partial=True, preflight=args.preflight)
+                if args.preflight_result_output:
+                    write_preflight_result(Path(args.preflight_result_output).expanduser(), period, results)
         finally:
             for context in launched_contexts:
                 try:

@@ -250,7 +250,7 @@ def run_all(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", nargs="?", default="run", choices=("run", "_prepare", "_set", "_verify"))
-    parser.add_argument("--time", choices=("10:30", "16:30"))
+    parser.add_argument("--time", choices=("10:30", "16:00"))
     parser.add_argument("--mode", choices=("preview", "rehearse", "commit"), default="preview")
     parser.add_argument("--limit", default="all")
     parser.add_argument("--store", default="")

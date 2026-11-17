@@ -55,9 +55,9 @@ case "$PERIOD" in
     ALLOWED_END_MINUTES=$((10 * 60 + 50))
     ;;
   晚餐)
-    TIME_POINT="16:30"
-    ALLOWED_START_MINUTES=$((16 * 60 + 20))
-    ALLOWED_END_MINUTES=$((16 * 60 + 50))
+    TIME_POINT="16:00"
+    ALLOWED_START_MINUTES=$((15 * 60 + 50))
+    ALLOWED_END_MINUTES=$((16 * 60 + 20))
     ;;
   *)
     echo "未知预算时段：$PERIOD"

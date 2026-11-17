@@ -812,7 +812,12 @@ done
 write_plist "com.summer.operation.morning" 8 0 "$SCRIPT_DIR/run_morning_ops.zsh" "$ROOT"
 write_realtime_plist
 write_plist "com.summer.operation.inventory-warning-daily" 16 0 "$SCRIPT_DIR/run_inventory_warning_daily.zsh" "$ROOT"
-write_plist "com.summer.operation.evening" 16 30 "$SCRIPT_DIR/run_evening_budget.zsh" "$ROOT"
+for LEGACY_ELEME_EVENING_LABEL in com.summer.dianjin.eleme.1630 com.summer.dianjin.eleme.1600; do
+  LEGACY_ELEME_EVENING_PLIST="$HOME/Library/LaunchAgents/${LEGACY_ELEME_EVENING_LABEL}.plist"
+  /bin/launchctl bootout "gui/$(id -u)" "$LEGACY_ELEME_EVENING_PLIST" >/dev/null 2>&1 || true
+  /bin/rm -f "$LEGACY_ELEME_EVENING_PLIST"
+done
+write_plist "com.summer.operation.evening" 16 0 "$SCRIPT_DIR/run_evening_budget.zsh" "$ROOT"
 
 echo
 echo "Mac mini 定时任务已安装。"
@@ -821,5 +826,5 @@ echo "实时：每天 10:30-13:00 每半小时、13:00-17:00 每小时、17:00-2
 echo "日配普通微信群投递已取消；下单、库存、表格及企业微信通知保持原流程。"
 echo "库存：已改为云端主流程，不再安装 10:10 本地同步"
 echo "库存预警：每天 16:00 单独汇总推送一次"
-echo "晚间：每天 16:30 推广预算真实提交"
+echo "晚间：每天 16:00 推广预算真实提交"
 echo "launchd 日志目录：$LAUNCHD_LOG_DIR"

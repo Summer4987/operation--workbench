@@ -244,7 +244,7 @@ fi
 STATE_FILE="outputs/dianjin_automation/current_state_${SAFE_TIME}_all.json"
 PREVIEW_FILE="outputs/dianjin_automation/execution_preview_${SAFE_TIME}.json"
 
-if [[ "$TIME_POINT" == "10:30" || "$TIME_POINT" == "16:30" ]]; then
+if [[ "$TIME_POINT" == "10:30" || "$TIME_POINT" == "16:00" ]]; then
   echo
   echo "使用单店斗金计划批量处理（原分店资金）页面生成预算任务..."
   "$NODE" scripts/build_promo_budget_preview.mjs

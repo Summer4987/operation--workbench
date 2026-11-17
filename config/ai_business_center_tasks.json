@@ -135,7 +135,7 @@
       "module": "推广预算全自动",
       "status": "running_unstable",
       "risk": "high",
-      "schedule": "午餐 10:30，晚餐 16:30；周末启用保守预设",
+      "schedule": "午餐 10:30，晚餐 16:00；周末启用保守预设",
       "entrypoints": [
         "scripts/run_current_budget.zsh",
         "scripts/build_promo_budget_preview.mjs",

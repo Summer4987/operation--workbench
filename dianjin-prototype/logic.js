@@ -89,7 +89,7 @@
         id: `dinner-budget-${store.name}`,
         platform: rules.platform,
         period: "晚餐",
-        time: "16:30",
+        time: "16:00",
         type: "budget",
         typeLabel: "预算初始化",
         store: store.name,

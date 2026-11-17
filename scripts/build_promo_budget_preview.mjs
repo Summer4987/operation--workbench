@@ -64,7 +64,7 @@ const dateContext = budgetDateContext(undefined, overrides);
 const weekendPreset = buildWeekendPreset(overrides, dateContext);
 const tasks = logic.buildTasks(rules);
 const elemeLunch = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "10:30").map(applyOverride);
-const elemeDinner = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "16:30").map(applyOverride);
+const elemeDinner = tasks.filter((task) => task.platform === "饿了么" && task.type === "budget" && task.time === "16:00").map(applyOverride);
 const meituanLunch = rules.stores
   .map((store) => meituanTask(store, "午餐"))
   .filter((row) => row.status !== "unmatched");
@@ -87,7 +87,7 @@ function meituanTask(store, period) {
     sourceStore: store.name,
     keyword: meituanKeyword(store.name),
     period,
-    time: period === "午餐" ? "上午运营按钮" : "16:30",
+    time: period === "午餐" ? "上午运营按钮" : "16:00",
     type: "budget",
     targetBudget,
     status: meituanName ? (paused ? "paused" : promoEnabled ? "auto" : "platform_unavailable") : "unmatched",
@@ -139,7 +139,7 @@ const payload = {
     time: task.time,
     targetBudget: task.budget,
     status: "scheduled",
-    action: `16:30 自动设置晚餐预算 ${task.budget} 元`,
+    action: `16:00 自动设置晚餐预算 ${task.budget} 元`,
   })),
   meituan_dinner: meituanDinner,
 };
