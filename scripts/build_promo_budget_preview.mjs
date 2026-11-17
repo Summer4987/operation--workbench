@@ -81,7 +81,7 @@ function meituanTask(store, period) {
   const promoEnabled = store.meituanPromoEnabled !== false;
   const fixedLunchBudget = period === "午餐" && control.lunchBudgetFrom && dateContext.date >= control.lunchBudgetFrom;
   const targetBudget = fixedLunchBudget ? control.lunchBudget : budgetFor("美团", store.name, period, period === "午餐" ? store.lunchBudget : store.dinnerBudget);
-  return trialTask({
+  const task = trialTask({
     platform: "美团",
     store: meituanName,
     sourceStore: store.name,
@@ -101,6 +101,21 @@ function meituanTask(store, period) {
         ? (store.meituanPromoDisabledReason || "美团尚未开放推广入口")
         : "未匹配到美团门店，需人工确认",
   }, dateContext.date, budgetFor("美团", store.name, "晚餐", store.dinnerBudget), overrides.longxia);
+  const requestedTargetBudget = Number(task.targetBudget);
+  // CPC rejects a daily budget below ¥50. Apply the floor to the generated
+  // task too, so preview, execution, retry and read-back use one value.
+  if (Number.isFinite(requestedTargetBudget) && requestedTargetBudget > 0 && requestedTargetBudget < 50) {
+    return {
+      ...task,
+      targetBudget: 50,
+      requestedTargetBudget,
+      minimumBudgetApplied: true,
+      action: task.status === "auto"
+        ? `${task.action}（平台最低 ¥50，实际设置 ¥50）`
+        : task.action,
+    };
+  }
+  return task;
 }
 
 const payload = {

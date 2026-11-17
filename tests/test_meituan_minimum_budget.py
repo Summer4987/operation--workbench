@@ -8,12 +8,14 @@ class MinimumBudgetTest(unittest.TestCase):
     def setUp(self):
         self.module = load_module()
 
-    def execute(self, target, *, commit=True, preflight=False):
+    def execute(self, target, *, requested_target=None, commit=True, preflight=False):
         module = self.module
         context = FakeContext([])
         page = context.new_page()
         page.url = 'https://example.test/'
         task = {'targetBudget': target, 'store': '五一广场店', 'keyword': '五一广场', 'wmPoiId': '32744963'}
+        if requested_target is not None:
+            task['requestedTargetBudget'] = requested_target
         with ExitStack() as stack:
             for name, value in {
                 'task_paused': False, 'task_control': {},
@@ -51,6 +53,15 @@ class MinimumBudgetTest(unittest.TestCase):
             self.assertEqual(result['targetBudget'], 50)
             save.assert_not_called()
             self.assertEqual(prepare.called, preflight)
+
+    def test_preview_floor_is_preserved_for_execution_receipt(self):
+        result, prepare, save = self.execute(50, requested_target=35)
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['requestedTargetBudget'], 35)
+        self.assertEqual(result['targetBudget'], 50)
+        self.assertTrue(result['minimumBudgetApplied'])
+        self.assertEqual(prepare.call_args.args[1], 50)
+        self.assertEqual(save.call_args.args[1], 50)
 
     def test_invalid_target_never_opens_platform(self):
         for requested in [0, -1, float('nan'), float('inf')]:

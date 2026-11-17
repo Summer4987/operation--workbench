@@ -1187,7 +1187,11 @@ def execute_task(context, base_url: str, task: dict, *, commit: bool, preflight:
     skip_restricted = control.get("skipWhenRestricted", False)
     date = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
     fixed_lunch_budget = task.get("period") == "午餐" and control.get("lunchBudgetFrom") and date >= control["lunchBudgetFrom"]
-    requested_target = float(control["lunchBudget"] if fixed_lunch_budget else task["targetBudget"])
+    requested_target = float(
+        control["lunchBudget"]
+        if fixed_lunch_budget
+        else task.get("requestedTargetBudget", task["targetBudget"])
+    )
     if not math.isfinite(requested_target) or requested_target <= 0:
         raise ValueError("目标预算必须是有效的正数")
     # Meituan CPC daily budgets have a 50 yuan platform minimum. Apply the
