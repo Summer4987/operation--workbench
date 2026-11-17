@@ -1,4 +1,8 @@
-"""All-store template selections; existing daily totals are immutable."""
+"""All-store daily budgets and template selections.
+
+The dashboard is the single source of truth for both promotion platforms.  A
+Meituan value is additionally projected to the Longxia fleet configuration.
+"""
 import copy
 import hashlib
 import json
@@ -35,13 +39,21 @@ def validate(payload,longxia):
         for platform,days in row['platforms'].items():
             if set(days)!={'weekday','weekend'}:raise ValueError('需要工作日与周末及节假日两档')
             for day,value in days.items():
-                if value.get('dailyBudget')!=base['platforms'][platform][day]['dailyBudget']:raise ValueError('单日总预算已锁定，选择模板不会修改原金额')
+                daily=value.get('dailyBudget')
+                if type(daily) is not int or daily < 100 or daily > 999900 or daily % 100:
+                    raise ValueError('单日总预算须为 1–9999 元的整数')
+                lunch=value.get('lunchBudget')
+                if type(lunch) is not int or lunch < 100 or lunch >= daily or lunch % 100:
+                    raise ValueError('午餐预算须为不小于 1 元且小于单日总预算的整数')
                 tid=value.get('templateId')
                 if tid is not None and tid not in templates:raise ValueError('请选择有效的分时模板')
                 if platform=='美团' and row['sourceStore'] in bound and not tid:raise ValueError('已接入龙虾的门店需要分时模板')
                 if tid:
-                    a=amounts(value['dailyBudget'],templates[tid]['shares'])
-                    if not 0<sum(a[:3])<value['dailyBudget']:raise ValueError('模板需为午餐和晚餐分别保留预算')
+                    a=amounts(daily,templates[tid]['shares'])
+                    if not 0<sum(a[:3])<daily:raise ValueError('模板需为午餐和晚餐分别保留预算')
+                    lunch=sum(a[:3])
+                item['platforms'][platform][day]['dailyBudget']=daily
+                item['platforms'][platform][day]['lunchBudget']=lunch
                 item['platforms'][platform][day]['templateId']=tid
         clean.append(item)
     result={'schema':1,'entries':clean}

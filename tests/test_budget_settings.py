@@ -19,9 +19,11 @@ class BudgetSettingsTests(unittest.TestCase):
     self.assertEqual(d['stores'][row['sourceStore']][platform]['dinnerBudget']*100,days['weekday']['dailyBudget'])
     self.assertEqual(d['stores'][row['sourceStore']][platform]['weekendDinnerBudget']*100,days['weekend']['dailyBudget'])
   self.assertEqual(c.validate(d['longxia']),d['longxia'])
- def test_budget_is_readonly_and_all_stores_required(self):
-  d=self.data();bad=copy.deepcopy(d['budgetSettings']);bad['entries'][0]['platforms']['美团']['weekend']['dailyBudget']+=100
-  with self.assertRaisesRegex(ValueError,'总预算已锁定'):m.validate(bad,d['longxia'])
+ def test_budget_can_be_updated_from_dashboard_and_all_stores_required(self):
+  d=self.data();updated=copy.deepcopy(d['budgetSettings']);day=updated['entries'][0]['platforms']['美团']['weekend'];day['dailyBudget']=9000;day['lunchBudget']=5500
+  self.assertEqual(m.validate(updated,d['longxia'])['entries'][0]['platforms']['美团']['weekend']['dailyBudget'],9000)
+  invalid=copy.deepcopy(updated);invalid['entries'][0]['platforms']['美团']['weekend']['lunchBudget']=9000
+  with self.assertRaisesRegex(ValueError,'午餐预算'):m.validate(invalid,d['longxia'])
   bad=copy.deepcopy(d['budgetSettings']);bad['entries'].pop()
   with self.assertRaises(ValueError):m.validate(bad,d['longxia'])
  def test_restore_holiday_amounts_and_preserve_weekday(self):
