@@ -11,4 +11,4 @@ let select=d.querySelector('[data-budget-day="weekday"]');select.value=config.te
 let total=d.querySelector('[data-budget-total="weekday"]');total.value='180';total.onchange();assert.deepEqual(totals(),['180','100']);
 const payload=dom.window.collectBudgetEditorPayload();const after=payload.budgetSettings.entries.find(r=>r.sourceStore==='朝阳门店').platforms['美团'].weekday;assert.equal(after.dailyBudget,18000);assert.equal(after.lunchBudget,10800);
 const platform=d.querySelector('#budgetPlatformSelect');platform.value='饿了么';platform.onchange({target:platform});assert.deepEqual(totals(),['200','80']);
-assert.equal(d.querySelectorAll('#budgetTotalsOverview tbody tr').length,16);console.log('全部门店、两个平台、工作日/周末节假日、总预算与模板可在同一入口设置通过');
+assert.equal(d.querySelectorAll('#budgetTotalsOverview tbody tr').length,16);assert.match(d.querySelector('#budgetTotalsOverview').textContent,/美团 · 工作日/);assert.match(d.querySelector('#budgetTotalsOverview').textContent,/饿了么 · 工作日/);console.log('全部门店、两个平台、工作日/周末节假日、总预算与模板可在同一入口设置通过');
