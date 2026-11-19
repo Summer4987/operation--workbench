@@ -199,11 +199,16 @@ def open_headquarters_promotion(page, task, helpers, promo):
     items = page.locator(".roo-popup:visible li")
     items.first.wait_for(state="visible", timeout=10000)
     aliases = promo.task_store_aliases(task)
-    matches = []
-    for index in range(items.count()):
-        name = items.nth(index).inner_text()
-        if "全部门店" not in name and any(alias in name for alias in aliases):
-            matches.append(index)
+    deadline = time.monotonic()+12
+    while True:
+        matches = []
+        for index in range(items.count()):
+            name = items.nth(index).inner_text()
+            if "全部门店" not in name and any(alias in name for alias in aliases):
+                matches.append(index)
+        if len(matches) == 1 or time.monotonic() >= deadline:
+            break
+        page.wait_for_timeout(500)
     if len(matches) != 1:
         raise ValueError("总部账号未唯一匹配目标门店：" + str(task.get("keyword")))
     items.nth(matches[0]).click(timeout=8000)
