@@ -54,10 +54,30 @@ def build_payload(task, runs, root=ROOT):
     categories = []
     target_date = (timestamp(day)-timedelta(days=1)).date().isoformat() if timestamp(day) else ''
     window_start = (timestamp(day)-timedelta(days=7)).date().isoformat() if timestamp(day) else ''
+    checkpoint = read_json(root/'outputs/morning_recovery/commit-午餐.json')
+    checkpoint_start = None
+    if (mode == 'commit' and checkpoint.get('day') == day
+            and checkpoint.get('period') == '午餐' and checkpoint.get('mode') == mode
+            and isinstance(checkpoint.get('completed'), list)):
+        try:
+            checkpoint_start = datetime.fromtimestamp(float(checkpoint['started']), ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        except (KeyError, ValueError, TypeError, OverflowError, OSError):
+            pass
+        if checkpoint_start and (checkpoint_start.date().isoformat() != day or start and checkpoint_start > start):
+            checkpoint_start = None
 
-    def fresh(value):
+    def fresh(value, step=None):
+        # A resume deliberately retains verified artifacts from the original
+        # run. Only that explicit checkpoint may move a step's evidence bound;
+        # unrelated same-day files must still belong to the current run.
+        lower_bound = start
+        event = latest.get(step, {})
+        if (checkpoint_start and step in checkpoint['completed']
+                and event.get('status') == 'success'
+                and '本日已验证成功，保留结果' in str(event.get('message') or '')):
+            lower_bound = checkpoint_start
         dt = timestamp(value)
-        return bool(dt and dt.date().isoformat() == day and (not start or dt >= start))
+        return bool(dt and dt.date().isoformat() == day and (not lower_bound or dt >= lower_bound))
 
     def event_row(label, step):
         event = latest.get(step, {})
@@ -88,7 +108,7 @@ def build_payload(task, runs, root=ROOT):
         for field, suffix in [('ratings_status', '门店评分'), ('reviews_status', '差评采集')]:
             row = event_row(label+suffix, '双平台评价页及门店评分采集')
             if review_event and scopes:
-                valid = [s for s in scopes if fresh(s.get('collected_at')) and s.get(field) == 'ready'
+                valid = [s for s in scopes if fresh(s.get('collected_at'), '双平台评价页及门店评分采集') and s.get(field) == 'ready'
                          and (bool(s.get('ratings')) if field == 'ratings_status' else isinstance(s.get('records'), list)
                               and s.get('start_date', '9999') <= window_start and s.get('end_date', '') >= target_date)]
                 row['status'] = 'success' if len(valid) == len(scopes) else 'partial' if valid else 'failed'
@@ -111,7 +131,7 @@ def build_payload(task, runs, root=ROOT):
         row = event_row(platform+'客服消息采集', '直营双平台客服消息采集')
         scopes = [messages.get('scopes', {}).get(c['store']+'|'+platform, {}) for c in configs]
         if message_event and scopes:
-            valid = [s for s in scopes if fresh(s.get('collected_at')) and s.get('status') == 'ready'
+            valid = [s for s in scopes if fresh(s.get('collected_at'), '直营双平台客服消息采集') and s.get('status') == 'ready'
                      and messages.get('target_date') == target_date]
             row['status'] = 'success' if len(valid) == len(scopes) else 'partial' if valid else 'failed'
             row['detail'] = f'{len(valid)}/{len(scopes)} 家门店完整'
@@ -122,14 +142,14 @@ def build_payload(task, runs, root=ROOT):
             row.update(status='partial', detail='步骤完成，但缺少本轮门店完整性证据')
         message_rows.append(row)
     restore = event_row('淘宝全国门店范围恢复', '直营双平台客服消息采集')
-    if message_event and fresh(messages.get('generated_at')):
+    if message_event and fresh(messages.get('generated_at'), '直营双平台客服消息采集'):
         restore.update(status='success' if messages.get('context_restored') is True else 'failed',
                        detail='' if messages.get('context_restored') is True else '未确认恢复全国范围')
     message_rows.append(restore)
     web = root/'business-report-dashboard/direct-dashboard/customer-messages/index.html'
     page = event_row('客服消息页面生成', '直营双平台客服消息采集')
     if message_event:
-        if web.is_file() and fresh(datetime.fromtimestamp(web.stat().st_mtime).isoformat()):
+        if web.is_file() and fresh(datetime.fromtimestamp(web.stat().st_mtime).isoformat(), '直营双平台客服消息采集'):
             page.update(status='success', detail='')
         else:
             page.update(status='failed', detail='未找到本轮生成的消息页面')
@@ -142,7 +162,7 @@ def build_payload(task, runs, root=ROOT):
                     event_row('巡检证据上传', '巡检证据上传云端'),
                     event_row('低余额通知', '上午推广低余额通知')]
     balance = read_json(root/'outputs/promo_balance_status/latest.json')
-    if '推广余额总巡检' in latest and fresh(balance.get('generated_at')):
+    if '推广余额总巡检' in latest and fresh(balance.get('generated_at'), '推广余额总巡检'):
         summary = balance.get('summary') or {}
         if summary.get('platform_failure_count') or summary.get('direct_coverage_missing_count') or summary.get('balance_collection_missing_count'):
             if balance_rows[0]['status'] == 'success':
@@ -169,7 +189,7 @@ def build_payload(task, runs, root=ROOT):
                                   ('meituan', '美团午餐预算提交', '美团午餐预算真实提交')]:
         row = event_row(label, step)
         result = (budget.get('platforms') or {}).get(platform, {})
-        if latest.get(step, {}).get('status') not in {None, 'skipped'} and budget.get('period') == '午餐' and fresh(budget.get('generated_at')) and result:
+        if latest.get(step, {}).get('status') not in {None, 'skipped'} and budget.get('period') == '午餐' and fresh(budget.get('generated_at'), step) and result:
             skipped = result.get('skipped_count', 0)
             failed = result.get('failed_count', 0)
             total = result.get('total', 0)

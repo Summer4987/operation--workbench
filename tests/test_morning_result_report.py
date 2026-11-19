@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
 import morning_result_report as report
@@ -82,6 +83,66 @@ class MorningReportTests(unittest.TestCase):
         for e in self.runs['events'][1:]:e['created_at']='2026-10-25 08:42:00'
         rows=self.rows();self.assertNotEqual(rows['淘宝闪购差评采集']['status'],'success')
         self.assertNotEqual(rows['美团午餐预算提交']['status'],'success')
+
+    def resumed_run(self):
+        steps = ['双平台评价页及门店评分采集', '直营双平台客服消息采集',
+                 '推广余额总巡检', '饿了么午餐预算真实提交', '美团午餐预算真实提交']
+        original = datetime(2026,10,25,8,tzinfo=ZoneInfo('Asia/Shanghai')).timestamp()
+        self.write('outputs/morning_recovery/commit-午餐.json',
+                   dict(day='2026-10-25',period='午餐',mode='commit',started=original,completed=steps))
+        self.task['finished_at'] = '2026-10-25 10:45:00'
+        self.runs['events'].append(dict(task_id=report.TASK_ID,step='初始化',status='running',
+                                       created_at='2026-10-25 10:42:00',extra={'mode':'commit'}))
+        for step in steps:
+            self.runs['events'].append(dict(task_id=report.TASK_ID,step=step,status='success',
+                created_at='2026-10-25 10:44:00',message=step+'本日已验证成功，保留结果，仅补跑失败步骤。'))
+
+    def test_resume_preserves_verified_scores_reviews_messages_and_budget(self):
+        self.resumed_run()
+        rows=self.rows()
+        for name in ['淘宝闪购门店评分','淘宝闪购差评采集','美团门店评分','美团差评采集',
+                     '美团客服消息采集','淘宝闪购客服消息采集','淘宝全国门店范围恢复',
+                     '客服消息页面生成','淘宝闪购午餐预算提交','美团午餐预算提交']:
+            self.assertEqual(rows[name]['status'],'success',name)
+
+    def test_resume_requires_matching_checkpoint_and_explicit_retention(self):
+        self.resumed_run()
+        path=self.root/'outputs/morning_recovery/commit-午餐.json'
+        good=report.read_json(path)
+        for change in [dict(day='2026-10-24'),dict(mode='preview'),dict(period='晚餐'),dict(completed=[]),dict(started='bad'),
+                       dict(started=datetime(2026,10,25,11,tzinfo=ZoneInfo('Asia/Shanghai')).timestamp())]:
+            with self.subTest(change=change):
+                self.write(str(path.relative_to(self.root)),dict(good,**change))
+                self.assertNotEqual(self.rows()['美团客服消息采集']['status'],'success')
+        self.write(str(path.relative_to(self.root)),good)
+        for event in self.runs['events']:
+            if event.get('step')=='直营双平台客服消息采集':event['message']='本轮采集完成'
+        self.assertNotEqual(self.rows()['美团客服消息采集']['status'],'success')
+
+    def test_resume_does_not_hide_incomplete_or_wrong_date_evidence(self):
+        self.resumed_run()
+        data=report.read_json(self.root/'outputs/review_pages/latest.json')
+        data['scopes']['direct_a']['reviews_status']='failed'
+        data['scopes']['eleme_headquarters']['collected_at']='2026-10-24 08:20:00'
+        self.write('outputs/review_pages/latest.json',data)
+        messages=report.read_json(self.root/'outputs/customer_messages/latest.json')
+        messages['scopes']['B|美团']['status']='partial'
+        self.write('outputs/customer_messages/latest.json',messages)
+        rows=self.rows()
+        self.assertEqual(rows['美团差评采集']['status'],'partial')
+        self.assertEqual(rows['淘宝闪购门店评分']['status'],'failed')
+        self.assertEqual(rows['美团客服消息采集']['status'],'partial')
+        messages['target_date']='2026-10-23'
+        self.write('outputs/customer_messages/latest.json',messages)
+        self.assertEqual(self.rows()['淘宝闪购客服消息采集']['status'],'failed')
+
+    def test_resume_never_turns_failed_budget_receipts_into_success(self):
+        self.resumed_run()
+        data=report.read_json(self.root/'outputs/promo_budget_result/latest.json')
+        data['platforms']['meituan'].update(success_count=1,failed_count=1,failed_stores=['B'])
+        self.write('outputs/promo_budget_result/latest.json',data)
+        self.assertEqual(self.rows()['美团午餐预算提交']['status'],'partial')
+        self.assertIn('B',self.rows()['美团午餐预算提交']['detail'])
 
     def test_no_execution_is_not_reported_as_success(self):
         self.runs['events']=self.runs['events'][:1];self.task['status']='failed'
