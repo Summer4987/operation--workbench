@@ -334,6 +334,15 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             coordinator.block(account, str(exc))
         # Persist only short text, not signed URLs / request tokens / page content.
         error = re.sub(r"https?://\S+", "[页面链接]", str(exc).split("Call log:")[0])[:240]
+        if page is not None:
+            with contextlib.suppress(Exception):
+                diagnostic = promo.ROOT/"outputs/promo_roi/diagnostics"
+                diagnostic.mkdir(parents=True, exist_ok=True)
+                name = re.sub(r"[^\w-]", "_", row["store"])
+                target = diagnostic/f"{row['date']}-{name}.txt"
+                text = re.sub(r"https?://\S+", "[页面链接]", helpers["page_text"](page))
+                target.write_text(error + "\n" + text[:20000])
+                target.chmod(0o600)
         return dict(row, status="failed", error=error)
     finally:
         if page is not None:
