@@ -93,7 +93,7 @@ def read_balance_items(*, path=None, config_path=None, now=None):
         by_id, error = {}, '龙虾余额快照不可用：' + type(exc).__name__
     for store in config:
         row = by_id.get(store['profileId'], {})
-        at, balance = row.get('snapshotAt'), row.get('accountBalance')
+        at, balance = row.get('accountBalanceAt'), row.get('accountBalance')
         reason = error
         if not reason:
             if row.get('paused') or row.get('status') in {'error', 'inspection_paused', 'pending'}:

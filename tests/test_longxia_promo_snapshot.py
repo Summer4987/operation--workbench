@@ -50,7 +50,7 @@ def test_missing_snapshot_totals_are_unknown_instead_of_zero():
 def test_balance_snapshot_missing_stale_boolean_zero_negative_and_paused(tmp_path):
     path, config = tmp_path/'fleet.json', tmp_path/'config.json'
     config.write_text(json.dumps({'longxia': {'stores': [{'profileId':'p1','name':'望京'}]}}))
-    row = {'id':'p1','day':'2026-11-15','snapshotAt':NOW,'accountBalance':1234}
+    row = {'id':'p1','day':'2026-11-15','snapshotAt':NOW,'accountBalanceAt':NOW,'accountBalance':1234}
     def read(changes=None):
         data={'schema':1,'generatedAt':NOW,'stores':[{**row, **(changes or {})}]}
         path.write_text(json.dumps(data))
@@ -60,7 +60,7 @@ def test_balance_snapshot_missing_stale_boolean_zero_negative_and_paused(tmp_pat
         assert not issues and items[0]['balance']==value/100
         assert items[0]['confirmed_zero']==(value==0)
     for changes in [{'accountBalance':None},{'accountBalance':True},{'paused':True},{'status':'pending'},
-                    {'snapshotAt':NOW-1800001},{'id':'wrong'},{'day':'2026-11-14'}]:
+                    {'accountBalanceAt':NOW-1800001},{'id':'wrong'},{'day':'2026-11-14'}]:
         items,issues=read(changes)
         assert not items and len(issues)==1
     path.unlink()
