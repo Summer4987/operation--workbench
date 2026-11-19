@@ -320,9 +320,18 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             print(f"  {row['store']}：读取当日推广进店和消耗", flush=True)
             page.reload(wait_until="domcontentloaded", timeout=45000)
             deadline = time.monotonic() + 25
+            entered_product = False
             while True:
                 promo.raise_if_meituan_verify_page(page)
                 text = helpers["page_text"](page)
+                # Some accounts redirect the deep link to the promotion home.
+                # Its total counters have no date and must never be used here.
+                if "实时数据" not in text and "点金推广" in text and not entered_product:
+                    if helpers["click_visible_text"](page, "点金推广"):
+                        entered_product = True
+                        deadline = time.monotonic()+25
+                        page.wait_for_timeout(1000)
+                        continue
                 try:
                     fields = parse_promotion(text, row["date"])
                     # Confirm actual visible identity, not only a URL parameter.
