@@ -29,6 +29,7 @@ EVIDENCE_UPLOAD_RUNNER = WORKSPACE / "scripts" / "upload_store_inspection_eviden
 DAILY_FOCUS_STATUS_RUNNER = WORKSPACE / "scripts" / "build_daily_focus_status.py"
 REVIEW_ACTION_STATUS_RUNNER = WORKSPACE / "scripts" / "build_review_action_status.py"
 PROMO_BALANCE_STATUS_RUNNER = WORKSPACE / "scripts" / "build_promo_balance_status.py"
+MORNING_BALANCE_PREPARE_RUNNER = WORKSPACE / "scripts" / "prepare_morning_balances.py"
 PROMO_BALANCE_NOTIFY_RUNNER = WORKSPACE / "scripts" / "agent_task_notifier.py"
 LOGIN_PREFLIGHT_RUNNER = WORKSPACE / "scripts" / "check_platform_login_preflight.py"
 ELEME_BUDGET_RUNNER = WORKSPACE / "scripts" / "run_eleme_automation.zsh"
@@ -465,6 +466,9 @@ def main() -> int:
                 if result.returncode != 0:
                     add_failure(failures, "本地门店日报", result)
             else:
+                result = run_step("启动上午余额预读", [sys.executable, str(MORNING_BALANCE_PREPARE_RUNNER), "--start-only"], required=False, timeout_seconds=30)
+                if result.returncode != 0:
+                    add_failure(failures, "启动上午余额预读", result)
                 budget_preflight_args = [sys.executable, str(LOGIN_PREFLIGHT_RUNNER), "--scope", "budget", "--notify"]
                 if skip_eleme_budget:
                     budget_preflight_args.extend(["--platform", "meituan"])
@@ -498,6 +502,30 @@ def main() -> int:
                         flush=True,
                     )
                 ensure_backend_chrome(report_python)
+                result = run_step("上午美团余额预读", [sys.executable, str(MORNING_BALANCE_PREPARE_RUNNER)], required=False, timeout_seconds=630)
+                if result.returncode != 0:
+                    add_failure(failures, "上午美团余额预读", result)
+                balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
+                if balance_result.returncode != 0:
+                    add_failure(failures, "推广余额总巡检", balance_result)
+                    if args.source == "scheduled":
+                        print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
+                result = run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
+                if result.returncode != 0:
+                    add_failure(failures, "巡检证据清单生成", result)
+                result = run_step("推广余额状态更新", [sys.executable, str(PROMO_BALANCE_STATUS_RUNNER)], required=False, timeout_seconds=120)
+                if result.returncode != 0:
+                    add_failure(failures, "推广余额状态", result)
+                # Deliver fresh balance alerts before any budget submission can delay them.
+                result = run_step("上午推广低余额通知", [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER), "--promo-balance-period", "上午"], required=False, timeout_seconds=60)
+                if result.returncode != 0:
+                    add_failure(failures, "上午推广低余额通知", result)
+                if is_production_environment():
+                    result = run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
+                    if result.returncode != 0:
+                        add_failure(failures, "巡检证据上传云端", result)
+                else:
+                    print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
                 result = run_step("双平台评价页及门店评分采集", [report_python, str(WORKSPACE / "scripts" / "collect_review_pages.py"), *(["--retry-failed"] if args.resume else [])], required=False, timeout_seconds=900)
                 if result.returncode != 0:
                     add_failure(failures, "评价页及门店评分采集", result)
@@ -520,23 +548,6 @@ def main() -> int:
                 result = run_step("评价待办状态更新", [sys.executable, str(REVIEW_ACTION_STATUS_RUNNER)], required=False, timeout_seconds=120)
                 if result.returncode != 0:
                     add_failure(failures, "评价待办状态", result)
-                balance_result = run_step_with_pause("推广余额总巡检", [sys.executable, str(BALANCE_RUNNER)], required=False, timeout_seconds=420)
-                if balance_result.returncode != 0:
-                    add_failure(failures, "推广余额总巡检", balance_result)
-                    if args.source == "scheduled":
-                        print("推广余额总巡检失败，定时任务已跳过该项并继续后续业务。", file=sys.stderr, flush=True)
-                result = run_step("巡检证据清单生成", [sys.executable, str(EVIDENCE_MANIFEST_RUNNER), "--days", "7"], required=False, timeout_seconds=120)
-                if result.returncode != 0:
-                    add_failure(failures, "巡检证据清单生成", result)
-                result = run_step("推广余额状态更新", [sys.executable, str(PROMO_BALANCE_STATUS_RUNNER)], required=False, timeout_seconds=120)
-                if result.returncode != 0:
-                    add_failure(failures, "推广余额状态", result)
-                if is_production_environment():
-                    result = run_step("巡检证据上传云端", ["/bin/zsh", str(EVIDENCE_UPLOAD_RUNNER), "--days", "7"], required=False, timeout_seconds=240)
-                    if result.returncode != 0:
-                        add_failure(failures, "巡检证据上传云端", result)
-                else:
-                    print("开发环境：跳过巡检证据云端上传，仅保留本地证据清单。", flush=True)
             result = run_step("同步云端预算配置", [sys.executable, str(PROMO_BUDGET_SYNC_RUNNER)], required=False)
             budget_inputs_ready = result.returncode == 0
             if result.returncode != 0:
@@ -610,16 +621,6 @@ def main() -> int:
                         add_failure(failures, f"美团{budget_period}预算", result)
                 budget_result_recorded = publish_budget_result(budget_period, run_started_epoch, log_path)
                 flush_result_notifications("growth.promo_budget")
-            # Balance alerts are independent of whether budget submission ran.
-            if args.mode == "commit":
-                result = run_step(
-                    "上午推广低余额通知",
-                    [sys.executable, str(PROMO_BALANCE_NOTIFY_RUNNER), "--promo-balance-period", "上午"],
-                    required=False,
-                    timeout_seconds=60,
-                )
-                if result.returncode != 0:
-                    add_failure(failures, "上午推广低余额通知", result)
             result = run_step("运营总看板数据更新", [sys.executable, str(WORKBENCH_DATA_RUNNER)], required=False)
             if result.returncode != 0:
                 add_failure(failures, "运营总看板", result)

@@ -116,5 +116,21 @@ class MorningReportTests(unittest.TestCase):
         self.assertEqual(report.read_json(output)['period'],'晚餐')
         self.assertEqual(report.read_json(output.with_name('latest_午餐.json'))['period'],'午餐')
 
+    def test_low_balance_and_missing_store_are_inside_same_morning_report(self):
+        self.write('outputs/promo_balance_status/latest.json',dict(generated_at='2026-10-25 08:20:00',
+            source_generated_at='2026-10-25 08:19:00',summary={'low_balance_count':1,'balance_collection_missing_count':1},
+            low_balance_items=[dict(platform='美团',store_name='中关村',balance=0,threshold=200)],
+            balance_collection_issues=[dict(platform='美团',store_name='光谷店',message='巡检暂停')]))
+        payload=self.build();text=report.format_report(payload)
+        self.assertIn('【当日低余额充值提醒】',text)
+        self.assertIn('中关村：0 元',text)
+        self.assertIn('光谷店：巡检暂停',text)
+        self.assertEqual(self.rows()['双平台余额巡检']['status'],'partial')
+
+    def test_hourly_dedup_state_does_not_hide_successful_morning_receipt(self):
+        self.write('outputs/agent_task_notifications/state.json', {'sent':{'growth.promo_balance.low_balance':'notification_slot|2026-10-25|余额巡检|hash'}})
+        self.write('outputs/agent_task_notifications/receipts/2026-10-25-上午.json',dict(generated_at='2026-10-25 08:21:00',dry_run=False,notifications=[dict(delivered=True)]))
+        self.assertEqual(self.rows()['低余额通知']['status'],'success')
+
 
 if __name__=='__main__':unittest.main()

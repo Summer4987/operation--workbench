@@ -144,17 +144,21 @@ def build_payload(task, runs, root=ROOT):
     balance = read_json(root/'outputs/promo_balance_status/latest.json')
     if '推广余额总巡检' in latest and fresh(balance.get('generated_at')):
         summary = balance.get('summary') or {}
-        if summary.get('platform_failure_count') or summary.get('direct_coverage_missing_count'):
+        if summary.get('platform_failure_count') or summary.get('direct_coverage_missing_count') or summary.get('balance_collection_missing_count'):
             if balance_rows[0]['status'] == 'success':
                 balance_rows[0]['status'] = 'partial'
         balance_rows[0]['detail'] = f'低余额 {summary.get("low_balance_count", 0)} 项'
         if balance_rows[-1]['status'] == 'success':
             count = summary.get('low_balance_count', 0)
             sent = read_json(root/'outputs/agent_task_notifications/state.json').get('sent', {})
-            if not count:
+            receipt = read_json(root/f'outputs/agent_task_notifications/receipts/{day}-上午.json')
+            notices = receipt.get('notifications') or []
+            delivered = bool(notices and fresh(receipt.get('generated_at')) and not receipt.get('dry_run') and all(n.get('delivered') is True for n in notices))
+            issues = balance.get('balance_collection_issues') or []
+            if not count and not issues:
                 balance_rows[-1].update(status='skipped', detail='无低余额项目，无需推送')
-            elif sent.get('growth.promo_balance.low_balance') == f'notification_slot|{day}|上午':
-                balance_rows[-1]['detail'] = f'{count} 项低余额已推送'
+            elif delivered or sent.get('growth.promo_balance.low_balance') == f'notification_slot|{day}|上午':
+                balance_rows[-1]['detail'] = f'{count} 项低余额、{len(issues)} 项未核实已推送'
             else:
                 balance_rows[-1].update(status='partial', detail='通知步骤已运行，尚未确认企微送达')
     section('推广余额与证据', balance_rows)
@@ -183,6 +187,9 @@ def build_payload(task, runs, root=ROOT):
     counts = Counter(row['status'] for category in categories for row in category['items'])
     return dict(date=day, updated_at=task.get('finished_at') or task.get('updated_at') or '', mode=mode, categories=categories, counts=dict(counts),
                 status='success' if task.get('status') == 'success' and not any(counts[s] for s in ['failed', 'partial', 'missing', 'running']) else 'attention',
+                balance_source_generated_at=balance.get('source_generated_at') or balance.get('generated_at') or '',
+                balance_low_items=balance.get('low_balance_items', []) if fresh(balance.get('generated_at')) and not (balance.get('summary') or {}).get('source_is_stale') else [],
+                balance_issues=balance.get('balance_collection_issues', []) if fresh(balance.get('generated_at')) else [],
                 task_message=str(task.get('message') or ''))
 
 
@@ -200,6 +207,14 @@ def format_report(payload):
         for row in category['items']:
             detail = '；'+row['detail'] if row['detail'] else ''
             lines.append(f'• {row["name"]}：{LABELS[row["status"]]}{detail}')
+    if payload.get('balance_low_items'):
+        lines += ['', '【当日低余额充值提醒】', '余额采集时间：'+str(payload.get('balance_source_generated_at') or '未记录')]
+        for item in payload['balance_low_items']:
+            lines.append(f"• {item.get('platform')}｜{item.get('store_name')}：{item.get('balance')} 元（阈值 {item.get('threshold')} 元）")
+    if payload.get('balance_issues'):
+        lines += ['', '【余额未核实，不能视为充足】']
+        for item in payload['balance_issues']:
+            lines.append(f"• {item.get('platform')}｜{item.get('store_name')}：{item.get('message')}")
     if payload['status'] != 'success' and payload['task_message']:
         lines += ['', '本轮说明：'+' '.join(payload['task_message'].split())[:180]]
     lines += ['', '正式看板：http://139.155.148.169/operation-workbench/']
