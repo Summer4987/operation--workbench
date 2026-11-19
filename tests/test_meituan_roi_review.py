@@ -38,6 +38,14 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             roi.parse_flow(text,"2026-11-20",active_today=True)
 
+    def test_actual_promotion_identity_must_match(self):
+        urls=["https://e.waimai.meituan.com/", "https://waimaieapp.meituan.com/ad/v1/rpc?wmPoiId=28944820"]
+        self.assertEqual(roi.promo_store_id(urls,"28944820"),"28944820")
+        with self.assertRaises(ValueError):
+            roi.promo_store_id(urls,"30703865")
+        with self.assertRaises(ValueError):
+            roi.promo_store_id(urls[:1],"28944820")
+
     def test_estimate_and_weighted_summary(self):
         a = roi.estimate(dict(spend=200, promo_visits=100, conversion_rate=.3, income=3000, orders=100))
         b = roi.estimate(dict(spend=100, promo_visits=20, conversion_rate=.5, income=2000, orders=100))

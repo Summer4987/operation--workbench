@@ -16,6 +16,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from urllib.parse import parse_qs, urlsplit
 
 TZ = ZoneInfo("Asia/Shanghai")
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +70,17 @@ def parse_promotion(text, target_date):
     if spend is None or visits is None or not visits.is_integer():
         raise ValueError("未读取到当日实际推广花费或推广进店量")
     return dict(spend=spend, promo_visits=int(visits), promotion_updated_at=f"{target_date} {match[2]}:00")
+
+
+def promo_store_id(urls, expected):
+    ids = set()
+    for url in urls:
+        parts = urlsplit(url)
+        if "waimaieapp.meituan.com" in parts.netloc and parts.path.startswith("/ad/v1/"):
+            ids.update(parse_qs(parts.query).get("wmPoiId", []))
+    if len(ids) != 1 or expected and str(expected) not in ids:
+        raise ValueError("推广数据页门店ID未确认或与目标不一致")
+    return ids.pop()
 
 
 def parse_overview(text, target_date):
@@ -254,7 +266,10 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             page.set_default_timeout(8000)
             if task.get("directMeituanAccountId"):
                 base = helpers["base_url_for_task"]("", task, accounts, context)
-                page.goto(promo.dianjin_url_for_store(base, row["wm_poi_id"], helpers), wait_until="domcontentloaded", timeout=45000)
+                target = promo.dianjin_url_for_store(base, row["wm_poi_id"], helpers)
+                if target.startswith("https://waimaieapp.meituan.com/"):
+                    target = "https://e.waimai.meituan.com/#" + target
+                page.goto(target, wait_until="domcontentloaded", timeout=45000)
                 helpers["enter_dianjin_with_recovery"](page, page.url)
             else:
                 open_headquarters_promotion(page, task, helpers, promo)
@@ -274,6 +289,7 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
                     if time.monotonic() >= deadline:
                         raise
                     page.wait_for_timeout(700)
+            row["wm_poi_id"] = promo_store_id([frame.url for frame in page.frames], row["wm_poi_id"])
             row.update(fields)
             stamp = datetime.fromisoformat(fields["promotion_updated_at"]).replace(tzinfo=TZ)
             if not 0 <= (now()-stamp).total_seconds() <= 20*60:
