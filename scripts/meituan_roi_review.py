@@ -194,7 +194,8 @@ def open_headquarters_promotion(page, task, helpers, promo):
     page.goto(promo.HEADQUARTERS_HOME_URL, wait_until="domcontentloaded", timeout=45000)
     selector = page.locator(".current-poi_31GHxd").first
     selector.wait_for(state="visible", timeout=20000)
-    promo.dismiss_common_modals(page)
+    from meituan_budget_cdp import dismiss_common_modals
+    dismiss_common_modals(page)
     selector.click(timeout=8000)
     items = page.locator(".roo-popup:visible li")
     items.first.wait_for(state="visible", timeout=10000)
@@ -285,7 +286,8 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
     row = dict(store=task.get("keyword") or task.get("sourceStore"), platform="美团", wm_poi_id=str(task.get("wmPoiId") or ""),
                date=now().date().isoformat(), status="failed", collected_at=now().isoformat(timespec="seconds"))
     page = None
-    coordinator = access.Coordinator()
+    preserve_page = False
+    coordinator = access.Coordinator(notify=False)
     account = None
     try:
         account = access.for_task(task)
@@ -294,6 +296,8 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
         with coordinator.lease(account, wait_seconds=180, priority="roi"):
             context = helpers["context_for_task"](pw, contexts, launched, task, accounts)
             page = context.new_page()
+            from platform_auth_guard import begin_page_attempt
+            begin_page_attempt(page)
             page.set_default_timeout(8000)
             if task.get("directMeituanAccountId"):
                 base = helpers["base_url_for_task"]("", task, accounts, context)
@@ -329,8 +333,11 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
                 raise ValueError("采集跨日，未合并两个日期的数据")
             return estimate(row)
     except Exception as exc:
-        from platform_auth_guard import is_auth_failure
+        from platform_auth_guard import is_auth_failure, current_meituan_challenge
+        if page is not None and current_meituan_challenge(page) is not None:
+            exc = RuntimeError("美团安全验证待人工处理，请在Mac mini完成后确认恢复")
         if account and is_auth_failure(exc) and not isinstance(exc, access.AccountAccessError):
+            preserve_page = True
             coordinator.block(account, str(exc))
         # Persist only short text, not signed URLs / request tokens / page content.
         error = re.sub(r"https?://\S+", "[页面链接]", str(exc).split("Call log:")[0])[:240]
@@ -345,7 +352,7 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
                 target.chmod(0o600)
         return dict(row, status="failed", error=error)
     finally:
-        if page is not None:
+        if page is not None and not preserve_page:
             with contextlib.suppress(Exception):
                 page.close()
 
