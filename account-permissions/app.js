@@ -1,14 +1,15 @@
-import { MODULES, ACTIONS, ROLES, STORES, rolePermissions, emptyAccount, validateAccount, previewAccount } from './model.js';
+import { MODULES, ACTIONS, ROLES, STORES, setStores, rolePermissions, emptyAccount, validateAccount, previewAccount } from './model.js';
 
-const KEY = 'xiong-access-drafts-v1';
+const API = '/api/access/';
 const $ = id => document.getElementById(id);
 const esc = value => String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 let accounts = [];
+let canEdit = false;
 let editing = emptyAccount();
 let pendingDelete = '';
 let toastTimer;
-let storageBlocked = false;
-const roleCopy = { admin: '全部功能权限，门店仍需明确选择。', regional: '查看负责门店的经营与推广，处理评价和订货。', manager: '关注本店经营、评价、订货和库存。', finance: '查看经营、订货和库存，支持报表导出。', franchisee: '查看加盟门店经营，处理评价和订货。' };
+const storageBlocked = false;
+const roleCopy = { admin: '全局管理员，覆盖全部门店并管理账号。', regional: '查看负责门店的经营与推广，处理评价和订货。', manager: '关注本店经营、评价、订货和库存。', finance: '查看经营、订货和库存，支持报表导出。', franchisee: '查看加盟门店经营，处理评价和订货。' };
 
 function message(text) {
   $('toast').textContent = text;
@@ -16,38 +17,32 @@ function message(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3500);
 }
-function persist(next) {
-  if (storageBlocked) { message('原有草稿无法读取，已停止写入以免覆盖。请先检查浏览器存储。'); return false; }
-  try {
-    localStorage.setItem(KEY, JSON.stringify({ version: 1, accounts: next }));
-    accounts = next;
-    render();
-    return true;
-  } catch {
-    $('storageError').textContent = '浏览器未能保存草稿（存储不可用或空间不足）。本次修改未保存，请检查浏览器设置。';
-    $('storageError').hidden = false;
-    return false;
-  }
+async function api(path, payload) {
+  const response = await fetch(API + path, payload === undefined ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const result = await response.json();
+  if (response.status === 401) { location.assign('/login?next=' + encodeURIComponent(location.pathname)); throw new Error('需要重新登录'); }
+  if (!response.ok) throw new Error(result.detail || '请求失败');
+  return result;
 }
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return;
-    const payload = JSON.parse(raw);
-    if (payload.version !== 1 || !Array.isArray(payload.accounts)) throw new Error();
-    const validated = [];
-    for (const a of payload.accounts) {
-      if (!a.id || typeof a.id !== 'string' || validated.some(item => item.id === a.id)) throw new Error();
-      validated.push(validateAccount(a, validated));
-    }
-    accounts = validated;
-  } catch {
-    storageBlocked = true;
-    $('storageError').textContent = '无法读取已有草稿。原始数据未被覆盖，已停止写入；请检查此浏览器的本地存储后重新加载。';
-    $('storageError').hidden = false;
-  }
+async function load() {
+  const result = await api('accounts');
+  canEdit = result.can_edit;
+  setStores(result.stores);
+  accounts = result.accounts;
+  render();
+  const audit = await api('audit');
+  const names = {create_account:'新增账号',update_account:'更新账号权限',reset_password:'重置密码',login:'登录',export:'导出数据',create_request:'提交变更申请',review_request:'审批申请'};
+  $('auditRows').innerHTML = audit.items.map(r => `<tr><td>${esc(new Date(r.at * 1000).toLocaleString('zh-CN', {timeZone:'Asia/Shanghai'}))}</td><td>${esc(r.actor)}</td><td>${esc(names[r.action] || r.action)}</td><td>${esc(accounts.find(a => a.id === r.target)?.name || r.target)}</td></tr>`).join('');
+}
+function credentials(password) {
+  if (!password) return;
+  $('credentialValue').textContent = password;
+  $('credentialDialog').showModal();
 }
 function render() {
+  $('createButton').disabled = !canEdit;
+  $('emptyCreate').disabled = !canEdit;
+  document.querySelectorAll('[data-template]').forEach(button => { button.disabled = !canEdit; });
   $('accountCount').textContent = accounts.length;
   $('enabledCount').textContent = accounts.filter(a => a.enabled).length;
   $('assignedCount').textContent = new Set(accounts.filter(a => a.enabled).flatMap(a => a.stores)).size;
@@ -57,11 +52,11 @@ function render() {
   const role = $('roleFilter').value;
   const status = $('statusFilter').value;
   const filtered = accounts.filter(a => (!search || `${a.name} ${a.username}`.toLowerCase().includes(search)) && (!role || a.role === role) && (!status || a.enabled === (status === 'enabled')));
-  $('resultCount').textContent = `共 ${filtered.length} 个账号草稿`;
+  $('resultCount').textContent = `共 ${filtered.length} 个账号`;
   $('accountRows').innerHTML = filtered.map(a => {
     const stores = STORES.filter(s => a.stores.includes(s.id));
     const modules = MODULES.filter(m => a.permissions[m.id]?.includes('view'));
-    return `<tr><td><strong>${esc(a.name)}</strong><small>${esc(a.username)}</small></td><td><span class="badge">${esc(ROLES[a.role])}</span></td><td><div class="scope"><strong>${stores.length} 家门店</strong>${esc(stores.map(s => s.name).join('、') || '未分配门店')}</div></td><td><strong>${modules.length} 项功能</strong><small>${a.enabled ? '待接入后台生效' : '停用后预期不可访问'}</small></td><td><span class="badge ${a.enabled ? 'on' : ''}">${a.enabled ? '计划启用' : '计划停用'}</span></td><td><div class="actions"><button data-edit="${esc(a.id)}" type="button" aria-label="编辑 ${esc(a.name)}">编辑</button><button data-toggle="${esc(a.id)}" type="button" aria-label="${a.enabled ? '停用' : '启用'} ${esc(a.name)} 草稿">${a.enabled ? '停用' : '启用'}</button><button data-delete="${esc(a.id)}" type="button" aria-label="删除 ${esc(a.name)} 草稿">删除</button></div></td></tr>`;
+    return `<tr><td><strong>${esc(a.name)}</strong><small>${esc(a.username)}</small></td><td><span class="badge">${esc(ROLES[a.role])}</span></td><td><div class="scope"><strong>${stores.length} 家门店</strong>${esc(stores.map(s => s.name).join('、') || '未分配门店')}</div></td><td><strong>${modules.length} 项功能</strong><small>${a.enabled ? '后台权限已生效' : '已撤销登录会话'}</small></td><td><span class="badge ${a.enabled ? 'on' : ''}">${a.enabled ? '已启用' : '已停用'}</span></td><td><div class="actions"><button ${canEdit ? '' : 'disabled'} data-edit="${esc(a.id)}" type="button" aria-label="编辑 ${esc(a.name)}">编辑</button><button ${canEdit ? '' : 'disabled'} data-toggle="${esc(a.id)}" type="button" aria-label="${a.enabled ? '停用' : '启用'} ${esc(a.name)}">${a.enabled ? '停用' : '启用'}</button><button ${canEdit ? '' : 'disabled'} data-reset="${esc(a.id)}" type="button" aria-label="重置 ${esc(a.name)} 密码">重置密码</button></div></td></tr>`;
   }).join('');
   $('emptyState').hidden = filtered.length > 0;
   $('emptyState').querySelector('h3').textContent = accounts.length ? '没有匹配的账号' : '从第一个账号开始';
@@ -91,13 +86,13 @@ function syncFields() {
 function renderPreview() {
   syncFields();
   const preview = previewAccount(editing);
-  $('previewSummary').textContent = editing.enabled ? `${editing.name.trim() || '此账号'}将可见 ${preview.stores.length} 家门店、访问 ${preview.modules.length} 项功能。${preview.stores.length ? `门店：${preview.stores.map(s => s.name).join('、')}。` : '请至少选择一家门店。'}` : '此账号计划停用：预期不能访问任何门店或功能。';
+  $('previewSummary').textContent = editing.enabled ? `${editing.name.trim() || '此账号'}可见 ${preview.stores.length} 家门店、访问 ${preview.modules.length} 项功能。${preview.stores.length ? `门店：${preview.stores.map(s => s.name).join('、')}。` : '请至少选择一家门店。'}` : '此账号已停用：预期不能访问任何门店或功能。';
   $('previewModules').innerHTML = preview.modules.map(m => `<span class="chip">${m.name} · ${editing.permissions[m.id].map(a => ACTIONS[a]).join(' / ')}</span>`).join('');
 }
 function openEditor(id = '', role = 'manager') {
   const original = accounts.find(a => a.id === id);
-  editing = original ? structuredClone(original) : { ...emptyAccount(), role, permissions: rolePermissions(role) };
-  $('editorTitle').textContent = original ? '编辑账号草稿' : '新增账号草稿';
+  editing = original ? structuredClone(original) : { ...emptyAccount(), role, permissions: rolePermissions(role), stores: role === 'admin' ? STORES.map(s => s.id) : [] };
+  $('editorTitle').textContent = original ? '编辑账号' : '新增账号';
   $('name').value = editing.name;
   $('username').value = editing.username;
   $('role').value = editing.role;
@@ -112,6 +107,8 @@ function openEditor(id = '', role = 'manager') {
 function applyTemplate() {
   syncFields();
   editing.permissions = rolePermissions(editing.role);
+  if (editing.role === 'admin') editing.stores = STORES.map(s => s.id);
+  renderStores();
   renderPermissions(); renderPreview();
 }
 Object.entries(ROLES).forEach(([value, label]) => {
@@ -119,7 +116,7 @@ Object.entries(ROLES).forEach(([value, label]) => {
   $('roleFilter').add(new Option(label, value));
 });
 $('roleCards').innerHTML = Object.entries(roleCopy).map(([role, copy]) => `<article class="role-card"><h3>${ROLES[role]}</h3><p>${copy}</p><button type="button" data-template="${role}">使用模板</button></article>`).join('');
-load(); render();
+load().catch(error => { $('storageError').textContent = error.message; $('storageError').hidden = false; });
 ['search', 'roleFilter', 'statusFilter'].forEach(id => $(id).addEventListener('input', render));
 ['createButton', 'emptyCreate'].forEach(id => $(id).addEventListener('click', () => openEditor()));
 ['cancelEditor', 'closeEditor'].forEach(id => $(id).addEventListener('click', () => $('editor').close()));
@@ -152,63 +149,47 @@ $('permissionRows').addEventListener('change', e => {
   editing.permissions[module] = actions;
   renderPermissions(); renderPreview();
 });
-$('accountForm').addEventListener('submit', e => {
+$('accountForm').addEventListener('submit', async e => {
   e.preventDefault(); syncFields();
+  const button = e.target.querySelector('button[type=submit]'); button.disabled = true;
   try {
-    // Avoid silently overwriting a draft changed in another tab during editing.
-    if (localStorage.getItem(KEY) !== initialStorage) throw new Error('其他页面已修改草稿，请关闭编辑并刷新后重试。');
+    const original = accounts.find(a => a.id === editing.id);
     const account = validateAccount(editing, accounts);
-    if (!account.id) account.id = globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const next = accounts.some(a => a.id === account.id) ? accounts.map(a => a.id === account.id ? account : a) : [...accounts, account];
-    if (persist(next)) { initialStorage = localStorage.getItem(KEY); $('editor').close(); message('账号草稿已保存到此浏览器，尚未生效。'); }
+    const result = await api('accounts', { ...account, revision: original?.revision });
+    $('editor').close(); credentials(result.initial_password); await load();
+    message('账号及权限已保存。该账号原有登录会话已撤销。');
   } catch (error) {
-    $('formError').textContent = error.message;
-    $('formError').hidden = false;
-    $('formError').scrollIntoView({ block: 'nearest' });
-  }
+    $('formError').textContent = error.message; $('formError').hidden = false; $('formError').scrollIntoView({ block: 'nearest' });
+  } finally { button.disabled = false; }
 });
-$('accountRows').addEventListener('click', e => {
-  const button = e.target.closest('button');
-  if (!button) return;
+$('accountRows').addEventListener('click', async e => {
+  const button = e.target.closest('button'); if (!button) return;
   if (button.dataset.edit) openEditor(button.dataset.edit);
   if (button.dataset.toggle) {
     const account = accounts.find(a => a.id === button.dataset.toggle);
-    try {
-      if (localStorage.getItem(KEY) !== initialStorage) throw new Error('其他页面已修改草稿，请刷新后重试。');
-      const next = validateAccount({ ...account, enabled: !account.enabled }, accounts);
-      if (persist(accounts.map(a => a.id === next.id ? next : a))) { initialStorage = localStorage.getItem(KEY); message('已更新草稿状态，尚未影响真实访问。'); }
-    } catch (error) { message(error.message); }
+    button.disabled = true;
+    try { await api('accounts', { ...account, enabled: !account.enabled }); await load(); message('账号状态已更新，原登录会话已撤销。'); }
+    catch (error) { message(error.message); button.disabled = false; }
   }
-  if (button.dataset.delete) {
-    pendingDelete = button.dataset.delete;
+  if (button.dataset.reset) {
+    pendingDelete = button.dataset.reset;
     const account = accounts.find(a => a.id === pendingDelete);
-    $('confirmText').textContent = `将删除“${account.name}”在此浏览器保存的账号和权限草稿。此操作无法撤销。`;
-    $('confirmDialog').returnValue = '';
-    $('confirmDialog').showModal();
+    $('confirmText').textContent = `为“${account.name}”生成新密码，并立即撤销该账号的全部登录会话？`;
+    $('confirmDialog').returnValue = ''; $('confirmDialog').showModal();
   }
 });
-$('confirmDialog').addEventListener('close', () => {
+$('confirmDialog').addEventListener('close', async () => {
   if ($('confirmDialog').returnValue === 'delete') {
-    try {
-      if (localStorage.getItem(KEY) !== initialStorage) throw new Error('其他页面已修改草稿，请刷新后重试。');
-      if (persist(accounts.filter(a => a.id !== pendingDelete))) { initialStorage = localStorage.getItem(KEY); message('账号草稿已删除。'); }
-    } catch (error) { message(error.message); }
+    try { const result = await api('accounts/' + encodeURIComponent(pendingDelete) + '/reset-password', {}); credentials(result.initial_password); await load(); }
+    catch (error) { message(error.message); }
   }
   pendingDelete = '';
 });
+$('closeCredentials').addEventListener('click', () => { $('credentialDialog').close(); $('credentialValue').textContent = ''; });
+$('credentialDialog').addEventListener('close', () => { $('credentialValue').textContent = ''; });
 $('exportButton').addEventListener('click', () => {
-  const payload = { schema: 'xiong-access-draft/v1', enforcement: 'not_connected', exported_at: new Date().toISOString(), stores: STORES, modules: MODULES, accounts };
+  const payload = { schema: 'xiong-access/v1', enforcement: 'server', exported_at: new Date().toISOString(), stores: STORES, modules: MODULES, accounts };
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url; link.download = '熊小小-账号权限草稿.json'; link.click();
+  const link = document.createElement('a'); link.href = url; link.download = '熊小小-账号权限配置.json'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  message('已导出配置草稿，不包含密码或登录凭据。');
-});
-let initialStorage;
-try { initialStorage = localStorage.getItem(KEY); } catch { initialStorage = null; }
-window.addEventListener('storage', e => {
-  if (e.key === KEY || e.key === null) {
-    $('storageError').textContent = '其他页面已修改草稿。请先复制尚未保存的内容，再刷新此页面以读取最新版本。';
-    $('storageError').hidden = false;
-  }
 });

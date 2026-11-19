@@ -16,33 +16,35 @@
     <div class="side-note"><strong>按职责分配访问范围</strong><p>同一套系统，为不同同事配置各自的功能和门店。</p></div>
   </aside>
   <main>
-    <header class="page-head"><div><p class="eyebrow">系统管理 / 访问配置</p><h1>账号与权限</h1><p class="muted">把合适的功能，交给合适的人。</p></div><span class="draft-badge">本机配置草稿</span></header>
-    <div class="notice"><span aria-hidden="true">ⓘ</span><div><strong>配置可保存，访问限制尚未生效</strong><p>当前仅保存到此浏览器，不创建真实登录账号，也不限制现有页面、接口或 AI 问答。后续接入统一登录与后台校验后才能生效。请勿填写密码或敏感信息。</p></div></div>
+    <header class="page-head"><div><p class="eyebrow">系统管理 / 访问配置</p><h1>账号与权限</h1><p class="muted">把合适的功能，交给合适的人。</p></div><span class="draft-badge">后台权限已启用</span></header>
+    <div class="notice"><span aria-hidden="true">ⓘ</span><div><strong>账号与门店权限由后台统一校验</strong><p>保存后立即生效，原登录会话会被撤销。普通账号进入个人工作台，只能读取授权门店；原管理账号保留完整系统入口。修改用于提交申请，审批不代表平台已正式执行。</p></div></div>
     <div id="storageError" class="error" role="alert" hidden></div>
-    <section class="stats" aria-label="草稿概况"><article><span>账号草稿</span><strong id="accountCount">0</strong><small>此浏览器保存</small></article><article><span>计划启用</span><strong id="enabledCount">0</strong><small>待接入登录</small></article><article><span>已分配门店</span><strong id="assignedCount">0</strong><small id="storeTotal"></small></article><article><span>可配置功能</span><strong id="moduleCount">0</strong><small>查看 / 修改 / 审批 / 导出</small></article></section>
+    <section class="stats" aria-label="账号概况"><article><span>账号</span><strong id="accountCount">0</strong><small>后台统一保存</small></article><article><span>已启用</span><strong id="enabledCount">0</strong><small>独立账号登录</small></article><article><span>已分配门店</span><strong id="assignedCount">0</strong><small id="storeTotal"></small></article><article><span>可配置功能</span><strong id="moduleCount">0</strong><small>查看 / 修改 / 审批 / 导出</small></article></section>
     <section class="panel">
-      <div class="panel-head"><div><h2>人员与访问范围</h2><p class="muted">角色提供初始权限，每个账号都可单独调整。</p></div><div class="buttons"><button id="exportButton" type="button">导出配置草稿</button><button id="createButton" class="primary" type="button">＋ 新增账号草稿</button></div></div>
-      <div class="filters"><label class="search"><span class="sr-only">搜索姓名或账号</span><input id="search" type="search" placeholder="搜索姓名或账号"></label><label><span class="sr-only">筛选角色</span><select id="roleFilter"><option value="">全部角色</option></select></label><label><span class="sr-only">筛选状态</span><select id="statusFilter"><option value="">全部状态</option><option value="enabled">计划启用</option><option value="disabled">计划停用</option></select></label><span id="resultCount" class="muted" aria-live="polite"></span></div>
-      <div class="table-wrap"><table><thead><tr><th>人员 / 账号</th><th>角色</th><th>可见门店</th><th>功能范围</th><th>草稿状态</th><th>操作</th></tr></thead><tbody id="accountRows"></tbody></table></div>
-      <div id="emptyState" class="empty"><span class="empty-icon" aria-hidden="true">♙</span><h3>从第一个账号开始</h3><p>新增人员，选择角色，再勾选他可以访问的门店。</p><button id="emptyCreate" class="primary" type="button">新增账号草稿</button></div>
-      <footer class="panel-footer"><span>默认不授予未勾选的门店和功能</span><span>新增门店需重新授权 · 草稿不跨设备同步</span></footer>
+      <div class="panel-head"><div><h2>人员与访问范围</h2><p class="muted">角色提供初始权限，每个账号都可单独调整。</p></div><div class="buttons"><button id="exportButton" type="button">导出权限配置</button><button id="createButton" class="primary" type="button">＋ 新增账号</button></div></div>
+      <div class="filters"><label class="search"><span class="sr-only">搜索姓名或账号</span><input id="search" type="search" placeholder="搜索姓名或账号"></label><label><span class="sr-only">筛选角色</span><select id="roleFilter"><option value="">全部角色</option></select></label><label><span class="sr-only">筛选状态</span><select id="statusFilter"><option value="">全部状态</option><option value="enabled">已启用</option><option value="disabled">已停用</option></select></label><span id="resultCount" class="muted" aria-live="polite"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>人员 / 账号</th><th>角色</th><th>可见门店</th><th>功能范围</th><th>账号状态</th><th>操作</th></tr></thead><tbody id="accountRows"></tbody></table></div>
+      <div id="emptyState" class="empty"><span class="empty-icon" aria-hidden="true">♙</span><h3>从第一个账号开始</h3><p>新增人员，选择角色，再勾选他可以访问的门店。</p><button id="emptyCreate" class="primary" type="button">新增账号</button></div>
+      <footer class="panel-footer"><span>未授权的门店、原始文件和管理接口均禁止访问</span><span>新增门店需重新授权 · 跨设备同步 · 停用后立即撤销登录</span></footer>
     </section>
-    <section class="role-guide"><h2>角色模板</h2><div id="roleCards" class="role-cards"></div><p class="muted">门店范围需逐家选择；使用角色模板不会自动授予全部门店。推广预算、出价的修改与审批默认不授予普通角色。</p></section>
+    <section class="panel" style="margin-top:24px;padding:24px"><h2>最近权限操作</h2><p class="muted">记录账号创建、修改、密码重置及导出操作。密码不会写入日志。</p><div class="table-wrap"><table><thead><tr><th>时间</th><th>操作人</th><th>操作</th><th>对象</th></tr></thead><tbody id="auditRows"></tbody></table></div></section>
+    <section class="role-guide"><h2>角色模板</h2><div id="roleCards" class="role-cards"></div><p class="muted">普通角色需逐家选择门店；具备账号管理权限的总管理员必须覆盖全部门店。推广预算、出价的修改与审批默认不授予普通角色。</p></section>
   </main>
   <dialog id="editor" aria-labelledby="editorTitle">
     <form id="accountForm">
-      <header class="dialog-head"><div><p class="eyebrow">账号配置草稿</p><h2 id="editorTitle">新增账号草稿</h2></div><button type="button" id="closeEditor" class="icon-button" aria-label="关闭编辑">×</button></header>
+      <header class="dialog-head"><div><p class="eyebrow">账号权限配置</p><h2 id="editorTitle">新增账号</h2></div><button type="button" id="closeEditor" class="icon-button" aria-label="关闭编辑">×</button></header>
       <div class="dialog-body">
         <div id="formError" class="error" role="alert" hidden></div>
-        <fieldset><legend>基本信息</legend><div class="form-grid"><label>姓名 <span class="required">*</span><input id="name" name="name" maxlength="40" required autocomplete="off" placeholder="如：张店长"></label><label>登录账号标识 <span class="required">*</span><input id="username" name="username" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._@+\-]{2,63}" required autocomplete="off" placeholder="如：zhang.store"></label><label>角色<select id="role" name="role"></select></label><label>计划状态<select id="enabled"><option value="true">启用（草稿）</option><option value="false">停用（草稿）</option></select></label></div><label class="note-label">备注<input id="note" maxlength="300" placeholder="如：负责哪些业务、授权原因"></label></fieldset>
+        <fieldset><legend>基本信息</legend><div class="form-grid"><label>姓名 <span class="required">*</span><input id="name" name="name" maxlength="40" required autocomplete="off" placeholder="如：张店长"></label><label>登录账号标识 <span class="required">*</span><input id="username" name="username" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._@+\-]{2,63}" required autocomplete="off" placeholder="如：zhang.store"></label><label>角色<select id="role" name="role"></select></label><label>账号状态<select id="enabled"><option value="true">启用</option><option value="false">停用</option></select></label></div><label class="note-label">备注<input id="note" maxlength="300" placeholder="如：负责哪些业务、授权原因"></label></fieldset>
         <fieldset><legend>可见门店 <span id="selectedStores" class="count"></span></legend><p class="muted">仅勾选本次授权的门店。门店目录来自现有看板，区域归属待确认，暂按直营 / 加盟分组。</p><div class="store-tools"><input id="storeSearch" type="search" placeholder="搜索门店" aria-label="搜索门店"><button id="clearStores" type="button">清空选择</button></div><div id="storeGroups"></div></fieldset>
         <fieldset><legend>功能与操作权限</legend><div class="permission-help"><p class="muted">取消“查看”会同时取消该功能下的所有操作。</p><button type="button" id="applyRole">重新应用角色模板</button></div><div class="table-wrap"><table class="permission-table"><thead><tr><th>功能区域</th><th>查看</th><th>修改</th><th>审批</th><th>导出</th></tr></thead><tbody id="permissionRows"></tbody></table></div></fieldset>
-        <section class="preview" aria-labelledby="previewTitle"><h3 id="previewTitle">权限预览</h3><p id="previewSummary"></p><div id="previewModules" class="chips"></div><p class="muted">这是保存后的预期访问范围，当前不会改变真实访问权限。</p></section>
+        <section class="preview" aria-labelledby="previewTitle"><h3 id="previewTitle">权限预览</h3><p id="previewSummary"></p><div id="previewModules" class="chips"></div><p class="muted">保存后后台将按此范围校验数据、导出和申请操作。</p></section>
       </div>
-      <footer class="dialog-footer"><span class="muted">仅保存到此浏览器</span><div class="buttons"><button type="button" id="cancelEditor">取消</button><button class="primary" type="submit">保存草稿</button></div></footer>
+      <footer class="dialog-footer"><span class="muted">保存到后台，立即生效</span><div class="buttons"><button type="button" id="cancelEditor">取消</button><button class="primary" type="submit">保存账号与权限</button></div></footer>
     </form>
   </dialog>
-  <dialog id="confirmDialog" aria-labelledby="confirmTitle"><form method="dialog"><h2 id="confirmTitle">删除账号草稿？</h2><p id="confirmText"></p><div class="buttons"><button value="cancel">取消</button><button value="delete" class="danger">删除草稿</button></div></form></dialog>
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle"><form method="dialog"><h2 id="confirmTitle">重置账号密码？</h2><p id="confirmText"></p><div class="buttons"><button value="cancel">取消</button><button value="delete" class="danger">重置密码</button></div></form></dialog>
+  <dialog id="credentialDialog" aria-labelledby="credentialTitle" style="max-width:520px;padding:28px"><h2 id="credentialTitle">账号密码已生成</h2><p>密码仅在此显示一次，请通过安全方式交给账号本人。关闭后可重置密码，后台不会保存明文。</p><pre id="credentialValue" style="white-space:pre-wrap;user-select:all;padding:16px;background:#f1f5f9;font-size:20px"></pre><button type="button" id="closeCredentials">已记录，关闭</button></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

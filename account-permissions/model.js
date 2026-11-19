@@ -1,4 +1,4 @@
-// Draft configuration only. This module is not an authorization boundary.
+// UI schema only. The access-control service independently validates every permission.
 export const MODULES = [
   { id: 'direct-daily', name: '直营店日报', group: '经营数据', actions: ['view', 'export'] },
   { id: 'direct-reviews', name: '直营店评价', group: '经营数据', actions: ['view', 'edit', 'export'] },
@@ -19,10 +19,11 @@ export const ACTIONS = { view: '查看', edit: '修改', approve: '审批', expo
 export const ROLES = { admin: '总管理员', regional: '区域负责人', manager: '店长', finance: '财务', franchisee: '加盟商', custom: '自定义' };
 // Seed directory from the existing direct/franchise report target stores.
 // No city is inferred from store names. New stores must be explicitly selected.
-export const STORES = [
+export let STORES = [
   ...['朝阳门店', '银泰城店', '万象城店', '金融城店', '保利中心店'].map((name, i) => ({ id: `direct-${i + 1}`, name, group: '直营门店' })),
   ...['安贞', '中关村', '清河', '金融街', '丽泽', '双井', '光谷', '五一广场', '望京', '滨江店'].map((name, i) => ({ id: `franchise-${i + 1}`, name, group: '加盟门店' })),
 ];
+export function setStores(stores) { STORES = stores; }
 export function rolePermissions(role) {
   const ids = {
     regional: ['direct-daily', 'direct-reviews', 'overview', 'daily', 'reviews', 'budget', 'bidding', 'balances', 'ordering'],
