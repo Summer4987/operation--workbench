@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="${OPERATION_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+UI_SOURCE_ROOT="${OPERATION_UI_SOURCE_ROOT:-$ROOT}"
 SERVER="${OPERATION_CLOUD_SERVER:-ubuntu@139.155.148.169}"
 REMOTE_DIR="${OPERATION_CLOUD_REMOTE_DIR:-/var/www/html/operation-workbench}"
 PUBLIC_URL="${OPERATION_CLOUD_PUBLIC_URL:-http://139.155.148.169/operation-workbench/}"
@@ -54,6 +55,7 @@ import shutil
 import re
 
 root = Path("$ROOT")
+ui_root = Path("$UI_SOURCE_ROOT")
 stage = Path("$STAGE_DIR")
 version = "$DEPLOY_VERSION"
 if stage.exists():
@@ -61,13 +63,14 @@ if stage.exists():
 stage.mkdir(parents=True, exist_ok=True)
 (stage / "data").mkdir(parents=True, exist_ok=True)
 
-index = (root / "index.html").read_text(encoding="utf-8")
+index = (ui_root / "index.html").read_text(encoding="utf-8")
 for name in ("workbench-data.js", "workbench.js"):
     index = re.sub(rf'(\./{re.escape(name)}\?v=)[^"]+', rf'\g<1>{version}', index)
 (stage / "index.html").write_text(index, encoding="utf-8")
 
 for name in ("workbench.css", "workbench.js", "workbench-data.js"):
-    (stage / name).write_bytes((root / name).read_bytes())
+    asset_root = root if name == "workbench-data.js" else ui_root
+    (stage / name).write_bytes((asset_root / name).read_bytes())
 copy_agent_page = root / "agent.html"
 if copy_agent_page.exists():
     (stage / "agent.html").write_bytes(copy_agent_page.read_bytes())

@@ -165,8 +165,11 @@ def save_review(output, review):
 
 
 def click(page, label, helpers):
-    if not helpers["click_visible_text"](page, label):
-        raise RuntimeError(f"没有找到只读入口：{label}")
+    deadline = time.monotonic()+15
+    while not helpers["click_visible_text"](page, label):
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"没有找到只读入口：{label}")
+        page.wait_for_timeout(500)
     page.wait_for_timeout(1500)
 
 
@@ -226,8 +229,9 @@ def read_business(page, helpers, target_date, cached):
             flow = parse_flow(helpers["page_text"](page), target_date, active_today=active)
             if flow.get("conversion_updated_at"):
                 stamp = datetime.fromisoformat(flow["conversion_updated_at"]).replace(tzinfo=TZ)
-                if not 0 <= (now()-stamp).total_seconds() <= 20*60:
-                    raise ValueError("当日流量数据更新时间超过20分钟")
+                # This UI updates in delayed 15-minute batches, unlike the ad page.
+                if not 0 <= (now()-stamp).total_seconds() <= 45*60:
+                    raise ValueError("当日流量数据更新时间超过45分钟")
             return dict(income, **flow)
         except ValueError:
             if time.monotonic() >= deadline:
@@ -241,8 +245,9 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
                date=now().date().isoformat(), status="failed", collected_at=now().isoformat(timespec="seconds"))
     page = None
     coordinator = access.Coordinator()
-    account = access.for_task(task)
+    account = None
     try:
+        account = access.for_task(task)
         with coordinator.lease(account, wait_seconds=120):
             context = helpers["context_for_task"](pw, contexts, launched, task, accounts)
             page = context.new_page()
@@ -279,7 +284,7 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             return estimate(row)
     except Exception as exc:
         from platform_auth_guard import is_auth_failure
-        if is_auth_failure(exc) and not isinstance(exc, access.AccountAccessError):
+        if account and is_auth_failure(exc) and not isinstance(exc, access.AccountAccessError):
             coordinator.block(account, str(exc))
         # Persist only short text, not signed URLs / request tokens / page content.
         error = re.sub(r"https?://\S+", "[页面链接]", str(exc).split("Call log:")[0])[:240]
@@ -350,21 +355,29 @@ def main():
                       scheduled_time="21:00", timezone="Asia/Shanghai", model="推广进店量 × 全店下单转化率 × 预计收入/订单量 ÷ 实际推广消耗",
                       items=[dict(store=t.get("keyword"), platform="美团", status="pending") for t in tasks])
         save_review(output, review)
-        helpers = promo.require_helpers()
-        cache = read_json(root/"outputs/realtime_order_income/latest.json")
-        accounts = helpers["load_direct_meituan_accounts"]()
-        with helpers["sync_playwright"]() as pw:
-            contexts, launched = {}, []
-            for index, task in enumerate(tasks):
-                print(f"[{now().isoformat(timespec='seconds')}] ROI采集 {index+1}/{len(tasks)} {task.get('keyword')}", flush=True)
-                review["items"][index] = collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
-                review["generated_at"] = now().isoformat(timespec="seconds")
-                save_review(output, review)
-                if args.publish:
-                    try:
-                        publish(output)
-                    except (subprocess.SubprocessError, OSError) as exc:
-                        print(f"本店结果已保存在Mac mini，云端更新稍后重试：{type(exc).__name__}", flush=True)
+        try:
+            helpers = promo.require_helpers()
+            cache = read_json(root/"outputs/realtime_order_income/latest.json")
+            accounts = helpers["load_direct_meituan_accounts"]()
+            with helpers["sync_playwright"]() as pw:
+                contexts, launched = {}, []
+                for index, task in enumerate(tasks):
+                    print(f"[{now().isoformat(timespec='seconds')}] ROI采集 {index+1}/{len(tasks)} {task.get('keyword')}", flush=True)
+                    review["items"][index] = collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
+                    review["generated_at"] = now().isoformat(timespec="seconds")
+                    save_review(output, review)
+                    if args.publish:
+                        try:
+                            publish(output)
+                        except (subprocess.SubprocessError, OSError) as exc:
+                            print(f"本店结果已保存在Mac mini，云端更新稍后重试：{type(exc).__name__}", flush=True)
+        except Exception as exc:
+            error = re.sub(r"https?://\S+", "[页面链接]", str(exc).split("Call log:")[0])[:240]
+            review["error"] = error
+            for row in review["items"]:
+                if row.get("status") == "pending":
+                    row.update(status="failed", error="采集初始化或连接失败：" + error)
+            print("ROI采集异常：" + error, flush=True)
         review["status"] = "finished"
         save_review(output, review)
         if args.publish:

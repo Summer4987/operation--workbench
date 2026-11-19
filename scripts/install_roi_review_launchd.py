@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import plistlib
 import socket
+import shlex
 import subprocess
 import sys
 
@@ -31,6 +32,20 @@ def main():
     python = runtime/"business-report-dashboard/.venv/bin/python"
     if not python.exists():
         parser.error("生产Python环境不存在")
+    # Existing hourly publishers also send index.html. Use the GitHub checkout
+    # for UI assets so a later data-only publication cannot remove the new page.
+    launcher = Path.home()/"Library/Scripts/xiong-operation/deploy_workbench_to_cloud.zsh"
+    if launcher.exists():
+        backup = launcher.with_name(launcher.name+".before-roi")
+        if not backup.exists():
+            backup.write_bytes(launcher.read_bytes())
+            backup.chmod(0o700)
+    launcher.parent.mkdir(parents=True, exist_ok=True)
+    launcher.write_text("#!/bin/zsh\nset -euo pipefail\n" +
+                        "export OPERATION_UI_SOURCE_ROOT=" + shlex.quote(str(source)) + "\n" +
+                        "export OPERATION_ROOT=\"${OPERATION_ROOT:-" + str(runtime) + "}\"\n" +
+                        "exec /bin/zsh " + shlex.quote(str(source/"scripts/deploy_workbench_to_cloud.zsh")) + ' "$@"\n')
+    launcher.chmod(0o700)
     directory = Path.home()/"Library/LaunchAgents"
     logs = Path.home()/"Library/Logs/xiong-operation/promo_roi"
     directory.mkdir(parents=True, exist_ok=True)

@@ -1955,7 +1955,7 @@ function renderPromoRoi() {
   if (summary) summary.innerHTML = [["有效样本推广消耗", valid.length ? `¥${roiValue(spend)}` : "—"], ["估算推广收入", valid.length ? `¥${roiValue(income)}` : "—"], ["整体估算ROI", spend ? `${roiValue(income / spend)}倍` : "—"], ["有效 / 总样本", `${valid.length} / ${rows.length}`]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
   const labels = { ok: "已采集", pending: "等待采集", failed: "采集失败", no_spend: "零消耗", no_orders: "无订单" };
   const body = document.getElementById("roiRows");
-  if (body) body.innerHTML = rows.length ? rows.map((r) => `<tr><td>${escapeHtml(r.store || "未知门店")}${range !== "day" ? `<small>${escapeHtml(r.date)}</small>` : ""}</td><td>${roiValue(r.spend)}</td><td>${roiValue(r.promo_visits, 0)}</td><td>${r.conversion_rate == null ? "—" : `${roiValue(r.conversion_rate * 100)}%`}</td><td>${roiValue(r.average_ticket)}</td><td>${roiValue(r.estimated_orders, 1)}</td><td>${roiValue(r.estimated_income)}</td><td><strong>${r.roi == null ? "—" : `${roiValue(r.roi)}倍`}</strong></td><td>${escapeHtml(labels[r.status] || r.status || "待核实")}<small>${escapeHtml(r.error || r.collected_at || "")}</small>${r.income_updated_at ? `<small>收入 ${escapeHtml(r.income_updated_at)} · ${escapeHtml(r.income_source || "")}</small>` : ""}${r.promotion_updated_at ? `<small>推广 ${escapeHtml(r.promotion_updated_at)}</small>` : ""}</td></tr>`).join("") : '<tr><td colspan="9">尚无记录，每日21:00开始采集美团门店数据。</td></tr>';
+  if (body) body.innerHTML = rows.length ? rows.map((r) => `<tr><td>${escapeHtml(r.store || "未知门店")}${range !== "day" ? `<small>${escapeHtml(r.date)}</small>` : ""}</td><td>${roiValue(r.spend)}</td><td>${roiValue(r.promo_visits, 0)}</td><td>${r.conversion_rate == null ? "—" : `${roiValue(r.conversion_rate * 100)}%`}</td><td>${roiValue(r.average_ticket)}</td><td>${roiValue(r.estimated_orders, 1)}</td><td>${roiValue(r.estimated_income)}</td><td><strong>${r.roi == null ? "—" : `${roiValue(r.roi)}倍`}</strong></td><td>${escapeHtml(labels[r.status] || r.status || "待核实")}<small>${escapeHtml(r.error || r.collected_at || "")}</small>${r.income_updated_at ? `<small>收入 ${escapeHtml(r.income_updated_at)} · ${escapeHtml(r.income_source || "")}</small>` : ""}${r.promotion_updated_at ? `<small>推广 ${escapeHtml(r.promotion_updated_at)}</small>` : ""}${r.conversion_updated_at ? `<small>流量 ${escapeHtml(r.conversion_updated_at)}</small>` : ""}</td></tr>`).join("") : '<tr><td colspan="9">尚无记录，每日21:00开始采集美团门店数据。</td></tr>';
 }
 
 async function loadPromoRoi() {
@@ -1973,7 +1973,7 @@ async function loadPromoRoi() {
     const select = document.getElementById("roiDate");
     if (select) {
       const old = select.value;
-      select.innerHTML = roiHistory.map((day) => `<option value="${escapeHtml(day.date)}">${escapeHtml(day.date)}</option>`).join("");
+      select.innerHTML = roiHistory.length ? roiHistory.map((day) => `<option value="${escapeHtml(day.date)}">${escapeHtml(day.date)}</option>`).join("") : `<option value="${localDateText()}">${localDateText()} · 待采集</option>`;
       if (roiHistory.some((d) => d.date === old)) select.value = old;
     }
     renderPromoRoi();
