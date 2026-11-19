@@ -1949,7 +1949,8 @@ function renderPromoRoi() {
   const spend = valid.reduce((sum, r) => sum + r.spend, 0);
   const income = valid.reduce((sum, r) => sum + r.estimated_income, 0);
   const latest = days[0];
-  text("roiStatus", latest?.status === "running" ? "采集中" : rows.length ? (valid.length === rows.length ? "已采集" : "部分待核实") : "待采集");
+  const failedCount = rows.filter((r) => r.status === "failed").length;
+  text("roiStatus", latest?.status === "running" ? "采集中" : !rows.length ? "待采集" : failedCount === rows.length ? "采集失败" : failedCount ? "部分待核实" : "已采集");
   text("roiMeta", latest ? `${selected}${range === "day" ? "" : ` · 近${count}天，已有${days.length}天记录`} · 美团 · 最近更新 ${latest.generated_at} · 有效 ${valid.length}/${rows.length} 个门店日期样本` : "等待首次21点采集；尚无可用记录。");
   const summary = document.getElementById("roiSummary");
   if (summary) summary.innerHTML = [["有效样本推广消耗", valid.length ? `¥${roiValue(spend)}` : "—"], ["估算推广收入", valid.length ? `¥${roiValue(income)}` : "—"], ["整体估算ROI", spend ? `${roiValue(income / spend)}倍` : "—"], ["有效 / 总样本", `${valid.length} / ${rows.length}`]].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
