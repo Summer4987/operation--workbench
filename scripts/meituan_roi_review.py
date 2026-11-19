@@ -83,6 +83,10 @@ def promo_store_id(urls, expected):
     return ids.pop()
 
 
+def merchant_url(target):
+    return "https://e.waimai.meituan.com/#" + target if target.startswith("https://waimaieapp.meituan.com/") else target
+
+
 def parse_overview(text, target_date):
     match = re.search(r"(\d{2}-\d{2})\s+(\d{2}:\d{2})\s*更新", text)
     if "今日实时数据" not in text or not match or match[1] != target_date[5:]:
@@ -208,9 +212,20 @@ def open_headquarters_promotion(page, task, helpers, promo):
         if time.monotonic() >= deadline:
             raise ValueError("切换后页面门店身份未确认")
         page.wait_for_timeout(500)
-    # Reuse the established read-only navigation after identity is confirmed.
+    # Obtain this selected store's live authenticated iframe, then open the
+    # established CPC route directly; budget editor readiness is irrelevant.
     click(page, "门店推广", helpers)
-    helpers["enter_dianjin_with_recovery"](page, page.url)
+    deadline = time.monotonic()+25
+    while True:
+        candidates = [frame.url for frame in page.frames if "waimaieapp.meituan.com/ad/v1/" in frame.url]
+        if candidates:
+            target = promo.dianjin_url_for_store(candidates[0], str(task.get("wmPoiId") or ""), helpers)
+            page.goto(merchant_url(target), wait_until="domcontentloaded", timeout=45000)
+            return
+        promo.raise_if_meituan_verify_page(page)
+        if time.monotonic() >= deadline:
+            raise ValueError("目标门店推广页面未加载")
+        page.wait_for_timeout(500)
 
 
 def read_business(page, helpers, target_date, cached):
@@ -267,12 +282,10 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             if task.get("directMeituanAccountId"):
                 base = helpers["base_url_for_task"]("", task, accounts, context)
                 target = promo.dianjin_url_for_store(base, row["wm_poi_id"], helpers)
-                if target.startswith("https://waimaieapp.meituan.com/"):
-                    target = "https://e.waimai.meituan.com/#" + target
-                page.goto(target, wait_until="domcontentloaded", timeout=45000)
-                helpers["enter_dianjin_with_recovery"](page, page.url)
+                page.goto(merchant_url(target), wait_until="domcontentloaded", timeout=45000)
             else:
                 open_headquarters_promotion(page, task, helpers, promo)
+            print(f"  {row['store']}：读取当日推广进店和消耗", flush=True)
             page.reload(wait_until="domcontentloaded", timeout=45000)
             deadline = time.monotonic() + 25
             while True:
@@ -294,6 +307,7 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             stamp = datetime.fromisoformat(fields["promotion_updated_at"]).replace(tzinfo=TZ)
             if not 0 <= (now()-stamp).total_seconds() <= 20*60:
                 raise ValueError("推广页面更新时间超过20分钟，未将旧页面作为本轮数据")
+            print(f"  {row['store']}：读取当日转化率、收入和订单", flush=True)
             row.update(read_business(page, helpers, row["date"], cached_income(cache, task, now())))
             if now().date().isoformat() != row["date"]:
                 raise ValueError("采集跨日，未合并两个日期的数据")
