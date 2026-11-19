@@ -415,6 +415,33 @@
         "确认生成后的合同内容"
       ],
       "next_integration_step": "合同模板接收清单、初始化脚本和字段清单模板已接入，下一步在模板到位后做字段映射。"
+    },
+    {
+      "id": "growth.promo_roi",
+      "name": "美团推广ROI复盘",
+      "center": "全品牌推广中心",
+      "module": "推广ROI复盘",
+      "status": "running",
+      "risk": "low",
+      "schedule": "每天北京时间21:00，由Mac mini launchd触发",
+      "entrypoints": [
+        "scripts/meituan_roi_review.py",
+        "scripts/install_roi_review_launchd.py"
+      ],
+      "outputs": [
+        "outputs/promo_roi/latest.json",
+        "outputs/promo_roi/history.json"
+      ],
+      "health_checks": [
+        "只读采集同店同平台当日数据",
+        "失败单列、不沿用昨日数据",
+        "汇总ROI使用估算收入合计除以对应消耗合计"
+      ],
+      "human_needed_when": [
+        "平台登录失效或安全验证",
+        "云端发布身份不可用"
+      ],
+      "next_integration_step": "第一天先采集美团，饿了么后续单独接入。"
     }
   ]
 }

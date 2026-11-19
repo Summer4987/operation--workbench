@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>熊小小AI管理系统</title>
-    <link rel="stylesheet" href="./workbench.css?v=20261015-review-page-scores" />
+    <link rel="stylesheet" href="./workbench.css?v=20261119-promo-roi" />
   </head>
   <body>
     <main class="app">
@@ -41,6 +41,7 @@
               <a href="#budget">推广预算全自动设置</a>
               <a href="#bidding">推广出价调整</a>
               <a href="#balances">推广余额预警</a>
+              <a href="#promo-roi">推广 ROI 复盘</a>
             </div>
           </section>
 
@@ -220,6 +221,21 @@
         </section>
 
 
+        <section class="center-section" id="promo-roi">
+          <div class="section-head"><p>全品牌推广中心</p><h2>推广 ROI 复盘</h2></div>
+          <article class="module wide-module">
+            <div class="module-head"><div><p>美团 · 每日21:00开始采集</p><h2>推广花费与估算收入回报</h2></div><span class="tag testing" id="roiStatus">待采集</span></div>
+            <div class="module-body">
+              <div class="roi-controls"><label>数据日期 <select id="roiDate" aria-label="ROI复盘日期"></select></label><label>查看范围 <select id="roiRange"><option value="day">当日</option><option value="7">截至所选日期近7天</option><option value="30">截至所选日期近30天</option></select></label><button type="button" class="confirm-button" id="roiRefresh">刷新数据</button></div>
+              <p id="roiMeta" role="status">等待首次21点采集。</p>
+              <div class="roi-summary" id="roiSummary"></div>
+              <p class="roi-note">估算 ROI＝推广进店量 × 当日全店下单转化率 ×（预计收入 ÷ 订单量）÷ 实际推广消耗。统一采用全店转化率和客单价估算推广流量的收入回报。</p>
+              <div class="roi-table-wrap"><table class="roi-table"><thead><tr><th>门店</th><th>推广消耗</th><th>推广进店</th><th>下单转化率</th><th>收入客单价</th><th>估算订单</th><th>估算收入</th><th>估算ROI</th><th>采集状态 / 时间</th></tr></thead><tbody id="roiRows"><tr><td colspan="9">等待采集数据</td></tr></tbody></table></div>
+              <p class="roi-note">汇总仅纳入字段完整且有推广消耗的门店日期；整体 ROI＝纳入样本估算收入合计 ÷ 对应推广消耗合计。缺失、失败和零消耗单列，不按0填充。</p>
+            </div>
+          </article>
+        </section>
+
         <section class="center-section" id="budget">
           <div class="section-head">
             <p>全品牌推广中心</p>
@@ -378,6 +394,6 @@
       </section>
     </main>
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
-    <script src="./workbench.js?v=20260805-realtime-snapshots"></script>
+    <script src="./workbench.js?v=20261119-promo-roi"></script>
   </body>
 </html>
