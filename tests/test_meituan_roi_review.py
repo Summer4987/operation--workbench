@@ -46,6 +46,12 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             roi.promo_store_id(urls[:1],"28944820")
 
+    def test_retry_is_limited_to_loading_errors(self):
+        self.assertTrue(roi.retryable(dict(status="failed",error="推广页实时日期未确认或不是目标日期")))
+        for message in ["美团安全验证", "登录态失效", "门店ID不一致", "页面门店身份不符", "同账号队列忙"]:
+            self.assertFalse(roi.retryable(dict(status="failed",error=message)))
+        self.assertFalse(roi.retryable(dict(status="ok",error="Timeout")))
+
     def test_estimate_and_weighted_summary(self):
         a = roi.estimate(dict(spend=200, promo_visits=100, conversion_rate=.3, income=3000, orders=100))
         b = roi.estimate(dict(spend=100, promo_visits=20, conversion_rate=.5, income=2000, orders=100))

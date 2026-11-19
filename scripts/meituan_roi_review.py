@@ -169,6 +169,18 @@ def summarize(rows):
                 estimated_orders=sum(r["estimated_orders"] for r in valid), roi=income/spend if spend else None)
 
 
+def display_store(task):
+    name = task.get("keyword") or task.get("sourceStore") or task.get("store") or "未知门店"
+    return {"第3档口": "中关村", "川湘府": "清河", "雅宝": "朝阳门"}.get(name, name)
+
+
+def retryable(row):
+    error = str(row.get("error") or "")
+    if row.get("status") != "failed" or any(word in error for word in ("验证", "登录", "身份", "门店ID", "队列忙")):
+        return False
+    return any(word in error for word in ("实时日期未确认", "未唯一匹配目标门店", "没有找到只读入口", "未加载", "Timeout", "超时", "Target page"))
+
+
 def save_review(output, review):
     review["summary"] = summarize(review["items"])
     if review.get("status") != "running":
@@ -283,7 +295,7 @@ def read_business(page, helpers, target_date, cached, task):
 
 def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo):
     import platform_account_access as access
-    row = dict(store=task.get("keyword") or task.get("sourceStore"), platform="美团", wm_poi_id=str(task.get("wmPoiId") or ""),
+    row = dict(store=display_store(task), platform="美团", wm_poi_id=str(task.get("wmPoiId") or ""),
                date=now().date().isoformat(), status="failed", collected_at=now().isoformat(timespec="seconds"))
     page = None
     preserve_page = False
@@ -415,7 +427,7 @@ def main():
         target_date = now().date().isoformat()
         review = dict(date=target_date, generated_at=now().isoformat(timespec="seconds"), status="running", platform="美团",
                       scheduled_time="21:00", timezone="Asia/Shanghai", model="推广进店量 × 全店下单转化率 × 预计收入/订单量 ÷ 实际推广消耗",
-                      items=[dict(store=t.get("keyword"), platform="美团", status="pending") for t in tasks])
+                      items=[dict(store=display_store(t), platform="美团", status="pending") for t in tasks])
         save_review(output, review)
         try:
             helpers = promo.require_helpers()
@@ -426,6 +438,11 @@ def main():
                 for index, task in enumerate(tasks):
                     print(f"[{now().isoformat(timespec='seconds')}] ROI采集 {index+1}/{len(tasks)} {task.get('keyword')}", flush=True)
                     review["items"][index] = collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
+                    if retryable(review["items"][index]):
+                        previous_error = review["items"][index]["error"]
+                        print(f"  {display_store(task)}：页面加载未完成，重新只读采集一次", flush=True)
+                        review["items"][index] = collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
+                        review["items"][index].update(retry_count=1, previous_error=previous_error)
                     review["generated_at"] = now().isoformat(timespec="seconds")
                     save_review(output, review)
                     if args.publish:
