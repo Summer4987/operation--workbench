@@ -115,6 +115,7 @@ def collect_all_balances(*, fleet_only=False) -> tuple[dict, bool]:
     items: list[dict] = []
     errors: list[str] = []
     source_urls: dict[str, str] = {}
+    platform_issues: list[dict] = []
 
     for platform_name, collector in [
         ("饿了么", reuse_eleme_balances if fleet_only else collect_eleme),
@@ -131,6 +132,7 @@ def collect_all_balances(*, fleet_only=False) -> tuple[dict, bool]:
             print(f"{platform_name} CDP 完成：{len(platform_items)} 条结果。", flush=True)
         except Exception as exc:
             errors.append(f"{platform_name}：{exc}")
+            platform_issues.append({"platform": platform_name, "store_name": "全部门店", "message": str(exc)})
             print(f"{platform_name} CDP 失败：{exc}", flush=True)
 
     try:
@@ -142,7 +144,7 @@ def collect_all_balances(*, fleet_only=False) -> tuple[dict, bool]:
     data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么", "美团"})
     data["source"] = "cdp_all_balances"
     data["collected_platforms"] = sorted({item["platform"] for item in items})
-    data["balance_collection_issues"] = balance_issues
+    data["balance_collection_issues"] = balance_issues + platform_issues
     if balance_issues:
         print(f"美团龙虾余额未核实：{len(balance_issues)} 家。", flush=True)
     print(f"美团龙虾余额完成：{len(meituan_items)} 家；只读本地快照，未启动采集进程。", flush=True)

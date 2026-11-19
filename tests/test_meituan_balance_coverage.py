@@ -55,3 +55,4 @@ def test_fleet_only_never_starts_browser_and_preserves_original_eleme_time(tmp_p
         path.write_text(json.dumps(payload))
         payload,ok=module.collect_all_balances(fleet_only=True)
         assert not ok and all(i['platform']=='美团' for i in payload['items'])
+        assert any(i['platform']=='饿了么' for i in payload['balance_collection_issues'])
