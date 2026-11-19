@@ -83,19 +83,24 @@ def parse_overview(text, target_date):
     return dict(income=income, orders=int(orders), income_source="经营总览·今日实时", income_updated_at=f"{target_date} {match[2]}:00")
 
 
-def parse_flow(text, target_date):
+def parse_flow(text, target_date, *, active_today=False):
     selected = re.search(r"已选时间\s*[:：]?\s*(\d{4}-\d{2}-\d{2})", text)
-    if not selected or selected[1] != target_date:
+    stamp = re.search(r"(\d{2}-\d{2})\s+(\d{2}:\d{2})\s*更新", text)
+    confirmed = selected[1] == target_date if selected else active_today and stamp and stamp[1] == target_date[5:]
+    if not confirmed:
         raise ValueError("流量页面未确认目标日期，拒绝使用昨日或其他日期转化率")
     # The left (本店) funnel appears before the right peer funnel.
     panel = text.split("流量转化", 1)[-1].split("经营建议", 1)[0]
-    match = re.search(NUMBER + r"\s*%\s*下单转化率", panel)
+    match = re.search(NUMBER + r"\s*%?\s*下单转化率", panel)
     if not match:
         match = re.search(r"下单转化率\s*" + NUMBER + r"\s*%", panel)
     rate = numeric(match[1]) / 100 if match else None
     if rate is None or not 0 <= rate <= 1:
         raise ValueError("流量页面未读取到本店下单转化率")
-    return dict(conversion_rate=rate, conversion_source="经营数据·流量·今日实时")
+    result = dict(conversion_rate=rate, conversion_source="经营数据·流量·今日实时")
+    if stamp:
+        result["conversion_updated_at"] = f"{target_date} {stamp[2]}:00"
+    return result
 
 
 def cached_income(payload, task, at, max_age_minutes=20):
@@ -165,6 +170,34 @@ def click(page, label, helpers):
     page.wait_for_timeout(1500)
 
 
+def open_headquarters_promotion(page, task, helpers, promo):
+    """The current dropdown is .roo-popup li; placement may be top or bottom."""
+    page.goto(promo.HEADQUARTERS_HOME_URL, wait_until="domcontentloaded", timeout=45000)
+    selector = page.locator(".current-poi_31GHxd").first
+    selector.wait_for(state="visible", timeout=20000)
+    promo.dismiss_common_modals(page)
+    selector.click(timeout=8000)
+    items = page.locator(".roo-popup:visible li")
+    items.first.wait_for(state="visible", timeout=10000)
+    aliases = promo.task_store_aliases(task)
+    matches = []
+    for index in range(items.count()):
+        name = items.nth(index).inner_text()
+        if "全部门店" not in name and any(alias in name for alias in aliases):
+            matches.append(index)
+    if len(matches) != 1:
+        raise ValueError("总部账号未唯一匹配目标门店：" + str(task.get("keyword")))
+    items.nth(matches[0]).click(timeout=8000)
+    deadline = time.monotonic()+20
+    while not any(alias in selector.inner_text() for alias in aliases):
+        if time.monotonic() >= deadline:
+            raise ValueError("切换后页面门店身份未确认")
+        page.wait_for_timeout(500)
+    # Reuse the established read-only navigation after identity is confirmed.
+    click(page, "门店推广", helpers)
+    helpers["enter_dianjin_with_recovery"](page, page.url)
+
+
 def read_business(page, helpers, target_date, cached):
     click(page, "经营罗盘", helpers)
     click(page, "经营数据", helpers)
@@ -180,7 +213,22 @@ def read_business(page, helpers, target_date, cached):
     deadline = time.monotonic() + 25
     while True:
         try:
-            return dict(income, **parse_flow(helpers["page_text"](page), target_date))
+            # The realtime page has no selected-date label; verify the UI tab,
+            # then use its own explicit MM-DD update timestamp.
+            active = False
+            for frame in page.frames:
+                today = frame.get_by_text("今日实时", exact=True)
+                if today.count() == 1:
+                    classes = today.evaluate("el => [el, el.parentElement].map(e => e.className).join(' ')")
+                    active = bool(re.search(r"active|selected|checked", classes, re.I))
+                    if active:
+                        break
+            flow = parse_flow(helpers["page_text"](page), target_date, active_today=active)
+            if flow.get("conversion_updated_at"):
+                stamp = datetime.fromisoformat(flow["conversion_updated_at"]).replace(tzinfo=TZ)
+                if not 0 <= (now()-stamp).total_seconds() <= 20*60:
+                    raise ValueError("当日流量数据更新时间超过20分钟")
+            return dict(income, **flow)
         except ValueError:
             if time.monotonic() >= deadline:
                 raise
@@ -204,7 +252,7 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
                 page.goto(promo.dianjin_url_for_store(base, row["wm_poi_id"], helpers), wait_until="domcontentloaded", timeout=45000)
                 helpers["enter_dianjin_with_recovery"](page, page.url)
             else:
-                promo.open_headquarters_promo_page(page, task, helpers)
+                open_headquarters_promotion(page, task, helpers, promo)
             page.reload(wait_until="domcontentloaded", timeout=45000)
             deadline = time.monotonic() + 25
             while True:

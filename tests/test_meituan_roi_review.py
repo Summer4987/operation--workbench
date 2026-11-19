@@ -30,6 +30,14 @@ class ReviewTests(unittest.TestCase):
         text = "今日实时数据\n11-19 21:02更新\n预计订单收入\n3,000.00\n比昨日同时段\n20\n订单量\n100\n历史收益概览\n订单量\n200"
         self.assertEqual(roi.parse_overview(text, "2026-11-19")["orders"], 100)
 
+    def test_realtime_flow_css_percent_requires_selected_today(self):
+        text = "今日实时 昨日 11-19 21:00更新 流量转化 本店 8.12 入店转化率 33.61 下单转化率 2,930人 238人 80人 7.29 入店转化率 32.29 下单转化率"
+        self.assertAlmostEqual(roi.parse_flow(text,"2026-11-19",active_today=True)["conversion_rate"],.3361)
+        with self.assertRaises(ValueError):
+            roi.parse_flow(text,"2026-11-19")
+        with self.assertRaises(ValueError):
+            roi.parse_flow(text,"2026-11-20",active_today=True)
+
     def test_estimate_and_weighted_summary(self):
         a = roi.estimate(dict(spend=200, promo_visits=100, conversion_rate=.3, income=3000, orders=100))
         b = roi.estimate(dict(spend=100, promo_visits=20, conversion_rate=.5, income=2000, orders=100))
