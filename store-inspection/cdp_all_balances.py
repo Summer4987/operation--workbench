@@ -8,6 +8,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from longxia_promo_snapshot import read_balance_items
+
 import cdp_eleme_balance
 import cdp_meituan_balance
 import cdp_direct_meituan_balance
@@ -112,19 +115,25 @@ def collect_all_balances() -> tuple[dict, bool]:
             errors.append(f"{platform_name}：{exc}")
             print(f"{platform_name} CDP 失败：{exc}", flush=True)
 
-    data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么"})
+    try:
+        meituan_items, balance_issues = read_balance_items()
+    except Exception as exc:
+        meituan_items = []
+        balance_issues = [{"platform": "美团", "store_name": "全部门店", "message": str(exc)}]
+    items.extend(meituan_items)
+    data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么", "美团"})
     data["source"] = "cdp_all_balances"
-    data["collected_platforms"] = ["饿了么"]
-    data["delegated_platforms"] = {"美团": {
-        "source": "longxia_snapshot", "status": "delegated",
-        "message": "美团推广数据由龙虾店长统一读取；本任务不进入单店推广页。龙虾快照未提供账户余额，余额未核实。",
-    }}
+    data["collected_platforms"] = sorted({item["platform"] for item in items})
+    data["balance_collection_issues"] = balance_issues
+    if balance_issues:
+        print(f"美团龙虾余额未核实：{len(balance_issues)} 家。", flush=True)
+    print(f"美团龙虾余额完成：{len(meituan_items)} 家；只读本地快照，未启动采集进程。", flush=True)
     data["source_urls"] = source_urls
     data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if errors:
+    if errors or balance_issues:
         data["message"] = "；".join(errors)
         data["status"] = "partial" if items else "failed"
-    return data, bool(items and not errors)
+    return data, bool(items and not errors and not balance_issues)
 
 
 def main(argv: list[str] | None = None) -> int:

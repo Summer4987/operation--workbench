@@ -64,3 +64,50 @@ def read_records(tasks, *, path=None, config_path=None, now=None):
                         record['budget_percent'] = round(spend / budget * 100, 1) if budget else None
         records.append(record)
     return records
+
+
+def read_balance_items(*, path=None, config_path=None, now=None):
+    """Reuse fleet reads; no browser, subprocess, queue lease or platform request."""
+    now = int(time.time() * 1000) if now is None else now
+    day = datetime.fromtimestamp(now / 1000, TZ).strftime('%F')
+    items, issues = [], []
+    config = json.loads(Path(config_path or CONFIG_PATH).read_text())['longxia']['stores']
+    if not config or len({r['profileId'] for r in config}) != len(config):
+        raise ValueError('龙虾余额门店配置缺失或身份重复')
+    try:
+        source = Path(path or SNAPSHOT_PATH)
+        if source.stat().st_size > 524288:
+            raise ValueError('快照过大')
+        data = json.loads(source.read_text())
+        generated = data.get('generatedAt')
+        rows = data.get('stores')
+        if data.get('schema') != 1 or type(generated) is not int or not -60000 <= now-generated <= 90000:
+            raise ValueError('龙虾状态文件缺失或过期')
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 16 or any(not isinstance(r, dict) or not r.get('id') for r in rows):
+            raise ValueError('龙虾门店清单无效')
+        by_id = {r['id']: r for r in rows}
+        if len(by_id) != len(rows):
+            raise ValueError('龙虾门店身份重复')
+        error = ''
+    except (OSError, ValueError, TypeError) as exc:
+        by_id, error = {}, '龙虾余额快照不可用：' + type(exc).__name__
+    for store in config:
+        row = by_id.get(store['profileId'], {})
+        at, balance = row.get('snapshotAt'), row.get('accountBalance')
+        reason = error
+        if not reason:
+            if row.get('paused') or row.get('status') in {'error', 'inspection_paused', 'pending'}:
+                reason = '门店巡检暂停、异常或有待核对保存'
+            elif row.get('day') != day or type(at) is not int or not -60000 <= now-at <= MAX_SNAPSHOT_AGE_MS:
+                reason = '尚无当日有效余额快照或快照已过期'
+            elif type(balance) is not int or abs(balance) > 10**12:
+                reason = '推广页未读到账户余额（不能用剩余预算替代）'
+        name = store.get('name') or store.get('sourceStore') or store['profileId']
+        if reason:
+            issues.append({'platform': '美团', 'store_name': name, 'message': reason})
+        else:
+            items.append({'platform': '美团', 'store_name': name, 'balance': balance / 100,
+                          'source': '龙虾店长账户余额快照', 'confirmed_zero': balance == 0,
+                          'balance_field': 'accountBalance',
+                          'collected_at': datetime.fromtimestamp(at/1000, TZ).strftime('%F %T')})
+    return items, issues

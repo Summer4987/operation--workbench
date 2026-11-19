@@ -247,13 +247,19 @@ def load_promo_balance_alert_tasks(path: Path = DEFAULT_PROMO_BALANCE_STATUS_PAT
     if payload.get("status") != "warning" or summary.get("source_is_stale"):
         return {}
     items = payload.get("low_balance_items") if isinstance(payload.get("low_balance_items"), list) else []
-    if not items:
+    issues = payload.get("balance_collection_issues") or []
+    if not items and not issues:
         return {}
     source_generated_at = str(payload.get("source_generated_at") or payload.get("generated_at") or "")
+    message = low_balance_notice_text(items, source_generated_at) if items else "本轮没有已确认的低余额门店。"
+    if issues:
+        message += "\n\n余额采集异常（不能视为余额充足）：\n" + "\n".join(
+            f"{item.get('platform')}｜{item.get('store_name')}｜{item.get('message')}" for item in issues
+        )
     return {
         "growth.promo_balance.low_balance": {
             "status": "warning",
-            "message": low_balance_notice_text(items, source_generated_at),
+            "message": message,
             "step": "推广余额巡检",
             "log_path": "outputs/promo_balance_status/latest.json",
             "failure_type": "low_balance",
@@ -486,10 +492,17 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
     now = time.time()
     policy_rows = load_policy_rows()
     promo_balance_period = str(getattr(args, "promo_balance_period", "") or "")
-    if promo_balance_period:
+    balance_refresh = bool(getattr(args, "promo_balance_refresh", False))
+    if promo_balance_period or balance_refresh:
         task_candidates = load_promo_balance_alert_tasks()
         notification_slot = f"{time.strftime('%Y-%m-%d')}|{promo_balance_period}"
         for task in task_candidates.values():
+            if balance_refresh:
+                payload = read_json(DEFAULT_PROMO_BALANCE_STATUS_PATH, {})
+                members = sorted((str(i.get('platform')), str(i.get('store_name'))) for i in payload.get('low_balance_items', []))
+                missing = sorted((str(i.get('platform')), str(i.get('store_name'))) for i in payload.get('balance_collection_issues', []))
+                signature = hashlib.sha256(json.dumps([members, missing], ensure_ascii=False).encode()).hexdigest()[:20]
+                notification_slot = f"{time.strftime('%Y-%m-%d')}|余额巡检|{signature}"
             task["notification_slot"] = notification_slot
     else:
         task_candidates = dict(tasks)
@@ -598,11 +611,12 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
         "batch_progress": batch_progress,
     }
     if not args.no_write:
-        if promo_balance_period and notifications and not args.dry_run:
-            receipt_path = state_path.parent / "receipts" / f"{time.strftime('%Y-%m-%d')}-{promo_balance_period}.json"
+        if (promo_balance_period or balance_refresh) and notifications and not args.dry_run:
+            receipt_period = promo_balance_period or f"余额巡检-{time.strftime('%H%M%S')}"
+            receipt_path = state_path.parent / "receipts" / f"{time.strftime('%Y-%m-%d')}-{receipt_period}.json"
             write_json(receipt_path, {
                 "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "period": promo_balance_period,
+                "period": promo_balance_period or "余额巡检",
                 "source_generated_at": next(iter(task_candidates.values()), {}).get("finished_at", ""),
                 "dry_run": bool(args.dry_run),
                 "notifications": notifications,
@@ -635,6 +649,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="只打印将发送的通知，不实际发送")
     parser.add_argument("--no-write", action="store_true", help="不写 state/log 文件")
     parser.add_argument("--include-unconfigured", action="store_true", help="允许未进入通知配置的任务主动推送")
+    parser.add_argument("--promo-balance-refresh", action="store_true", help="余额刷新后推送；同日同一低余额/缺失门店清单去重")
     parser.add_argument(
         "--promo-balance-period",
         choices=("上午", "下午"),
@@ -660,7 +675,7 @@ def main() -> int:
         for item in payload["notifications"]:
             print(f"- {item['task_id']} {item['status']} delivered={item['delivered']}")
             print(f"  发送回执：{item['delivery_output']}")
-    if args.promo_balance_period and not args.dry_run and any(
+    if (args.promo_balance_period or args.promo_balance_refresh) and not args.dry_run and any(
         not item["delivered"] for item in payload["notifications"]
     ):
         return 1

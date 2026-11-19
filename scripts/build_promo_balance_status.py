@@ -370,6 +370,9 @@ def platform_rows(payload: dict, failures: list[dict]) -> list[dict]:
         delegated = (payload.get("delegated_platforms") or {}).get(row["platform"])
         if delegated:
             row.update(delegated)
+        missing = [i for i in payload.get("balance_collection_issues", []) if i.get("platform") == row["platform"]]
+        if missing:
+            row.update(status="warning", message=f"{len(missing)} 家门店余额未采到", human_action="检查龙虾门店巡检或人工验证，余额未知不能视为充足。")
     extra = [item for item in failures if item["platform"] not in PLATFORMS]
     return rows + extra
 
@@ -433,6 +436,7 @@ def build_status(payload: dict) -> dict:
     warnings = [] if is_stale else low_balance_items(payload)
     excluded_warnings = [] if is_stale else excluded_low_balance_items(payload)
     unconfirmed_items = [] if is_stale else unconfirmed_balance_items(payload)
+    balance_collection_issues = payload.get("balance_collection_issues") or []
     platform_failure_count = len(failures)
     coverage_missing_count = sum(len(row.get("missing_stores") or []) for row in coverage_rows)
     low_balance_count = len(warnings)
@@ -457,9 +461,11 @@ def build_status(payload: dict) -> dict:
     elif platform_failure_count and not store_count:
         status = "failed"
         message = f"推广余额巡检失败：{platform_failure_count} 个平台需要人工处理。"
-    elif platform_failure_count or coverage_missing_count or low_balance_count or unconfirmed_count:
+    elif platform_failure_count or coverage_missing_count or low_balance_count or unconfirmed_count or balance_collection_issues:
         status = "warning"
         parts = []
+        if balance_collection_issues:
+            parts.append(f"{len(balance_collection_issues)} 家门店余额未采到")
         if platform_failure_count:
             parts.append(f"{platform_failure_count} 个平台巡检失败")
         if coverage_missing_count:
@@ -511,6 +517,7 @@ def build_status(payload: dict) -> dict:
             "low_balance_count": low_balance_count,
             "excluded_low_balance_count": len(excluded_warnings),
             "balance_unconfirmed_count": unconfirmed_count,
+            "balance_collection_missing_count": len(balance_collection_issues),
             "store_count": store_count,
             "platform_count": platform_count,
             "warning_threshold": threshold,
@@ -531,6 +538,7 @@ def build_status(payload: dict) -> dict:
         "platforms": platform_rows_payload,
         "direct_coverage": direct_coverage,
         "direct_coverage_issues": coverage_rows,
+        "balance_collection_issues": balance_collection_issues,
         "low_balance_items": warnings,
         "excluded_low_balance_items": excluded_warnings,
         "unconfirmed_balance_items": unconfirmed_items,

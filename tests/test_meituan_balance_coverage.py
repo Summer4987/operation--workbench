@@ -17,12 +17,13 @@ def test_total_balance_collection_delegates_meituan_without_browser_fallback():
     items = [{"platform": "饿了么", "store_name": "测试", "balance": 500}]
     with patch.object(module, "collect_eleme", return_value=(items, "")), \
          patch.object(module, "collect_meituan", side_effect=AssertionError("must not browse")), \
-         patch.object(module, "collect_direct_meituan", side_effect=AssertionError("must not browse")):
+         patch.object(module, "collect_direct_meituan", side_effect=AssertionError("must not browse")), \
+         patch.object(module, "read_balance_items", return_value=([{ "platform": "美团", "store_name": "望京", "balance": 12.34}], [])):
         payload, ok = module.collect_all_balances()
     assert ok
-    assert payload["collected_platforms"] == ["饿了么"]
-    assert payload["delegated_platforms"]["美团"]["status"] == "delegated"
-    assert "余额未核实" in payload["delegated_platforms"]["美团"]["message"]
+    assert set(payload["collected_platforms"]) == {"饿了么", "美团"}
+    assert not payload["balance_collection_issues"]
+    assert any(i["balance"] == 12.34 for i in payload["items"] if i["platform"] == "美团")
 
 
 def test_meituan_balance_collection_includes_wangjing_and_knows_binjiang_id():

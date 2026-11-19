@@ -45,6 +45,7 @@ with lock_path.open("a+") as lock:
   echo "[$(date '+%F %T')] 推广余额刷新开始"
   "$PYTHON" store-inspection/run_all_balances.py
   "$PYTHON" scripts/build_promo_balance_status.py
+  "$PYTHON" scripts/agent_task_notifier.py --promo-balance-refresh
   "$PYTHON" scripts/build_task_health.py
   "$PYTHON" scripts/build_workbench_data.py
   OPERATION_ROOT="$ROOT" OPERATION_CLOUD_DEPLOY_MODE=data-only \

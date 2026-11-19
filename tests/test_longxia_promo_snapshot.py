@@ -45,3 +45,62 @@ def test_missing_snapshot_totals_are_unknown_instead_of_zero():
     assert payload['summary']['today_spend_total'] is None
     assert '消耗 未知' in payload['message']
     assert '预算 未知' in payload['message']
+
+
+def test_balance_snapshot_missing_stale_boolean_zero_negative_and_paused(tmp_path):
+    path, config = tmp_path/'fleet.json', tmp_path/'config.json'
+    config.write_text(json.dumps({'longxia': {'stores': [{'profileId':'p1','name':'望京'}]}}))
+    row = {'id':'p1','day':'2026-11-15','snapshotAt':NOW,'accountBalance':1234}
+    def read(changes=None):
+        data={'schema':1,'generatedAt':NOW,'stores':[{**row, **(changes or {})}]}
+        path.write_text(json.dumps(data))
+        return reader.read_balance_items(path=path,config_path=config,now=NOW)
+    for value in [0, -235, 1234]:
+        items,issues=read({'accountBalance':value})
+        assert not issues and items[0]['balance']==value/100
+        assert items[0]['confirmed_zero']==(value==0)
+    for changes in [{'accountBalance':None},{'accountBalance':True},{'paused':True},{'status':'pending'},
+                    {'snapshotAt':NOW-1800001},{'id':'wrong'},{'day':'2026-11-14'}]:
+        items,issues=read(changes)
+        assert not items and len(issues)==1
+    path.unlink()
+    items,issues=reader.read_balance_items(path=path,config_path=config,now=NOW)
+    assert not items and issues
+
+
+def test_balance_missing_is_a_warning_and_still_notified_without_low_stores(tmp_path):
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+    from scripts import build_promo_balance_status as builder
+    from scripts import agent_task_notifier as notifier
+    payload = {'generated_at': reader.datetime.now().strftime('%F %T'), 'status':'partial',
+               'items': [], 'balance_collection_issues':[{'platform':'美团','store_name':'望京','message':'余额未采到'}]}
+    status = builder.build_status(payload)
+    assert status['status'] == 'warning'
+    path=tmp_path/'status.json';path.write_text(json.dumps(status))
+    task=notifier.load_promo_balance_alert_tasks(path)['growth.promo_balance.low_balance']
+    assert '望京' in task['message'] and '不能视为余额充足' in task['message']
+
+
+def test_refresh_notice_deduplicates_amount_changes_but_sends_new_low_stores(tmp_path):
+    import sys
+    from types import SimpleNamespace
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+    from scripts import agent_task_notifier as notifier
+    path=tmp_path/'status.json'
+    payload={'status':'warning','summary':{},'source_generated_at':'2026-11-19 19:15:00',
+             'low_balance_items':[{'platform':'美团','store_name':'望京','balance':10,'threshold':200}]}
+    args=SimpleNamespace(runs=str(tmp_path/'runs.json'),state=str(tmp_path/'state.json'),log=str(tmp_path/'log.json'),
+                         seed=False,dry_run=False,no_write=False,include_unconfigured=False,promo_balance_refresh=True,
+                         promo_balance_period='',target='weixin',hermes_bin='')
+    loader=notifier.load_promo_balance_alert_tasks
+    with patch.object(notifier,'DEFAULT_PROMO_BALANCE_STATUS_PATH',path), \
+         patch.object(notifier,'load_promo_balance_alert_tasks',side_effect=lambda:loader(path)), \
+         patch.object(notifier,'load_policy_rows',return_value=notifier.DIRECT_TASK_ROWS), \
+         patch.object(notifier,'send_weixin',return_value=(True,'wecom errcode=0')) as send:
+        path.write_text(json.dumps(payload));assert notifier.notify(args)['notification_count']==1
+        payload['low_balance_items'][0]['balance']=9
+        path.write_text(json.dumps(payload));assert notifier.notify(args)['notification_count']==0
+        payload['low_balance_items'].append({'platform':'美团','store_name':'清河','balance':3,'threshold':200})
+        path.write_text(json.dumps(payload));assert notifier.notify(args)['notification_count']==1
+        assert send.call_count==2
