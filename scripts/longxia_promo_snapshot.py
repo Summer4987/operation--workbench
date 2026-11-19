@@ -96,7 +96,7 @@ def read_balance_items(*, path=None, config_path=None, now=None):
         at, balance = row.get('accountBalanceAt'), row.get('accountBalance')
         reason = error
         if not reason:
-            if row.get('paused') or row.get('status') in {'error', 'inspection_paused', 'pending'}:
+            if row.get('paused') or row.get('status') in {'inspection_paused', 'pending'}:
                 reason = '门店巡检暂停、异常或有待核对保存'
             elif row.get('accountBalanceDay', row.get('day')) != day or type(at) is not int or not -60000 <= now-at <= MAX_SNAPSHOT_AGE_MS:
                 reason = '尚无当日有效余额快照或快照已过期'

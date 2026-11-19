@@ -63,6 +63,8 @@ def test_balance_snapshot_missing_stale_boolean_zero_negative_and_paused(tmp_pat
                     {'accountBalanceAt':NOW-1800001},{'id':'wrong'},{'day':'2026-11-14'}]:
         items,issues=read(changes)
         assert not items and len(issues)==1
+    items,issues=read({'status':'error'})
+    assert not issues and items[0]['balance']==12.34  # unrelated bidding errors do not hide a fresh account balance
     path.unlink()
     items,issues=reader.read_balance_items(path=path,config_path=config,now=NOW)
     assert not items and issues
