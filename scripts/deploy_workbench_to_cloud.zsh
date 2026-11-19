@@ -87,6 +87,7 @@ copy_tree_if_exists(root / "business-report-dashboard" / "dashboard", stage / "b
 copy_tree_if_exists(root / "business-report-dashboard" / "direct-dashboard", stage / "business-report-dashboard" / "direct-dashboard")
 copy_tree_if_exists(root / "franchise-contract-generator", stage / "franchise-contract-generator")
 copy_tree_if_exists(root / "floor-plan-designer", stage / "floor-plan-designer")
+copy_tree_if_exists(root / "account-permissions", stage / "account-permissions")
 for name in ("latest.json", "unified_daily.csv", "unified_reviews.csv", "direct-latest.json", "direct_unified_daily.csv", "direct_unified_reviews.csv"):
     copy_if_exists(root / "business-report-dashboard" / "data" / name, stage / "business-report-dashboard" / "data" / name)
 for name in ("index.html", "meituan-budget.html", "styles.css", "app.js", "latest.json", "latest-data.js", "budget-editor.html"):
@@ -158,6 +159,13 @@ PY
     echo "实时历史较线上旧，本次保留线上实时历史，继续发布其它工作台数据。" >&2
   fi
 }
+
+if [[ "$DEPLOY_MODE" != "data-only" ]]; then
+  ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/account-permissions'"
+  rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+    -e "ssh ${SSH_OPTS[*]}" \
+    "$STAGE_DIR/account-permissions/" "$SERVER:$REMOTE_DIR/account-permissions/"
+fi
 
 PUBLISH_REALTIME_HISTORY=1
 validate_realtime_history_deploy
