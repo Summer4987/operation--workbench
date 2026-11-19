@@ -228,15 +228,24 @@ def open_headquarters_promotion(page, task, helpers, promo):
         page.wait_for_timeout(500)
 
 
-def read_business(page, helpers, target_date, cached):
-    click(page, "经营罗盘", helpers)
-    click(page, "经营数据", helpers)
+def read_business(page, helpers, target_date, cached, task):
+    if task.get("directMeituanAccountId"):
+        # Isolated single-store sessions can open the same verified overview
+        # route used by the existing daily-report fallback.
+        page.goto("https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/home", wait_until="domcontentloaded", timeout=45000)
+    else:
+        click(page, "经营罗盘", helpers)
+        click(page, "经营数据", helpers)
     deadline = time.monotonic() + 25
     while time.monotonic() < deadline:
         text = helpers["page_text"](page)
         if "今日实时数据" in text and re.search(r"预计(?:订单)?收入\s*[\d,]+", text):
             break
         page.wait_for_timeout(500)
+    identity = page.locator(".current-poi_31GHxd").first.inner_text(timeout=8000)
+    aliases = [str(task.get(key) or "") for key in ("keyword", "sourceStore", "store")]
+    if "全部门店" in identity or not any(alias and alias in identity for alias in aliases):
+        raise ValueError("经营数据页门店身份未确认，拒绝使用全部门店或其他门店数据")
     income = cached or parse_overview(text, target_date)
     click(page, "流量", helpers)
     click(page, "今日实时", helpers)
@@ -275,7 +284,9 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
     account = None
     try:
         account = access.for_task(task)
-        with coordinator.lease(account, wait_seconds=120):
+        # A continuous fleet polling loop must not starve the daily close.
+        # Budgets still run first and active operations are never interrupted.
+        with coordinator.lease(account, wait_seconds=180, priority="roi"):
             context = helpers["context_for_task"](pw, contexts, launched, task, accounts)
             page = context.new_page()
             page.set_default_timeout(8000)
@@ -308,7 +319,7 @@ def collect_store(task, helpers, pw, contexts, launched, accounts, cache, promo)
             if not 0 <= (now()-stamp).total_seconds() <= 20*60:
                 raise ValueError("推广页面更新时间超过20分钟，未将旧页面作为本轮数据")
             print(f"  {row['store']}：读取当日转化率、收入和订单", flush=True)
-            row.update(read_business(page, helpers, row["date"], cached_income(cache, task, now())))
+            row.update(read_business(page, helpers, row["date"], cached_income(cache, task, now()), task))
             if now().date().isoformat() != row["date"]:
                 raise ValueError("采集跨日，未合并两个日期的数据")
             return estimate(row)

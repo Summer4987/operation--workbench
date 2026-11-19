@@ -27,7 +27,7 @@ STATE_ROOT = ROOT / 'outputs/account_access'
 FLEET_ROOT = Path.home() / 'Library/Application Support/xiong-dianjin-fleet-test'
 HEADQUARTERS = 'headquarters'
 _HELD = {}
-PRIORITIES = {'normal': 0, 'longxia': 1, 'budget': 2}
+PRIORITIES = {'normal': 0, 'longxia': 1, 'roi': 2, 'budget': 3}
 
 
 class AccountAccessError(RuntimeError):
@@ -204,7 +204,7 @@ class Coordinator:
                     else:
                         break
                 if time.monotonic() >= deadline:
-                    raise AccountQueueBusy('美团同账号访问队列忙，推广预算优先，其次龙虾店长；等待当前操作结束后执行')
+                    raise AccountQueueBusy('美团同账号访问队列忙，推广预算优先，其次日终ROI复盘和龙虾店长；等待当前操作结束后执行')
                 time.sleep(.1)
             try:
                 if check_auth:

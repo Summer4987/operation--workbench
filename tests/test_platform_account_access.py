@@ -148,7 +148,7 @@ def test_headquarters_readonly_runs_while_longxia_holds_write_account(tmp_path):
         owner.stdin.close();owner.wait(timeout=2)
 
 
-def test_budget_waiter_runs_after_active_owner_before_longxia_and_collectors(tmp_path):
+def test_budget_then_roi_then_longxia_without_interrupting_active_owner(tmp_path):
     import select
     root = tmp_path / 'access'
     owner = start(root, priority='longxia')
@@ -157,21 +157,27 @@ def test_budget_waiter_runs_after_active_owner_before_longxia_and_collectors(tmp
         assert json.loads(owner.stdout.readline())['acquired']
         ordinary = start(root, wait=5); workers.append(ordinary)
         longxia = start(root, wait=5, priority='longxia'); workers.append(longxia)
+        roi = start(root, wait=5, priority='roi'); workers.append(roi)
         budget = start(root, wait=5, priority='budget'); workers.append(budget)
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
-            if list(root.glob('*.budget.*.json')) and list(root.glob('*.longxia.*.json')):
+            if list(root.glob('*.budget.*.json')) and list(root.glob('*.longxia.*.json')) and list(root.glob('*.roi.*.json')):
                 break
             time.sleep(.01)
         assert list(root.glob('*.budget.*.json'))
         assert list(root.glob('*.longxia.*.json'))
+        assert list(root.glob('*.roi.*.json'))
         assert not select.select([p.stdout for p in workers], [], [], .1)[0]
         assert owner.poll() is None  # Priority never interrupts the active operation.
         owner.stdin.close(); assert owner.wait(timeout=2) == 0
         assert select.select([budget.stdout], [], [], 2)[0]
         assert json.loads(budget.stdout.readline())['acquired']
-        assert not select.select([longxia.stdout, ordinary.stdout], [], [], .1)[0]
+        assert not select.select([roi.stdout, longxia.stdout, ordinary.stdout], [], [], .1)[0]
         budget.stdin.close(); assert budget.wait(timeout=2) == 0
+        assert select.select([roi.stdout], [], [], 2)[0]
+        assert json.loads(roi.stdout.readline())['acquired']
+        assert not select.select([longxia.stdout, ordinary.stdout], [], [], .1)[0]
+        roi.stdin.close(); assert roi.wait(timeout=2) == 0
         assert select.select([longxia.stdout], [], [], 2)[0]
         assert json.loads(longxia.stdout.readline())['acquired']
         longxia.stdin.close(); assert longxia.wait(timeout=2) == 0
