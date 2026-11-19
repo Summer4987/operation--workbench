@@ -5,7 +5,7 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -93,13 +93,31 @@ def write_test_outputs(data: dict) -> None:
     )
 
 
-def collect_all_balances() -> tuple[dict, bool]:
+def reuse_eleme_balances() -> tuple[list[dict], str]:
+    payload = json.loads((ROOT / "latest.json").read_text(encoding="utf-8"))
+    items = []
+    for row in payload.get("items", []):
+        if row.get("platform") != "饿了么":
+            continue
+        captured = row.get("collected_at") or payload.get("generated_at")
+        try:
+            age = datetime.now() - datetime.strptime(captured, "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            continue
+        if timedelta(minutes=-1) <= age <= timedelta(minutes=90):
+            items.append({**row, "collected_at": captured})
+    if not items:
+        raise RuntimeError("饿了么余额快照缺失或超过90分钟；等待原采集任务，不占用生产浏览器。")
+    return items, ""
+
+
+def collect_all_balances(*, fleet_only=False) -> tuple[dict, bool]:
     items: list[dict] = []
     errors: list[str] = []
     source_urls: dict[str, str] = {}
 
     for platform_name, collector in [
-        ("饿了么", collect_eleme),
+        ("饿了么", reuse_eleme_balances if fleet_only else collect_eleme),
     ]:
         try:
             platform_items, source_url = collector()
@@ -139,9 +157,10 @@ def collect_all_balances() -> tuple[dict, bool]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="读取饿了么和美团 CDP 余额。")
     parser.add_argument("--official", action="store_true", help="写入正式 latest.json/latest-data.js。")
+    parser.add_argument("--fleet-only", action="store_true", help="只读取龙虾与仍有效的饿了么本地快照，不启动浏览器或采集进程")
     args = parser.parse_args(argv)
 
-    data, ok = collect_all_balances()
+    data, ok = collect_all_balances(fleet_only=args.fleet_only)
 
     if args.official:
         write_outputs(data)

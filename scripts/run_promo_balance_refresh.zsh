@@ -36,14 +36,21 @@ with lock_path.open("a+") as lock:
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print("上午运营或余额任务正在使用生产浏览器，本轮独立余额刷新跳过。", flush=True)
-        raise SystemExit(0)
+        print("生产浏览器正忙，本轮只读龙虾和有效本地余额快照，继续汇总与提醒。", flush=True)
+        fleet_only = True
+    else:
+        fleet_only = False
     env = os.environ.copy()
+    env["BALANCE_FLEET_ONLY"] = "1" if fleet_only else "0"
     env.update(ROOT=str(root), PYTHON=sys.argv[2])
     result = subprocess.run(["/bin/zsh", "-c", r'''set -uo pipefail
   echo
   echo "[$(date '+%F %T')] 推广余额刷新开始"
-  "$PYTHON" store-inspection/run_all_balances.py
+  if [[ "$BALANCE_FLEET_ONLY" == 1 ]]; then
+    "$PYTHON" store-inspection/cdp_all_balances.py --official --fleet-only
+  else
+    "$PYTHON" store-inspection/run_all_balances.py
+  fi
   "$PYTHON" scripts/build_promo_balance_status.py
   "$PYTHON" scripts/agent_task_notifier.py --promo-balance-refresh
   "$PYTHON" scripts/build_task_health.py
