@@ -809,6 +809,9 @@ do
   rm -f "$LAUNCH_DIR/${old_label}.plist"
 done
 
+# Retire hourly/legacy balance jobs whenever production schedules are installed.
+/bin/zsh "$SOURCE_ROOT/scripts/install_promo_balance_refresh_launchd.zsh"
+
 write_plist "com.summer.operation.morning" 8 0 "$SCRIPT_DIR/run_morning_ops.zsh" "$ROOT"
 write_realtime_plist
 write_plist "com.summer.operation.inventory-warning-daily" 16 0 "$SCRIPT_DIR/run_inventory_warning_daily.zsh" "$ROOT"
