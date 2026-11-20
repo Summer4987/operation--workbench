@@ -1,6 +1,6 @@
 # Production security hardening
 
-Run `scripts/deploy_security_hardening.zsh` only from a clean, pulled GitHub `main` on the Mac mini. The cloud fetches that exact public repository commit into `/opt/xiong-security-source`; it never deploys developer working-tree files.
+Run `scripts/deploy_security_hardening.zsh` only from a clean, pulled GitHub `main` on the Mac mini. The cloud verifies/imports an incremental Git bundle of that exact GitHub-main commit into `/opt/xiong-security-source`; it never deploys developer working-tree files. This avoids slow cloud-to-GitHub transfers and a race with concurrent main updates.
 
 The reviewed deployment moves existing Nginx business routes to the existing verified IP certificate, redirects browser/API HTTP requests to HTTPS, preserves the configured signed/encrypted `/agent-wecom/callback` and ACME challenge, and retains the phone `/avatar/` gateway. Session-signing secrets are rotated locally and personal sessions revoked: all users must log in again. Passwords, accounts, orders and catalogs are retained. HTTPS smoke tests exercise owner compatibility, one-store data/export, denied full-data routes and Beijing scope using temporary records that are cleaned up.
 

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Deployment controller: Mac mini pulls GitHub main; the cloud fetches that exact commit.
+# Only a clean, pulled GitHub main on the Mac mini can create this release bundle.
 set -euo pipefail
 export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 cd "$(dirname "$0")/.."
@@ -8,22 +8,35 @@ cd "$(dirname "$0")/.."
 git fetch origin main
 SHA="$(git rev-parse HEAD)"
 [[ "$SHA" == "$(git rev-parse origin/main)" ]] || { echo 'Pull GitHub main first'; exit 64; }
-ssh -o BatchMode=yes -o ConnectTimeout=15 -i "$HOME/.ssh/xiong_operation_cloud_ed25519" ubuntu@139.155.148.169 /bin/bash -s -- "$SHA" <<'REMOTE'
+SSH=(ssh -o BatchMode=yes -o ConnectTimeout=15 -i "$HOME/.ssh/xiong_operation_cloud_ed25519" ubuntu@139.155.148.169)
+BASE="$("${SSH[@]}" 'git -C /opt/xiong-security-source rev-parse HEAD 2>/dev/null || true')"
+BUNDLE="$(mktemp /tmp/xiong-security-github-main.XXXXXX)"
+trap 'rm -f "$BUNDLE"' EXIT
+if [[ "$BASE" == "$SHA" ]]; then
+ git bundle create "$BUNDLE" main
+elif [[ "$BASE" =~ '^[0-9a-f]{40}$' ]] && git merge-base --is-ancestor "$BASE" "$SHA"; then
+ git bundle create "$BUNDLE" main "^$BASE"
+else
+ git bundle create "$BUNDLE" main
+fi
+"${SSH[@]}" "umask 077; cat > /tmp/xiong-security-$SHA.bundle" < "$BUNDLE"
+"${SSH[@]}" /bin/bash -s -- "$SHA" <<'REMOTE'
 set -euo pipefail
 SHA="$1"
+BUNDLE="/tmp/xiong-security-$SHA.bundle"
+trap 'rm -f "$BUNDLE"' EXIT
 SOURCE=/opt/xiong-security-source
 if ! test -d "$SOURCE/.git"; then
  sudo mkdir -p "$SOURCE";sudo chown ubuntu:ubuntu "$SOURCE"
- git clone --filter=blob:none --no-checkout --depth 1 https://github.com/Summer4987/operation--workbench.git "$SOURCE"
- git -C "$SOURCE" sparse-checkout set --no-cone /security/ /access-control/smoke_live.py /daily-order/app/main.py /.gitignore
- git -C "$SOURCE" checkout main
+ git clone "$BUNDLE" "$SOURCE"
+ git -C "$SOURCE" remote set-url origin https://github.com/Summer4987/operation--workbench.git
 fi
 cd "$SOURCE"
 test -z "$(git status --porcelain)"
-git fetch origin main
+git bundle verify "$BUNDLE" >/dev/null
+git fetch "$BUNDLE" main:refs/remotes/origin/main
 git merge --ff-only origin/main
 test "$(git rev-parse HEAD)" = "$SHA"
 sudo python3 security/apply_on_cloud.py --commit "$SHA"
 REMOTE
-
 python3 security/migrate_runtime_https.py
