@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "agent_inbox_worker"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
 LAST_COMMAND_PATH = OUTPUT_DIR / "last_command.json"
-DEFAULT_BASE_URL = "http://139.155.148.169"
+DEFAULT_BASE_URL = "https://139.155.148.169"
 
 
 def now_text() -> str:

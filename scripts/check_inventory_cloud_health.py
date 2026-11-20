@@ -17,7 +17,7 @@ from task_run_state import classify_failure_text, record_task_event
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "inventory_health"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
-DEFAULT_SERVER = "http://139.155.148.169"
+DEFAULT_SERVER = "https://139.155.148.169"
 TASK_ID = "flow.inventory"
 
 

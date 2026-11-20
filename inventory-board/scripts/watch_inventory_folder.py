@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib import request, error
 
 
-DEFAULT_SERVER = "http://139.155.148.169"
+DEFAULT_SERVER = "https://139.155.148.169"
 DEFAULT_ROOT = Path.home() / "Desktop" / "库存管理"
 STATE_FILE = ".upload_state.json"
 

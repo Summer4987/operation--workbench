@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "config" / "promo_budget_overrides.json"
-URL = os.environ.get("PROMO_BUDGET_OVERRIDES_URL", "http://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order")
+URL = os.environ.get("PROMO_BUDGET_OVERRIDES_URL", "https://139.155.148.169/api/promo-budget-overrides?token=xiongxiaoxiao-order")
 COPY_PATH = os.environ.get("PROMO_BUDGET_OVERRIDES_COPY_PATH", "").strip()
 AUTH_USERNAME = os.environ.get("PROMO_BUDGET_AUTH_USERNAME", os.environ.get("OPERATION_AUTH_USERNAME", "summer"))
 AUTH_PASSWORD = os.environ.get("PROMO_BUDGET_AUTH_PASSWORD", os.environ.get("INVENTORY_PASSWORD", ""))

@@ -11,14 +11,15 @@ import subprocess
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener, HTTPCookieProcessor
 
-ROOT='http://127.0.0.1'
+ROOT=os.environ.get('ACCESS_SMOKE_BASE','https://139.155.148.169')
 HOST='139.155.148.169'
 pid=subprocess.check_output(['systemctl','show','inventory-board','-p','MainPID','--value'],text=True).strip()
 environ=dict(item.split(b'=',1) for item in Path('/proc/'+pid+'/environ').read_bytes().split(b'\0') if b'=' in item)
 username=environ.get(b'OPERATION_AUTH_USERNAME',b'summer').decode()
 password=environ[b'INVENTORY_PASSWORD'].decode()
 
-def session():return build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
+def session():
+ jar=http.cookiejar.CookieJar();client=build_opener(HTTPCookieProcessor(jar));client.cookie_jar=jar;return client
 def call(client,path,payload=None):
  req=Request(ROOT+path,data=None if payload is None else json.dumps(payload).encode(),headers={'Host':HOST,'Content-Type':'application/json'},method='GET' if payload is None else 'POST')
  try:
@@ -36,6 +37,10 @@ try:
  payload={'username':'qa.scope.'+secrets.token_hex(5),'name':'临时权限验收','role':'manager','enabled':True,'stores':[target['id']],'permissions':{'overview':['view','export'],'daily':['view','export'],'ordering':['view'],'inventory':['view']},'note':'生产权限验收脚本创建，结束后清理'}
  created=json_call(owner,'/api/access/accounts',payload);account_id=created['account']['id']
  json_call(member,'/api/auth/login',{'username':payload['username'],'password':created['initial_password']})
+ assert all(c.secure for c in member.cookie_jar if c.name=='xiong_access')
+ assert call(member,'/beijing-order/api/catalog')[0]==403
+ assert call(session(),'/beijing-order/api/catalog')[0]==401
+ assert call(owner,'/beijing-order/api/catalog')[0]==200
  mine=json_call(member,'/api/access/me');assert [s['id'] for s in mine['stores']]==[target['id']]
  for module in ['overview','daily','ordering','inventory']:
   data=json_call(member,'/api/access/data/'+module)

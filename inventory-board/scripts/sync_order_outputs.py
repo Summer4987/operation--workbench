@@ -8,7 +8,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 from urllib import error, request
 
 
-DEFAULT_SERVER = "http://139.155.148.169"
+DEFAULT_SERVER = "https://139.155.148.169"
 DEFAULT_TOKEN = "xiongxiaoxiao-order"
 DEFAULT_OUTPUT_DIR = Path.home() / "Desktop" / "库存管理" / "出库记录"
 DEFAULT_LATEST = 20

@@ -16,6 +16,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request as url_request
+from urllib.error import HTTPError, URLError
 from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import FastAPI, HTTPException, Request
@@ -143,8 +144,14 @@ def daily_order_logout_page(request: Request):
 
 
 @app.get("/beijing-order/")
-def beijing_index():
-    return FileResponse(STATIC_DIR / "beijing-index.html")
+def beijing_index(request: Request):
+    try:
+        _require_beijing_account(request)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+        return Response(content=_store_order_login_page_html("熊小小北京门店订货", "/beijing-order/"), media_type="text/html", headers={"Cache-Control": "no-store"})
+    return FileResponse(STATIC_DIR / "beijing-index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/beijing-order/admin")
@@ -171,8 +178,10 @@ def catalog(request: Request):
 
 
 @app.get("/beijing-order/api/catalog")
-def beijing_catalog():
-    return _load_catalog(BEIJING_CATALOG_PATH)
+def beijing_catalog(request: Request):
+    account = _require_beijing_account(request)
+    data = _load_catalog(BEIJING_CATALOG_PATH)
+    return data if _is_store_order_owner(account) else _catalog_for_store(data, account["store_name"])
 
 
 @app.get("/daily-order/api/health")
@@ -210,7 +219,9 @@ async def submit_order(request: Request, payload: dict):
 
 @app.post("/beijing-order/api/orders")
 async def submit_beijing_order(request: Request, payload: dict):
-    return await _submit_order(request, payload, BEIJING_CATALOG_PATH, BEIJING_SUBMISSION_DIR, BEIJING_ORDER_LINES_PATH, "BJ", False)
+    account = _require_beijing_account(request, "edit")
+    bound = None if _is_store_order_owner(account) else account["store_name"]
+    return await _submit_order(request, payload, BEIJING_CATALOG_PATH, BEIJING_SUBMISSION_DIR, BEIJING_ORDER_LINES_PATH, "BJ", False, bound)
 
 
 async def _submit_order(request: Request, payload: dict, catalog_path: Path, submission_dir: Path, order_lines_path: Path, order_prefix: str, auto_process_wechat: bool, bound_store_name: str | None = None):
@@ -322,7 +333,10 @@ def public_logistics(request: Request):
 
 
 @app.get("/beijing-order/api/orders")
-def recent_beijing_store_orders(store_name: str, order_ids: str = ""):
+def recent_beijing_store_orders(request: Request, store_name: str, order_ids: str = ""):
+    account = _require_beijing_account(request)
+    if not _is_store_order_owner(account):
+        store_name = account["store_name"]
     return {"items": _public_store_orders(store_name, order_ids, BEIJING_SUBMISSION_DIR, BEIJING_CATALOG_PATH)}
 
 
@@ -1089,6 +1103,38 @@ def _store_order_session(request: Request) -> dict | None:
     }
 
 
+def _require_beijing_account(request: Request, action: str = "view") -> dict:
+    """Fail closed, including when store-account configuration is absent."""
+    names = set(_store_records(_load_catalog(BEIJING_CATALOG_PATH)))
+    account = _store_order_session(request)
+    if account:
+        if _is_store_order_owner(account) or account["store_name"] in names:
+            return account
+        raise HTTPException(403, "没有北京门店权限")
+    cookies = {key: request.cookies.get(key) for key in ("operation_session", "xiong_access")}
+    if not any(cookies.values()):
+        raise HTTPException(401, "需要门店登录")
+    # Only the loopback authorization gateway decides dashboard identity and scope.
+    header = "; ".join(key + "=" + value for key, value in cookies.items() if value)
+    req = url_request.Request("http://127.0.0.1:8020/api/access/me", headers={"Cookie": header})
+    try:
+        with url_request.urlopen(req, timeout=4) as response:
+            actor = json.load(response)
+    except HTTPError as exc:
+        raise HTTPException(401 if exc.code == 401 else 503, "登录失效或权限服务不可用") from exc
+    except (URLError, TimeoutError, ValueError, OSError) as exc:
+        raise HTTPException(503, "权限服务暂时不可用") from exc
+    if not isinstance(actor, dict):
+        raise HTTPException(503, "权限服务返回无效")
+    if actor.get("owner") is True:
+        return {"role": "owner", "all_stores": True, "store_name": ""}
+    allowed = [store.get("name") for store in actor.get("stores", []) if isinstance(store, dict) and store.get("name") in names]
+    if action not in actor.get("permissions", {}).get("ordering", []) or not allowed:
+        raise HTTPException(403, "没有北京门店或订货操作权限")
+    # This form is a single-store ordering entry; multi-store admins use the admin page.
+    return {"role": "store", "store_name": allowed[0]}
+
+
 def _require_store_order_auth(request: Request) -> dict | None:
     if not _store_order_auth_enabled():
         return None
@@ -1503,7 +1549,7 @@ def _send_daily_excel_link(day: str) -> dict:
 
 def _daily_excel_url(day: str) -> str:
     token = os.environ.get("DAILY_ORDER_ADMIN_TOKEN", "daily-order-admin")
-    base_url = os.environ.get("DAILY_ORDER_PUBLIC_BASE_URL", "http://139.155.148.169").rstrip("/")
+    base_url = os.environ.get("DAILY_ORDER_PUBLIC_BASE_URL", "https://139.155.148.169").rstrip("/")
     return f"{base_url}/daily-order/api/admin/order-lines.xlsx?token={token}&date={day}"
 
 

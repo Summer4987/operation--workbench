@@ -237,7 +237,7 @@ def format_report(payload):
             lines.append(f"• {item.get('platform')}｜{item.get('store_name')}：{item.get('message')}")
     if payload['status'] != 'success' and payload['task_message']:
         lines += ['', '本轮说明：'+' '.join(payload['task_message'].split())[:180]]
-    lines += ['', '正式看板：http://139.155.148.169/operation-workbench/']
+    lines += ['', '正式看板：https://139.155.148.169/operation-workbench/']
     return '\n'.join(lines)
 
 

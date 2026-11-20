@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 FLEET_ROOT = Path.home() / 'Library/Application Support/xiong-dianjin-fleet-test'
-BOARD_URL = 'http://139.155.148.169/operation-workbench/#bidding'
+BOARD_URL = 'https://139.155.148.169/operation-workbench/#bidding'
 
 
 def verification_stores(status, now):

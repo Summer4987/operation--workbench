@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HOME = Path.home()
 PRIVATE = HOME / '.local/share/xiong-wecom-assistant'
 RUNTIME = Path(os.environ.get('CUSTOMER_INSPECTION_HOME',str(HOME / 'Library/Application Support/customer-inspection'))).expanduser()
-URL = 'http://139.155.148.169/operation-workbench/customer-inspection/'
+URL = 'https://139.155.148.169/operation-workbench/customer-inspection/'
 CITY = {'银泰城店':'成都','保利中心店':'成都','万象城店':'成都','金融城店':'成都','万松园店':'武汉','光谷店':'武汉','滨江店':'杭州','五一广场店':'长沙'}
 PLATFORMS = {'meituan', 'taobao-shangou'}
 def now():
@@ -109,7 +109,7 @@ config={}
 for line in Path('/etc/inventory-board.env').read_text().splitlines():
  if '=' in line and not line.lstrip().startswith('#'):
   k,v=line.split('=',1);config[k.strip()]=v.strip().strip('\"').strip("'")
-base='http://139.155.148.169'
+base='https://139.155.148.169'
 jar=http.cookiejar.CookieJar();opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 login=urllib.request.Request(base+'/api/auth/login',data=json.dumps({'username':config.get('OPERATION_AUTH_USERNAME','summer'),'password':config['INVENTORY_PASSWORD']}).encode(),headers={'Content-Type':'application/json'})
 with opener.open(login,timeout=15) as r: assert json.load(r)['status']=='success'

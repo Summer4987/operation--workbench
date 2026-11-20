@@ -39,8 +39,8 @@ USER_ACTION_QUEUE_PATH = ROOT / "outputs" / "user_action_queue" / "latest.json"
 MACMINI_SMOKE_STATUS_PATH = ROOT / "outputs" / "macmini_smoke_status" / "latest.json"
 OPERATION_AUTOMATION_CHECK_PATH = ROOT / "outputs" / "operation_automation_check" / "latest.json"
 TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
-CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
-CLOUD_REALTIME_HISTORY_URL = "http://139.155.148.169/operation-workbench/data/realtime-history.json"
+CLOUD_INVENTORY_URL = "https://139.155.148.169/api/summary"
+CLOUD_REALTIME_HISTORY_URL = "https://139.155.148.169/operation-workbench/data/realtime-history.json"
 DISPLAY_LABEL_REPLACEMENTS = {
     "首屏看板": "加盟店实时数据看板",
     "运营数据中心": "加盟店运营数据中心",

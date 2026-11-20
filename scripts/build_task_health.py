@@ -30,7 +30,7 @@ PROMO_BID_ADVICE_PATH = ROOT / "outputs" / "promo_bid_advice" / "latest.json"
 PROMO_BID_APPROVAL_QUEUE_PATH = ROOT / "outputs" / "promo_bid_approval_queue" / "latest.json"
 PROMO_BALANCE_STATUS_PATH = ROOT / "outputs" / "promo_balance_status" / "latest.json"
 TOOL_WAREHOUSE_STATUS_PATH = ROOT / "outputs" / "tool_warehouse_status" / "latest.json"
-CLOUD_INVENTORY_URL = "http://139.155.148.169/api/summary"
+CLOUD_INVENTORY_URL = "https://139.155.148.169/api/summary"
 
 
 STATUS_LABELS = {

@@ -15,7 +15,7 @@ from task_run_state import classify_failure_text, record_task_event
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE_URL = "http://139.155.148.169"
+DEFAULT_BASE_URL = "https://139.155.148.169"
 STATE_PATH = ROOT / "outputs" / "inventory_warning_daily" / "state.json"
 LATEST_PATH = ROOT / "outputs" / "inventory_warning_daily" / "latest.json"
 TASK_ID = "ops.inventory_warning_daily"

@@ -17,8 +17,8 @@ from atomic_io import atomic_write_text
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "outputs" / "agent_system_check"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
-DEFAULT_CLOUD_BASE = "http://139.155.148.169/operation-workbench"
-DEFAULT_AGENT_BASE = "http://139.155.148.169"
+DEFAULT_CLOUD_BASE = "https://139.155.148.169/operation-workbench"
+DEFAULT_AGENT_BASE = "https://139.155.148.169"
 
 
 def now_text() -> str:
