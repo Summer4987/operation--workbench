@@ -57,6 +57,7 @@ def test_routes_deny_full_static_reports_agent_and_legacy_apis(env):
  for path in ['/operation-workbench/workbench-data.js','/operation-workbench/data/realtime-history.json','/business-report-dashboard/data/latest.json','/operation-workbench/','/api/summary','/agent/api/status','/daily-order/api/admin/summary','/operation-workbench/account-permissions/','/operation-workbench/%2e%2e/business-report-dashboard/data/latest.json']:
   assert u.get('/api/access/check',headers={'X-Original-URI':path}).status_code==403,path
  assert u.get('/api/access/check',headers={'X-Original-URI':'/operation-workbench/account-permissions/member.html'}).status_code==204
+ assert u.get('/api/access/check',headers={'X-Original-URI':'/operation-workbench/account-session.js'}).status_code==204
  assert u.get('/api/access/accounts').status_code==403
  assert u.post('/api/access/accounts',json=body('other')).status_code==403
 

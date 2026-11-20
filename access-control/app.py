@@ -212,7 +212,7 @@ def check(request:Request):
  actor=identity(request)
  if actor['owner']: return Response(status_code=204)
  uri=unquote(urlsplit(request.headers.get('x-original-uri','')).path)
- public_assets={'/operation-workbench/account-permissions/member.html','/operation-workbench/account-permissions/member.js','/operation-workbench/account-permissions/styles.css'}
+ public_assets={'/operation-workbench/account-session.js','/operation-workbench/account-permissions/member.html','/operation-workbench/account-permissions/member.js','/operation-workbench/account-permissions/styles.css'}
  if uri in public_assets or uri.startswith('/api/access/'): return Response(status_code=204)
  if uri.startswith('/operation-workbench/account-permissions/'):
   manage(actor)
