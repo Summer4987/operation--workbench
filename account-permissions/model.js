@@ -2,6 +2,7 @@
 export const MODULES = [
   { id: 'direct-daily', name: '直营店日报', group: '经营数据', actions: ['view', 'export'] },
   { id: 'direct-reviews', name: '直营店评价', group: '经营数据', actions: ['view', 'edit', 'export'] },
+  { id: 'direct-messages', name: '直营门店消息复盘', group: '经营数据', actions: ['view'] },
   { id: 'overview', name: '加盟店实时数据', group: '经营数据', actions: ['view', 'export'] },
   { id: 'daily', name: '加盟店日报', group: '经营数据', actions: ['view', 'export'] },
   { id: 'reviews', name: '加盟店评价', group: '经营数据', actions: ['view', 'edit', 'export'] },

@@ -1,6 +1,7 @@
 """Account store and authorization gateway. No platform execution occurs here."""
 from __future__ import annotations
 import csv
+import html
 import base64
 import hashlib
 import hmac
@@ -36,6 +37,7 @@ def catalog():
  return result
 
 MODULES = {
+ 'direct-messages': ['view'],
  'direct-daily': ['view', 'export'], 'direct-reviews': ['view', 'edit', 'export'],
  'overview': ['view', 'export'], 'daily': ['view', 'export'], 'reviews': ['view', 'edit', 'export'],
  'budget': ['view', 'edit', 'approve', 'export'], 'bidding': ['view', 'edit', 'approve'],
@@ -446,3 +448,43 @@ def tool_asset(module:str,asset:str,request:Request):
  root=(source_root()/folders[module]).resolve(); path=(root/asset).resolve()
  if not path.is_relative_to(root) or not path.is_file() or path.suffix not in {'.html','.js','.css','.png','.svg','.txt','.csv'}:raise HTTPException(404,'文件不存在')
  return FileResponse(path)
+
+
+# Read only generated archive sections. Never return the full document, global
+# counts, store selectors or arbitrary files to a scoped account.
+def message_sections(actor, date=''):
+ require(actor,'direct-messages')
+ if date and not re.fullmatch(r'\d{4}-\d{2}-\d{2}',date): raise HTTPException(400,'日期格式无效')
+ root=source_root()/'business-report-dashboard/direct-dashboard/customer-messages'
+ path=root/(date+'.html' if date else 'index.html')
+ try: text=path.read_text(encoding='utf-8')
+ except OSError: raise HTTPException(404,'暂无消息复盘归档')
+ sections=[]
+ for match in re.finditer(r'<section class="scope" data-store="([^"]*)"[^>]*>.*?</section>',text,re.S):
+  if store_id(html.unescape(match.group(1))) in actor['stores']: sections.append(match.group(0))
+ return root, ''.join(sections)
+
+
+def message_files(sections):
+ return {html.unescape(x) for x in re.findall(r'(?:src|href)="(attachments/[^"<>]+)"',sections)}
+
+
+@app.get('/api/access/messages/page')
+def messages_page(request:Request,date:str=''):
+ actor=identity(request);root,sections=message_sections(actor,date)
+ for file in message_files(sections):
+  url='/api/access/messages/media?file='+quote(file,safe='')+'&date='+quote(date)
+  sections=sections.replace('"'+html.escape(file,quote=True)+'"','"'+html.escape(url,quote=True)+'"')
+ dates=sorted((p.stem for p in root.glob('????-??-??.html') if re.fullmatch(r'\d{4}-\d{2}-\d{2}',p.stem)),reverse=True)
+ links=' '.join('<a href="?date='+d+'">'+d+'</a>' for d in dates)
+ content='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:15px/1.7 sans-serif;padding:16px;color:#1e293b}section,article{padding:16px;border:1px solid #ddd;margin:12px 0}img,video{max-width:100%;max-height:360px}small,.basis{color:#64748b}.msg{background:#f1f5f9;margin:8px 0;padding:12px}pre{white-space:pre-wrap}a{margin-right:12px}</style><h1>直营门店消息复盘</h1><p>仅展示已授权门店 · '+html.escape(date or '最新归档')+'</p><nav><a href="?">最新</a>'+links+'</nav>'+(sections or '<p>当前授权范围暂无消息记录；不代表当天没有消息。</p>')+'</html>'
+ return Response(content,media_type='text/html',headers={'Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'"})
+
+
+@app.get('/api/access/messages/media')
+def messages_media(request:Request,file:str,date:str=''):
+ root,sections=message_sections(identity(request),date)
+ if file not in message_files(sections): raise HTTPException(403,'附件不在授权范围')
+ path=(root/file).resolve()
+ if not path.is_relative_to((root/'attachments').resolve()) or not path.is_file() or path.suffix.lower() not in {'.png','.jpg','.jpeg','.webp','.gif','.mp4','.mp3','.m4a','.ogg','.wav'}: raise HTTPException(404,'附件不存在')
+ return FileResponse(path,headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})

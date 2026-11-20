@@ -68,7 +68,7 @@ for name in ("workbench-data.js", "workbench.js"):
     index = re.sub(rf'(\./{re.escape(name)}\?v=)[^"]+', rf'\g<1>{version}', index)
 (stage / "index.html").write_text(index, encoding="utf-8")
 
-for name in ("workbench.css", "workbench.js", "workbench-data.js"):
+for name in ("workbench.css", "workbench.js", "workbench-data.js", "account-session.js"):
     asset_root = root if name == "workbench-data.js" else ui_root
     (stage / name).write_bytes((asset_root / name).read_bytes())
 copy_agent_page = root / "agent.html"
@@ -226,7 +226,7 @@ fi
 if [[ "$DEPLOY_MODE" == "full" ]]; then
   rsync -az --delete \
     -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/index.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" "$STAGE_DIR/PROJECT_TREE.md" \
+    "$STAGE_DIR/index.html" "$STAGE_DIR/account-session.js" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" "$STAGE_DIR/PROJECT_TREE.md" \
     "$SERVER:$REMOTE_DIR/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
@@ -275,7 +275,7 @@ elif [[ "$DEPLOY_MODE" == "data-only" ]]; then
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/outputs/agent_mobile' '$REMOTE_DIR/outputs/realtime_order_income' '$REMOTE_DIR/outputs/promo_budget_preview'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/index.html" "$STAGE_DIR/agent.html" \
+    "$STAGE_DIR/index.html" "$STAGE_DIR/account-session.js" "$STAGE_DIR/agent.html" \
     "$STAGE_DIR/workbench-data.js" \
     "$SERVER:$REMOTE_DIR/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
@@ -309,7 +309,7 @@ else
   ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/data' '$REMOTE_DIR/business-report-dashboard/data' '$REMOTE_DIR/business-report-dashboard/direct-dashboard' '$REMOTE_DIR/store-inspection' '$REMOTE_DIR/outputs/agent_mobile' '$REMOTE_DIR/outputs/realtime_order_income' '$REMOTE_DIR/outputs/promo_budget_preview'"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \
-    "$STAGE_DIR/index.html" "$STAGE_DIR/agent.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" \
+    "$STAGE_DIR/index.html" "$STAGE_DIR/account-session.js" "$STAGE_DIR/agent.html" "$STAGE_DIR/workbench.css" "$STAGE_DIR/workbench.js" "$STAGE_DIR/workbench-data.js" \
     "$SERVER:$REMOTE_DIR/"
   rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     -e "ssh ${SSH_OPTS[*]}" \

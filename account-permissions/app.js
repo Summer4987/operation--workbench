@@ -1,4 +1,4 @@
-import { MODULES, ACTIONS, ROLES, STORES, setStores, rolePermissions, emptyAccount, validateAccount, previewAccount } from './model.js';
+import { MODULES, ACTIONS, ROLES, STORES, setStores, rolePermissions, emptyAccount, validateAccount, previewAccount } from './model.js?v=20261120-messages';
 
 const API = '/api/access/';
 const $ = id => document.getElementById(id);

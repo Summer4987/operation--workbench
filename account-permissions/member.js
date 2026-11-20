@@ -1,6 +1,6 @@
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const titles={'direct-daily':'直营店日报','direct-reviews':'直营店评价',overview:'加盟店实时数据',daily:'加盟店日报',reviews:'加盟店评价',budget:'推广预算',bidding:'推广出价',balances:'推广余额',ordering:'订货管理',inventory:'门店货流','floor-plan':'平面图设计','sales-receipts':'销售单生成器','franchise-contract':'加盟合同生成器',accounts:'账号与权限'};
+const titles={'direct-messages':'直营门店消息复盘','direct-daily':'直营店日报','direct-reviews':'直营店评价',overview:'加盟店实时数据',daily:'加盟店日报',reviews:'加盟店评价',budget:'推广预算',bidding:'推广出价',balances:'推广余额',ordering:'订货管理',inventory:'门店货流','floor-plan':'平面图设计','sales-receipts':'销售单生成器','franchise-contract':'加盟合同生成器',accounts:'账号与权限'};
 const labels={store:'门店',store_id:'门店编号',date:'日期',platform:'平台',orders:'单量',income:'营业额',total_orders:'总单量',total_income:'总营业额',total_impressions:'曝光',balance:'余额',status:'状态',targetBudget:'目标预算',period:'时段',time:'时间',sku:'商品编码',name:'品名',quantity:'数量',unit:'单位',outbound_quantity:'出库数量',order_id:'订单编号',submitted_at:'提交时间',avg_rating:'平均评分'};
 let actor,module;
 async function api(path,payload){const r=await fetch('/api/access/'+path,payload===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json();if(r.status===401){location.assign('/login?next='+encodeURIComponent(location.pathname));throw new Error('需要重新登录')}if(!r.ok)throw new Error(data.detail||'请求失败');return data}
@@ -9,6 +9,10 @@ async function load(){
  $('error').hidden=true;
  const requestedModule=module;
  try{
+  const messages=requestedModule==='direct-messages';
+  $('messagesFrame').hidden=!messages; $('dataPanel').hidden=messages;
+  if(messages){$('moduleTitle').textContent=titles[requestedModule];$('messagesFrame').src='/api/access/messages/page';return;}
+  $('messagesFrame').removeAttribute('src');
   const data=await api('data/'+encodeURIComponent(requestedModule));
   if(requestedModule!==module)return;
   $('moduleTitle').textContent=titles[module];

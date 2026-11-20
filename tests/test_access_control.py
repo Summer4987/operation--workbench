@@ -142,3 +142,32 @@ def test_global_admin_management_and_audit_never_disclose_passwords(env):
  assert created['initial_password'] not in u.get('/api/access/audit').text
  assert u.get('/api/access/check',headers={'X-Original-URI':'/operation-workbench/account-permissions/index.html'}).status_code==204
  assert u.get('/api/access/check',headers={'X-Original-URI':'/operation-workbench/workbench-data.js'}).status_code==403
+
+
+def test_logout_revokes_session_and_clears_both_cookies(env):
+ client,tmp=env;u=member(client,create(client))
+ response=u.post('/api/access/logout',json={})
+ assert response.status_code==200
+ assert 'xiong_access=' in str(response.headers) and 'operation_session=' in str(response.headers)
+ assert u.get('/api/access/me').status_code==401
+
+
+def test_messages_are_scoped_including_history_and_attachments(env):
+ client,tmp=env
+ u=member(client,create(client,permissions={'direct-messages':['view']},stores=['direct-1']))
+ root=tmp/'data/business-report-dashboard/direct-dashboard/customer-messages';(root/'attachments').mkdir(parents=True)
+ text='<section class="scope" data-store="朝阳门店" data-platform="美团"><article>AUTHORIZED<img src="attachments/a.png"></article></section><section class="scope" data-store="银泰城店" data-platform="美团"><article>FORBIDDEN<img src="attachments/b.png"></article></section>'
+ (root/'index.html').write_text(text);(root/'2026-11-19.html').write_text(text)
+ (root/'attachments/a.png').write_bytes(b'authorized-image');(root/'attachments/b.png').write_bytes(b'forbidden-image')
+ for url in ['/api/access/messages/page','/api/access/messages/page?date=2026-11-19']:
+  response=u.get(url);assert response.status_code==200
+  assert 'AUTHORIZED' in response.text and 'FORBIDDEN' not in response.text and '银泰城' not in response.text
+  assert '/api/access/messages/media?' in response.text
+ assert u.get('/api/access/messages/media?file=attachments/a.png').content==b'authorized-image'
+ assert u.get('/api/access/messages/media?file=attachments/b.png').status_code==403
+ assert u.get('/api/access/messages/page?date=../../secret').status_code==400
+ assert u.get('/api/access/messages/media?file=attachments/../../secret').status_code==403
+ other=member(client,create(client,username='no.messages'))
+ assert other.get('/api/access/messages/page').status_code==403
+ assert other.get('/api/access/messages/media?file=attachments/a.png').status_code==403
+ assert u.get('/api/access/data/direct-messages?export=true').status_code==403

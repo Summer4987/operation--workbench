@@ -15,3 +15,5 @@
 部署：开发验证后推送 GitHub main，在 Mac mini 的干净 main 副本执行 `zsh scripts/deploy_access_control.zsh`。Mac mini 从 GitHub 获取代码，再发布带提交 SHA 的云端版本目录；原服务、数据库、登录态和生产配置不覆盖。独立服务仅监听 127.0.0.1:8020。部署脚本确认健康后，局部修改 Nginx 认证网关及登录路由，保留其他路由，`nginx -t` 后 reload；失败自动回退上一版本。账号数据库独立于发布目录。
 
 验证：`python -m pytest -q tests/test_access_control.py`，`node --test tests/test_account_permissions.mjs`。生产验收需验证旧管理员会话、新账号单门店数据/汇总/导出、无权限路径 403、修改或停用后旧会话 401，并用 Mac mini 浏览器检查正式管理页。
+
+总看板和账号管理页提供退出账号入口，退出同时清除旧管理 Cookie 与个人会话。消息复盘使用独立 `direct-messages` 查看权限，已有账号默认不授予，需管理员显式勾选；历史正文和附件由后台按授权门店过滤，原始全量归档仍不对普通账号开放。

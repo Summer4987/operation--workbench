@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>账号与权限 · 熊小小AI管理系统</title>
   <link rel="stylesheet" href="./styles.css">
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=20261120-messages"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -13,6 +13,7 @@
     <a class="back" href="../">返回业务工作台</a>
     <p class="nav-label">系统管理</p>
     <a class="nav-active" href="./" aria-current="page">账号与权限 <span>配置</span></a>
+    <button id="accountLogout" type="button">退出账号</button><p id="logoutError" role="alert" hidden></p>
     <div class="side-note"><strong>按职责分配访问范围</strong><p>同一套系统，为不同同事配置各自的功能和门店。</p></div>
   </aside>
   <main>
@@ -46,5 +47,6 @@
   <dialog id="confirmDialog" aria-labelledby="confirmTitle"><form method="dialog"><h2 id="confirmTitle">重置账号密码？</h2><p id="confirmText"></p><div class="buttons"><button value="cancel">取消</button><button value="delete" class="danger">重置密码</button></div></form></dialog>
   <dialog id="credentialDialog" aria-labelledby="credentialTitle" style="max-width:520px;padding:28px"><h2 id="credentialTitle">账号密码已生成</h2><p>密码仅在此显示一次，请通过安全方式交给账号本人。关闭后可重置密码，后台不会保存明文。</p><pre id="credentialValue" style="white-space:pre-wrap;user-select:all;padding:16px;background:#f1f5f9;font-size:20px"></pre><button type="button" id="closeCredentials">已记录，关闭</button></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
+<script src="../account-session.js?v=20261120"></script>
 </body>
 </html>

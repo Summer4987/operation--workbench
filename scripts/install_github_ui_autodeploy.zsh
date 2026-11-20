@@ -24,7 +24,7 @@ RAW_BASE="${OPERATION_GITHUB_RAW_BASE:-https://raw.githubusercontent.com/Summer4
 COMMIT_API="${OPERATION_GITHUB_BRANCH_REF:-https://api.github.com/repos/Summer4987/operation--workbench/commits/main}"
 STATE_DIR="${OPERATION_GITHUB_UI_STATE_DIR:-/home/ubuntu/.operation-workbench}"
 LOG_FILE="${OPERATION_GITHUB_UI_DEPLOY_LOG:-/home/ubuntu/operation-ui-github-deploy.log}"
-FILES=(index.html workbench.css workbench.js)
+FILES=(index.html workbench.css workbench.js account-session.js)
 
 mkdir -p "$STATE_DIR"
 touch "$LOG_FILE"

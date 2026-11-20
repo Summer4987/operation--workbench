@@ -25,9 +25,15 @@ for tool in floor-plan-designer sales-receipt-generator franchise-contract-gener
 done
 ssh "${SSH_OPTS[@]}" "$SERVER" "sudo bash '$RELEASE/access-control/install_on_cloud.sh'"
 rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r -e "ssh ${SSH_OPTS[*]}" account-permissions/ "$SERVER:/var/www/html/operation-workbench/account-permissions/"
+rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r -e "ssh ${SSH_OPTS[*]}" index.html account-session.js "$SERVER:/var/www/html/operation-workbench/"
 for file in app.js model.js index.html login.html member.html member.js styles.css; do
  expected="$(shasum -a 256 "account-permissions/$file" | awk '{print $1}')"
  actual="$(ssh "${SSH_OPTS[@]}" "$SERVER" "sha256sum '/var/www/html/operation-workbench/account-permissions/$file'" | awk '{print $1}')"
+ [[ "$expected" == "$actual" ]] || { echo "文件校验失败 $file"; exit 1; }
+done
+for file in index.html account-session.js; do
+ expected="$(shasum -a 256 "$file" | awk '{print $1}')"
+ actual="$(ssh "${SSH_OPTS[@]}" "$SERVER" "sha256sum '/var/www/html/operation-workbench/$file'" | awk '{print $1}')"
  [[ "$expected" == "$actual" ]] || { echo "文件校验失败 $file"; exit 1; }
 done
 curl -fsS http://139.155.148.169/login | /usr/bin/grep -q '使用个人账号登录'
