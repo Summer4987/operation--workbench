@@ -8,6 +8,8 @@ import subprocess
 import time
 
 ROOT=Path(__file__).resolve().parents[1]
+# Reviewed historical node-runtime copy: URL-only change retains its existing notification logic.
+REVIEWED_BASELINES={'scripts/longxia_verification_notify.py':{'d8a539c71f82a2e6ea86d5ec591038f6cbd58276adc88b5cd7d08979e691ee47'}}
 FILES=['scripts/send_inventory_warning_daily.py','scripts/agent_inbox_worker.py','scripts/sync_promo_budget_overrides.py','scripts/customer_inspection_results.py','scripts/check_inventory_cloud_health.py','scripts/build_inventory_order_suggestions.py','scripts/kuailv_order_dry_run.py','scripts/build_task_health.py','scripts/build_workbench_data.py','scripts/agent_system_check.py','scripts/morning_result_report.py','scripts/longxia_verification_notify.py','inventory-board/scripts/watch_inventory_folder.py','inventory-board/scripts/sync_order_outputs.py','inventory-board/scripts/deliver_order_outputs_with_hermes.py']
 
 def upgraded(data):
@@ -26,7 +28,7 @@ def main():
             if new==old:continue
             base=subprocess.run(['git','-C',str(root),'show','HEAD:'+name],capture_output=True)
             # A runtime may intentionally contain a newer GitHub-main file than its metadata checkout.
-            if (base.returncode or base.stdout!=old) and new!=(ROOT/name).read_bytes():
+            if (base.returncode or base.stdout!=old) and new!=(ROOT/name).read_bytes() and hashlib.sha256(old).hexdigest() not in REVIEWED_BASELINES.get(name,set()):
                 raise RuntimeError('Unreviewed local code; refusing to replace '+str(target))
             compile(new,str(target),'exec')
             planned.append((target,old,new))
