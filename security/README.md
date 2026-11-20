@@ -10,4 +10,4 @@ Backups, local secrets and migration reports stay on production hosts, never Git
 
 The certificate gateway repository also preserves the optional HTTPS business-route include during regeneration (`scripts/deploy-tls-compat-macmini.zsh` in `zhiqiweixing-deepseek`). Existing certificate renewal continues on the Mac mini.
 
-Regression: 64 security/client tests pass plus five subtests; gateway repository has six passing tests. One pre-existing inventory test asserts the removed `LDXXX00014` SKU and is excluded from the security run. The broader ordering suite also has an existing notification test that expects a retired notification setting; security changes do not modify that path.
+Regression: 64 security/client tests pass plus five subtests; gateway repository has six passing tests. One pre-existing inventory test asserts the removed `LDXXX00014` SKU and is excluded from the security run. The broader ordering suite also has a notification test that fails identically on the pre-fix GitHub baseline; security changes do not modify that notification path.
