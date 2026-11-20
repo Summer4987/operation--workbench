@@ -32,6 +32,9 @@ class MorningReportTests(unittest.TestCase):
         scope = dict(ratings_status='ready', reviews_status='ready', collected_at='2026-10-25T08:20:00+08:00',
                      start_date='2026-10-18', end_date='2026-10-24', ratings={'A':{'value':4.8}}, records=[])
         self.write('outputs/review_pages/latest.json', {'scopes': {key:copy.deepcopy(scope) for key in ['eleme_headquarters','meituan_headquarters','direct_a']}})
+        self.write('business-report-dashboard/direct_config.json', {'target_stores':['A','B']})
+        self.write('business-report-dashboard/data/direct-latest.json', dict(generated_at='2026-10-25 08:30:00', source_dates=['2026-10-24'],
+            records=[dict(date='2026-10-24',store=store,platform=platform) for store in ['A','B'] for platform in ['饿了么','美团']]))
         self.write('config/direct_meituan_accounts.json', {'accounts':[{'id':'direct_a','enabled':True}]})
         self.write('config/customer_messages.json', {'stores':[{'store':'A'},{'store':'B'}]})
         self.write('outputs/customer_messages/latest.json', dict(target_date='2026-10-24', generated_at='2026-10-25 08:20:00', context_restored=True,
@@ -54,11 +57,19 @@ class MorningReportTests(unittest.TestCase):
 
     def test_all_categories_and_every_project_are_reported(self):
         p=self.build();self.assertEqual(len(p['categories']),7)
-        self.assertEqual(p['counts'],{'success':27});self.assertEqual(p['status'],'success')
+        self.assertEqual(p['counts'],{'success':28});self.assertEqual(p['status'],'success')
         text=report.format_report(p)
         for category in p['categories']:
             self.assertIn('【'+category['name']+'】',text)
             for row in category['items']:self.assertIn(row['name']+'：成功',text)
+
+    def test_stale_or_incomplete_direct_report_blocks_all_success(self):
+        path='business-report-dashboard/data/direct-latest.json'
+        good=report.read_json(self.root/path)
+        for changed in [dict(generated_at='2026-10-24 12:00:00'),dict(source_dates=['2026-10-23']),dict(records=good['records'][:-1])]:
+            self.write(path,dict(good,**changed))
+            self.assertEqual(self.rows()['直营店日报生成']['status'],'failed')
+            self.assertEqual(self.build()['status'],'attention')
 
     def test_review_failure_does_not_hide_successful_budget(self):
         data=report.read_json(self.root/'outputs/review_pages/latest.json');data['scopes']['eleme_headquarters']['reviews_status']='failed';self.write('outputs/review_pages/latest.json',data)
@@ -146,7 +157,7 @@ class MorningReportTests(unittest.TestCase):
 
     def test_no_execution_is_not_reported_as_success(self):
         self.runs['events']=self.runs['events'][:1];self.task['status']='failed'
-        p=self.build();self.assertEqual(p['counts'],{'missing':27})
+        p=self.build();self.assertEqual(p['counts'],{'missing':28})
 
     def test_budget_skip_and_failed_readback_are_not_success(self):
         self.runs['events'].append(dict(task_id=report.TASK_ID,step='饿了么午餐预算真实提交',status='skipped',created_at='2026-10-25 08:44:00',message='按设置跳过'))

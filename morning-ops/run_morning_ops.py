@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -542,6 +542,9 @@ def main() -> int:
                 result = run_step_with_pause("门店日报采集并发布", ["/bin/zsh", str(DAILY_RUNNER)], required=False, timeout_seconds=720)
                 if result.returncode != 0:
                     add_failure(failures, "门店日报", result)
+                result = run_step("直营店日报生成", [report_python, str(REPORT_DIR / "process_direct_reports.py"), "--require-date", (datetime.now() - timedelta(days=1)).date().isoformat()], required=False, timeout_seconds=600)
+                if result.returncode != 0:
+                    add_failure(failures, "直营店日报生成", result)
                 result = run_step("日报重点状态更新", [sys.executable, str(DAILY_FOCUS_STATUS_RUNNER)], required=False, timeout_seconds=120)
                 if result.returncode != 0:
                     add_failure(failures, "日报重点状态", result)

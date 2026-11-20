@@ -29,6 +29,20 @@ def load_notifier():
 
 
 class AgentTaskNotifierTests(unittest.TestCase):
+    def test_morning_retry_window_and_outcome_deduplication(self):
+        payload=dict(date='2026-11-20',status='attention',categories=[dict(items=[dict(name='日报',status='failed',detail='old')])])
+        def epoch(hour):
+            return self.notifier.datetime(2026,11,20,hour,30,tzinfo=self.notifier.ZoneInfo('Asia/Shanghai')).timestamp()
+        with mock.patch.object(self.notifier.morning_result_report,'build_payload',return_value=payload):
+            self.assertIsNone(self.notifier.morning_notification({}, {}, epoch(9)))
+            first=self.notifier.morning_notification({}, {}, epoch(11))
+            second=self.notifier.morning_notification({'updated_at':'changed'}, {}, epoch(12))
+            self.assertEqual(first[1],second[1])
+            payload['status']='success';payload['categories'][0]['items'][0]['status']='success'
+            recovered=self.notifier.morning_notification({}, {}, epoch(12))
+            self.assertNotEqual(first[1],recovered[1])
+            self.assertIn('全部完成', self.notifier.compact_morning_message(payload))
+
     def test_inventory_success_does_not_duplicate_inventory_warning(self) -> None:
         for task_id in ("ops.inventory_warning_daily", "schedule.com.summer.operation.inventory-warning-daily"):
             with self.subTest(task_id=task_id), tempfile.TemporaryDirectory() as tmp:
@@ -221,7 +235,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             chunks=self.notifier.split_delivery_message(message.strip())
             outcomes=[(True,'ok'),(False,'retry')]+[(True,'ok')]*(len(chunks)-1)
             with mock.patch.object(self.notifier,'load_policy_rows',return_value=dict(self.notifier.DIRECT_TASK_ROWS)), \
-                 mock.patch.object(self.notifier,'build_message',return_value=message), \
+                 mock.patch.object(self.notifier,'compact_morning_message',return_value=message), \
                  mock.patch.object(self.notifier,'delivery_backoff_seconds',return_value=0), \
                  mock.patch.object(self.notifier,'send_weixin',side_effect=outcomes) as send:
                 first=self.notifier.notify(args);self.assertFalse(first['notifications'][0]['delivered'])
@@ -609,8 +623,8 @@ class AgentTaskNotifierTests(unittest.TestCase):
                     {
                         "tasks": {
                             "ops.realtime_order_income": {
-                                "status": "success",
-                                "message": "实时单量收入采集完成。",
+                                "status": "failed",
+                                "message": "实时单量收入采集失败。",
                                 "step": "发布工作台云端数据",
                                 "finished_at": "2026-07-02 10:31:17",
                             }
@@ -669,8 +683,8 @@ class AgentTaskNotifierTests(unittest.TestCase):
                     {
                         "tasks": {
                             "ops.realtime_order_income": {
-                                "status": "success",
-                                "message": "实时单量收入采集完成。",
+                                "status": "failed",
+                                "message": "实时单量收入采集失败。",
                                 "step": "发布工作台云端数据",
                                 "finished_at": "2026-07-02 10:31:17",
                             }
@@ -717,7 +731,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertEqual(payload["consecutive_failures"], 3)
             self.assertGreaterEqual(payload["cooldown_until"] - time.time(), 7100)
 
-    def test_notify_includes_direct_runtime_task_success_by_default(self) -> None:
+    def test_realtime_routine_success_is_silent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             runs_path = tmp_path / "runs.json"
@@ -761,9 +775,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             finally:
                 self.notifier.load_policy_rows = original_loader
 
-            self.assertEqual(payload["notification_count"], 1)
-            self.assertIn("结论：实时单量和营业额采集通过，功能已完成。", payload["notifications"][0]["message"])
-            self.assertIn("功能验收：实时单量和营业额采集：成功", payload["notifications"][0]["message"])
+            self.assertEqual(payload["notification_count"], 0)
 
     def test_notify_skips_unknown_unconfigured_tasks_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

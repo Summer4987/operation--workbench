@@ -4,11 +4,12 @@ from __future__ import annotations
 import argparse
 import fcntl
 import hashlib
-from datetime import datetime
 import json
 import re
 import subprocess
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -479,6 +480,36 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, ru
     return "\n".join(compact_message(line) for line in lines if compact_message(line))
 
 
+def morning_notification(task, runs, now):
+    """Wait through scheduled retries; deduplicate by business outcome, not time."""
+    payload = morning_result_report.build_payload(task, runs, ROOT)
+    current = datetime.fromtimestamp(now, ZoneInfo('Asia/Shanghai'))
+    if (payload['date'] == current.date().isoformat() and current.strftime('%H%M') < '1050'
+            and payload['status'] != 'success'):
+        return None
+    issues = [(row['name'], row['status']) for category in payload['categories']
+              for row in category['items'] if row['status'] not in {'success', 'skipped'}]
+    signature = 'morning-final|' + json.dumps([payload['date'], payload['status'], issues], ensure_ascii=False)
+    return payload, signature
+
+
+def compact_morning_message(payload):
+    rows = [row for category in payload['categories'] for row in category['items']]
+    issues = [row for row in rows if row['status'] not in {'success', 'skipped'}]
+    conclusion = '全部完成' if payload['status'] == 'success' else '未全部完成，需要处理'
+    lines = [f"【上午运营一键采集最终结果｜{payload['date']}】", f'结论：{conclusion}']
+    if issues:
+        lines += [f"• {row['name']}：{morning_result_report.LABELS[row['status']]}；{row['detail']}" for row in issues]
+    else:
+        lines.append('日报、评价、客服消息、余额巡检、午餐预算及看板发布已验收。')
+    skipped = [row['name'] for row in rows if row['status'] == 'skipped']
+    if skipped:
+        lines.append('按规则跳过：'+'、'.join(skipped))
+    lines += ['补跑过程不单独推送；只有最终结果发生变化时更新。',
+              '正式看板：https://139.155.148.169/operation-workbench/']
+    return '\n'.join(lines)
+
+
 def notify(args: argparse.Namespace) -> dict[str, Any]:
     runs_path = Path(args.runs).expanduser()
     state_path = Path(args.state).expanduser()
@@ -540,18 +571,27 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             events = morning_result_report.session_events(task, runs)
             if any(e.get('step') == '初始化' and e.get('extra', {}).get('mode') == 'preview' for e in events):
                 continue
-        signature = task_signature(task)
+        if task_id == 'growth.promo_budget' and '午餐' in str(task.get('step') or ''):
+            continue  # Included in the final morning result, with read-back evidence.
+        if task_id == 'ops.realtime_order_income' and status == 'success':
+            continue
+        morning = None
+        if task_id == 'ops.morning_collection':
+            morning = morning_notification(task, runs, now)
+            if morning is None:
+                continue
+        signature = morning[1] if morning else task_signature(task)
         if args.seed:
             now_sent[task_id] = signature
             continue
         if sent.get(task_id) == signature:
             continue
         row = policy_rows.get(task_id, {"id": task_id, "name": task.get("step") or task_id, "rerun": {}})
-        message = build_message(task_id, task, row, runs=runs)
+        message = compact_morning_message(morning[0]) if morning else build_message(task_id, task, row, runs=runs)
         notifications.append(
             {
                 "task_id": task_id,
-                "status": status,
+                "status": ("success" if morning[0]["status"] == "success" else "failed") if morning else status,
                 "message": message,
                 "delivered": bool(args.dry_run),
                 "delivery_output": "dry-run" if args.dry_run else "pending-batch-send",

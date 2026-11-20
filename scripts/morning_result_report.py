@@ -119,7 +119,18 @@ def build_payload(task, runs, root=ROOT):
             review_rows.append(row)
     section('评价与评分', review_rows + [event_row('评价看板生成', '评价看板生成'), event_row('评价待办更新', '评价待办状态更新')])
 
-    section('经营日报', [event_row('直营美团日报下载', '直营美团日报下载'),
+    direct = read_json(root/'business-report-dashboard/data/direct-latest.json')
+    dates = direct.get('source_dates') or []
+    direct_row = dict(name='直营店日报生成', status='success', detail=f'数据日期 {target_date}')
+    records = direct.get('records') or []
+    expected = set(read_json(root/'business-report-dashboard/direct_config.json').get('target_stores') or [])
+    coverage = {(item.get('store'), item.get('platform')) for item in records if item.get('date') == target_date}
+    complete = bool(expected) and all((store, platform) in coverage for store in expected for platform in ['饿了么', '美团'])
+    if not (fresh(direct.get('generated_at'), '直营店日报生成') and target_date in dates and complete):
+        direct_row.update(status='failed', detail=f'应有 {target_date} 双平台完整日报；当前最新 {max(dates) if dates else "无数据"}，需检查源文件读取和门店覆盖')
+    if not latest.get('门店日报采集并发布') and not latest.get('直营店日报生成'):
+        direct_row.update(status='missing', detail='本轮无日报执行记录')
+    section('经营日报', [direct_row, event_row('直营美团日报下载', '直营美团日报下载'),
                         event_row('双平台日报采集与发布', '门店日报采集并发布'),
                         event_row('日报重点更新', '日报重点状态更新')])
 

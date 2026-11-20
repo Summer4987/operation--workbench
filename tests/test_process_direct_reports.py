@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import errno
+from unittest.mock import patch
 import importlib.util
 import sys
 import tempfile
@@ -30,6 +32,21 @@ class ProcessDirectReportsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.module = load_module()
+
+    def test_temporary_cloud_file_read_error_retries_but_never_hides_failure(self):
+        with patch.object(self.module.base, 'read_eleme', side_effect=[OSError(errno.EDEADLK,'busy'), ('frame',[])]) as read, patch.object(self.module.time,'sleep'):
+            self.assertEqual(self.module.read_eleme_with_retry(Path('a.xlsx'),{},{}),('frame',[]))
+            self.assertEqual(read.call_count,2)
+        with patch.object(self.module.base,'read_eleme',side_effect=OSError(errno.EDEADLK,'busy')), patch.object(self.module.time,'sleep'):
+            with self.assertRaisesRegex(OSError,'a.xlsx'):
+                self.module.read_eleme_with_retry(Path('a.xlsx'),{},{})
+
+    def test_yesterday_report_requires_all_stores_and_both_platforms(self):
+        payload=dict(target_stores=['A'],source_dates=['2026-11-19'],records=[dict(date='2026-11-19',store='A',platform=p) for p in ['饿了么','美团']])
+        self.module.validate_daily_coverage(payload,'2026-11-19')
+        payload['records'].pop()
+        with self.assertRaisesRegex(ValueError,'美团'):
+            self.module.validate_daily_coverage(payload,'2026-11-19')
 
     def test_process_writes_structured_outputs_without_raw_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

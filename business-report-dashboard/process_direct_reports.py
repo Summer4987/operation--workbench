@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import errno
+import time
 import json
 import re
 import shutil
@@ -204,6 +206,17 @@ def merge_daily_frames(frames, target_stores):
         unified.drop_duplicates(subset=["date", "platform", "store"], keep="last", inplace=True)
     return normalize_unified(unified)
 
+def read_eleme_with_retry(path, config, alias_lookup):
+    # macOS can transiently reject reads while cloud-backed files hydrate.
+    for attempt in range(3):
+        try:
+            return base.read_eleme(path, config, alias_lookup)
+        except OSError as exc:
+            if exc.errno not in {errno.EAGAIN, errno.EDEADLK} or attempt == 2:
+                raise OSError(exc.errno, f"直营日报源文件读取失败：{path}；{exc}") from exc
+            time.sleep(1)
+
+
 def process(eleme_path: Path | None = None, meituan_path: Path | None = None) -> dict:
     config = load_config()
     alias_lookup = base.build_alias_lookup(config)
@@ -220,7 +233,7 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     warnings = []
     for path in collect_eleme_paths(eleme_path):
         try:
-            frame, frame_warnings = base.read_eleme(path, config, alias_lookup)
+            frame, frame_warnings = read_eleme_with_retry(path, config, alias_lookup)
         except base.EmptyDailyReportError as exc:
             warnings.append(
                 {
@@ -316,14 +329,27 @@ def process(eleme_path: Path | None = None, meituan_path: Path | None = None) ->
     }
 
 
+def validate_daily_coverage(payload, target_date):
+    expected = set(payload.get('target_stores') or [])
+    covered = {(row.get('store'), row.get('platform')) for row in payload.get('records', [])
+               if row.get('date') == target_date}
+    missing = [f'{store}|{platform}' for store in sorted(expected)
+               for platform in ['饿了么', '美团'] if (store, platform) not in covered]
+    if not expected or missing or target_date not in (payload.get('source_dates') or []):
+        raise ValueError(f'直营日报 {target_date} 未通过完整性校验：'+('、'.join(missing) or '缺少门店或数据日期'))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成直营店日报数据，不覆盖加盟店日报。")
     parser.add_argument("--eleme", type=Path, help="可选：指定饿了么 Excel。默认使用连锁账号历史原始文件。")
     parser.add_argument("--meituan", type=Path, help="可选：指定直营美团 CSV。会复制到 data/direct/raw。")
+    parser.add_argument("--require-date", help="验收该营业日的全部直营门店和双平台数据。")
     args = parser.parse_args()
 
     result = process(args.eleme, args.meituan)
     payload = result["payload"]
+    if args.require_date:
+        validate_daily_coverage(payload, args.require_date)
     print(f"已生成直营统一数据：{result['unified_path']}")
     print(f"已生成直营日报数据：{result['output']}")
     print(f"已生成直营网页看板：{result['dashboard_path']}")
