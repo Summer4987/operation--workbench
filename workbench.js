@@ -1770,7 +1770,6 @@ function renderInventory() {
 function renderTools() {
   const warehouse = data.tool_warehouse || {};
   const sales = warehouse.sales_receipt || {};
-  const contract = warehouse.franchise_contract || {};
   const salesChecks = sales.checks || [];
   const printCheck = sales.print_check || {};
   const salesReadyCount = salesChecks.filter((item) => item.exists).length;
@@ -1793,33 +1792,6 @@ function renderTools() {
       }] : []),
     ],
     (item) => `<div class="${item.exists ? "good-row" : "warn-row"}"><span>${escapeHtml(item.label)}</span><strong>${item.exists ? "通过" : "缺失"}</strong><em>${escapeHtml(item.detail || item.path || "")}</em></div>`
-  );
-
-  const requiredFields = contract.required_fields || [];
-  const intakeChecklist = contract.intake_checklist || [];
-  const contractChecks = contract.checks || [];
-  const missing = contract.missing || [];
-  const contractSetup = contract.setup || {};
-  const generatorEmbedded = Boolean(document.querySelector('iframe[src="./franchise-contract-generator/index.html"]'));
-  const contractReady = generatorEmbedded || contract.status === "ready";
-  text("franchiseContractStatus", contractReady ? "已接入" : (contract.status_text || "待模板"));
-  text("franchiseContractCount", `${requiredFields.length || 0} 项字段`);
-  text("franchiseContractSummary", contractReady ? "可填写加盟商、门店、收货和签约信息并导出 Word 合同。" : (contract.message || "加盟合同生成器等待合同模板和字段确认。"));
-  document.querySelector(".module-contract")?.classList.toggle("alert", !contractReady && contract.status === "waiting_template");
-  rows(
-    "franchiseContractRows",
-    [
-      ...(missing.length ? [{ label: "当前缺口", value: `${missing.length} 项`, detail: missing.join("、") }] : []),
-      { label: "初始化", value: contractSetup.directory_ready && contractSetup.field_template_ready ? "已准备" : "可执行", detail: contractSetup.init_command || "python3 scripts/init_franchise_contract_inbox.py" },
-      { label: "字段模板", value: contractSetup.field_template_ready ? "已就绪" : "待生成", detail: contractSetup.field_template_path || "franchise-contract-generator/templates/field_template.csv" },
-      ...(contract.status === "ready" ? contractChecks : intakeChecklist.slice(0, 1)).map((item) => ({
-        label: item.label || "接收要求",
-        value: item.exists === undefined ? (item.path || "合同模板") : (item.exists ? "通过" : "缺失"),
-        detail: item.message || item.path || "",
-      })),
-      ...requiredFields.slice(0, 6).map((field) => ({ label: "字段", value: field, detail: "生成前确认" })),
-    ],
-    (item) => `<div class="${item.label === "当前缺口" ? "warn-row" : "good-row"}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><em>${escapeHtml(item.detail)}</em></div>`
   );
 }
 
