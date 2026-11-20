@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from .longxia_config import DEFAULT
 
-STORE_FIELDS={'id','name','bound','storeName','accountType','templateName','dailyBudget','lunchBudget','dinnerBudget','minBid','maxBid','platformBudget','spend','expected','gap','bid','bidScope','snapshotAt','day','status','pending','paused','promotionStatus','message','resultAt','nextDue','amounts','learning'}
+STORE_FIELDS={'id','name','bound','storeName','accountType','templateName','dailyBudget','lunchBudget','dinnerBudget','minBid','maxBid','platformBudget','spend','expected','gap','bid','bidScope','snapshotAt','day','status','pending','paused','promotionStatus','message','resultAt','nextDue','amounts','learning','accountBalance','accountBalanceAt','accountBalanceDay'}
 LEARNING_TEXT_FIELDS={'mode','status','message','note'}
 LEARNING_NUMBER_FIELDS={'samples','days','responseSamples','averageDailySpend','completeDays','suggestedBid','referenceBid','suggestedStep','suggestedWaitMinutes'}
 
@@ -33,6 +33,13 @@ def read(path,now=None):
         # Exporter and relay only publish business status. Fail closed if raw fields leak.
         if set(raw)-TOP_FIELDS or any(set(s)-STORE_FIELDS for s in stores):raise ValueError('状态含未授权字段')
         if any(not valid_learning(s.get('learning')) for s in stores):raise ValueError('学习建议格式无效')
+        for store in stores:
+            balance=store.get('accountBalance')
+            stamp=store.get('accountBalanceAt')
+            day=store.get('accountBalanceDay')
+            if balance is not None and type(balance) is not int:raise ValueError('账户余额格式无效')
+            if stamp is not None and (type(stamp) is not int or stamp<0 or stamp>now+60000):raise ValueError('余额时间无效')
+            if day is not None and (not isinstance(day,str) or len(day)!=10 or day[4]!='-' or day[7]!='-' or not day.replace('-','').isdigit()):raise ValueError('余额日期无效')
         opening=raw.get('openingBid')
         if opening is not None and (type(opening) is not int or not 10<=opening<=10000 or opening%10):raise ValueError('开场价格式无效')
         age=now-raw['generatedAt']

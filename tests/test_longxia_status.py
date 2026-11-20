@@ -23,6 +23,15 @@ class LongxiaStatusTests(unittest.TestCase):
   self.data['openingBid']=60;self.write();self.assertEqual(m.read(self.file,NOW)['openingBid'],60)
   for value in ['60',True,-1,55,10001,{'cookie':'secret'}]:
    self.data['openingBid']=value;self.write();self.assertFalse(m.read(self.file,NOW)['available'])
+ def test_account_balance_fields_keep_exporter_status_online(self):
+  row=self.data['stores'][0]
+  row.update(accountBalance=-123,accountBalanceAt=NOW,accountBalanceDay='2026-10-27')
+  self.write();result=m.read(self.file,NOW)
+  self.assertTrue(result['online']);self.assertEqual(result['stores'][0]['accountBalance'],-123)
+  for field,value in [('accountBalance',True),('accountBalance',{}),('accountBalanceAt',NOW+60001),('accountBalanceAt',True),('accountBalanceDay',{}),('accountBalanceDay','invalid')]:
+   d=copy.deepcopy(self.data);d['stores'][0][field]=value;self.write(d);self.assertFalse(m.read(self.file,NOW)['available'])
+  row.update(accountBalance=None,accountBalanceAt=None,accountBalanceDay=None)
+  self.write();self.assertTrue(m.read(self.file,NOW)['online'])
  def test_missing_and_invalid(self):
   self.assertFalse(m.read(self.file,NOW)['available'])
   for mutate in [lambda d:d.update(cookie='secret'),lambda d:d['stores'][0].update(rawSnapshot={}),lambda d:d['stores'][0].update(id='wrong'),lambda d:d.update(generatedAt=NOW+60001),lambda d:d['stores'].__setitem__(0,None)]:
