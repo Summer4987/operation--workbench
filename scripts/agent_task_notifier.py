@@ -506,7 +506,7 @@ def compact_morning_message(payload):
     if skipped:
         lines.append('按规则跳过：'+'、'.join(skipped))
     lines += ['补跑过程不单独推送；只有最终结果发生变化时更新。',
-              '正式看板：https://139.155.148.169/operation-workbench/']
+              '正式看板：http://139.155.148.169/operation-workbench/']
     return '\n'.join(lines)
 
 
