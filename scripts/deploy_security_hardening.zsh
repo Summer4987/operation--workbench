@@ -14,7 +14,9 @@ SHA="$1"
 SOURCE=/opt/xiong-security-source
 if ! test -d "$SOURCE/.git"; then
  sudo mkdir -p "$SOURCE";sudo chown ubuntu:ubuntu "$SOURCE"
- git clone --depth 1 https://github.com/Summer4987/operation--workbench.git "$SOURCE"
+ git clone --filter=blob:none --no-checkout --depth 1 https://github.com/Summer4987/operation--workbench.git "$SOURCE"
+ git -C "$SOURCE" sparse-checkout set --no-cone /security/ /access-control/smoke_live.py /daily-order/app/main.py /.gitignore
+ git -C "$SOURCE" checkout main
 fi
 cd "$SOURCE"
 test -z "$(git status --porcelain)"

@@ -18,7 +18,7 @@ if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
 fi
 SERVER="${OPERATION_CLOUD_SERVER:-ubuntu@139.155.148.169}"
 REMOTE_DIR="${OPERATION_CLOUD_REMOTE_DIR:-/var/www/html/operation-workbench}"
-PUBLIC_URL="${OPERATION_CLOUD_PUBLIC_URL:-http://139.155.148.169/operation-workbench/}"
+PUBLIC_URL="${OPERATION_CLOUD_PUBLIC_URL:-https://139.155.148.169/operation-workbench/}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15)
 IDENTITY_FILE="${OPERATION_CLOUD_IDENTITY_FILE:-$HOME/.ssh/xiong_operation_cloud_ed25519}"
 if [[ -f "$IDENTITY_FILE" ]]; then SSH_OPTS+=(-i "$IDENTITY_FILE"); fi

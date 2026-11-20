@@ -8,10 +8,15 @@ backup="/var/backups/xiong-access/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$backup" /var/lib/xiong-access
 chown ubuntu:ubuntu /var/lib/xiong-access
 chmod 700 /var/lib/xiong-access
-cp /etc/nginx/conf.d/inventory-board.conf "$backup/nginx.conf"
+auth_config=/etc/nginx/conf.d/inventory-board.conf
+# HTTPS migration keeps authorization locations in the shared TLS include.
+if [[ -f /etc/nginx/snippets/xiong-workbench-https.conf ]]; then
+ auth_config=/etc/nginx/snippets/xiong-workbench-https.conf
+fi
+cp "$auth_config" "$backup/nginx.conf"
 if [[ -f /etc/systemd/system/xiong-access.service ]]; then cp /etc/systemd/system/xiong-access.service "$backup/service"; fi
 rollback() {
- cp "$backup/nginx.conf" /etc/nginx/conf.d/inventory-board.conf
+ cp "$backup/nginx.conf" "$auth_config"
  if [[ -n "$previous" ]]; then
   ln -sfn "$previous" /opt/xiong-access/current
   if [[ -f "$backup/service" ]]; then cp "$backup/service" /etc/systemd/system/xiong-access.service; fi
@@ -33,9 +38,9 @@ for attempt in $(seq 1 15); do
  sleep 1
 done
 curl -fsS http://127.0.0.1:8020/health >/dev/null
-python3 access-control/install_gateway.py /etc/nginx/conf.d/inventory-board.conf
+python3 access-control/install_gateway.py "$auth_config"
 if ! nginx -t; then
- cp "$backup/nginx.conf" /etc/nginx/conf.d/inventory-board.conf
+ cp "$backup/nginx.conf" "$auth_config"
  exit 1
 fi
 systemctl reload nginx

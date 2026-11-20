@@ -36,5 +36,5 @@ for file in index.html account-session.js; do
  actual="$(ssh "${SSH_OPTS[@]}" "$SERVER" "sha256sum '/var/www/html/operation-workbench/$file'" | awk '{print $1}')"
  [[ "$expected" == "$actual" ]] || { echo "文件校验失败 $file"; exit 1; }
 done
-curl -fsS http://139.155.148.169/login | /usr/bin/grep -q '使用个人账号登录'
+curl -fsS https://139.155.148.169/login | /usr/bin/grep -q '使用个人账号登录'
 echo '账号权限后台、静态页面和登录网关已发布。'
