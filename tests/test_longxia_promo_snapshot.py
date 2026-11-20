@@ -106,3 +106,21 @@ def test_refresh_notice_deduplicates_amount_changes_but_sends_new_low_stores(tmp
         payload['low_balance_items'].append({'platform':'美团','store_name':'清河','balance':3,'threshold':200})
         path.write_text(json.dumps(payload));assert notifier.notify(args)['notification_count']==1
         assert send.call_count==2
+
+
+def test_user_paused_store_skips_even_when_snapshot_missing_and_requires_explicit_resume(tmp_path):
+    config, pauses = tmp_path/'config.json', tmp_path/'pauses.json'
+    config.write_text(json.dumps({'longxia': {'stores': [
+        {'profileId':'gg','name':'光谷店'}, {'profileId':'other','name':'其他店'}]}}))
+    pauses.write_text(json.dumps({'stores':[{'platform':'美团','store_name':'光谷店','paused':True,
+                                           'reason':'等待用户通知恢复'}]}))
+    skipped = []
+    items, issues = reader.read_balance_items(path=tmp_path/'missing', config_path=config,
+                                              pauses_path=pauses, now=NOW, skipped=skipped)
+    assert items == []
+    assert [r['store_name'] for r in issues] == ['其他店']
+    assert skipped == [{'platform':'美团','store_name':'光谷店','status':'skipped','message':'等待用户通知恢复'}]
+    pauses.write_text(json.dumps({'stores':[]}))
+    _, issues = reader.read_balance_items(path=tmp_path/'missing', config_path=config,
+                                         pauses_path=pauses, now=NOW)
+    assert len(issues) == 2

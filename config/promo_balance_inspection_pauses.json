@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "stores": [
+    {
+      "platform": "美团",
+      "store_name": "光谷店",
+      "paused": true,
+      "reason": "用户确认近期暂停巡检，按预期跳过；仅在用户明确通知恢复后取消。",
+      "since": "2026-11-20"
+    }
+  ]
+}

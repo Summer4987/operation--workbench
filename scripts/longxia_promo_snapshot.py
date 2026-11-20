@@ -66,11 +66,14 @@ def read_records(tasks, *, path=None, config_path=None, now=None):
     return records
 
 
-def read_balance_items(*, path=None, config_path=None, now=None):
+def read_balance_items(*, path=None, config_path=None, now=None, pauses_path=None, skipped=None):
     """Reuse fleet reads; no browser, subprocess, queue lease or platform request."""
     now = int(time.time() * 1000) if now is None else now
     day = datetime.fromtimestamp(now / 1000, TZ).strftime('%F')
     items, issues = [], []
+    pauses = json.loads(Path(pauses_path or ROOT / 'config/promo_balance_inspection_pauses.json').read_text())
+    paused_names = {r['store_name']: r for r in pauses['stores']
+                    if r.get('platform') == '美团' and r.get('paused') is True}
     config = json.loads(Path(config_path or CONFIG_PATH).read_text())['longxia']['stores']
     if not config or len({r['profileId'] for r in config}) != len(config):
         raise ValueError('龙虾余额门店配置缺失或身份重复')
@@ -92,6 +95,12 @@ def read_balance_items(*, path=None, config_path=None, now=None):
     except (OSError, ValueError, TypeError) as exc:
         by_id, error = {}, '龙虾余额快照不可用：' + type(exc).__name__
     for store in config:
+        name = store.get('name') or store.get('sourceStore') or store['profileId']
+        if name in paused_names:
+            if skipped is not None:
+                skipped.append({'platform': '美团', 'store_name': name, 'status': 'skipped',
+                                'message': paused_names[name]['reason']})
+            continue
         row = by_id.get(store['profileId'], {})
         at, balance = row.get('accountBalanceAt'), row.get('accountBalance')
         reason = error

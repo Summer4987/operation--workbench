@@ -135,13 +135,17 @@ def collect_all_balances(*, fleet_only=False) -> tuple[dict, bool]:
             platform_issues.append({"platform": platform_name, "store_name": "全部门店", "message": str(exc)})
             print(f"{platform_name} CDP 失败：{exc}", flush=True)
 
+    skipped = []
     try:
-        meituan_items, balance_issues = read_balance_items()
+        meituan_items, balance_issues = read_balance_items(skipped=skipped)
     except Exception as exc:
         meituan_items = []
         balance_issues = [{"platform": "美团", "store_name": "全部门店", "message": str(exc)}]
     items.extend(meituan_items)
     data = apply_direct_coverage(build_result(items, THRESHOLD), {"饿了么", "美团"})
+    data["balance_collection_skipped"] = skipped
+    if skipped:
+        print("用户暂停，按预期跳过：" + "、".join(r["store_name"] for r in skipped), flush=True)
     data["source"] = "cdp_all_balances"
     data["collected_platforms"] = sorted({item["platform"] for item in items})
     data["balance_collection_issues"] = balance_issues + platform_issues

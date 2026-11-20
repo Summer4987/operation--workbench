@@ -479,6 +479,9 @@ def build_status(payload: dict) -> dict:
         status = "ok"
         message = f"推广余额巡检正常，{store_count} 条余额结果。"
 
+    skipped = payload.get("balance_collection_skipped") or []
+    if skipped:
+        message += " 用户暂停巡检，按预期跳过：" + "、".join(r["store_name"] for r in skipped) + "；等待用户通知恢复。"
     delegated = payload.get("delegated_platforms") or {}
     if delegated:
         message += " " + " ".join(row["message"] for row in delegated.values())
@@ -539,6 +542,7 @@ def build_status(payload: dict) -> dict:
         "direct_coverage": direct_coverage,
         "direct_coverage_issues": coverage_rows,
         "balance_collection_issues": balance_collection_issues,
+        "balance_collection_skipped": skipped,
         "low_balance_items": warnings,
         "excluded_low_balance_items": excluded_warnings,
         "unconfirmed_balance_items": unconfirmed_items,
