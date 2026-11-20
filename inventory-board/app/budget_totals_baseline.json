@@ -294,22 +294,22 @@
       "platforms": {
         "美团": {
           "weekday": {
-            "dailyBudget": 15000,
-            "lunchBudget": 10000
+            "dailyBudget": 10000,
+            "lunchBudget": 7000
           },
           "weekend": {
-            "dailyBudget": 8000,
-            "lunchBudget": 5000
+            "dailyBudget": 10000,
+            "lunchBudget": 7000
           }
         },
         "饿了么": {
           "weekday": {
-            "dailyBudget": 15000,
-            "lunchBudget": 10000
+            "dailyBudget": 10000,
+            "lunchBudget": 6700
           },
           "weekend": {
-            "dailyBudget": 8000,
-            "lunchBudget": 5000
+            "dailyBudget": 10000,
+            "lunchBudget": 6700
           }
         }
       }

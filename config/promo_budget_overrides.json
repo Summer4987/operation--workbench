@@ -155,17 +155,17 @@
       }
     },
     "万松园店": {
-      "饿了么": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150,
-        "weekendLunchBudget": 50,
-        "weekendDinnerBudget": 80
-      },
       "美团": {
-        "lunchBudget": 100,
-        "dinnerBudget": 150,
-        "weekendLunchBudget": 50,
-        "weekendDinnerBudget": 80
+        "lunchBudget": 70,
+        "dinnerBudget": 100,
+        "weekendLunchBudget": 70,
+        "weekendDinnerBudget": 100
+      },
+      "饿了么": {
+        "lunchBudget": 67,
+        "dinnerBudget": 100,
+        "weekendLunchBudget": 67,
+        "weekendDinnerBudget": 100
       }
     },
     "万象城店": {
@@ -449,7 +449,7 @@
       }
     ],
     "rounding": "yuan",
-    "budgetSettingsRevision": "e11acfe734abc34c312afe24961f798c94c9142ac09c387612b69c22334321e9",
+    "budgetSettingsRevision": "31404a6b2c4c8cc31466af9d763cd45fb9df7abfbc9cbe98bb693ce05ecc979a",
     "calendar": {
       "chinaHolidays": {
         "2026-01-01": "元旦",
@@ -495,7 +495,7 @@
         "2026-10-10": "国庆节调休上班"
       }
     },
-    "revision": "22ad237451de837de815b9de727ebd527d53be3c1522317d6fab7f034d543ccb"
+    "revision": "d65ea9035f799eed9255bf31aebbda7d0569f4ef1be70dc09a7da3567dcc93c4"
   },
   "budgetSettings": {
     "schema": 1,
@@ -836,25 +836,25 @@
         "platforms": {
           "美团": {
             "weekday": {
-              "dailyBudget": 15000,
-              "lunchBudget": 10000,
+              "dailyBudget": 10000,
+              "lunchBudget": 7000,
               "templateId": null
             },
             "weekend": {
-              "dailyBudget": 8000,
-              "lunchBudget": 5000,
+              "dailyBudget": 10000,
+              "lunchBudget": 7000,
               "templateId": null
             }
           },
           "饿了么": {
             "weekday": {
-              "dailyBudget": 15000,
-              "lunchBudget": 10000,
+              "dailyBudget": 10000,
+              "lunchBudget": 6700,
               "templateId": null
             },
             "weekend": {
-              "dailyBudget": 8000,
-              "lunchBudget": 5000,
+              "dailyBudget": 10000,
+              "lunchBudget": 6700,
               "templateId": null
             }
           }
@@ -981,6 +981,6 @@
         }
       }
     ],
-    "revision": "e11acfe734abc34c312afe24961f798c94c9142ac09c387612b69c22334321e9"
+    "revision": "31404a6b2c4c8cc31466af9d763cd45fb9df7abfbc9cbe98bb693ce05ecc979a"
   }
 }
