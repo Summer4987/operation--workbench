@@ -97,6 +97,31 @@ class VerificationAlerts(unittest.TestCase):
         self.assertIn('检测到验证或访问限制，需人工检查', self.sent[0])
         self.assertNotIn('门店1', self.sent[0])
 
+    def test_runtime_timeout_never_requests_login_or_captcha(self):
+        value = status()
+        value['stores'][0].update(status='error', message='本店读取超过 60 秒（页面脚本：locateTarget / hashframe），已关闭页面并让出队列；登录会话保留')
+        result = notify.process_status(value, self.path, self.send, NOW)
+        self.assertEqual(result['attempted'], 1)
+        self.assertEqual(notify.incident_kind(value['stores'][0]), 'fault')
+        text = self.sent[0]
+        self.assertIn('门店读取/运行故障', text)
+        self.assertIn('等待既有巡检队列复查', text)
+        for misleading in ['验证码', '安全验证', '重新登录', '手动完成验证', '恢复本店']:
+            self.assertNotIn(misleading, text)
+
+    def test_real_login_and_mixed_batch_keep_per_store_instructions(self):
+        value = status()
+        value['stores'][0].update(status='login_required', message='需要重新登录')
+        value['stores'][1].update(status='error', message='页面脚本未响应')
+        challenge(value, 2)
+        notify.process_status(value, self.path, self.send, NOW)
+        text = self.sent[0]
+        self.assertIn('门店掉线或登录失效，请重新登录', text)
+        self.assertIn('当前显示验证码', text)
+        fault_section = text.split('门店：门店1')[1].split('门店：门店2')[0]
+        self.assertIn('巡检队列复查', fault_section)
+        self.assertNotIn('恢复本店', fault_section)
+
     def test_ninth_store_and_sixteen_store_capacity(self):
         for count in (9, 16):
             value = status()

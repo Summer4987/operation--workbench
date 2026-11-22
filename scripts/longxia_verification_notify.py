@@ -49,7 +49,9 @@ def incident_kind(store):
 
 def message(stores, now):
     clock = lambda at: datetime.fromtimestamp(at / 1000, timezone(timedelta(hours=8))).strftime('%m-%d %H:%M:%S')
-    lines = ['【龙虾店长｜门店故障/登录验证需处理】']
+    kinds = {incident_kind(store) for store in stores}
+    title = {'fault': '门店读取/运行故障', 'login': '门店登录失效', 'verification': '门店安全验证'}
+    lines = ['【龙虾店长｜' + (title[next(iter(kinds))] if len(kinds) == 1 else '门店分类告警') + '】']
     for store in stores:
         name = str(store.get('name') or '未命名门店').replace('\n', ' ').replace('\r', ' ')[:40]
         current = '当前显示安全验证' in str(store.get('message', '')) or '当前显示美团安全验证' in str(store.get('message', ''))
@@ -67,8 +69,13 @@ def message(stores, now):
         else:
             detail = '检测到验证或访问限制，需人工检查'
         lines.append(f"门店：{name}｜{detail}｜{clock(at)}")
-    lines += ['以上门店的自动任务发生故障或受登录验证影响，需要人工处理；其他门店继续运行。',
-              '处理：Mac mini → 龙虾店长 → 对应门店「登录 / 设置」，手动完成验证，再点「恢复本店」。',
+        if kind == 'fault':
+            lines.append('处理：查看该店运行记录和页面响应，等待既有巡检队列复查。')
+        elif kind == 'login':
+            lines.append('处理：Mac mini → 龙虾店长 → 对应门店「登录 / 设置」，重新登录后点「恢复本店」。')
+        else:
+            lines.append('处理：Mac mini → 龙虾店长 → 对应门店「登录 / 设置」，手动完成验证，再点「恢复本店」。')
+    lines += ['请按各门店上述故障类型处理；其他门店继续运行。',
               '无需停止全部门店巡检。', f'看板：{BOARD_URL}']
     return '\n'.join(lines)
 
