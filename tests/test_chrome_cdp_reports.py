@@ -104,6 +104,15 @@ global.fetch = async (url, options) => {
             path.write_text('日期,营业收入,有效订单,顾客实付\n20261012,1539.99,57,1800\n', encoding='gb18030')
             self.module.validate_meituan_customer_paid_file(path)
 
+    def test_customer_columns_reject_old_export_and_repurchase_score(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'report.csv'
+            path.write_text('新客下单转化率,老客下单转化率,复购率指标得分\n0.1,0.4,4.9\n', encoding='gb18030')
+            with self.assertRaisesRegex(RuntimeError, '缺少新增指标'):
+                self.module.validate_customer_report_file(path, '美团')
+            path.write_text('新客下单转化率,老客下单转化率,复购率\n0.1,0.4,0.2\n', encoding='gb18030')
+            self.module.validate_customer_report_file(path, '美团')
+
     def test_meituan_report_date_ignores_export_timestamp(self):
         matches = self.module.meituan_report_name_matches_target
         self.assertFalse(matches("门店_全部门店_20261011_20261011_xxx_2026-10-12+08_13_29.csv", "20261012"))

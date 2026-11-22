@@ -937,12 +937,35 @@ def generate_eleme_report(target_date: str) -> None:
         disconnect_browser(playwright, browser)
 
 
+def validate_customer_report_file(path: Path, platform: str) -> None:
+    """Do not accept an older same-date export while the new columns are generating."""
+    if platform == "饿了么":
+        from openpyxl import load_workbook
+        workbook = load_workbook(path, read_only=True, data_only=True)
+        try:
+            sheet = workbook["data"]
+            sheet.reset_dimensions()
+            columns = next(sheet.iter_rows(values_only=True), ())
+        finally:
+            workbook.close()
+        required = {"新客下单转化率", "老客下单转化率", "近7日复购率", "近30日复购率"}
+    else:
+        with path.open(encoding="gb18030", newline="") as report:
+            columns = next(csv.reader(report), [])
+        required = {"新客下单转化率", "老客下单转化率", "复购率"}
+    missing = required - set(columns)
+    if missing:
+        raise RuntimeError(platform + "日报缺少新增指标，等待新报表：" + "、".join(sorted(missing)))
+
+
 def wait_for_eleme_report(target_date: str, timeout_seconds: int = 180) -> Path:
     deadline = time.time() + timeout_seconds
     last_error: Exception | None = None
     while time.time() < deadline:
         try:
-            return download_eleme_latest(target_date)
+            path = download_eleme_latest(target_date)
+            validate_customer_report_file(path, "饿了么")
+            return path
         except EmptyReportError:
             # A completed-but-empty export will never fill itself. Return
             # immediately so run_daily can submit one fresh export task.
@@ -1104,6 +1127,7 @@ def wait_for_meituan_report(target_date: str, timeout_seconds: int = 180) -> Pat
         try:
             path = download_meituan_latest(target_date)
             validate_meituan_customer_paid_file(path)
+            validate_customer_report_file(path, "美团")
             return path
         except Exception as exc:
             last_error = exc

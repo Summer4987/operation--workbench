@@ -19,7 +19,7 @@ if Path(WORKING_NODE).exists():
     os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", WORKING_NODE)
 
 sys.path.insert(0, str(ROOT / "business-report-dashboard"))
-from chrome_cdp_reports import validate_meituan_customer_paid_file, meituan_customer_paid_field, date_with_dashes, meituan_history, meituan_report_frame, safe_filename  # noqa: E402
+from chrome_cdp_reports import validate_customer_report_file, validate_meituan_customer_paid_file, meituan_customer_paid_field, date_with_dashes, meituan_history, meituan_report_frame, safe_filename  # noqa: E402
 from check_direct_meituan_account import MAC_CHROME, load_account, resolve_browser_executable  # noqa: E402
 from direct_meituan_browser import connect_store_browser
 import platform_account_access as account_access
@@ -381,6 +381,7 @@ def run(account_id: str, target_date: str, submit: bool, visible: bool, wait_sec
                     validate_basic_daily_file(path, account, target_date)
                     if generated:
                         validate_meituan_customer_paid_file(path)
+                        validate_customer_report_file(path, "美团")
                     return path
                 except Exception as exc:
                     if "缺少 acctId/wmPoiId/token 参数" in str(exc):
