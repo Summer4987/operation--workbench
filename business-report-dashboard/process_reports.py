@@ -1163,6 +1163,16 @@ def write_dashboard(payload: dict) -> Path:
         <div class="section-title"><h2>下单转化率横向对比</h2><span>进店到下单</span></div>
         <div id="orderBars"></div>
       </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>新客下单转化率横向对比</h2><select id="newConversionPlatform" aria-label="新客转化率对比平台"><option>美团</option><option>饿了么</option></select></div>
+        <p class="hint">新客进店后下单 · 按平台分别排名，缺失值不补零</p>
+        <div id="newConversionBars"></div>
+      </div>
+      <div class="panel chart-box">
+        <div class="section-title"><h2>老客下单转化率横向对比</h2><select id="oldConversionPlatform" aria-label="老客转化率对比平台"><option>美团</option><option>饿了么</option></select></div>
+        <p class="hint">老客进店后下单 · 按平台分别排名，缺失值不补零</p>
+        <div id="oldConversionBars"></div>
+      </div>
       <div class="panel chart-box wide">
         <div class="section-title"><h2>新老客占比横向对比</h2><span>蓝色为新客，灰色为老客</span></div>
         <div class="customer-chart" id="customerBars"></div>
@@ -1590,6 +1600,8 @@ def write_dashboard(payload: dict) -> Path:
     # Embed the shared source so daily output remains a single deployable HTML file.
     insights = (Path(__file__).parent / "daily_report_v2.js").read_text(encoding="utf-8")
     html = html.replace("</body>", "<script>" + insights + "</script>\n</body>")
+    comparison = (Path(__file__).parent / "customer_conversion_charts.js").read_text(encoding="utf-8")
+    html = html.replace("</body>", "<script>" + comparison + "</script>\n</body>")
     output.write_text(html, encoding="utf-8")
     return output
 
