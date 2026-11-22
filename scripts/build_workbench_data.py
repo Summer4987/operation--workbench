@@ -42,13 +42,17 @@ TASK_RUNS_PATH = ROOT / "outputs" / "task_runs" / "latest.json"
 CLOUD_INVENTORY_URL = "https://139.155.148.169/api/summary"
 CLOUD_REALTIME_HISTORY_URL = "https://139.155.148.169/operation-workbench/data/realtime-history.json"
 DISPLAY_LABEL_REPLACEMENTS = {
-    "首屏看板": "加盟店实时数据看板",
-    "运营数据中心": "加盟店运营数据中心",
+    "加盟店": "门店",
+    "推广预算全自动设置": "推广预算设置",
+    "推广出价调整": "龙虾店长预览",
+    "首屏看板": "门店实时数据看板",
+    "运营数据中心": "门店运营数据中心",
     "商业化推广中心": "全品牌推广中心",
     "货流中心": "直营店货流中心",
 }
 DISPLAY_LABEL_DUPLICATES = (
-    ("加盟店加盟店", "加盟店"),
+    ("直营店门店运营数据中心", "直营店运营数据中心"),
+    ("门店门店", "门店"),
     ("全品牌全品牌", "全品牌"),
     ("直营店直营店", "直营店"),
     ("品牌品牌", "品牌"),
@@ -803,7 +807,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         rows.append(
             {
                 "level": "需人工处理",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": "上午运营采集子步骤失败",
                 "reason": "；".join(f"{item.get('name')}：{item.get('failure_type') or item.get('message')}" for item in morning_failed[:2]),
                 "action": "；".join(item.get("human_action", "") for item in recovery_actions[:2] if item.get("human_action")) or "先处理失败子步骤对应的平台登录、页面结构或脚本日志，再重跑一键采集。",
@@ -824,7 +828,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         rows.append(
             {
                 "level": "需人工处理" if realtime_collection.get("status") == "missing_latest" else "建议",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": "实时采集平台失败",
                 "reason": f"最近失败记录显示 {summary_realtime.get('platform_failure_count', len(realtime_failures))} 个平台失败，缺失 {summary_realtime.get('failed_platform_store_count', 0)} 个平台门店。",
                 "action": "；".join(item for item in recovery_actions if item) or realtime_collection.get("human_action") or "先恢复平台登录、Chrome/CDP 状态或门店映射，再重跑实时采集。",
@@ -838,10 +842,10 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             rows.append(
                 {
                     "level": "建议",
-                    "center": "加盟店运营数据中心",
+                    "center": "门店运营数据中心",
                     "title": f"{item.get('store')}日报异常",
                     "reason": issue_titles or daily_focus.get("message") or "日报异常需要处理。",
-                    "action": item.get("action") or "先打开加盟店日报看板查看异常详情。",
+                    "action": item.get("action") or "先打开门店日报看板查看异常详情。",
                     "source": "ops.daily_report",
                     "store": item.get("store", ""),
                 }
@@ -855,7 +859,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
                 continue
             row = {
                 "level": "建议" if delta < 0 else "提醒",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": f"{item.get('store', '门店')}近7天单量{'下跌' if delta < 0 else '上涨'}",
                 "reason": item.get("reason") or daily_trends.get("message", ""),
                 "action": item.get("action") or "结合日报异常、评价、余额和库存继续复核。",
@@ -886,7 +890,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         review_weekly_rows.append(
             {
                 "level": "建议" if int(weekly_summary.get("action_required_count") or weekly_summary.get("negative_count") or 0) else "提醒",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": "评价周复盘",
                 "reason": "；".join(part for part in reason_parts if part),
                 "action": review_weekly_recap.get("next_action") or "继续观察本周评价、评分和同类问题复发。",
@@ -900,7 +904,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         review_sop_closure_rows.append(
             {
                 "level": "建议" if item.get("status") == "reopen_needed" else "提醒",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": f"{item.get('store', '门店')}SOP复查",
                 "reason": f"{item.get('issue_type')} 关闭后复发 {item.get('recurrence_count', 0)} 条，已观察 {item.get('days_observed', 0)} 天。",
                 "action": item.get("action") or "继续观察关闭后的评价变化。",
@@ -915,7 +919,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         review_sop_rows.append(
             {
                 "level": "建议",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": f"{item.get('store', '门店')}SOP整改",
                 "reason": f"{item.get('issue_type')} 复发 {item.get('recurrence_count', 0)} 条；{item.get('reason', '')}",
                 "action": item.get("record_command") or item.get("next_action") or "继续推进 SOP 整改并复查。",
@@ -936,7 +940,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         review_followup_rows.append(
             {
                 "level": level,
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": f"{item.get('store', '门店')}复盘跟踪",
                 "reason": reason,
                 "action": item.get("action") or "继续观察评价、转化和售后反馈。",
@@ -950,7 +954,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         review_recap_rows.append(
             {
                 "level": "建议",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": f"{item.get('store', '门店')}评价复盘",
                 "reason": "；".join(
                     part
@@ -980,7 +984,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         rows.append(
             {
                 "level": "提醒",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": "评价回复证据待补",
                 "reason": f"已回复评价中有 {missing_review_evidence_count} 条缺平台截图或链接证据。",
                 "action": f"补录 {first_missing_evidence.get('store', '对应门店')} 的平台回复截图、评价链接或工单链接。",
@@ -1209,7 +1213,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
             rows.append(
                 {
                     "level": "建议" if delta_store < 0 else "提醒",
-                    "center": "加盟店运营数据中心",
+                    "center": "门店运营数据中心",
                     "title": f"{store_name}单量{'下跌' if delta_store < 0 else '上涨'}",
                     "reason": reason,
                     "action": action,
@@ -1225,7 +1229,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         rows.append(
             {
                 "level": "建议",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": "差评需要处理",
                 "reason": review_actions.get("message") or f"评价汇总发现 {negative_count} 条疑似问题评价。",
                 "action": first_action.get("reply_suggestion") or "优先处理差评门店，回复后再观察单量和复购。",
@@ -1311,7 +1315,7 @@ def build_ai_advice(daily: dict, balances: dict, inventory: dict, order_suggesti
         rows.append(
             {
                 "level": "提醒",
-                "center": "加盟店运营数据中心",
+                "center": "门店运营数据中心",
                 "title": "等待更多历史数据",
                 "reason": "当前没有需要优先处理的自动化异常。",
                 "action": "继续积累实时同环比、评价和推广数据，用于生成更具体的门店建议。",

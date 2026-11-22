@@ -1829,12 +1829,36 @@ function sectionForHash(hash) {
   return target.classList.contains("center-section") ? target : target.closest(".center-section");
 }
 
+// Navigation labels are the source of truth for section and embedded-page titles.
+function syncNavigationLabels() {
+  navLinks.forEach((link) => {
+    const href = link.getAttribute("href") || "";
+    if (!href.startsWith("#")) return;
+    const label = link.textContent.trim();
+    const section = sectionForHash(href.slice(1));
+    if (!section) {
+      if (href === "#overview") commandBoard?.setAttribute("aria-label", label);
+      return;
+    }
+    const heading = section.querySelector(".section-head h2");
+    const center = section.querySelector(".section-head p");
+    const group = link.closest(".nav-section")?.querySelector("h2");
+    if (heading) heading.textContent = label;
+    if (center && group) center.textContent = group.textContent.trim();
+    section.querySelectorAll("iframe").forEach((frame) => { frame.title = label; });
+  });
+}
+
+syncNavigationLabels();
+
 function activatePage() {
   const anchorLinks = navLinks.filter((link) => (link.getAttribute("href") || "").startsWith("#"));
   const requestedHash = window.location.hash.replace("#", "");
   const activeSection = sectionForHash(requestedHash);
   const activeHash = activeSection ? requestedHash : "overview";
   const showOverview = !activeSection;
+  const activeLink = anchorLinks.find((link) => link.getAttribute("href") === `#${activeHash}`);
+  document.title = activeLink ? `${activeLink.textContent.trim()} · 熊小小AI管理系统` : "熊小小AI管理系统";
 
   if (commandBoard) commandBoard.hidden = !showOverview;
   if (overviewAlert) overviewAlert.hidden = !showOverview;
