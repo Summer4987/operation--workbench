@@ -212,7 +212,7 @@ def report_generation_temporarily_unavailable(result: dict) -> bool:
 
 
 def generate_report(page, account: dict, target_date: str) -> bool:
-    fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
+    fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528,32463"
     frame = goto_report_page(page, account)
     customer_paid_field = meituan_customer_paid_field(frame)
     result = frame.evaluate(

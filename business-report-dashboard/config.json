@@ -138,7 +138,9 @@
       "old_customer_order_conversion": "老客下单转化率",
       "new_customer_order_conversion": "新客下单转化率",
       "old_customer_orders": "老客下单人数",
-      "new_customer_orders": "新客下单人数"
+      "new_customer_orders": "新客下单人数",
+      "repurchase_rate_7d": ["近7日复购率", "近7天复购率", "7日复购率"],
+      "repurchase_rate_30d": ["近30日复购率", "近30天复购率", "30日复购率", "复购率"]
     }
   },
   "meituan": {
@@ -155,7 +157,9 @@
       "old_customer_order_conversion": "老客下单转化率",
       "new_customer_order_conversion": "新客下单转化率",
       "old_customer_orders": "下单老客",
-      "new_customer_orders": "下单新客"
+      "new_customer_orders": "下单新客",
+      "repurchase_rate_7d": ["近7日复购率", "近7天复购率", "7日复购率"],
+      "repurchase_rate_30d": ["近30日复购率", "近30天复购率", "30日复购率", "复购率"]
     }
   }
 }

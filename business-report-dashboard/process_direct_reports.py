@@ -149,7 +149,7 @@ def normalize_unified(frame: pd.DataFrame) -> pd.DataFrame:
         return empty_unified()
     for column in UNIFIED_COLUMNS:
         if column not in frame.columns:
-            frame[column] = 0 if column in {*base.METRICS, "customer_paid_orders"} else ""
+            frame[column] = None if column in base.CUSTOMER_RATES else (0 if column in {*base.METRICS, "customer_paid_orders"} else "")
     frame["source"] = frame["source"].fillna("").replace("", "report_download")
     for column in ["collected_at", "source_note", "missing_metrics"]:
         frame[column] = frame[column].fillna("")

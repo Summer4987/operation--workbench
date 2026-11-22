@@ -52,3 +52,14 @@ test('conversion aggregation uses funnel denominators',()=>{
 test('missing conversion fields are not treated as zero',()=>{
   assert.equal(aggregate([row('2026-10-20',100,{order_conversion:null})]).order_conversion,null);
 });
+
+test('customer rates keep platforms and rolling periods separate', () => {
+  const {customerDetails} = require('../business-report-dashboard/daily_report_v2.js');
+  const all = [row('2026-11-21',100,{new_customer_order_conversion:.2,repurchase_rate_30d:.3}), row('2026-11-20',100,{new_customer_order_conversion:.1}), row('2026-11-21',100,{platform:'饿了么',new_customer_order_conversion:.4,repurchase_rate_7d:0})];
+  const details = customerDetails(all,'2026-11-21','A');
+  assert.equal(details[0].metrics.find(m=>m.key==='new_customer_order_conversion').comparisons[0].change,1);
+  assert.equal(details[0].metrics.find(m=>m.key==='repurchase_rate_30d').comparisons[0].previous,null);
+  assert.equal(details[0].metrics.some(m=>m.key==='repurchase_rate_7d'),false);
+  assert.equal(details[1].metrics.find(m=>m.key==='repurchase_rate_7d').current,0);
+  assert.equal(details[1].metrics.find(m=>m.key==='new_customer_order_conversion').comparisons[0].previous,null);
+});

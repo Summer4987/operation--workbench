@@ -815,6 +815,24 @@ def generate_eleme_report(target_date: str) -> None:
                 page.wait_for_timeout(5000)
                 frame = eleme_download_form_frame(page, timeout_seconds=60)
 
+            selected = frame.evaluate(
+                """(names) => {
+                  const labels = Array.from(document.querySelectorAll('label'));
+                  const result = {};
+                  for (const name of names) {
+                    const label = labels.find(el => el.textContent.trim() === name);
+                    const checkbox = label?.querySelector('input[type="checkbox"]');
+                    if (checkbox && !checkbox.checked) checkbox.click();
+                    result[name] = Boolean(checkbox?.checked);
+                  }
+                  return result;
+                }""",
+                ["新客下单转化率", "老客下单转化率", "近7日复购率", "近30日复购率"],
+            )
+            missing = [name for name, checked in selected.items() if not checked]
+            if missing:
+                raise RuntimeError("饿了么日报指标未成功勾选：" + "、".join(missing))
+
             def capture_download_request(route, request):
                 captured_request["url"] = request.url
                 captured_request["post_data"] = request.post_data or "{}"
@@ -1015,7 +1033,7 @@ def meituan_customer_paid_field(frame) -> str | None:
 @account_access.serialized(lambda *args, **kwargs: account_access.HEADQUARTERS)
 def generate_meituan_report(target_date: str) -> None:
     config = load_config()
-    fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528"
+    fields = "2,3,32449,32454,32455,12021,12032,13021,13024,13025,13525,13530,13523,13528,32463"
     playwright, browser = connect_browser(config)
     try:
         context = first_context(browser)

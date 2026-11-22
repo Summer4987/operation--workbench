@@ -30,6 +30,8 @@ METRICS = [
     "new_customer_order_conversion",
     "old_customer_orders",
     "new_customer_orders",
+    "repurchase_rate_7d",
+    "repurchase_rate_30d",
 ]
 
 DISPLAY_COLUMNS = {
@@ -43,9 +45,24 @@ DISPLAY_COLUMNS = {
     "new_customer_order_conversion": "新客下单转化率",
     "old_customer_orders": "下单老客",
     "new_customer_orders": "下单新客",
+    "repurchase_rate_7d": "近7日复购率",
+    "repurchase_rate_30d": "近30日复购率",
 }
 
-OPTIONAL_METRICS = {"customer_paid"}
+CUSTOMER_RATES = {"new_customer_order_conversion", "old_customer_order_conversion", "repurchase_rate_7d", "repurchase_rate_30d"}
+OPTIONAL_METRICS = {"customer_paid", *CUSTOMER_RATES}
+
+
+def customer_rate(value: object) -> float | None:
+    """Keep unavailable exports distinct from real zero; accept Excel fractions and CSV %."""
+    if pd.isna(value) or str(value).strip() in {"", "-", "--", "—"}:
+        return None
+    number = to_number(value, default=float("nan"))
+    if pd.isna(number):
+        return None
+    if isinstance(value, str) and "%" in value:
+        number /= 100
+    return round(number, 6) if 0 <= number <= 1 else None
 
 
 def load_config() -> dict:
@@ -403,7 +420,10 @@ def standardize(df: pd.DataFrame, platform: str, mapping: dict, alias_lookup: di
             "store_raw": str(raw_name),
         }
         for metric in METRICS:
-            raw_value, has_column = source_value(source, mapping[metric])
+            raw_value, has_column = source_value(source, mapping.get(metric, []))
+            if metric in CUSTOMER_RATES:
+                row[metric] = customer_rate(raw_value)
+                continue
             if metric in {"orders", "impressions", "old_customer_orders", "new_customer_orders"}:
                 row[metric] = int(round(to_number(raw_value)))
             else:
@@ -1669,6 +1689,7 @@ def write_store_reports(payload: dict) -> list[Path]:
           <div><span>曝光</span><b>{fmt_int(row.get('impressions') or 0)}</b><em class="delta {delta_class(pct_change(float(row.get('impressions') or 0), float((previous_by_platform.get(row.get('platform')) or {}).get('impressions') or 0)))}">{fmt_delta_text(pct_change(float(row.get('impressions') or 0), float((previous_by_platform.get(row.get('platform')) or {}).get('impressions') or 0)))}</em></div>
           <div><span>进店转化</span><b>{fmt_rate(float(row.get('visit_conversion') or 0))}</b><em class="delta {delta_class((float(row.get('visit_conversion') or 0) - float((previous_by_platform.get(row.get('platform')) or {}).get('visit_conversion') or 0)) if previous_by_platform.get(row.get('platform')) else None)}">{fmt_rate_delta_text((float(row.get('visit_conversion') or 0) - float((previous_by_platform.get(row.get('platform')) or {}).get('visit_conversion') or 0)) if previous_by_platform.get(row.get('platform')) else None)}</em></div>
           <div><span>下单转化</span><b>{fmt_rate(float(row.get('order_conversion') or 0))}</b><em class="delta {delta_class((float(row.get('order_conversion') or 0) - float((previous_by_platform.get(row.get('platform')) or {}).get('order_conversion') or 0)) if previous_by_platform.get(row.get('platform')) else None)}">{fmt_rate_delta_text((float(row.get('order_conversion') or 0) - float((previous_by_platform.get(row.get('platform')) or {}).get('order_conversion') or 0)) if previous_by_platform.get(row.get('platform')) else None)}</em></div>
+          {''.join('<div><span>' + DISPLAY_COLUMNS[key] + '</span><b>' + ('未采集' if row.get(key) is None else fmt_rate(float(row[key]))) + '</b></div>' for key in ['new_customer_order_conversion', 'old_customer_order_conversion', 'repurchase_rate_7d', 'repurchase_rate_30d'] if key != 'repurchase_rate_7d' or row.get('platform') == '饿了么')}
         </div>
       </div>"""
             for row in sorted(records, key=lambda item: item.get("platform", ""))
@@ -1941,7 +1962,7 @@ def process(
         "store_summary": build_store_summary(unified, config["target_stores"]),
         "platform_summary": build_platform_summary(unified),
         "warnings": warnings,
-        "records": unified.to_dict(orient="records"),
+        "records": json.loads(unified.to_json(orient="records", force_ascii=False)),
     }
     payload["store_report_files"] = {store: f"stores/{store_slug(store)}.html" for store in config["target_stores"]}
     latest_date = latest_report_date(payload)
