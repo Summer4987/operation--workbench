@@ -41,7 +41,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             payload['status']='success';payload['categories'][0]['items'][0]['status']='success'
             recovered=self.notifier.morning_notification({}, {}, epoch(12))
             self.assertNotEqual(first[1],recovered[1])
-            self.assertIn('全部完成', self.notifier.compact_morning_message(payload))
+            self.assertEqual(recovered[0]['status'], 'success')
 
     def test_inventory_success_does_not_duplicate_inventory_warning(self) -> None:
         for task_id in ("ops.inventory_warning_daily", "schedule.com.summer.operation.inventory-warning-daily"):
@@ -61,41 +61,21 @@ class AgentTaskNotifierTests(unittest.TestCase):
                     payload = self.notifier.notify(args)
                 self.assertEqual(payload["notification_count"], 0)
 
-    def test_balance_receipts_are_saved_separately_for_each_period(self) -> None:
+    def test_legacy_balance_hooks_are_silent_even_with_pending_tasks(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            args = SimpleNamespace(
-                runs=str(root / "runs.json"), state=str(root / "state.json"),
-                log=str(root / "latest.log"), target="weixin", hermes_bin="", seed=False,
-                dry_run=False, no_write=False, include_unconfigured=False,
-            )
-            task = {"growth.promo_balance.low_balance": {
-                "status": "warning", "message": "低余额清单", "finished_at": "2026-10-25 08:10:00",
-            }}
-            with mock.patch.object(self.notifier, "load_policy_rows", return_value=self.notifier.DIRECT_TASK_ROWS), mock.patch.object(
-                self.notifier, "load_promo_balance_alert_tasks", side_effect=lambda: {k: dict(v) for k, v in task.items()}
-            ), mock.patch.object(self.notifier, "send_weixin", return_value=(True, "wecom errcode=0 errmsg=ok")):
-                for period in ("上午", "下午"):
-                    args.promo_balance_period = period
-                    self.notifier.notify(args)
-                    receipt = json.loads((root / "receipts" / f"{time.strftime('%Y-%m-%d')}-{period}.json").read_text())
-                    self.assertEqual(receipt["period"], period)
-                    self.assertTrue(receipt["notifications"][0]["delivered"])
-                    self.assertIn("wecom errcode=0", receipt["notifications"][0]["delivery_output"])
-                self.assertEqual(len(list((root / "receipts").glob("*.json"))), 2)
+            tasks = {"growth.promo_balance.low_balance": {"status":"warning", "message":"低余额", "finished_at":"2026-11-22 12:00:00"}}
+            (root/'runs.json').write_text(json.dumps({'tasks':tasks}))
+            args = SimpleNamespace(runs=str(root/'runs.json'),state=str(root/'state.json'),log=str(root/'log.json'),target='weixin',hermes_bin='',seed=False,dry_run=False,no_write=False,include_unconfigured=True)
+            with mock.patch.object(self.notifier,'load_policy_rows',return_value=self.notifier.DIRECT_TASK_ROWS), mock.patch.object(self.notifier,'load_promo_balance_alert_tasks',return_value=tasks), mock.patch.object(self.notifier,'send_weixin') as send:
+                for period, refresh in [('上午',False),('下午',False),('',True),('',False)]:
+                    args.promo_balance_period=period;args.promo_balance_refresh=refresh
+                    self.assertEqual(self.notifier.notify(args)['notification_count'],0)
+                send.assert_not_called()
+            self.assertFalse((root/'receipts').exists())
 
-    def test_balance_delivery_preserves_all_store_lines(self) -> None:
-        items = [{"platform": "美团", "store_name": f"熊小小牛排饭 POKEBEAR（门店{i}）",
-                  "balance": 25.02, "threshold": 200} for i in range(1, 11)]
-        text = self.notifier.low_balance_notice_text(items, "2026-10-25 16:16:27")
-        message = self.notifier.build_message("growth.promo_balance.low_balance", {"message": text}, {})
-        batch = self.notifier.build_batch_message([message])
-        delivered_text = "".join(self.notifier.split_delivery_message(batch))
-        self.assertEqual(delivered_text, message)
-        for i in range(1, 11):
-            self.assertIn(f"\n{i}. 美团｜门店{i}｜25.02 元（阈值 200 元）", delivered_text)
-        self.assertNotIn("POKEBEAR", delivered_text)
-        self.assertEqual(delivered_text.count("处理建议"), 1)
+    def test_balance_delivery_body_is_disabled(self):
+        self.assertEqual(self.notifier.build_message('growth.promo_balance.low_balance', {'message':'余额不足'}, {}), '')
 
     def test_unconfirmed_schedule_is_not_reported_as_partial_success(self) -> None:
         message = self.notifier.build_message("schedule.test", {
@@ -129,7 +109,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
                 tasks = self.original_schedule_loader()
                 self.assertNotIn("schedule.com.summer.operation.cainiao-logistics", tasks)
 
-    def test_inventory_business_failure_is_still_reported(self) -> None:
+    def test_inventory_business_failure_is_not_in_operations_channel(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runs = root / "runs.json"
@@ -144,7 +124,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             )
             with mock.patch.object(self.notifier, "load_policy_rows", return_value=dict(self.notifier.DIRECT_TASK_ROWS)):
                 payload = self.notifier.notify(args)
-            self.assertEqual(payload["notification_count"], 1)
+            self.assertEqual(payload["notification_count"], 0)
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -235,7 +215,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             chunks=self.notifier.split_delivery_message(message.strip())
             outcomes=[(True,'ok'),(False,'retry')]+[(True,'ok')]*(len(chunks)-1)
             with mock.patch.object(self.notifier,'load_policy_rows',return_value=dict(self.notifier.DIRECT_TASK_ROWS)), \
-                 mock.patch.object(self.notifier,'compact_morning_message',return_value=message), \
+                 mock.patch.object(self.notifier.morning_result_report,'format_report',return_value=message), \
                  mock.patch.object(self.notifier,'delivery_backoff_seconds',return_value=0), \
                  mock.patch.object(self.notifier,'send_weixin',side_effect=outcomes) as send:
                 first=self.notifier.notify(args);self.assertFalse(first['notifications'][0]['delivered'])
@@ -257,8 +237,8 @@ class AgentTaskNotifierTests(unittest.TestCase):
                     {
                         "tasks": {
                             "ops.example": {
-                                "status": "success",
-                                "message": "完成",
+                                "status": "failed",
+                                "message": "验证码需要人工处理",
                                 "step": "汇总",
                                 "finished_at": "2026-06-30 17:00:00",
                             }
@@ -376,8 +356,8 @@ class AgentTaskNotifierTests(unittest.TestCase):
                 json.dumps(
                     {
                         "tasks": {
-                            "ops.one": {"status": "success", "message": "完成 1", "finished_at": "2026-06-30 17:00:00"},
-                            "ops.two": {"status": "failed", "message": "失败 2", "finished_at": "2026-06-30 17:01:00"},
+                            "ops.one": {"status": "failed", "message": "验证码需人工处理", "finished_at": "2026-06-30 17:00:00"},
+                            "ops.two": {"status": "failed", "message": "平台掉线需重新登录", "finished_at": "2026-06-30 17:01:00"},
                         }
                     },
                     ensure_ascii=False,
@@ -422,7 +402,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertNotIn("\n", sent_messages[0])
             self.assertNotIn("\n\n---\n\n", sent_messages[0])
 
-    def test_notify_includes_fresh_low_balance_alert(self) -> None:
+    def test_explicit_balance_period_does_not_push_fresh_low_balances(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             runs_path = tmp_path / "runs.json"
@@ -479,26 +459,9 @@ class AgentTaskNotifierTests(unittest.TestCase):
             finally:
                 self.notifier.load_promo_balance_alert_tasks = original_loader
 
-            self.assertEqual(payload["notification_count"], 1)
-            notice = payload["notifications"][0]
-            self.assertEqual(notice["task_id"], "growth.promo_balance.low_balance")
-            self.assertEqual(notice["status"], "warning")
-            self.assertTrue(notice["message"].startswith("【推广余额异常】\n"))
-            self.assertIn("余额巡检发现 2 个低余额门店", notice["message"])
-            self.assertIn("\n1. 美团｜丽泽门店｜184.58 元", notice["message"])
-            self.assertIn("\n2. 饿了么｜望京店｜47.68 元", notice["message"])
-            self.assertIn("请先为以上门店充值", notice["message"])
-
-            try:
-                self.notifier.load_promo_balance_alert_tasks = lambda: original_loader(balance_path)
-                second_payload = self.notifier.notify(args)
-                self.assertEqual(second_payload["notification_count"], 0)
-
-                args.promo_balance_period = "下午"
-                afternoon_payload = self.notifier.notify(args)
-                self.assertEqual(afternoon_payload["notification_count"], 1)
-            finally:
-                self.notifier.load_promo_balance_alert_tasks = original_loader
+            self.assertEqual(payload["notification_count"], 0)
+            args.promo_balance_period = "下午"
+            self.assertEqual(self.notifier.notify(args)["notification_count"], 0)
 
     def test_generic_notifier_does_not_push_low_balance_refreshes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -731,7 +694,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
             self.assertEqual(payload["consecutive_failures"], 3)
             self.assertGreaterEqual(payload["cooldown_until"] - time.time(), 7100)
 
-    def test_realtime_routine_success_is_silent(self) -> None:
+    def test_historical_realtime_success_is_not_replayed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             runs_path = tmp_path / "runs.json"

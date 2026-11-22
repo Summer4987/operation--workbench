@@ -243,35 +243,8 @@ def low_balance_notice_text(items: list[dict[str, Any]], source_generated_at: st
 
 
 def load_promo_balance_alert_tasks(path: Path = DEFAULT_PROMO_BALANCE_STATUS_PATH) -> dict[str, dict[str, Any]]:
-    payload = read_json(path, {})
-    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
-    if payload.get("status") != "warning" or summary.get("source_is_stale"):
-        return {}
-    items = payload.get("low_balance_items") if isinstance(payload.get("low_balance_items"), list) else []
-    issues = payload.get("balance_collection_issues") or []
-    if not items and not issues:
-        return {}
-    source_generated_at = str(payload.get("source_generated_at") or payload.get("generated_at") or "")
-    message = low_balance_notice_text(items, source_generated_at) if items else "本轮没有已确认的低余额门店。"
-    if issues:
-        message += "\n\n余额采集异常（不能视为余额充足）：\n" + "\n".join(
-            f"{item.get('platform')}｜{item.get('store_name')}｜{item.get('message')}" for item in issues
-        )
-    return {
-        "growth.promo_balance.low_balance": {
-            "status": "warning",
-            "message": message,
-            "step": "推广余额巡检",
-            "log_path": "outputs/promo_balance_status/latest.json",
-            "failure_type": "low_balance",
-            "updated_at": source_generated_at,
-            "finished_at": source_generated_at,
-            "extra": {
-                "low_balance_count": len(items),
-                "source_generated_at": source_generated_at,
-            },
-        }
-    }
+    # Balance anomalies belong on the dashboard, including explicit legacy hooks.
+    return {}
 
 
 def send_weixin(message: str, target: str, hermes_bin: str) -> tuple[bool, str]:
@@ -323,7 +296,7 @@ def delivery_backoff_seconds(output: str, consecutive_failures: int) -> int:
 
 
 def build_batch_message(messages: list[str]) -> str:
-    if any(str(message).startswith(('【上午运营分类报告', '【推广余额异常】')) for message in messages):
+    if any(str(message).startswith(('【上午运营分类报告', '【晚间运营', '【实时数据采集')) for message in messages):
         return '\n\n'.join(str(message).strip() for message in messages if str(message).strip())
     clean_messages = [compact_message(message) for message in messages if compact_message(message)]
     if not clean_messages:
@@ -395,10 +368,18 @@ def morning_collection_notification_context(
 
 def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, runs=None) -> str:
     if task_id == "growth.promo_balance.low_balance":
-        return "【推广余额异常】\n" + str(task.get("message") or "").strip()
+        return ""  # Dashboard only; never prepare a delivery body.
     if task_id == 'ops.morning_collection':
         payload = morning_result_report.build_payload(task, runs if runs is not None else read_json(DEFAULT_RUNS_PATH, {}), ROOT)
         return morning_result_report.format_report(payload)
+    if task_id == 'growth.promo_budget':
+        message = str(task.get('message') or '').split('附属步骤失败：')[0].strip()
+        result = '成功' if task.get('status') == 'success' else '失败，需处理'
+        return f"【晚间运营｜推广设置{result}】\n{message or '尚未取得双平台提交并读回成功的确认，请检查正式看板。'}"
+    if task_id == 'ops.realtime_order_income' and task.get('status') == 'success':
+        return (f"【实时数据采集成功】\n采集批次：{realtime_slot(task, runs or {})}\n"
+                f"完成时间：{task.get('finished_at') or task.get('updated_at') or ''}\n"
+                "本轮实时单量和营业额采集、完整性校验及看板发布成功。")
     status = str(task.get("status") or "")
     status_label = STATUS_LABELS.get(status, status or "未知")
     name = row.get("name") or task_id
@@ -493,21 +474,31 @@ def morning_notification(task, runs, now):
     return payload, signature
 
 
-def compact_morning_message(payload):
-    rows = [row for category in payload['categories'] for row in category['items']]
-    issues = [row for row in rows if row['status'] not in {'success', 'skipped'}]
-    conclusion = '全部完成' if payload['status'] == 'success' else '未全部完成，需要处理'
-    lines = [f"【上午运营一键采集最终结果｜{payload['date']}】", f'结论：{conclusion}']
-    if issues:
-        lines += [f"• {row['name']}：{morning_result_report.LABELS[row['status']]}；{row['detail']}" for row in issues]
-    else:
-        lines.append('日报、评价、客服消息、余额巡检、午餐预算及看板发布已验收。')
-    skipped = [row['name'] for row in rows if row['status'] == 'skipped']
-    if skipped:
-        lines.append('按规则跳过：'+'、'.join(skipped))
-    lines += ['补跑过程不单独推送；只有最终结果发生变化时更新。',
-              '正式看板：http://139.155.148.169/operation-workbench/']
-    return '\n'.join(lines)
+def realtime_slot(task, runs):
+    finished = parse_local_time(task.get('finished_at') or task.get('updated_at'))
+    starts = [parse_local_time(e.get('created_at')) for e in runs.get('events', [])
+              if e.get('task_id') == 'ops.realtime_order_income'
+              and e.get('message') == '实时单量收入采集开始。'
+              and e.get('status') == 'running']
+    starts = [dt for dt in starts if dt and finished and 0 <= (finished-dt).total_seconds() < 1800]
+    at = max(starts) if starts else finished
+    return at.replace(minute=(at.minute//30)*30, second=0).strftime('%Y-%m-%d %H:%M') if at else ''
+
+
+def notification_allowed(task_id, task):
+    if 'promo_balance' in task_id or 'inventory' in task_id or 'cainiao' in task_id:
+        return False
+    if task_id in {'ops.morning_collection', 'ops.realtime_order_income'}:
+        return True
+    if task_id == 'growth.promo_budget':
+        return '晚餐' in str(task.get('step') or '') and ('汇总' in str(task.get('step') or '') or '结束' in str(task.get('step') or ''))
+    if task_id in {'schedule.com.summer.operation.morning', 'schedule.com.summer.operation.evening',
+                   'schedule.com.summer.operation.realtime-order-income'}:
+        return task.get('status') != 'success'
+    # Unexpected authentication incidents still need prompt human attention.
+    text = str(task.get('message') or '')
+    return task.get('status') in {'failed', 'warning'} and (
+        task.get('failure_type') == 'auth_block' or any(word in text for word in ('验证码', '掉线', '未登录', '重新登录', '安全验证')))
 
 
 def notify(args: argparse.Namespace) -> dict[str, Any]:
@@ -555,7 +546,9 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
             continue
         if not isinstance(task, dict):
             continue
-        if task_id not in policy_rows and not args.include_unconfigured and not task_id.startswith("schedule."):
+        if task_id not in policy_rows and not args.include_unconfigured and not task_id.startswith("schedule.") and not notification_allowed(task_id, task):
+            continue
+        if not notification_allowed(task_id, task):
             continue
         status = str(task.get("status") or "")
         if status not in TERMINAL_STATUSES:
@@ -573,21 +566,26 @@ def notify(args: argparse.Namespace) -> dict[str, Any]:
                 continue
         if task_id == 'growth.promo_budget' and '午餐' in str(task.get('step') or ''):
             continue  # Included in the final morning result, with read-back evidence.
+        realtime_signature = None
         if task_id == 'ops.realtime_order_income' and status == 'success':
-            continue
+            at = parse_local_time(task.get('finished_at') or task.get('updated_at'))
+            current = datetime.fromtimestamp(now, ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+            if not at or not 0 <= (current-at).total_seconds() <= 2100:
+                continue  # Do not replay historical successes when enabling this rule.
+            realtime_signature = 'realtime-success|' + realtime_slot(task, runs)
         morning = None
         if task_id == 'ops.morning_collection':
             morning = morning_notification(task, runs, now)
             if morning is None:
                 continue
-        signature = morning[1] if morning else task_signature(task)
+        signature = morning[1] if morning else realtime_signature or task_signature(task)
         if args.seed:
             now_sent[task_id] = signature
             continue
         if sent.get(task_id) == signature:
             continue
         row = policy_rows.get(task_id, {"id": task_id, "name": task.get("step") or task_id, "rerun": {}})
-        message = compact_morning_message(morning[0]) if morning else build_message(task_id, task, row, runs=runs)
+        message = morning_result_report.format_report(morning[0]) if morning else build_message(task_id, task, row, runs=runs)
         notifications.append(
             {
                 "task_id": task_id,
@@ -689,12 +687,12 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="只打印将发送的通知，不实际发送")
     parser.add_argument("--no-write", action="store_true", help="不写 state/log 文件")
     parser.add_argument("--include-unconfigured", action="store_true", help="允许未进入通知配置的任务主动推送")
-    parser.add_argument("--promo-balance-refresh", action="store_true", help="余额刷新后推送；同日同一低余额/缺失门店清单去重")
+    parser.add_argument("--promo-balance-refresh", action="store_true", help="兼容旧入口：余额异常仅展示看板，不发送企微")
     parser.add_argument(
         "--promo-balance-period",
         choices=("上午", "下午"),
         default="",
-        help="只在上午或下午推广设置完成后推送一次低余额通知；不传时通用通知器不推送低余额。",
+        help="兼容旧入口：不再发送余额企微通知。",
     )
     args = parser.parse_args()
 

@@ -33,21 +33,41 @@ def verification_stores(status, now):
         if reason.startswith('同账号安全验证暂停'):
             return False
         verification = any(text in reason for text in ('安全验证', '验证码', '页面出现验证或访问限制'))
-        return verification and (store.get('paused') is True or store.get('status') == 'error')
+        offline = any(text in reason for text in ('掉线', '未登录', '重新登录', '登录失效', '登录过期'))
+        return ((verification or offline) and (store.get('paused') is True or store.get('status') == 'error')) or store.get('status') in {'error', 'offline', 'login_required', 'auth_required'}
     return {s['id']: s for s in stores if requires_verification(s)}
+
+
+def incident_kind(store):
+    reason = str(store.get('message') or '')
+    if any(word in reason for word in ('验证码', '安全验证', '访问限制')):
+        return 'verification'
+    if store.get('status') in {'offline', 'login_required', 'auth_required'} or any(word in reason for word in ('掉线', '未登录', '重新登录', '登录失效', '登录过期')):
+        return 'login'
+    return 'fault'
 
 
 def message(stores, now):
     clock = lambda at: datetime.fromtimestamp(at / 1000, timezone(timedelta(hours=8))).strftime('%m-%d %H:%M:%S')
-    lines = ['【龙虾店长｜安全验证需处理】']
+    lines = ['【龙虾店长｜门店故障/登录验证需处理】']
     for store in stores:
         name = str(store.get('name') or '未命名门店').replace('\n', ' ').replace('\r', ' ')[:40]
         current = '当前显示安全验证' in str(store.get('message', '')) or '当前显示美团安全验证' in str(store.get('message', ''))
         at = store.get('resultAt')
         at = at if type(at) is int and 0 < at <= now else now
-        detail = '当前显示验证码' if current else '曾发生验证跳转，需检查当前页面' if '曾发生' in str(store.get('message', '')) else '检测到验证或访问限制，需人工检查'
+        kind = incident_kind(store)
+        if kind == 'login':
+            detail = '门店掉线或登录失效，请重新登录'
+        elif kind == 'fault':
+            detail = '门店运行故障：'+str(store.get('message') or '未知故障').replace('\n', ' ')[:160]
+        elif current:
+            detail = '当前显示验证码'
+        elif '曾发生' in str(store.get('message', '')):
+            detail = '曾发生验证跳转，需检查当前页面'
+        else:
+            detail = '检测到验证或访问限制，需人工检查'
         lines.append(f"门店：{name}｜{detail}｜{clock(at)}")
-    lines += ['以上门店的自动任务受验证影响，需要人工处理；其他门店继续运行。',
+    lines += ['以上门店的自动任务发生故障或受登录验证影响，需要人工处理；其他门店继续运行。',
               '处理：Mac mini → 龙虾店长 → 对应门店「登录 / 设置」，手动完成验证，再点「恢复本店」。',
               '无需停止全部门店巡检。', f'看板：{BOARD_URL}']
     return '\n'.join(lines)
@@ -80,7 +100,11 @@ def process_status(status, state_path, sender, now=None):
         state['incidents'] = {key: value for key, value in state['incidents'].items() if key in active}
         due = []
         for key, store in active.items():
+            kind = incident_kind(store)
+            if key in state['incidents'] and state['incidents'][key].get('kind', 'verification') != kind:
+                del state['incidents'][key]
             incident = state['incidents'].setdefault(key, {'firstSeenAt': now, 'attempts': 0, 'sentAt': None, 'nextAttemptAt': now})
+            incident['kind'] = kind
             if incident['sentAt'] is None and incident['nextAttemptAt'] <= now:
                 due.append(store)
         delivered = None

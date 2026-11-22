@@ -170,28 +170,14 @@ def build_payload(task, runs, root=ROOT):
     balance_rows = [event_row('双平台余额巡检', '推广余额总巡检'),
                     event_row('巡检证据清单生成', '巡检证据清单生成'),
                     event_row('余额状态更新', '推广余额状态更新'),
-                    event_row('巡检证据上传', '巡检证据上传云端'),
-                    event_row('低余额通知', '上午推广低余额通知')]
+                    event_row('巡检证据上传', '巡检证据上传云端')]
     balance = read_json(root/'outputs/promo_balance_status/latest.json')
     if '推广余额总巡检' in latest and fresh(balance.get('generated_at'), '推广余额总巡检'):
         summary = balance.get('summary') or {}
         if summary.get('platform_failure_count') or summary.get('direct_coverage_missing_count') or summary.get('balance_collection_missing_count'):
             if balance_rows[0]['status'] == 'success':
                 balance_rows[0]['status'] = 'partial'
-        balance_rows[0]['detail'] = f'低余额 {summary.get("low_balance_count", 0)} 项'
-        if balance_rows[-1]['status'] == 'success':
-            count = summary.get('low_balance_count', 0)
-            sent = read_json(root/'outputs/agent_task_notifications/state.json').get('sent', {})
-            receipt = read_json(root/f'outputs/agent_task_notifications/receipts/{day}-上午.json')
-            notices = receipt.get('notifications') or []
-            delivered = bool(notices and fresh(receipt.get('generated_at')) and not receipt.get('dry_run') and all(n.get('delivered') is True for n in notices))
-            issues = balance.get('balance_collection_issues') or []
-            if not count and not issues:
-                balance_rows[-1].update(status='skipped', detail='无低余额项目，无需推送')
-            elif delivered or sent.get('growth.promo_balance.low_balance') == f'notification_slot|{day}|上午':
-                balance_rows[-1]['detail'] = f'{count} 项低余额、{len(issues)} 项未核实已推送'
-            else:
-                balance_rows[-1].update(status='partial', detail='通知步骤已运行，尚未确认企微送达')
+        balance_rows[0]['detail'] = '采集结果及余额异常仅展示在正式看板'
     section('推广余额与证据', balance_rows)
 
     budget_rows = [event_row('云端预算配置同步', '同步云端预算配置'), event_row('预算预览生成', '推广预算初始化预览')]
@@ -238,14 +224,6 @@ def format_report(payload):
         for row in category['items']:
             detail = '；'+row['detail'] if row['detail'] else ''
             lines.append(f'• {row["name"]}：{LABELS[row["status"]]}{detail}')
-    if payload.get('balance_low_items'):
-        lines += ['', '【当日低余额充值提醒】', '余额采集时间：'+str(payload.get('balance_source_generated_at') or '未记录')]
-        for item in payload['balance_low_items']:
-            lines.append(f"• {item.get('platform')}｜{item.get('store_name')}：{item.get('balance')} 元（阈值 {item.get('threshold')} 元）")
-    if payload.get('balance_issues'):
-        lines += ['', '【余额未核实，不能视为充足】']
-        for item in payload['balance_issues']:
-            lines.append(f"• {item.get('platform')}｜{item.get('store_name')}：{item.get('message')}")
     if payload['status'] != 'success' and payload['task_message']:
         lines += ['', '本轮说明：'+' '.join(payload['task_message'].split())[:180]]
     lines += ['', '正式看板：https://139.155.148.169/operation-workbench/']
