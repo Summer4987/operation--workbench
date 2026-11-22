@@ -706,14 +706,29 @@ function timestampValue(value) {
 }
 
 function freshPromoBalanceStatus(balances, promoBalanceStatus) {
+  const source = balances.generated_at || promoBalanceStatus.source_generated_at;
+  // Production timestamps without an offset are Beijing time.
+  const raw = String(source || "").trim().replace(" ", "T");
+  const sourceTime = Date.parse(raw && !/(Z|[+-]\d{2}:?\d{2})$/.test(raw) ? `${raw}+08:00` : raw);
+  const windowMinutes = Number(promoBalanceStatus.summary?.freshness_window_minutes || 90);
+  const unavailable = !Number.isFinite(sourceTime) || Date.now() - sourceTime > windowMinutes * 60000;
   const balanceTime = timestampValue(balances.generated_at);
   const statusTime = timestampValue(promoBalanceStatus.source_generated_at || promoBalanceStatus.generated_at);
-  if (!statusTime) return {};
-  if (balanceTime && statusTime < balanceTime) return {};
-  return promoBalanceStatus;
+  const current = statusTime && (!balanceTime || statusTime >= balanceTime) ? promoBalanceStatus : {};
+  if (!unavailable) return current;
+  return {
+    ...current,
+    status: Number.isFinite(sourceTime) ? "stale" : "missing",
+    message: Number.isFinite(sourceTime) ? "余额数据已过期，待复查，不能判断当前是否有低余额。" : "尚无有效余额数据，待采集。",
+    source_generated_at: source || "",
+    summary: { ...current.summary, source_is_stale: true },
+  };
 }
 
 function countPromoBalanceAbnormal(balances, promoBalanceStatus, balanceThreshold) {
+  if (promoBalanceStatus.summary?.source_is_stale) {
+    return { count: 1, pending: true, detail: promoBalanceStatus.message };
+  }
   const summary = promoBalanceStatus.summary || {};
   const lowBalanceItems = promoBalanceStatus.low_balance_items || [];
   const platformFailures = (promoBalanceStatus.platforms || []).filter((item) => item.status === "failed");
@@ -806,7 +821,7 @@ function priorityItems() {
   return [
     {
       type: "余额异常",
-      title: `${num(balanceAbnormal.count)} 个`,
+      title: balanceAbnormal.pending ? "待复查" : `${num(balanceAbnormal.count)} 个`,
       detail: balanceAbnormal.detail,
       level: balanceAbnormal.count ? "warning" : "ok",
     },
@@ -1212,6 +1227,18 @@ function renderBalances() {
   const summary = promoBalanceStatus.summary || balances.summary || {};
   const evidenceSync = promoBalanceStatus.evidence_sync || {};
   const threshold = Number(summary.warning_threshold || balances.threshold || 200);
+  if (summary.source_is_stale) {
+    text("metricWarnings", "待复查");
+    text("metricLowest", "余额已过期，待复查");
+    text("balanceWarningCount", "待复查");
+    text("balanceStatus", "待复查");
+    text("balanceSummary", `${promoBalanceStatus.message} 上次采集：${promoBalanceStatus.source_generated_at || "无"}。`);
+    cls("balanceMetricCard", "alert", true);
+    document.querySelector("#balances")?.classList.toggle("alert", true);
+    document.querySelector("#metricLowest")?.classList.toggle("danger", true);
+    html("balanceRows", '<div class="warn-row"><span>余额待复查</span><strong>当前低余额情况未知</strong><em>请重新采集余额；空列表不代表没有低余额。</em></div>');
+    return;
+  }
   const allBalanceItems = balances.items || [];
   const reliableItems = allBalanceItems.filter((item) => balanceValue(item) !== null);
   const unconfirmedItems = promoBalanceStatus.unconfirmed_balance_items || allBalanceItems.filter((item) => balanceValue(item) === null);
@@ -1967,3 +1994,6 @@ setInterval(async()=>{const el=document.querySelector('#longxiaSyncStatus');if(!
 
 setTimeout(()=>hydrateBidding(),0);
 setInterval(()=>{renderBidding();if(!document.hidden)hydrateBidding();},15000);
+
+// Recheck freshness even when an open page has received no new data.
+setInterval(() => { renderBalances(); renderPriority(); }, 60000);

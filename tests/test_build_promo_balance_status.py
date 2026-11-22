@@ -46,6 +46,9 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
         self.assertEqual(status["low_balance_items"], [])
         self.assertEqual(status["recharge_plan"]["item_count"], 0)
         self.assertTrue(status["summary"]["source_is_stale"])
+        self.assertEqual(status["recharge_plan"]["status"], "pending_verification")
+        self.assertIn("不能判断", status["recharge_plan"]["message"])
+        self.assertNotIn("没有低余额", status["recharge_plan"]["next_action"])
         self.assertIn("旧余额没有当前商业价值", status["message"])
 
     def test_fresh_balance_result_can_report_low_balance_items(self) -> None:

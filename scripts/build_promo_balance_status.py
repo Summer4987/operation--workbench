@@ -501,6 +501,12 @@ def build_status(payload: dict) -> dict:
 
     platform_rows_payload = platform_rows(payload, failures)
     recharge = recharge_plan(warnings)
+    if is_stale or not source_time:
+        recharge.update(
+            status="pending_verification",
+            message="余额数据已过期，待复查，不能判断当前是否有低余额。" if is_stale else "尚无有效余额数据，待采集。",
+            next_action="重新采集余额后再判断充值项。",
+        )
     evidence_items = [
         evidence
         for platform in platform_rows_payload
