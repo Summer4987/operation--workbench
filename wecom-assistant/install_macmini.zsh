@@ -1,11 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-NODE="$HOME/.local/bin/node"
-if [[ ! -x "$NODE" ]]; then
-  echo '缺少 Node 22，请先安装官方 Node 运行时。' >&2
-  exit 1
-fi
+NODE="$(/bin/zsh "$ROOT/prepare_node.zsh")"
 if [[ ! -f "$ROOT/node_modules/@wecom/aibot-node-sdk/package.json" ]]; then
   echo '请先在此目录安装锁定依赖。' >&2
   exit 1

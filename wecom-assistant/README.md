@@ -16,6 +16,7 @@
 - 云端订货通过现有 `~/.ssh/xiong_operation_cloud_ed25519` 读取固定目录，默认 SSH `ubuntu@139.155.148.169`；SQLite使用mode=ro，不调用写接口。
 - `node app.mjs --smoke` 验证企微认证、模型调用、Excel生成和临时素材上传。不要与常驻实例同时运行，避免挤掉连接。
 - 只在 Mac mini 上执行 `/bin/zsh install_macmini.zsh` 安装 launchd。
+- 安装器验证 Node >=22，并将独立可执行文件保存在助手私密 `runtime/node`，launchd 直接使用此文件，避免 Hermes 删除或版本管理器调整后助手停机。首次安装可用 `WECOM_NODE=/官方Node绝对路径/bin/node /bin/zsh install_macmini.zsh` 指定运行时；后续安装默认复用独立副本。
 - 健康检查仅监听 `http://127.0.0.1:18769/health`，无公网管理页面。
 
 首次部署后在 Mac mini 运行 `node app.mjs --pair-code` 获取绑定口令，在企微机器人单聊发送完整口令。口令有效期24小时，仅绑定一次，绑定后其他账号和群聊不能读取业务数据。需重新生成过期口令时，在服务停机后由管理员删除未绑定的 access.json 再启动，已绑定账号不要用此法重置。
