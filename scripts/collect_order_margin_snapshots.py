@@ -75,8 +75,17 @@ def collect(page, key, platform, dates):
         else:
             for _ in range(2):
                 view.locator(f'[title="{date}"]').first.click()
+        page.wait_for_timeout(2000)
+        if mt:
+            active=view.locator('.roo-pagination li.active a')
+            if active.count() and active.inner_text() != '1':
+                view.locator('.roo-pagination a').get_by_text('1',exact=True).click()
+        else:
+            first=view.locator('.ant-pagination-item-1')
+            if first.count() and 'ant-pagination-item-active' not in (first.get_attribute('class') or ''):
+                first.click()
         text = wait_snapshot(page,view,platform,date)
-        page.wait_for_timeout(600)
+        page.wait_for_timeout(1500)
         text = view.locator('body').last.inner_text()
         total = int(re.search(r'共\s*(\d+)\s*单',text)[1]) if mt else int(re.search(r'\d+',view.locator('.ant-pagination-total-text').inner_text())[0])
         size = 10 if mt else 20
