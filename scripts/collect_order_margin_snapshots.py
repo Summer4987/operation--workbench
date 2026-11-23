@@ -80,9 +80,9 @@ def collect(page, key, platform, dates):
                 view.locator(f'[title="{date}"]').first.click()
         page.wait_for_timeout(2000)
         if mt:
-            active=view.locator('.roo-pagination li.active a')
-            if active.count() and active.inner_text() != '1':
-                view.locator('.roo-pagination a').get_by_text('1',exact=True).click()
+            first=view.locator('.roo-pagination a').get_by_text('1',exact=True)
+            if first.count():
+                first.click()
         else:
             first=view.locator('.ant-pagination-item-1')
             if first.count() and 'ant-pagination-item-active' not in (first.get_attribute('class') or ''):
