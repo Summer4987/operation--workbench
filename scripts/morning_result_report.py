@@ -174,10 +174,15 @@ def build_payload(task, runs, root=ROOT):
     balance = read_json(root/'outputs/promo_balance_status/latest.json')
     if '推广余额总巡检' in latest and fresh(balance.get('generated_at'), '推广余额总巡检'):
         summary = balance.get('summary') or {}
-        if summary.get('platform_failure_count') or summary.get('direct_coverage_missing_count') or summary.get('balance_collection_missing_count'):
+        source_at = balance.get('source_generated_at', balance.get('generated_at'))
+        source_day = timestamp(source_at)
+        missing_source = not source_day or source_day.date().isoformat() != day
+        if missing_source or summary.get('source_is_stale') or summary.get('platform_failure_count') or summary.get('direct_coverage_missing_count') or summary.get('balance_collection_missing_count'):
             if balance_rows[0]['status'] == 'success':
                 balance_rows[0]['status'] = 'partial'
-        balance_rows[0]['detail'] = '采集结果及余额异常仅展示在正式看板'
+        balance_rows[0]['detail'] = ('未取得当日有效余额结果' if missing_source or summary.get('source_is_stale') else f'采集时间 {source_at}；每日巡检快照，当天保留，非实时余额；充值前复核') + '；采集结果及余额异常仅展示在正式看板'
+    elif balance_rows[0]['status'] == 'success':
+        balance_rows[0].update(status='partial', detail='未找到本轮余额结果，不能确认采集成功')
     section('推广余额与证据', balance_rows)
 
     budget_rows = [event_row('云端预算配置同步', '同步云端预算配置'), event_row('预算预览生成', '推广预算初始化预览')]

@@ -173,6 +173,18 @@ class MorningReportTests(unittest.TestCase):
         self.write('outputs/agent_task_notifications/state.json', {'sent':{}})
         self.assertNotIn('低余额通知', self.rows())
 
+    def test_balance_success_includes_capture_time_and_daily_scope(self):
+        detail = self.rows()['双平台余额巡检']['detail']
+        self.assertIn('2026-10-25 08:20:00', detail)
+        self.assertIn('当天保留', detail)
+        self.assertIn('非实时余额', detail)
+
+    def test_regenerating_status_cannot_turn_yesterdays_collection_into_success(self):
+        self.write('outputs/promo_balance_status/latest.json', dict(generated_at='2026-10-25 08:20:00',
+                   source_generated_at='2026-10-24 08:00:00', summary={}))
+        self.assertEqual(self.rows()['双平台余额巡检']['status'], 'partial')
+        self.assertIn('未取得当日', self.rows()['双平台余额巡检']['detail'])
+
     def test_lunch_evidence_survives_dinner_update(self):
         data=report.read_json(self.root/'outputs/promo_budget_result/latest.json')
         self.write('outputs/promo_budget_result/latest_午餐.json',data)

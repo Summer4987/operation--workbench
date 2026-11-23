@@ -711,15 +711,22 @@ function freshPromoBalanceStatus(balances, promoBalanceStatus) {
   const raw = String(source || "").trim().replace(" ", "T");
   const sourceTime = Date.parse(raw && !/(Z|[+-]\d{2}:?\d{2})$/.test(raw) ? `${raw}+08:00` : raw);
   const windowMinutes = Number(promoBalanceStatus.summary?.freshness_window_minutes || 90);
-  const unavailable = !Number.isFinite(sourceTime) || Date.now() - sourceTime > windowMinutes * 60000;
+  const beijingDay = value => new Date(value + 8 * 3600000).toISOString().slice(0, 10);
+  const unavailable = !Number.isFinite(sourceTime) || sourceTime > Date.now() + 5 * 60000;
+  const expiredDay = !unavailable && beijingDay(sourceTime) !== beijingDay(Date.now());
   const balanceTime = timestampValue(balances.generated_at);
   const statusTime = timestampValue(promoBalanceStatus.source_generated_at || promoBalanceStatus.generated_at);
   const current = statusTime && (!balanceTime || statusTime >= balanceTime) ? promoBalanceStatus : {};
-  if (!unavailable) return current;
+  if (!unavailable && !expiredDay) return {
+    ...current,
+    summary: { ...current.summary, source_is_stale: false,
+      source_is_realtime_stale: Date.now() - sourceTime > windowMinutes * 60000,
+      display_policy: "beijing-calendar-day" },
+  };
   return {
     ...current,
-    status: Number.isFinite(sourceTime) ? "stale" : "missing",
-    message: Number.isFinite(sourceTime) ? "余额数据已过期，待复查，不能判断当前是否有低余额。" : "尚无有效余额数据，待采集。",
+    status: expiredDay ? "stale" : "missing",
+    message: expiredDay ? "尚无今日余额巡检结果；以下为历史快照，当前余额需复核。" : "尚无有效余额数据，待采集。",
     source_generated_at: source || "",
     summary: { ...current.summary, source_is_stale: true },
   };
@@ -1236,7 +1243,8 @@ function renderBalances() {
     cls("balanceMetricCard", "alert", true);
     document.querySelector("#balances")?.classList.toggle("alert", true);
     document.querySelector("#metricLowest")?.classList.toggle("danger", true);
-    html("balanceRows", '<div class="warn-row"><span>余额待复查</span><strong>当前低余额情况未知</strong><em>请重新采集余额；空列表不代表没有低余额。</em></div>');
+    const history = (balances.items || []).map(item => `<div class="warn-row"><span>${escapeHtml(item.platform || "-")} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${escapeHtml(balanceDisplay(item))}</strong><em>历史采集值 · ${escapeHtml(balances.generated_at || "-")} · 当前余额需复核</em></div>`).join("");
+    html("balanceRows", '<div class="warn-row"><span>今日待采集</span><strong>当前低余额情况未知</strong><em>上次结果保留供查看，不作为当前余额。</em></div>' + history);
     return;
   }
   const allBalanceItems = balances.items || [];
@@ -1249,13 +1257,13 @@ function renderBalances() {
   const unconfirmedCount = Number(summary.balance_unconfirmed_count ?? unconfirmedItems.length);
   const lowestReliable = reliableItems.length ? Math.min(...reliableItems.map((item) => Number(item.balance || 0))) : null;
   const needsAttention = platformFailureCount > 0 || lowBalanceCount > 0;
-  const statusText = platformFailureCount ? "巡检失败" : lowBalanceCount ? "需充值" : "正常";
+  const statusText = platformFailureCount ? "巡检失败" : "今日巡检已采集";
   text("metricWarnings", `${lowBalanceCount} 个`);
-  text("metricLowest", `最低 ${lowestReliable === null ? "未确认" : yuan(lowestReliable)} · ${reliableItems.length}/${allBalanceItems.length} 条可靠`);
+  text("metricLowest", `采集时最低 ${lowestReliable === null ? "未确认" : yuan(lowestReliable)} · ${reliableItems.length}/${allBalanceItems.length} 条可靠`);
   text("balanceWarningCount", `${lowBalanceCount} 个`);
   text(
     "balanceSummary",
-    `最新巡检：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedCount} 个，阈值 ${yuan(threshold)}，证据清单 ${evidenceSync.file_count || 0} 个。页面文本读到 0 元但接口未确认时不计入充值项。`
+    `今日巡检快照：${promoBalanceStatus.source_generated_at || balances.generated_at || "-"}，平台失败 ${platformFailureCount} 个，采集时低余额 ${lowBalanceCount} 个，余额未确认 ${unconfirmedCount} 个，阈值 ${yuan(threshold)}。结果当天保留，不代表实时余额；充值前请核对平台当前余额。`
   );
   text("balanceStatus", statusText);
   cls("balanceMetricCard", "alert", needsAttention);
@@ -1272,7 +1280,7 @@ function renderBalances() {
       if (item.kind !== "platform_failure") {
         const value = balanceValue(item);
         const gap = value === null ? 0 : Math.max(0, threshold - value);
-        const detail = value === null ? `采集未确认 · 来源 ${item.source || "-"} · 请重跑余额巡检` : `阈值 ${yuan(threshold)} · 差额 ${yuan(gap)}`;
+        const detail = value === null ? `采集未确认 · 来源 ${item.source || "-"} · 请重跑余额巡检` : `采集时余额 · 阈值 ${yuan(threshold)} · 当时差额 ${yuan(gap)} · 充值前复核`;
         return `<div class="${value === null || value < threshold ? "warn-row" : "good-row"}"><span>${escapeHtml(item.platform)} · ${escapeHtml(shortStore(item.store_name))}</span><strong>${escapeHtml(balanceDisplay(item))}</strong><em>${escapeHtml(detail)}</em></div>`;
       }
       const recovery = item.recovery || {};

@@ -26,7 +26,7 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
         cls.module = load_module()
 
     def test_stale_balance_result_does_not_report_low_balance_items(self) -> None:
-        stale_time = datetime.now() - timedelta(hours=3)
+        stale_time = datetime.now() - timedelta(days=1)
         payload = {
             "generated_at": stale_time.strftime("%Y-%m-%d %H:%M:%S"),
             "threshold": 200,
@@ -47,9 +47,35 @@ class BuildPromoBalanceStatusTests(unittest.TestCase):
         self.assertEqual(status["recharge_plan"]["item_count"], 0)
         self.assertTrue(status["summary"]["source_is_stale"])
         self.assertEqual(status["recharge_plan"]["status"], "pending_verification")
-        self.assertIn("不能判断", status["recharge_plan"]["message"])
+        self.assertIn("复核", status["recharge_plan"]["message"])
         self.assertNotIn("没有低余额", status["recharge_plan"]["next_action"])
-        self.assertIn("旧余额没有当前商业价值", status["message"])
+        self.assertIn("尚无今日", status["message"])
+
+    def test_daily_snapshot_survives_90_minutes_but_does_not_authorize_recharge(self):
+        payload = {"generated_at": "2026-11-23 08:01:10", "threshold": 200,
+                   "items": [{"platform": "美团", "store_name": "双井店", "balance": 20, "status": "warning"}]}
+        for hour in [10, 15, 23]:
+            with self.subTest(hour=hour):
+                status = self.module.build_status(payload, now=datetime(2026, 11, 23, hour, 59))
+                self.assertEqual(status['status'], 'warning')
+                self.assertFalse(status['summary']['source_is_stale'])
+                self.assertTrue(status['summary']['source_is_realtime_stale'])
+                self.assertEqual(len(status['low_balance_items']), 1)
+                self.assertEqual(status['recharge_plan']['status'], 'pending_verification')
+                self.assertEqual(status['recharge_plan']['top_items'], [])
+                self.assertIn('08:01:10', status['message'])
+        expired = self.module.build_status(payload, now=datetime(2026, 11, 24))
+        self.assertTrue(expired['summary']['source_is_stale'])
+        self.assertEqual(expired['low_balance_items'], [])
+
+    def test_daily_boundary_uses_beijing_time_and_rejects_future_source(self):
+        payload = {'generated_at': '2026-11-22T16:01:00Z', 'items': []}
+        status = self.module.build_status(payload, now=datetime(2026, 11, 23, 1))
+        self.assertFalse(status['summary']['source_is_stale'])
+        payload['generated_at'] = '2026-11-24 08:00:00'
+        self.assertTrue(self.module.build_status(payload, now=datetime(2026, 11, 23, 12))['summary']['source_is_stale'])
+        payload['generated_at'] = ''
+        self.assertEqual(self.module.build_status(payload)['status'], 'missing')
 
     def test_fresh_balance_result_can_report_low_balance_items(self) -> None:
         fresh_time = datetime.now() - timedelta(minutes=5)

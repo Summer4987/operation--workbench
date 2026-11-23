@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from task_run_state import classify_failure_text
 
@@ -117,6 +118,11 @@ def parse_time(value: str | None) -> datetime | None:
     if not value:
         return None
     text = str(value).strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace('Z', '+00:00'))
+        return parsed.astimezone(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None) if parsed.tzinfo else parsed
+    except ValueError:
+        pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
             return datetime.strptime(text[:19], fmt)
@@ -423,11 +429,14 @@ def recharge_plan(warnings: list[dict]) -> dict:
     }
 
 
-def build_status(payload: dict) -> dict:
+def build_status(payload: dict, *, now: datetime | None = None) -> dict:
     generated_at = payload.get("generated_at") or ""
     source_time = parse_time(generated_at)
-    now = datetime.now()
-    is_stale = bool(source_time and now - source_time > FRESHNESS_WINDOW)
+    now = now or datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+    # A daily inspection remains visible for its Beijing calendar day. The
+    # separate 90-minute limit still protects decisions using current funds.
+    is_stale = not source_time or source_time.date() != now.date() or source_time > now + timedelta(minutes=5)
+    realtime_stale = bool(not source_time or is_stale or now - source_time > FRESHNESS_WINDOW)
     summary = payload.get("summary") or {}
     failures = split_platform_failures(payload.get("message") or "") if payload.get("status") == "failed" else []
     items = balance_items(payload)
@@ -454,10 +463,13 @@ def build_status(payload: dict) -> dict:
     if not payload:
         status = "missing"
         message = "推广余额巡检尚未生成。"
+    elif not source_time:
+        status = "missing"
+        message = "余额巡检缺少有效采集时间，不能确认今日采集成功。"
     elif is_stale:
         status = "stale"
         age_minutes = int((now - source_time).total_seconds() // 60) if source_time else 0
-        message = f"推广余额结果已过期：{generated_at}，约 {age_minutes} 分钟前采集。旧余额没有当前商业价值，需重跑后再判断。"
+        message = f"尚无今日余额巡检结果；上次采集：{generated_at}，约 {age_minutes} 分钟前。历史结果仅供查看，当前余额需复核。"
     elif platform_failure_count and not store_count:
         status = "failed"
         message = f"推广余额巡检失败：{platform_failure_count} 个平台需要人工处理。"
@@ -479,6 +491,9 @@ def build_status(payload: dict) -> dict:
         status = "ok"
         message = f"推广余额巡检正常，{store_count} 条余额结果。"
 
+    if source_time and not is_stale:
+        message += f" 当日巡检快照：{generated_at}；列表保留至北京时间当日结束，不代表实时余额。"
+
     skipped = payload.get("balance_collection_skipped") or []
     if skipped:
         message += " 用户暂停巡检，按预期跳过：" + "、".join(r["store_name"] for r in skipped) + "；等待用户通知恢复。"
@@ -495,17 +510,18 @@ def build_status(payload: dict) -> dict:
     elif coverage_rows:
         human_action = coverage_rows[0].get("human_action", "")
     elif warnings:
-        human_action = "先充值低余额门店，再执行预算或出价自动化。"
+        human_action = "按采集时低余额清单核对平台当前余额，再决定是否充值。"
     elif unconfirmed_items:
         human_action = "先重跑推广余额巡检；若仍未确认，再人工打开平台余额页核对。"
 
     platform_rows_payload = platform_rows(payload, failures)
     recharge = recharge_plan(warnings)
-    if is_stale or not source_time:
+    if realtime_stale:
         recharge.update(
             status="pending_verification",
-            message="余额数据已过期，待复查，不能判断当前是否有低余额。" if is_stale else "尚无有效余额数据，待采集。",
-            next_action="重新采集余额后再判断充值项。",
+            item_count=0, top_items=[],
+            message="巡检快照可供查看；超过实时参考时限，充值前须复核当前余额。" if source_time else "尚无有效余额数据，待采集。",
+            next_action="重新核对平台当前余额后再判断充值项。",
         )
     evidence_items = [
         evidence
@@ -532,6 +548,8 @@ def build_status(payload: dict) -> dict:
             "warning_threshold": threshold,
             "lowest_balance": lowest_balance,
             "source_is_stale": is_stale,
+            "source_is_realtime_stale": realtime_stale,
+            "display_policy": "beijing-calendar-day",
             "freshness_window_minutes": int(FRESHNESS_WINDOW.total_seconds() // 60),
             "evidence_count": len(evidence_items),
         },
