@@ -50,7 +50,8 @@ def collect(page, key, platform, dates):
         page.get_by_text(target, exact=True).first.evaluate('(e)=>e.click()')
         page.wait_for_timeout(1200)
     if mt:
-        page.goto('https://e.waimai.meituan.com/#/new_fe/orderbusiness#/order/history', wait_until='domcontentloaded')
+        page.goto('https://e.waimai.meituan.com/#/new_fe/orderbusiness', wait_until='domcontentloaded')
+        page.get_by_text('全部订单',exact=False).first.click()
     else:
         if '/order__querying' not in page.url:
             page.get_by_text('订单管理', exact=True).first.click()
