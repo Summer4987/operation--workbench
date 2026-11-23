@@ -58,7 +58,7 @@ def collect(page, key, platform, dates):
             page.get_by_text('订单查询', exact=True).first.click()
         page.reload(wait_until='domcontentloaded')
     for _ in range(100):
-        candidates = [f for f in page.frames if '/orderbusiness#' in f.url] if mt else [page]
+        candidates = [f for f in page.frames if '/orderbusiness' in f.url] if mt else [page]
         if candidates and candidates[0].get_by_placeholder('开始时间' if mt else '开始日期').count():
             view = candidates[0]
             break
