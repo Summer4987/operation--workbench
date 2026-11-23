@@ -44,10 +44,13 @@ def collect(page, key, platform, dates):
     current = page.locator('body').first.inner_text().splitlines()[0 if mt else 2]
     if current != target:
         if not page.get_by_text(target, exact=True).count():
-            page.get_by_text(current, exact=True).first.evaluate('(e)=>e.click()')
+            page.get_by_text(current, exact=True).first.click()
             if not mt:
                 page.get_by_text(STORES[key][2], exact=True).first.evaluate('(e)=>e.click()')
-        page.get_by_text(target, exact=True).first.evaluate('(e)=>e.click()')
+        if mt:
+            page.get_by_text(target,exact=True).first.click()
+        else:
+            page.get_by_text(target,exact=True).first.evaluate('(e)=>e.click()')
         page.wait_for_timeout(1200)
     if mt:
         page.goto('https://e.waimai.meituan.com/#/new_fe/orderbusiness', wait_until='domcontentloaded')
