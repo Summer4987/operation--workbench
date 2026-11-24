@@ -169,7 +169,7 @@ class DataTests(unittest.TestCase):
     result['scopes']['A|美团']['status']='partial'
     (out/day/'snapshot.json').write_text(json.dumps(result))
     with patch.object(collector,'meituan',side_effect=RuntimeError('identity mismatch')):
-     with self.assertRaisesRegex(SystemExit,'A\|美团'):collector.main()
+     with self.assertRaisesRegex(SystemExit,r'A\|美团'):collector.main()
  def test_audio_page_explains_intentional_omission(self):
   m=normalize([dict(id='a',time='10-14 12:00',role='customer',content='8秒',required_media='audio',media=[])],'2026-10-14',date(2026,10,15))[0]
   scope=dict(store='朝阳门店',platform='美团',status='partial',list_complete=True,sessions=[dict(label='语音',history_complete=True,messages=[m])])
