@@ -10,10 +10,49 @@ import {businessReport,comparisonReport,orderReport,orderTotals} from './reports
 import {Assistant} from './core.mjs';
 import {checkOperator,operatorToken,operatorInbound} from './operator.mjs';
 import {inboundTemplate} from './inbound.mjs';
+import {updateInboundCatalog,catalogFile} from './inbound-catalog.mjs';
 const dir=path.dirname(fileURLToPath(import.meta.url));
 const template=path.join(dir,'fixtures/inbound-template.xlsx');
 const config={WECOM_INBOUND_TEMPLATE:template};
 function temp(t){const p=fs.mkdtempSync(path.join(os.tmpdir(),'wecom-features-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p;}
+test('approved Sheet2 replaces the stale catalog and all 18 products generate exact reservations', async t=>{
+ const root=temp(t),book=new ExcelJS.Workbook();await book.xlsx.readFile(template);
+ const before=fs.readFileSync(template),sheet1=book.getWorksheet('Sheet1').getCell('E2').value;
+ const approved=JSON.parse(fs.readFileSync(catalogFile,'utf8'));
+ assert.equal(updateInboundCatalog(book).count,18);
+ assert.equal(book.getWorksheet('Sheet1').getCell('E2').value,sheet1);
+ const refreshed=path.join(root,'refreshed.xlsx');await book.xlsx.writeFile(refreshed);
+ const config={WECOM_INBOUND_RUNTIME_TEMPLATE:refreshed};
+ const {catalog}=await readInboundTemplate(config);
+ assert.equal(catalog.length,18);
+ for(const [i,row] of approved.rows.entries()){
+  assert.deepEqual(catalog[i],{sku:row[2],name:row[1],spec:row[4],storage:row[3],unit:row[6]});
+ }
+ const a=new Assistant(config,root,{llm:async()=>{throw Error('AI must not be called');}});
+ const raw='明天入库：'+catalog.map((p,i)=>`${p.name} ${i+1}件`).join('，');
+ const result=await a.answer(raw,'approved-sheet2');assert.equal(result.artifacts.length,1);
+ const output=new ExcelJS.Workbook();await output.xlsx.readFile(result.artifacts[0]);
+ for(const [i,p] of catalog.entries()){
+  const row=output.getWorksheet('Sheet1').getRow(i+2);
+  assert.equal(row.getCell(5).value,p.sku);assert.equal(row.getCell(6).value,p.name);
+  assert.equal(row.getCell(7).value,p.spec);assert.equal(row.getCell(8).value,p.storage);
+  assert.equal(row.getCell(9).value,i+1);assert.equal(row.getCell(10).value,p.unit);
+ }
+ assert.equal(matchInboundProduct(catalog,'大米').sku,'CWXXX0005');
+ assert.equal(matchInboundProduct(catalog,'燕麦米').sku,'CWXXX0006');
+ assert.equal(matchInboundProduct(catalog,'黑米').sku,'CWXXX0007');
+ assert.throws(()=>matchInboundProduct(catalog,'米'),/过短/);
+ assert.throws(()=>matchInboundProduct(catalog,'不存在商品'),/不在模板字典/);
+ assert.deepEqual(fs.readFileSync(template),before);
+ assert.equal((await readInboundTemplate({WECOM_INBOUND_TEMPLATE:result.artifacts[0]})).catalog.length,18);
+});
+test('invalid approved catalog leaves the workbook untouched',async()=>{
+ const book=new ExcelJS.Workbook();await book.xlsx.readFile(template);
+ const before=book.getWorksheet('Sheet2').getCell('B3').value;
+ const bad=JSON.parse(fs.readFileSync(catalogFile,'utf8'));bad.rows.push(bad.rows[0]);
+ assert.throws(()=>updateInboundCatalog(book,bad),/重复/);
+ assert.equal(book.getWorksheet('Sheet2').getCell('B3').value,before);
+});
 test('inbound creates an independent batch, keeps dictionary and exact numeric quantities',async t=>{
   const before=fs.readFileSync(template),root=temp(t);
   const {file}=await createInbound({items:[{product:'鸡胸',quantity:100,unit:'件'},{product:'鸡腿',quantity:50,unit:'箱'}]},'明天入库：鸡胸100件，鸡腿50箱',config,root,'2026-10-21');
