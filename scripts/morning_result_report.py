@@ -152,11 +152,13 @@ def build_payload(task, runs, root=ROOT):
         elif message_event and message_event.get('status') == 'success':
             row.update(status='partial', detail='步骤完成，但缺少本轮门店完整性证据')
         message_rows.append(row)
-    restore = event_row('淘宝全国门店范围恢复', '直营双平台客服消息采集')
-    if message_event and fresh(messages.get('generated_at'), '直营双平台客服消息采集'):
-        restore.update(status='success' if messages.get('context_restored') is True else 'failed',
-                       detail='' if messages.get('context_restored') is True else '未确认恢复全国范围')
-    message_rows.append(restore)
+    # Legacy runs required a nationwide restore; per-store runs do not.
+    if messages.get('context_policy') != 'per_store':
+        restore = event_row('淘宝全国门店范围恢复', '直营双平台客服消息采集')
+        if message_event and fresh(messages.get('generated_at'), '直营双平台客服消息采集'):
+            restore.update(status='success' if messages.get('context_restored') is True else 'failed',
+                           detail='' if messages.get('context_restored') is True else '未确认恢复全国范围')
+        message_rows.append(restore)
     web = root/'business-report-dashboard/direct-dashboard/customer-messages/index.html'
     page = event_row('客服消息页面生成', '直营双平台客服消息采集')
     if message_event:

@@ -512,31 +512,6 @@ def eleme(pw,scope,config,*,recover=False):
 
 
 
-def is_eleme_headquarters_context(page):
-    from ensure_eleme_headquarters_context import GROUP_ID
-    return bool(re.search(r'/app/chain/(?:'+re.escape(GROUP_ID)+r'|-1)(?:/|$)',page.url) and '全国' in page.locator('body').first.inner_text()[:180])
-
-
-def restore_eleme_headquarters(pw):
-    """Restore the nationwide/all-store organization token before downstream jobs."""
-    from ensure_eleme_headquarters_context import choose_context,has_visible_switcher,GROUP_ID,NEUTRAL_CONTEXT_URL
-    browser=connect_cdp_browser(pw, 'http://127.0.0.1:9222')
-    page=next((pg for ctx in browser.contexts for pg in ctx.pages if 'melody.shop.ele.me/app' in pg.url and has_visible_switcher(pg)),None)
-    owned=page is None
-    try:
-        if owned:
-            page=browser.contexts[0].new_page();page.goto(NEUTRAL_CONTEXT_URL,wait_until='domcontentloaded',timeout=60000)
-            page.wait_for_timeout(1500)
-        search=page.get_by_placeholder('搜索店铺名称/ID')
-        if search.count() and search.is_visible():search.fill('');page.wait_for_timeout(500)
-        choose_context(page,f'{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}',re.compile(r'/app/chain/(?:'+re.escape(GROUP_ID)+r'|-1)(?:/|$)'))
-        wait(page,lambda:is_eleme_headquarters_context(page),'淘宝全国范围身份')
-        if not is_eleme_headquarters_context(page):raise RuntimeError('淘宝未恢复全国全部门店范围')
-        return True
-    finally:
-        if owned and page:page.close()
-        browser.close()
-
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--date',default=(datetime.now(TZ).date()-timedelta(days=1)).isoformat())
@@ -587,15 +562,11 @@ def main():
                 snapshot['generated_at']=datetime.now(TZ).isoformat(timespec='seconds')
                 atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
                 print(f'{key}: {scope["status"]}, {len(scope["sessions"])} 段, {scope.get("error","")}',flush=True)
-        if not args.platform or '淘宝闪购' in args.platform:
-            try:
-                snapshot['context_restored']=restore_eleme_headquarters(pw)
-                snapshot.pop('context_error',None)
-                print('淘宝已恢复全国全部门店范围',flush=True)
-            except Exception as exc:
-                snapshot['context_restored']=False
-                snapshot['context_error']=safe_error(exc)
-                print('淘宝总部范围恢复失败：'+snapshot['context_error'],flush=True)
+        # Each collection selects and verifies its own target shop. Leave that
+        # context in place; a nationwide restore is not a collection prerequisite.
+        snapshot['context_policy']='per_store'
+        snapshot.pop('context_restored',None)
+        snapshot.pop('context_error',None)
         atomic_json(existing,snapshot);atomic_json(OUT/'latest.json',snapshot)
     from customer_message_data import project_scope
     for offset in range(1,args.lookback):
@@ -614,7 +585,6 @@ def main():
     build()
     failed=[k for k,v in snapshot['scopes'].items() if v['status']!='ready']
     if len(snapshot['scopes'])!=len(config)*2:failed.append('覆盖门店平台数量未满')
-    if snapshot.get('context_error'):failed.append('淘宝全国全部门店范围恢复')
     if failed:raise SystemExit('客服消息采集有未完成项：'+','.join(failed))
 
 if __name__=='__main__':main()

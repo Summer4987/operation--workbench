@@ -144,14 +144,32 @@ class DataTests(unittest.TestCase):
   with patch('ensure_eleme_headquarters_context.choose_context',side_effect=RuntimeError('identity mismatch')) as choose,patch('ensure_eleme_headquarters_context.visible_locator',return_value=None),patch('ensure_eleme_headquarters_context.has_visible_switcher',return_value=True),patch('collect_customer_messages.wait',return_value=True):
    with self.assertRaisesRegex(RuntimeError,'identity mismatch'):ensure_eleme_customer_shop(page,config)
    self.assertEqual(choose.call_count,2)
- def test_headquarters_restore_accepts_new_route_only_with_nationwide_identity(self):
-  from collect_customer_messages import is_eleme_headquarters_context
-  from unittest.mock import Mock
-  page=Mock();page.url='https://melody.shop.ele.me/app/chain/-1/dashboard'
-  page.locator.return_value.first.inner_text.return_value='品牌版 熊小小牛排饭（全国） 集团主体账号'
-  self.assertTrue(is_eleme_headquarters_context(page))
-  page.locator.return_value.first.inner_text.return_value='品牌版 熊小小金融城店 集团主体账号'
-  self.assertFalse(is_eleme_headquarters_context(page))
+ def test_retry_keeps_verified_shops_without_restoring_nationwide_context(self):
+  import json, tempfile
+  from datetime import datetime
+  from unittest.mock import MagicMock
+  import collect_customer_messages as collector
+  with tempfile.TemporaryDirectory() as tmp:
+   root=Path(tmp);out=root/'outputs';(root/'config').mkdir()
+   (root/'config/customer_messages.json').write_text(json.dumps(dict(stores=[dict(store='A',meituan_account='hq',eleme_shop_id='123')])))
+   (root/'config/direct_meituan_accounts.json').write_text(json.dumps(dict(accounts=[])))
+   day='2026-11-23';captured=datetime.now(collector.TZ).isoformat()
+   snapshot=dict(target_date=day,generated_at=captured,context_restored=False,context_error='old timeout',scopes={
+    'A|'+plat:dict(status='ready',collected_at=captured,sessions=[],list_complete=True) for plat in ['美团','淘宝闪购']})
+   (out/day).mkdir(parents=True);(out/day/'snapshot.json').write_text(json.dumps(snapshot))
+   playwright=MagicMock()
+   with patch.dict('sys.modules',{'playwright.sync_api':playwright}),patch.object(collector,'ROOT',root),patch.object(collector,'OUT',out),patch.object(collector.platform,'node',return_value='Mac-mini'),patch('sys.argv',['collector','--date',day,'--retry-failed']),patch.object(collector,'connect_cdp_browser') as connect,patch('render_customer_messages.build'):
+    collector.main()
+    connect.assert_not_called()
+    result=json.loads((out/'latest.json').read_text())
+    self.assertEqual(result['context_policy'],'per_store')
+    self.assertNotIn('context_error',result);self.assertNotIn('context_restored',result)
+    self.assertEqual(result['scopes'],snapshot['scopes'])
+    # An incomplete customer scope must still fail the task.
+    result['scopes']['A|美团']['status']='partial'
+    (out/day/'snapshot.json').write_text(json.dumps(result))
+    with patch.object(collector,'meituan',side_effect=RuntimeError('identity mismatch')):
+     with self.assertRaisesRegex(SystemExit,'A\|美团'):collector.main()
  def test_audio_page_explains_intentional_omission(self):
   m=normalize([dict(id='a',time='10-14 12:00',role='customer',content='8秒',required_media='audio',media=[])],'2026-10-14',date(2026,10,15))[0]
   scope=dict(store='朝阳门店',platform='美团',status='partial',list_complete=True,sessions=[dict(label='语音',history_complete=True,messages=[m])])

@@ -89,6 +89,17 @@ class MorningReportTests(unittest.TestCase):
         self.assertEqual(rows['淘宝闪购客服消息采集']['status'],'partial');self.assertIn('B',rows['淘宝闪购客服消息采集']['detail'])
         self.assertEqual(rows['淘宝全国门店范围恢复']['status'],'failed')
 
+    def test_per_store_collection_does_not_require_nationwide_restore(self):
+        data=report.read_json(self.root/'outputs/customer_messages/latest.json')
+        data.update(context_policy='per_store', context_restored=False)
+        self.write('outputs/customer_messages/latest.json',data)
+        rows=self.rows()
+        self.assertNotIn('淘宝全国门店范围恢复',rows)
+        self.assertEqual(rows['淘宝闪购客服消息采集']['status'],'success')
+        data['scopes']['B|淘宝闪购']['status']='partial'
+        self.write('outputs/customer_messages/latest.json',data)
+        self.assertEqual(self.rows()['淘宝闪购客服消息采集']['status'],'partial')
+
     def test_new_run_does_not_reuse_same_day_old_evidence(self):
         self.runs['events'][0]['created_at']='2026-10-25 08:41:00'
         for e in self.runs['events'][1:]:e['created_at']='2026-10-25 08:42:00'
