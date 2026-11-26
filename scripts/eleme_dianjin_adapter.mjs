@@ -1155,22 +1155,18 @@ async function runExecutionPreview(config, args) {
             await commitInputValue(valueInput, value);
           }
           if (row.type === 'bid-check') {
-            if (/出价助手|出价模式/.test(textOf(modal))) {
-              const checkedAssistant = Array.from(modal.querySelectorAll('.ant-switch,button[role="switch"]'))
-                .filter(visible)
-                .some((el) => (el.getAttribute('aria-checked') === 'true') || String(el.className || '').includes('ant-switch-checked'));
-              if (checkedAssistant) {
-                return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '检测到出价助手或出价模式控件处于开启状态，禁止保存；脚本不会调整这些设置', saved: false };
+            // 规则：不开启出价助手。弹窗里出价助手若显示为开启，先拨回关闭并确认仍是关闭，再保存出价；拨不回则不保存。
+            const assistantSwitches = () => Array.from(modal.querySelectorAll('.ant-switch,button[role="switch"]')).filter(visible);
+            const isOn = (el) => el.getAttribute('aria-checked') === 'true' || String(el.className || '').includes('ant-switch-checked');
+            if (/出价助手/.test(textOf(modal))) {
+              for (const sw of assistantSwitches().filter(isOn)) {
+                await clickElement(sw);
+                await wait(700);
               }
-            }
-            const assistantSwitch = Array.from(modal.querySelectorAll('.ant-switch,button[role="switch"]'))
-              .filter(visible)
-              .find((el) => textOf(modal).includes('出价助手')) || null;
-            if (assistantSwitch) {
-              const isChecked = assistantSwitch.getAttribute('aria-checked') === 'true' || String(assistantSwitch.className || '').includes('ant-switch-checked');
-              if (isChecked) {
-                return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '出价助手已开启，禁止保存；脚本不会关闭或调整出价助手', saved: false };
+              if (assistantSwitches().some(isOn)) {
+                return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '出价助手开关无法确认为关闭，禁止保存', saved: false };
               }
+              await commitInputValue(valueInput, value);
             }
           }
           await wait(400);
