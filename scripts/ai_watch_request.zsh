@@ -15,7 +15,7 @@ PY="$ROOT/business-report-dashboard/.venv/bin/python"
 [[ -x "$PY" ]] || PY=/usr/bin/python3
 REQUEST="${AI_WATCH_REQUEST:-}"
 
-# 值守回复发回工作助手对话（老板在那里提的请求）；其它自动化通知走 agent 群。
+# 值守回复发回工作助手对话（老板在那里提的请求）；其它自动化通知走“通知助手”群。
 reply() { OPS_NOTIFY_CHANNEL=assistant "$PY" "$ROOT/scripts/ops_notify.py" "【值守】$1" >/dev/null 2>&1 || true; }
 note() { echo "[$(date '+%F %T')] 企微值守：$*" >> "$LOG_DIR/watch.log"; }
 

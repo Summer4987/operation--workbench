@@ -25,7 +25,7 @@ class AgentNotifyTests(unittest.TestCase):
             generated_at="2026-07-04 10:00:00",
         )
 
-        self.assertIn("熊小小运营 Agent", message)
+        self.assertIn("通知助手", message)
         self.assertIn("结论：预算预览完成：已完成。", message)
         self.assertIn("功能验收：预算预览完成：正常", message)
         self.assertIn("依据：没有真实提交预算。", message)

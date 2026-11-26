@@ -66,7 +66,7 @@ def build_message(
         "info": "已记录。",
     }.get(status, "已更新。")
     lines = [
-        f"【熊小小运营 Agent｜{label}】",
+        f"【通知助手｜{label}】",
         f"结论：{compact(title, limit=120)}：{conclusion}",
         f"功能验收：{compact(title, limit=120)}：{label}",
     ]

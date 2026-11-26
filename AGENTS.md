@@ -28,3 +28,17 @@
 - `http://139.155.148.169/order-submit?token=xiongxiaoxiao-order` 正式名称为“熊小小日配订货”；后续用户说“日配订货”时，默认指这个链接。
 - `http://139.155.148.169/daily-order/` 正式名称为“熊小小成都门店订货”；后续用户说“门店订货”时，默认指这个链接。
 - `http://139.155.148.169/beijing-order/` 正式名称为“熊小小北京门店订货”；后续用户说“北京门店订货”时，默认指这个链接。
+
+## 企微通知与 AI 值守（2026-11-26 起）
+
+- 企微有两个入口，名称固定：
+  - **通知助手**：企微群（原名 agent 群），群机器人 webhook。所有自动化通知都发到这里（`config/ops_notify.json` 的 `channel` 为 `webhook`）。
+  - **熊小小工作助手**：企微官方智能机器人，用于老板问答和叫值守；日常问答用 DeepSeek。它自带的“运营异常”推送已关闭（`WECOM_OPS_ALERTS_ENABLED=0`），避免与通知助手重复。
+- 所有通知统一经 `scripts/ops_notify.py` 发送，发送前由 `scripts/notify_text.py` 去掉文件路径、任务 ID、命令、报错堆栈和英文代码词；新增通知不要绕开它。通用格式为“结论 / 原因 / 下一步 / 时间”，不写日志路径、补跑命令和错误分类。每条发送记录在 `outputs/ops_notify/<日期>.jsonl`。
+- 工作助手主动推送只支持 Markdown（会弹通知但不显示内容）和卡片（显示标题但不弹通知），因此通知不走工作助手；`WECOM_NOTIFY_FORMAT` 保持 `markdown`。
+- **AI 值守（Codex）运行在 Mac mini**，命令行在 `~/Library/Application Support/xiong-operation/codex-cli/codex`，只通过本机代理 `127.0.0.1:7897`（launchd `com.summer.codex-proxy`，mihomo）访问 OpenAI；它执行的命令剔除代理变量，美团/饿了么保持国内直连。
+  - 上午运营失败后、自动续跑前，由 `scripts/morning_ai_watch.zsh` 唤醒，规则见 `docs/MORNING_AI_WATCH.md`；每天最多 3 次。关闭：创建 `config/morning_ai_watch.disabled`。
+  - 老板在工作助手发“值守：…”或由 DeepSeek 调用 `request_ai_watch`，后台运行 `scripts/ai_watch_request.zsh`，规则见 `docs/AI_WATCH_CHAT.md`；结果回到工作助手对话。开关 `WECOM_AI_WATCH_ENABLED`。
+  - 两者共用锁 `outputs/ai_watch/lock`，同一时间只有一个 Codex。值守可关弹窗、重启 Chrome、补跑采集类任务；不碰预算、出价、订货、财务，不改配置和代码，不登录、不输验证码。
+- 上午运营包装脚本设置 `MEITUAN_ACCOUNT_WAIT_SECONDS=480`：美团同账号排队时等龙虾店长一轮余额巡检结束，而不是 120 秒判失败。龙虾店长照常占用账号做余额巡检，不要为上午运营去限制它。
+- 修改 `run_morning_ops.zsh` 的模板在 `scripts/install_macmini_operation_launchd.zsh`；部署时只重新生成该文件，不要为此重装全部 launchd。

@@ -131,7 +131,7 @@ if(mode==='--smoke'){
   client.on('event.enter_chat',frame=>client.replyWelcome(frame,{msgtype:'text',text:{content:'你好，我是熊小小工作助手。完成私聊绑定后可查询经营、订货，整理聊天和生成Excel。'}}).catch(()=>{}));
   const adminToken=operatorToken();
   const server=http.createServer(async(req,res)=>{
-    // 本机自动化通知统一由助手私聊推送给老板（取代 agent 群机器人）；不占用对话忙碌锁。
+    // 可选：经助手私聊推送通知（默认通知走“通知助手”群机器人）；不占用对话忙碌锁。
     if(req.method==='POST'&&req.url==='/operator/notify'){
       if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
       try{
