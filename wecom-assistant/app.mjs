@@ -7,6 +7,7 @@ import {createRequire} from 'node:module';
 import ExcelJS from 'exceljs';
 import {Access,Assistant,PRIVATE,HELP,settings,saveJson,loadJson,sessionKey,llm,today,workbook,balance} from './core.mjs';
 import {memoryCommand} from './memory.mjs';
+import {sendNotice} from './notify_card.mjs';
 import {operatorToken,checkOperator,operatorInbound,operatorRealtime,operatorAsk,operatorOperations} from './operator.mjs';
 import {operatorInspection} from './inspection.mjs';
 const require=createRequire(import.meta.url);
@@ -138,9 +139,9 @@ if(mode==='--smoke'){
         const text=String(JSON.parse(body).text||'').trim();
         if(!text)throw Error('通知内容为空');
         if(!status.authenticated||!access.data.owner)throw Error('连接或绑定未就绪');
-        await client.sendMessage(access.data.owner,{msgtype:'markdown',markdown:{content:text}});
-        update({notify_last_sent:new Date().toISOString()});
-        res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true}));
+        const mode=await sendNotice(client,access.data.owner,text,{format:config.WECOM_NOTIFY_FORMAT||'card',url:config.WECOM_NOTIFY_URL});
+        update({notify_last_sent:new Date().toISOString(),notify_last_mode:mode});
+        res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,mode}));
       }catch(error){res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:false,error:String(error.message).slice(0,200)}));}
       return;
     }
