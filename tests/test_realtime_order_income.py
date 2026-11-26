@@ -17,6 +17,39 @@ from scripts.realtime_order_income import (
 )
 
 
+def test_eleme_scope_rejects_company_even_with_data_visible():
+    from unittest.mock import Mock
+    from scripts import realtime_order_income as collector
+    page = Mock(url="https://melody.shop.ele.me/app/unit/stats__center")
+    page.locator.return_value.all_inner_texts.return_value = ["成都熊小小餐饮管理有限公司"]
+    with pytest.raises(RuntimeError, match="未确认全国"):
+        collector.require_eleme_nationwide_context(page)
+
+
+def test_eleme_scope_requires_both_nationwide_label_and_brand_route():
+    from unittest.mock import Mock
+    from scripts import realtime_order_income as collector
+    page = Mock(url=collector.ELEME_URL)
+    page.locator.return_value.all_inner_texts.return_value = ["熊小小牛排饭pokebear（全国）"]
+    collector.require_eleme_nationwide_context(page)
+    page.locator.return_value.all_inner_texts.return_value = ["成都区域"]
+    with pytest.raises(RuntimeError, match="未确认全国"):
+        collector.require_eleme_nationwide_context(page)
+
+
+def test_eleme_selects_nationwide_brand_before_collection(monkeypatch):
+    from unittest.mock import Mock
+    from scripts import realtime_order_income as collector
+    page = Mock(url=collector.ELEME_URL)
+    page.locator.return_value.all_inner_texts.return_value = ["熊小小（全国）"]
+    choose = Mock()
+    monkeypatch.setattr(collector, "choose_context", choose)
+    collector.ensure_eleme_nationwide_context(page)
+    page.goto.assert_called_once_with(collector.NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
+    choose.assert_called_once_with(page, f"{collector.GROUP_ID}__RC_CASCADER_SPLIT__{collector.GROUP_ID}", f"**/app/chain/{collector.GROUP_ID}/**")
+    assert "/app/unit/" not in collector.ELEME_URL
+
+
 @pytest.fixture(autouse=True)
 def isolated_auth_state(tmp_path, monkeypatch):
     from scripts import realtime_order_income as collector

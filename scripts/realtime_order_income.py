@@ -30,8 +30,16 @@ from chrome_cdp_reports import (  # noqa: E402
 
 import platform_account_access as account_access
 
+try:
+    from .ensure_eleme_headquarters_context import GROUP_ID, NEUTRAL_CONTEXT_URL, choose_context
+except ImportError:
+    from ensure_eleme_headquarters_context import GROUP_ID, NEUTRAL_CONTEXT_URL, choose_context
 
-ELEME_URL = "https://melody.shop.ele.me/app/unit/stats__center#app.unit.stats.center"
+
+ELEME_URL = (
+    f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/store-analysis"
+    "#app.chainshop.store-analysis?path=1&otherParams=%7B%22needShopList%22%3A%22%22%2C%22isCheckAll%22%3Afalse%7D"
+)
 ELEME_STATS_CENTER_URL = ELEME_URL
 MEITUAN_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/business"
 OUTPUT_DIR = ROOT / "outputs" / "realtime_order_income"
@@ -760,10 +768,27 @@ def click_eleme_store_analysis(page) -> None:
         click_text(page, "门店分析", timeout=3000)
 
 
+def require_eleme_nationwide_context(page) -> None:
+    label = " ".join(page.locator('div[class*="shopSwitcher"]').all_inner_texts())
+    if f"/app/chain/{GROUP_ID}/" not in page.url or "全国" not in label:
+        raise RuntimeError("淘宝闪购实时采集门店范围未确认全国，停止读取，保留上一份成功数据。")
+
+
+def ensure_eleme_nationwide_context(page) -> None:
+    page.goto(NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
+    page.wait_for_timeout(3000)
+    choose_context(page, f"{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}", f"**/app/chain/{GROUP_ID}/**")
+    require_eleme_nationwide_context(page)
+    log("饿了么：已确认全国门店范围")
+
+
 def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     page, is_new = page_for_platform(context, ELEME_URL, ["melody.shop.ele.me", "lsycm.alibaba.com"])
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(min(timeout_ms, 30_000))
+    # The unit data-center menu silently switches back to the legal entity.
+    # Select the nationwide brand first and keep its chain route on every entry.
+    ensure_eleme_nationwide_context(page)
     api_records, handler = collect_api_responses(page, "饿了么")
     captured_rank_request: dict[str, Any] = {}
     dom_records: list[dict[str, Any]] = []
@@ -824,6 +849,7 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
         except Exception:
             pass
         page.wait_for_timeout(18_000)
+        require_eleme_nationwide_context(page)
         auth_reason = page_auth_block_reason(page, "饿了么")
         if auth_reason:
             auth_guard.block("饿了么", auth_reason, page.url)
@@ -836,8 +862,10 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
                 page.wait_for_timeout(5000)
                 click_eleme_store_analysis(page)
                 page.wait_for_timeout(18_000)
+                require_eleme_nationwide_context(page)
             except Exception:
                 page.wait_for_timeout(3000)
+        require_eleme_nationwide_context(page)
         if captured_rank_request and direct_api:
             try:
                 log("饿了么：用登录态补拉分页接口")
@@ -852,6 +880,8 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
             except Exception:
                 pass
         for page_index in range(2, 7):
+            if platform_target_count(api_records, "饿了么") >= len(TARGET_STORES):
+                break
             # 门店排行表在生意参谋 iframe 里，主文档找不到“下一页”时到各个子框架里找。
             if not any(click_next_page(target) for target in [page, *[f for f in page.frames if f != page.main_frame]]):
                 break
