@@ -68,7 +68,7 @@ for name in ("workbench-data.js", "workbench.js"):
     index = re.sub(rf'(\./{re.escape(name)}\?v=)[^"]+', rf'\g<1>{version}', index)
 (stage / "index.html").write_text(index, encoding="utf-8")
 
-for name in ("workbench.css", "workbench.js", "workbench-data.js", "account-session.js"):
+for name in ("workbench.css", "workbench.js", "workbench-data.js", "account-session.js", "eleme-bidding.js"):
     asset_root = root if name == "workbench-data.js" else ui_root
     (stage / name).write_bytes((asset_root / name).read_bytes())
 copy_agent_page = root / "agent.html"
@@ -86,6 +86,7 @@ def copy_tree_if_exists(source: Path, target: Path) -> None:
         shutil.copytree(source, target, dirs_exist_ok=True)
 
 copy_if_exists(root / "PROJECT_TREE.md", stage / "PROJECT_TREE.md")
+copy_if_exists(root / "outputs/eleme_bid_dashboard/latest.json", stage / "outputs/eleme_bid_dashboard/latest.json")
 copy_tree_if_exists(root / "business-report-dashboard" / "dashboard", stage / "business-report-dashboard" / "dashboard")
 copy_tree_if_exists(root / "business-report-dashboard" / "direct-dashboard", stage / "business-report-dashboard" / "direct-dashboard")
 copy_tree_if_exists(root / "franchise-contract-generator", stage / "franchise-contract-generator")
@@ -366,6 +367,11 @@ fi
 
 ssh "${SSH_OPTS[@]}" "$SERVER" "find '$REMOTE_DIR' -type d -exec chmod 755 {} + && find '$REMOTE_DIR' -type f -exec chmod 644 {} +"
 
+# The read-only Eleme page is shipped in every mode, including data-only.
+ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$REMOTE_DIR/outputs/eleme_bid_dashboard'"
+rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/eleme-bidding.js" "$SERVER:$REMOTE_DIR/"
+rsync -az --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r -e "ssh ${SSH_OPTS[*]}" "$STAGE_DIR/outputs/eleme_bid_dashboard/latest.json" "$SERVER:$REMOTE_DIR/outputs/eleme_bid_dashboard/"
+
 verify_remote_file() {
   local file="$1"
   local local_file="${2:-$file}"
@@ -379,6 +385,9 @@ verify_remote_file() {
     exit 1
   fi
 }
+
+verify_remote_file "eleme-bidding.js" "$STAGE_DIR/eleme-bidding.js"
+verify_remote_file "outputs/eleme_bid_dashboard/latest.json" "$STAGE_DIR/outputs/eleme_bid_dashboard/latest.json"
 
 if [[ "$DEPLOY_MODE" == "data-only" ]]; then
   verify_remote_file "index.html" "$STAGE_DIR/index.html"

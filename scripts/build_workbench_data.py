@@ -10,6 +10,7 @@ from urllib.request import urlopen
 
 from review_page_data import build_summary as page_review_summary
 from atomic_io import atomic_write_text
+from eleme_bid_dashboard import build as build_eleme_bid_dashboard
 from build_task_health import build_task_health, write_task_health
 from build_user_action_queue import build_payload as build_user_action_queue_payload
 
@@ -1389,7 +1390,10 @@ def main() -> None:
     user_action_queue = build_user_action_queue_payload()
     atomic_write_text(USER_ACTION_QUEUE_PATH, json.dumps(user_action_queue, ensure_ascii=False, indent=2) + "\n")
     ai_advice = build_ai_advice(daily, balances, inventory, order_suggestions, order_lists, order_execution_preview, android_execution_plan, android_config, promo_retry, promo_bid_advice, promo_bid_approval_queue, promo_balance_status, review_actions, daily_focus, tool_warehouse, user_action_queue, morning_collection, realtime_collection, realtime_comparison, daily_trends, task_health)
+    eleme_bid_dashboard = build_eleme_bid_dashboard(ROOT)
+    atomic_write_text(ROOT / "outputs/eleme_bid_dashboard/latest.json", json.dumps(eleme_bid_dashboard, ensure_ascii=False, indent=2) + "\n")
     payload = {
+        "eleme_bid_dashboard": eleme_bid_dashboard,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "system": {
             "git": git_metadata(),
