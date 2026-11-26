@@ -841,6 +841,9 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
                 page_payloads = fetch_eleme_rank_pages(context, captured_rank_request)
                 for payload in page_payloads:
                     api_records.extend(walk_json_records(payload, "饿了么", captured_rank_request["url"]))
+            except PlatformVerificationRequired:
+                # 直连补拉被拦截时不再强求，继续用页面正常翻页读取。
+                log("饿了么：直连补拉不可用，改为页面翻页读取")
             except PlatformDataUnavailable:
                 raise
             except Exception:
