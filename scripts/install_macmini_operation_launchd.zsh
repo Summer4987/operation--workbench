@@ -491,6 +491,8 @@ export MORNING_OPS_LOG_DIR="\$LOG_DIR"
 export AI_BUSINESS_CENTER_ENV="production"
 export PYTHONUNBUFFERED=1
 export PYTHONNOUSERSITE=1
+# 美团同账号排队：等龙虾店长一轮余额巡检结束，而不是 120 秒就判失败。
+export MEITUAN_ACCOUNT_WAIT_SECONDS="\${MEITUAN_ACCOUNT_WAIT_SECONDS:-480}"
 
 now_hhmm="\$(date +%H%M)"
 if [ "\$now_hhmm" -lt 800 ] || [ "\$now_hhmm" -gt 1050 ]; then
@@ -584,7 +586,12 @@ rc="\$?"
 # Poll for restored login/network within the existing morning execution window.
 # Successful platform steps are checkpointed; the main lock prevents overlap.
 while [[ "\$rc" -eq 1 && "\$(date +%H%M)" -lt 1050 ]]; do
-  sleep 300
+  # 续跑前先唤醒 Codex 值守排除现场问题（弹窗、卡顿等）；唤醒过则 1 分钟后续跑，否则保持 5 分钟。
+  watch_rc=0
+  if [[ -r "\$ROOT/scripts/morning_ai_watch.zsh" ]]; then
+    OPERATION_ROOT="\$ROOT" /bin/zsh "\$ROOT/scripts/morning_ai_watch.zsh" || watch_rc="\$?"
+  fi
+  if [[ "\$watch_rc" -eq 10 ]]; then sleep 60; else sleep 300; fi
   [[ "\$(date +%H%M)" -le 1050 ]] || break
   echo "[\$(date '+%F %T')] 自动续跑当天失败项，已完成步骤保留。" >> "\$LOG_DIR/scheduler.log"
   run_with_timeout "\${MORNING_OPS_TOTAL_TIMEOUT_SECONDS:-5400}" "\$PYTHON" "\$ROOT/morning-ops/run_morning_ops.py" --source scheduled --resume >> "\$LOG_DIR/scheduler.log" 2>&1

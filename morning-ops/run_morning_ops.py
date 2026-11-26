@@ -53,6 +53,10 @@ sys.path.insert(0, str(WORKSPACE / "scripts"))
 from morning_recovery_state import RecoveryState
 RECOVERY = None
 DEFAULT_MEITUAN_BUDGET_TIMEOUT_SECONDS = 1800
+# Shared Meituan accounts are serialized with Longxia's balance rounds; step
+# limits must exceed MEITUAN_ACCOUNT_WAIT_SECONDS set by the morning wrapper.
+LOGIN_PREFLIGHT_TIMEOUT_SECONDS = int(os.environ.get("MORNING_LOGIN_PREFLIGHT_TIMEOUT_SECONDS", "600"))
+DIRECT_MEITUAN_DAILY_TIMEOUT_SECONDS = int(os.environ.get("MORNING_DIRECT_MEITUAN_DAILY_TIMEOUT_SECONDS", "1200"))
 
 
 BUDGET_PERIODS = {
@@ -476,7 +480,7 @@ def main() -> int:
                     "总部平台登录态预检",
                     budget_preflight_args,
                     required=False,
-                    timeout_seconds=300,
+                    timeout_seconds=LOGIN_PREFLIGHT_TIMEOUT_SECONDS,
                 )
                 if preflight.returncode != 0:
                     add_failure(failures, "总部平台登录态预检", preflight)
@@ -492,7 +496,7 @@ def main() -> int:
                         "--notify",
                     ],
                     required=False,
-                    timeout_seconds=300,
+                    timeout_seconds=LOGIN_PREFLIGHT_TIMEOUT_SECONDS,
                 )
                 if direct_preflight.returncode != 0:
                     add_failure(failures, "直营美团逐账号登录态", direct_preflight)
@@ -535,7 +539,7 @@ def main() -> int:
                 result = run_step("评价看板生成", [report_python, str(REPORT_AUTOMATION), "process-downloaded-reviews"], required=False, timeout_seconds=180)
                 if result.returncode != 0:
                     add_failure(failures, "评价看板生成", result)
-                result = run_step_with_pause("直营美团日报下载", [report_python, str(DIRECT_MEITUAN_DAILY_RUNNER), "--all", "--submit"], required=False, timeout_seconds=600)
+                result = run_step_with_pause("直营美团日报下载", [report_python, str(DIRECT_MEITUAN_DAILY_RUNNER), "--all", "--submit"], required=False, timeout_seconds=DIRECT_MEITUAN_DAILY_TIMEOUT_SECONDS)
                 if result.returncode != 0:
                     add_failure(failures, "直营美团日报", result)
                 ensure_backend_chrome(report_python)

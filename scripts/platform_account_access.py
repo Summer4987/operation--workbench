@@ -221,12 +221,22 @@ class Coordinator:
 
 
 
+def default_wait_seconds():
+    """Queue wait for shared-account callers; the morning wrapper raises it so
+    collectors wait out a Longxia balance round instead of failing at 120s."""
+    try:
+        value = int(os.environ.get('MEITUAN_ACCOUNT_WAIT_SECONDS', '120'))
+    except ValueError:
+        return 120
+    return max(30, min(value, 1800))
+
+
 @contextlib.contextmanager
 def optional_lease(account):
     if account is None or not production_enabled():
         yield
     else:
-        with Coordinator().lease(account):
+        with Coordinator().lease(account, wait_seconds=default_wait_seconds()):
             yield
 
 
@@ -235,7 +245,7 @@ def optional_readonly_lease(account):
     if account is None or not production_enabled():
         yield
     else:
-        with Coordinator().readonly(account):
+        with Coordinator().readonly(account, wait_seconds=default_wait_seconds()):
             yield
 
 
@@ -246,7 +256,7 @@ def readonly_headquarters(fn):
         if not production_enabled():
             return fn(*args, **kwargs)
         coordinator = Coordinator()
-        with coordinator.readonly(HEADQUARTERS):
+        with coordinator.readonly(HEADQUARTERS, wait_seconds=default_wait_seconds()):
             try:
                 return fn(*args, **kwargs)
             except Exception as exc:
@@ -268,7 +278,7 @@ def serialized(resolve):
             if account is None:
                 return fn(*args, **kwargs)
             coordinator = Coordinator()
-            with coordinator.lease(account):
+            with coordinator.lease(account, wait_seconds=default_wait_seconds()):
                 try:
                     return fn(*args, **kwargs)
                 except Exception as exc:
