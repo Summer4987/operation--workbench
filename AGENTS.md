@@ -43,3 +43,4 @@
 - 上午运营包装脚本设置 `MEITUAN_ACCOUNT_WAIT_SECONDS=480`：美团同账号排队时等龙虾店长一轮余额巡检结束，而不是 120 秒判失败。龙虾店长照常占用账号做余额巡检，不要为上午运营去限制它。
 - 修改 `run_morning_ops.zsh` 的模板在 `scripts/install_macmini_operation_launchd.zsh`；部署时只重新生成该文件，不要为此重装全部 launchd。
 - 2026-11-26 清理：10:25 的 `ai-center-guardian` 已退役（检查的是旧目录 `operation-workbench-clean`，报告失真），plist 与脚本归档在 `~/Library/LaunchAgents/retired-20261126/`、`~/Library/Scripts/xiong-operation/archive/retired-20261126/`，不要再用 `install_ai_center_guardian_launchd.zsh` 装回。Mac mini 上 Codex App 6 月建的三个定时自动化（09:00 上午运营、09:30 体检、17:30 晚餐预算）已暂停，它们会与 launchd 重复执行真实预算，不要恢复；定时任务只用 launchd。
+- 美团登录约 30 天失效。`com.summer.operation.meituan-login-expiry` 每天 14:30（午晚高峰之间）只读检查各会话 token 到期时间（总部/直营 Chrome 与龙虾店长 16 个门店分区），剩余 ≤10 天时经通知助手提醒老板在 14:30–15:30 主动重新登录；≤5 天或已失效每天提醒。安装：`scripts/install_meituan_login_expiry_launchd.zsh`；结果 `outputs/meituan_login_expiry/latest.json`。
