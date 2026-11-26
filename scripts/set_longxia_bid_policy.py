@@ -1,4 +1,4 @@
-"""Apply the owner's 0.50–1.00 bid range; opening 0.60 is enforced by Longxia 0.8.13."""
+"""Apply the owner's 0.30–1.00 bid range (2026-11-27 policy); opening 0.50 is enforced by Longxia 0.8.26."""
 import argparse
 import copy
 import inspect
@@ -14,7 +14,7 @@ def updated_config(data):
     for template in updated['longxia']['templates']:
         if type(template.get('maxBid')) is not int or template['maxBid'] < 10:
             raise ValueError('模板出价范围无效，保留原配置')
-        template['minBid'] = 50
+        template['minBid'] = 30
         template['maxBid'] = 100
     return updated
 
