@@ -771,8 +771,17 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     if cached_request:
         log("饿了么：优先用已保存的接口模板直连补拉，避免反复刷新限流页面")
         cached_records: list[dict[str, Any]] = []
-        for payload in fetch_eleme_rank_pages(context, cached_request):
-            cached_records.extend(walk_json_records(payload, "饿了么", cached_request["url"]))
+        try:
+            for payload in fetch_eleme_rank_pages(context, cached_request):
+                cached_records.extend(walk_json_records(payload, "饿了么", cached_request["url"]))
+        except PlatformVerificationRequired:
+            # 旧接口模板带的风控参数失效后会一直返回滑块页；作废模板，改由页面重新捕获新请求。
+            log("饿了么：已保存的接口模板被风控拦截，作废模板并改为页面采集")
+            try:
+                ELEME_REQUEST_CACHE_PATH.unlink()
+            except FileNotFoundError:
+                pass
+            cached_records = []
         direct_result = merge_records(cached_records)
         if len(direct_result) >= len(TARGET_STORES):
             log(f"饿了么：直连接口完成 {len(direct_result)} 个目标门店")
