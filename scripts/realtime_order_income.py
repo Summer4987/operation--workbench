@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -767,7 +768,9 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     captured_rank_request: dict[str, Any] = {}
     dom_records: list[dict[str, Any]] = []
 
-    cached_request = load_eleme_rank_request()
+    # 2026-11-26：浏览器外直连生意参谋接口会触发阿里滑块风控，默认停用，只用页面正常浏览读取。
+    direct_api = os.environ.get("ELEME_DIRECT_API") == "1"
+    cached_request = load_eleme_rank_request() if direct_api else None
     if cached_request:
         log("饿了么：优先用已保存的接口模板直连补拉，避免反复刷新限流页面")
         cached_records: list[dict[str, Any]] = []
@@ -835,7 +838,7 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
                 page.wait_for_timeout(18_000)
             except Exception:
                 page.wait_for_timeout(3000)
-        if captured_rank_request:
+        if captured_rank_request and direct_api:
             try:
                 log("饿了么：用登录态补拉分页接口")
                 page_payloads = fetch_eleme_rank_pages(context, captured_rank_request)
