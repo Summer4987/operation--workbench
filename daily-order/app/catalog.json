@@ -453,6 +453,17 @@
       "purchase_channel": "拼多多"
     },
     {
+      "sku": "KD-067",
+      "source": "快递到店",
+      "category": "调料",
+      "name": "洋葱酥",
+      "spec": "",
+      "unit": "盒",
+      "note": "",
+      "image": "/daily-order/static/images/KD-067.svg",
+      "purchase_channel": "淘宝"
+    },
+    {
       "sku": "KL-028",
       "source": "快驴配送",
       "category": "调料",

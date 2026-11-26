@@ -259,6 +259,7 @@ def _generate_outbound_order_from_lines(
     shutil.copyfile(template_path, output_path)
 
     workbook = load_workbook(output_path)
+    _ensure_order_product_rows(workbook, lines)
     if "客户订单填写" not in workbook.sheetnames:
         raise OrderParseError("出库模板里没有找到“客户订单填写”工作表")
     sheet = workbook["客户订单填写"]
@@ -363,6 +364,29 @@ def parse_wechat_order(text: str, products: list[Product], customers: list[Custo
 
     deduped = _dedupe_lines(lines)
     return deduped, warnings
+
+
+def _ensure_order_product_rows(workbook, lines: list[OrderLine]) -> None:
+    """Include catalog-only products in the exported warehouse lookup sheet."""
+    if "货品信息" not in workbook.sheetnames:
+        return
+    sheet = workbook["货品信息"]
+    headers = _header_map(sheet[1])
+    if "货品编号" not in headers:
+        return
+    sku_column = headers["货品编号"] + 1
+    seen = {_clean(sheet.cell(row, sku_column).value) for row in range(2, sheet.max_row + 1)}
+    for line in lines:
+        if line.sku in seen:
+            continue
+        values = {"货品编号": line.sku, "货品名称": line.product_name,
+                  "规格": line.spec, "单位": line.unit, "仓库": line.warehouse,
+                  "条码": line.sku}
+        row = sheet.max_row + 1
+        for header, value in values.items():
+            if header in headers:
+                sheet.cell(row, headers[header] + 1).value = value
+        seen.add(line.sku)
 
 
 def _load_products(workbook) -> list[Product]:

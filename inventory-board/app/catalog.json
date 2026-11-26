@@ -141,5 +141,37 @@
     "spec": "20kg/桶",
     "unit": "桶",
     "warehouse": "成都易代仓"
+  },
+  {
+    "sku": "LDXXX00015",
+    "name": "冷冻牛肝菌",
+    "spec": "8kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "initial_balance": 0
+  },
+  {
+    "sku": "LDXXX00016",
+    "name": "安格斯牛肉丁",
+    "spec": "16kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "initial_balance": 0
+  },
+  {
+    "sku": "CWXXX00010",
+    "name": "混合豉油拌饭汁",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "initial_balance": 0
+  },
+  {
+    "sku": "CWXXX00011",
+    "name": "腌辣椒汁",
+    "spec": "10kg/箱",
+    "unit": "件",
+    "warehouse": "成都易代仓",
+    "initial_balance": 0
   }
 ]
