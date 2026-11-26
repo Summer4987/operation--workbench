@@ -900,12 +900,22 @@ def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[di
         data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         request = urllib.request.Request(captured_request["url"], data=data, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(request, timeout=12) as response:
-                text = response.read().decode("utf-8", "replace")
+            try:
+                with urllib.request.urlopen(request, timeout=12) as response:
+                    text = response.read().decode("utf-8", "replace")
+            except urllib.error.HTTPError as exc:
+                error_text = exc.read().decode("utf-8", "replace")
+                if is_eleme_punish(error_text):
+                    raise PlatformVerificationRequired(ELEME_PUNISH_MESSAGE) from exc
+                if not 500 <= exc.code < 600:
+                    raise
+                # The gateway can reject urllib while the logged-in data frame
+                # still works. Keep the request in that existing browser session.
+                text = fetch_eleme_rank_in_browser(context, captured_request, body)
             if is_eleme_punish(text):
                 raise PlatformVerificationRequired(ELEME_PUNISH_MESSAGE)
             payload = json.loads(text)
-        except PlatformVerificationRequired:
+        except PlatformDataUnavailable:
             raise
         except Exception as exc:
             reason = getattr(exc, "reason", exc)
@@ -919,6 +929,33 @@ def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[di
         consecutive_timeouts = 0
         payloads.append(payload)
     return payloads
+
+
+def fetch_eleme_rank_in_browser(context, captured_request: dict[str, Any], body: dict[str, Any]) -> str:
+    headers = {
+        key: value for key, value in (captured_request.get("headers") or {}).items()
+        if key.lower() not in {"accept-encoding", "content-length", "host", "cookie", "origin", "referer", "user-agent"}
+    }
+    for page in context.pages:
+        for frame in page.frames:
+            if urlsplit(frame.url).hostname not in {"melody-stats-next.ele.me", "lsycm.alibaba.com"}:
+                continue
+            result = frame.evaluate(
+                """async ({url, body, headers}) => {
+                  const response = await fetch(url, {
+                    method: "POST", credentials: "include", headers,
+                    body: JSON.stringify(body), signal: AbortSignal.timeout(12000)
+                  });
+                  return {status: response.status, text: await response.text()};
+                }""",
+                {"url": captured_request["url"], "body": body, "headers": headers},
+            )
+            if is_eleme_punish(result["text"]):
+                raise PlatformVerificationRequired(ELEME_PUNISH_MESSAGE)
+            if result["status"] != 200:
+                raise PlatformDataUnavailable("饿了么平台数据接口暂不可用：浏览器分页请求失败，本轮停止刷新，保留上一份成功数据。")
+            return result["text"]
+    raise RuntimeError("饿了么分页网关异常，需进入数据页面后使用浏览器分页。")
 
 
 MEITUAN_REALTIME_ACTIVE_SCRIPT = """

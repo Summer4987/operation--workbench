@@ -619,3 +619,36 @@ def test_upstream_retry_policy_ignores_old_failures(tmp_path):
     assert stop_retry(path,since)
     os.utime(path,(1,1))
     assert not stop_retry(path,since)
+
+
+def test_eleme_gateway_failure_uses_logged_in_frame(monkeypatch):
+    import io, json
+    from unittest.mock import Mock
+    from urllib.error import HTTPError
+    from scripts import realtime_order_income as collector
+    request = {"url": "https://lsycm.alibaba.com/proteinStandardQuery/TG3gM96", "payload": {}}
+    monkeypatch.setattr(collector.urllib.request, "urlopen", Mock(side_effect=lambda *a, **k: (_ for _ in ()).throw(
+        HTTPError(request["url"], 502, "Bad Gateway", {}, io.BytesIO(b"gateway error")))))
+    frame = Mock(url="https://melody-stats-next.ele.me/new/")
+    frame.evaluate.side_effect = lambda script, args: {"status": 200, "text": json.dumps({"current": args["body"]["current"]})}
+    context = Mock(pages=[Mock(frames=[frame])])
+    context.cookies.return_value = []
+    assert collector.fetch_eleme_rank_pages(context, request) == [{"current": n} for n in range(1, 5)]
+    assert frame.evaluate.call_count == 4
+
+
+def test_eleme_browser_fallback_stops_on_verification(monkeypatch):
+    import io
+    from unittest.mock import Mock
+    from urllib.error import HTTPError
+    from scripts import realtime_order_income as collector
+    request = {"url": "https://lsycm.alibaba.com/proteinStandardQuery/TG3gM96", "payload": {}}
+    monkeypatch.setattr(collector.urllib.request, "urlopen", Mock(side_effect=HTTPError(
+        request["url"], 502, "Bad Gateway", {}, io.BytesIO(b"gateway error"))))
+    frame = Mock(url="https://melody-stats-next.ele.me/new/")
+    frame.evaluate.return_value = {"status": 200, "text": "_____tmd_____/punish?x5secdata=required"}
+    context = Mock(pages=[Mock(frames=[frame])])
+    context.cookies.return_value = []
+    with pytest.raises(collector.PlatformVerificationRequired):
+        collector.fetch_eleme_rank_pages(context, request)
+    assert frame.evaluate.call_count == 1
