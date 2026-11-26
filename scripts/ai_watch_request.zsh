@@ -15,7 +15,8 @@ PY="$ROOT/business-report-dashboard/.venv/bin/python"
 [[ -x "$PY" ]] || PY=/usr/bin/python3
 REQUEST="${AI_WATCH_REQUEST:-}"
 
-reply() { "$PY" "$ROOT/scripts/ops_notify.py" "【值守】$1" >/dev/null 2>&1 || true; }
+# 值守回复发回工作助手对话（老板在那里提的请求）；其它自动化通知走 agent 群。
+reply() { OPS_NOTIFY_CHANNEL=assistant "$PY" "$ROOT/scripts/ops_notify.py" "【值守】$1" >/dev/null 2>&1 || true; }
 note() { echo "[$(date '+%F %T')] 企微值守：$*" >> "$LOG_DIR/watch.log"; }
 
 [[ -n "${REQUEST// /}" ]] || { note "空请求，忽略。"; exit 0; }

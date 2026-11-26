@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-MAX_CHARS = 1500
+MAX_CHARS = 1800  # 与 agent_task_notifier 的分段长度一致，避免截断分段
 
 # 常见技术错误 → 中文说法（只替换错误名本身，不动前后业务文字）
 ERROR_WORDS = [
