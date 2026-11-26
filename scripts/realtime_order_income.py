@@ -849,7 +849,8 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
             except Exception:
                 pass
         for page_index in range(2, 7):
-            if not click_next_page(page):
+            # 门店排行表在生意参谋 iframe 里，主文档找不到“下一页”时到各个子框架里找。
+            if not any(click_next_page(target) for target in [page, *[f for f in page.frames if f != page.main_frame]]):
                 break
             log(f"饿了么：自动翻到第 {page_index} 页")
             page.wait_for_timeout(6000)
