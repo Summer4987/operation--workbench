@@ -4,12 +4,18 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from urllib import request as url_request
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import notify_text  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config" / "ops_notify.json"
+ASSISTANT_TOKEN = Path.home() / ".local/share/xiong-wecom-assistant/operator-token"
+SEND_LOG_DIR = ROOT / "outputs" / "ops_notify"
 LEGACY_NOTICE = "未配置 OPS_NOTIFY_WEBHOOK；WorkBuddy/Hermes 已标记为 legacy，不再自动使用。"
 
 
@@ -28,7 +34,53 @@ def notify(text: str) -> bool:
 
 
 def notify_with_result(text: str) -> tuple[bool, str]:
+    text = notify_text.clean(text)
     config = load_config()
+    channel = str(os.environ.get("OPS_NOTIFY_CHANNEL") or config.get("channel") or "webhook").strip().lower()
+    if channel == "assistant":
+        delivered, output = notify_via_assistant(text, config)
+        if delivered:
+            record_send(text, "assistant", True, output)
+            return True, output
+        # 助手不在线时退回群机器人，保证通知不丢。
+        print(f"工作助手推送失败，改用群机器人：{output}", file=sys.stderr)
+    delivered, output = notify_via_webhook(text, config)
+    record_send(text, "webhook", delivered, output)
+    return delivered, output
+
+
+def notify_via_assistant(text: str, config: dict) -> tuple[bool, str]:
+    port = int(os.environ.get("WECOM_HEALTH_PORT") or config.get("assistant_port") or 18769)
+    try:
+        token = ASSISTANT_TOKEN.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False, "assistant token missing"
+    req = url_request.Request(
+        f"http://127.0.0.1:{port}/operator/notify",
+        data=json.dumps({"text": text}, ensure_ascii=False).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
+    )
+    opener = url_request.build_opener(url_request.ProxyHandler({}))
+    try:
+        body = json.loads(opener.open(req, timeout=15).read().decode("utf-8") or "{}")
+    except Exception as exc:
+        return False, f"assistant request failed: {exc}"
+    return (True, "assistant ok") if body.get("ok") else (False, f"assistant error: {body.get('error')}")
+
+
+def record_send(text: str, channel: str, delivered: bool, output: str) -> None:
+    try:
+        SEND_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        row = {"at": datetime.now().isoformat(timespec="seconds"), "channel": channel,
+               "delivered": delivered, "output": output[:200], "text": text}
+        with (SEND_LOG_DIR / f"{datetime.now():%F}.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def notify_via_webhook(text: str, config: dict) -> tuple[bool, str]:
     webhook = os.environ.get("OPS_NOTIFY_WEBHOOK") or config.get("webhook") or ""
     webhook = str(webhook).strip()
     if not webhook:

@@ -137,7 +137,7 @@ class AgentTaskNotifierTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.notifier.load_schedule_issue_tasks = self.original_schedule_loader
 
-    def test_build_failure_message_includes_reason_and_log(self) -> None:
+    def test_build_failure_message_is_plain_language_without_tech_details(self) -> None:
         message = self.notifier.build_message(
             "ops.example",
             {
@@ -151,14 +151,13 @@ class AgentTaskNotifierTests(unittest.TestCase):
             {"name": "示例任务", "rerun": {"suggested": True, "auto_allowed": False, "reason": "只报告。"}},
         )
 
+        self.assertIn("【示例任务｜失败】", message)
         self.assertIn("结论：示例任务未通过，需要处理。", message)
-        self.assertIn("功能验收：示例任务：失败", message)
-        self.assertIn("问题：页面结构变化", message)
-        self.assertIn("证据 /tmp/example.log", message)
-        self.assertIn("处理建议：不自动补跑，原因：只报告。", message)
-        self.assertNotIn("任务 ID：", message)
-        self.assertNotIn("ID task.example", message)
-        self.assertNotIn("[失败]", message)
+        self.assertIn("原因：页面结构变化", message)
+        self.assertIn("下一步：只报告。", message)
+        self.assertIn("时间：2026-06-30 17:00:00", message)
+        for noise in ("/tmp/example.log", "page_structure", "ops.example", "命令", "[失败]"):
+            self.assertNotIn(noise, message)
 
     def test_morning_failure_message_separates_budget_success_from_failed_steps(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

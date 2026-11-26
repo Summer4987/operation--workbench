@@ -403,61 +403,29 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, ru
     else:
         conclusion = "状态已更新。"
 
-    lines = [
-        f"【熊小小运营 Agent｜{status_label}】",
-        f"结论：{name}{conclusion}",
-        f"功能验收：{name}：{status_label}",
-    ]
-    if message:
-        if status == "success":
-            lines.append(f"依据：{message}")
-        elif status == "failed":
-            lines.append(f"问题：{message}")
-        elif status in {"warning", "missing"}:
-            lines.append(f"需核实：{message}")
-        else:
-            lines.append(f"说明：{message}")
+    # 老板视角：结论 → 原因 → 下一步 → 时间；不放命令、日志路径、错误分类等技术细节。
+    lines = [f"【{name}｜{status_label}】", f"结论：{name}{conclusion}"]
+    if message and status != "success":
+        lines.append(f"原因：{' '.join(str(message).split())[:160]}")
     if task_id == "ops.morning_collection" and status == "failed":
         failed_steps, budget_success = morning_collection_notification_context(task)
         if failed_steps:
-            lines.append(f"实际失败项：{'、'.join(failed_steps)}。")
+            lines.append(f"失败项：{'、'.join(failed_steps)}。")
         if budget_success:
-            lines.append(f"推广预算验收：{'、'.join(budget_success)}；本次告警不代表推广预算失败。")
-    if failure_type and status == "failed":
-        lines.append(f"失败分类是 {failure_type}。")
-
+            lines.append(f"推广预算：{'、'.join(budget_success)}，不受本次异常影响。")
     if status == "failed":
         if rerun.get("suggested") and rerun.get("auto_allowed"):
-            command = " ".join(str(part) for part in rerun.get("command") or [])
-            lines.append(f"处理建议：可自动补跑；命令 {command}")
+            lines.append("下一步：系统会自动补跑，补跑结果另行通知。")
         elif rerun.get("suggested"):
-            reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
-            lines.append(f"处理建议：不自动补跑，原因：{reason}")
+            lines.append("下一步：" + (rerun.get("reason") or "该任务不自动补跑，需要人工确认后处理。"))
         else:
-            lines.append("处理建议：先看日志，再决定要不要人工补跑。")
+            lines.append("下一步：值守会先排查原因，需要你处理时会单独通知。")
     elif status in {"warning", "missing"}:
-        if rerun.get("suggested") and rerun.get("auto_allowed"):
-            command = " ".join(str(part) for part in rerun.get("command") or [])
-            lines.append(f"处理建议：可先做 dry-run 补跑计划；命令 {command}")
-        elif rerun.get("suggested"):
-            reason = rerun.get("reason") or "该任务只报告，不自动补跑。"
-            lines.append(f"处理建议：不自动处理，原因：{reason}")
-        else:
-            lines.append("处理建议：先看日志，再决定是否处理。")
-    elif status == "success":
-        lines.append("处理建议：无需处理。")
+        lines.append("下一步：先核对看板结果，确认是否需要补跑。")
     elif status == "skipped":
-        lines.append("处理建议：如果这不是预期跳过，再查原因。")
-
-    details = []
+        lines.append("下一步：如果这不是预期跳过，需要查原因。")
     if updated_at:
-        details.append(f"时间 {updated_at}")
-    if step:
-        details.append(f"步骤 {step}")
-    if log_path:
-        details.append(f"证据 {log_path}")
-    if details:
-        lines.append("细节：" + "；".join(details))
+        lines.append(f"时间：{updated_at}")
     return "\n".join(compact_message(line) for line in lines if compact_message(line))
 
 

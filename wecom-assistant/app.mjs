@@ -130,6 +130,20 @@ if(mode==='--smoke'){
   client.on('event.enter_chat',frame=>client.replyWelcome(frame,{msgtype:'text',text:{content:'你好，我是熊小小工作助手。完成私聊绑定后可查询经营、订货，整理聊天和生成Excel。'}}).catch(()=>{}));
   const adminToken=operatorToken();
   const server=http.createServer(async(req,res)=>{
+    // 本机自动化通知统一由助手私聊推送给老板（取代 agent 群机器人）；不占用对话忙碌锁。
+    if(req.method==='POST'&&req.url==='/operator/notify'){
+      if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
+      try{
+        let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16000)throw Error('请求过长');}
+        const text=String(JSON.parse(body).text||'').trim();
+        if(!text)throw Error('通知内容为空');
+        if(!status.authenticated||!access.data.owner)throw Error('连接或绑定未就绪');
+        await client.sendMessage(access.data.owner,{msgtype:'markdown',markdown:{content:text}});
+        update({notify_last_sent:new Date().toISOString()});
+        res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true}));
+      }catch(error){res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:false,error:String(error.message).slice(0,200)}));}
+      return;
+    }
     if(req.method==='POST'&&['/operator/inbound','/operator/realtime','/operator/ask','/operator/operations','/operator/inspection'].includes(req.url)){
       if(!checkOperator(req.headers.authorization,adminToken)){res.writeHead(403);res.end();return;}
       const key=sessionKey({chattype:'single',from:{userid:access.data.owner}});
