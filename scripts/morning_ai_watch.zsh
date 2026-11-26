@@ -24,6 +24,19 @@ if (( count >= ${MORNING_AI_WATCH_MAX_RUNS:-3} )); then
   note "今天已运行 $count 次，达到上限，跳过。"; exit 0
 fi
 
+# 与企微值守请求共用一把锁，同一时间只跑一个 Codex。
+LOCK="$ROOT/outputs/ai_watch/lock"
+mkdir -p "$ROOT/outputs/ai_watch"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  holder="$(cat "$LOCK/pid" 2>/dev/null || echo)"
+  if [[ -n "$holder" ]] && kill -0 "$holder" 2>/dev/null; then
+    note "企微值守正在处理其它请求，本轮跳过。"; exit 0
+  fi
+  rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null || { note "值守锁不可用，跳过。"; exit 0; }
+fi
+echo $$ > "$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
+
 GUARD="$ROOT/outputs/platform_auth_guard/meituan.json"
 if [[ -r "$GUARD" ]] && grep -q '"status": *"blocked"' "$GUARD"; then
   note "美团处于人工安全验证暂停，需要人工处理，AI 不介入（已有暂停通知）。"; exit 0
