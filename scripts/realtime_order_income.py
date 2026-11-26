@@ -43,6 +43,18 @@ class PlatformDataUnavailable(RuntimeError):
     """Repeated upstream request timeouts; do not refresh the platform again."""
 
 
+class PlatformVerificationRequired(PlatformDataUnavailable):
+    """Alibaba risk control (x5sec slider) on the data page; only a person can clear it."""
+
+
+ELEME_PUNISH_MESSAGE = ("淘宝闪购数据页触发了滑块安全验证：需要在 Mac mini 的后台 Chrome 打开生意参谋门店分析页，"
+                        "手动完成滑块验证；完成前本轮停止刷新，避免加重风控，保留上一份成功数据。")
+
+
+def is_eleme_punish(text: str) -> bool:
+    return "_____tmd_____/punish" in text or "x5secdata" in text
+
+
 TARGET_STORES = {
     "中关村": ["中关村", "中关村店", "第2号档口", "利康金桥", "第3档口", "吉祥美食城"],
     "清河": ["清河", "清河店", "第5号档口", "川湘府"],
@@ -890,7 +902,11 @@ def fetch_eleme_rank_pages(context, captured_request: dict[str, Any]) -> list[di
         try:
             with urllib.request.urlopen(request, timeout=12) as response:
                 text = response.read().decode("utf-8", "replace")
+            if is_eleme_punish(text):
+                raise PlatformVerificationRequired(ELEME_PUNISH_MESSAGE)
             payload = json.loads(text)
+        except PlatformVerificationRequired:
+            raise
         except Exception as exc:
             reason = getattr(exc, "reason", exc)
             if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower():
