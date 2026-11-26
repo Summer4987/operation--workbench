@@ -15,16 +15,16 @@ const dir=path.dirname(fileURLToPath(import.meta.url));
 const template=path.join(dir,'fixtures/inbound-template.xlsx');
 const config={WECOM_INBOUND_TEMPLATE:template};
 function temp(t){const p=fs.mkdtempSync(path.join(os.tmpdir(),'wecom-features-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p;}
-test('approved Sheet2 replaces the stale catalog and all 18 products generate exact reservations', async t=>{
+test('approved Sheet2 replaces the stale catalog and all 22 products generate exact reservations', async t=>{
  const root=temp(t),book=new ExcelJS.Workbook();await book.xlsx.readFile(template);
  const before=fs.readFileSync(template),sheet1=book.getWorksheet('Sheet1').getCell('E2').value;
  const approved=JSON.parse(fs.readFileSync(catalogFile,'utf8'));
- assert.equal(updateInboundCatalog(book).count,18);
+ assert.equal(updateInboundCatalog(book).count,22);
  assert.equal(book.getWorksheet('Sheet1').getCell('E2').value,sheet1);
  const refreshed=path.join(root,'refreshed.xlsx');await book.xlsx.writeFile(refreshed);
  const config={WECOM_INBOUND_RUNTIME_TEMPLATE:refreshed};
  const {catalog}=await readInboundTemplate(config);
- assert.equal(catalog.length,18);
+ assert.equal(catalog.length,22);
  for(const [i,row] of approved.rows.entries()){
   assert.deepEqual(catalog[i],{sku:row[2],name:row[1],spec:row[4],storage:row[3],unit:row[6]});
  }
@@ -41,10 +41,18 @@ test('approved Sheet2 replaces the stale catalog and all 18 products generate ex
  assert.equal(matchInboundProduct(catalog,'大米').sku,'CWXXX0005');
  assert.equal(matchInboundProduct(catalog,'燕麦米').sku,'CWXXX0006');
  assert.equal(matchInboundProduct(catalog,'黑米').sku,'CWXXX0007');
+ for(const [query,sku,spec] of [
+  ['牛肝菌','LDXXX00015','8kg/箱'],['安格斯牛肉丁','LDXXX00016','16kg/箱'],
+  ['混合豉油拌饭汁','CWXXX00010','10kg/箱'],['腌辣椒汁','CWXXX00011','10kg/箱']
+ ]) {
+  const product=matchInboundProduct(catalog,query);
+  assert.equal(product.sku,sku);assert.equal(product.spec,spec);assert.equal(product.unit,'件');
+ }
+ assert.equal(matchInboundProduct(catalog,'拌饭汁').sku,'CWXXX0001');
  assert.throws(()=>matchInboundProduct(catalog,'米'),/过短/);
  assert.throws(()=>matchInboundProduct(catalog,'不存在商品'),/不在模板字典/);
  assert.deepEqual(fs.readFileSync(template),before);
- assert.equal((await readInboundTemplate({WECOM_INBOUND_TEMPLATE:result.artifacts[0]})).catalog.length,18);
+ assert.equal((await readInboundTemplate({WECOM_INBOUND_TEMPLATE:result.artifacts[0]})).catalog.length,22);
 });
 test('invalid approved catalog leaves the workbook untouched',async()=>{
  const book=new ExcelJS.Workbook();await book.xlsx.readFile(template);
