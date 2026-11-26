@@ -21,7 +21,7 @@ const links = [...nav.matchAll(/<a\b[^>]*href="#([^"]+)"[^>]*>([^<]+)<\/a>/g)].m
   return {textContent:label, getAttribute:()=>`#${id}`, closest:()=>({querySelector:()=>({textContent:'current group'})})};
 });
 assert.ok(!/加盟店|推广预算全自动设置|推广出价调整/.test(html));
-assert.ok(nav.includes('推广预算设置') && nav.includes('龙虾店长调价预览'));
+assert.ok(nav.includes('推广预算设置') && nav.includes('美团龙虾调价预览'));
 assert.ok(nav.indexOf('href="#bidding"') < nav.indexOf('href="#budget"'), 'Pricing preview must appear before budget settings');
 const context = {navLinks:links, sectionForHash:id=>sections.get(id), commandBoard:{setAttribute:(k,v)=>{context.overviewLabel=v;}}};
 vm.createContext(context);
