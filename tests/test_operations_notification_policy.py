@@ -39,6 +39,22 @@ class NotificationPolicyTests(unittest.TestCase):
                 self.assertEqual(notifier.notify(args)['notification_count'],0)
                 self.assertEqual(send.call_count,2)
 
+    def test_morning_unresolved_result_is_reportable_at_ten(self):
+        payload = {'date': '2026-11-26', 'status': 'partial', 'categories': [
+            {'items': [{'name': '余额巡检', 'status': 'failed'}]}]}
+        def at(hour, minute):
+            return datetime(2026, 11, 26, hour, minute,
+                            tzinfo=ZoneInfo('Asia/Shanghai')).timestamp()
+        with patch.object(notifier.morning_result_report, 'build_payload', return_value=payload):
+            self.assertIsNone(notifier.morning_notification({}, {}, at(9, 59)))
+            result = notifier.morning_notification({}, {}, at(10, 0))
+            self.assertEqual(result[0], payload)
+            self.assertEqual(result[1], notifier.morning_notification({}, {}, at(10, 50))[1])
+            payload['status'] = 'success'
+            success = notifier.morning_notification({}, {}, at(10, 1))
+            self.assertNotEqual(result[1], success[1])
+            self.assertIsNotNone(notifier.morning_notification({}, {}, at(9, 0)))
+
     def test_collection_started_before_slot_boundary_uses_original_slot(self):
         task={'finished_at':'2026-11-22 12:31:00'}
         runs={'events':[{'task_id':'ops.realtime_order_income', 'status':'running',

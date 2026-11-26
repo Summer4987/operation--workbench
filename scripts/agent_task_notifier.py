@@ -462,10 +462,10 @@ def build_message(task_id: str, task: dict[str, Any], row: dict[str, Any], *, ru
 
 
 def morning_notification(task, runs, now):
-    """Wait through scheduled retries; deduplicate by business outcome, not time."""
+    """Report unresolved outcomes from 10:00; deduplicate by business outcome."""
     payload = morning_result_report.build_payload(task, runs, ROOT)
     current = datetime.fromtimestamp(now, ZoneInfo('Asia/Shanghai'))
-    if (payload['date'] == current.date().isoformat() and current.strftime('%H%M') < '1050'
+    if (payload['date'] == current.date().isoformat() and current.strftime('%H%M') < '1000'
             and payload['status'] != 'success'):
         return None
     issues = [(row['name'], row['status']) for category in payload['categories']
