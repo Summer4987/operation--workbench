@@ -173,23 +173,27 @@ def collect_port(port, platform, stores, raw, date, access):
             if not matches:
                 raise RuntimeError("没有已登录的订单后台页面")
             page = next((p for p in matches if "/orderbusiness" in p.url or "/order__querying" in p.url), matches[0])
-            page.set_default_timeout(12000)
-            for store in pending:
-                for attempt in range(2):
+            page.set_default_timeout(20000 if platform == "ele" else 12000)
+            for attempt in range(2):
+                failed = []
+                for store in pending:
                     try:
                         if platform == "mt":
                             access.Coordinator().require(access.for_port(port))
                         for record in capture.collect(page, store, platform, [date]):
                             record["platform_key"] = platform
                             atomic_json(record_path(raw, store, platform), record)
-                        break
                     except Exception as exc:
                         detail = str(exc).splitlines()[0]
                         print(f"{PLATFORMS[platform]} {store}：{detail}", flush=True)
                         if any(word in detail for word in ("验证", "登录")):
                             return
-                        if not attempt:
-                            time.sleep(3)
+                        failed.append(store)
+                if not failed or attempt:
+                    break
+                print(f"{PLATFORMS[platform]} 稍后补采 {'、'.join(failed)}", flush=True)
+                time.sleep(10)
+                pending = failed
     except Exception as exc:
         print(f"{PLATFORMS[platform]} {'、'.join(pending)}：{type(exc).__name__} {str(exc).splitlines()[0]}", flush=True)
 
@@ -229,7 +233,7 @@ def publish_files(files, subdirectory=""):
     opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "StrictHostKeyChecking=accept-new"]
     if identity.is_file():
         opts += ["-i", str(identity)]
-    subprocess.run(["ssh", *opts, server, "mkdir -p " + shlex.quote(target)], check=True, timeout=30)
+    subprocess.run(["ssh", *opts, server, "mkdir -p " + shlex.quote(target)], stdin=subprocess.DEVNULL, check=True, timeout=30)
     staged = []
     for file in files:
         remote = target + "/" + file.name
@@ -237,7 +241,7 @@ def publish_files(files, subdirectory=""):
         subprocess.run(["scp", *opts, str(file), server + ":" + shlex.quote(tmp)], check=True, timeout=45)
         staged.append((tmp, remote))
     commands = [f"chmod 644 {shlex.quote(tmp)} && mv -f {shlex.quote(tmp)} {shlex.quote(remote)}" for tmp, remote in staged]
-    subprocess.run(["ssh", *opts, server, " && ".join(commands)], check=True, timeout=30)
+    subprocess.run(["ssh", *opts, server, " && ".join(commands)], stdin=subprocess.DEVNULL, check=True, timeout=30)
 
 
 def publish_history(output):

@@ -103,7 +103,9 @@ def collect(page, key, platform, dates):
         if '/order__querying' not in page.url:
             page.get_by_text('订单管理', exact=True).first.click()
             page.get_by_text('订单查询', exact=True).first.click()
-        page.reload(wait_until='domcontentloaded')
+        # The order view is checked below. Waiting for the whole document can
+        # stall on unrelated merchant console resources.
+        page.reload(wait_until='commit', timeout=25000)
     for _ in range(100):
         candidates = [f for f in page.frames if f != page.main_frame and '/orderbusiness' in f.url] if mt else [page]
         view = next((frame for frame in candidates if frame.get_by_placeholder('开始时间' if mt else '开始日期').count()), None)
