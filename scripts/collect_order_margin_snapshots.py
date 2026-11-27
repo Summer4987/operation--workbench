@@ -15,6 +15,8 @@ STORES = {
     '中关村店': ('熊小小牛排饭POKEBEAR（第3档口吉祥美食城店）','熊小小牛排饭POKEBEAR(第2号档口利康金桥美食城)','北京区域'),
     '清河店': ('熊小小牛排饭POKEBEAR(第4号档口川湘府美食城店)','熊小小牛排饭POKEBEAR(第4号档口川湘府美食城店)','北京区域'),
     '双井店': ('熊小小牛排饭POKEBEAR（双井店）','熊小小牛排饭POKEBEAR(双井店)','北京区域'),
+    '金融街店': ('熊小小牛排饭POKEBEAR（金融街店）','熊小小牛排饭POKEBEAR(金融街店)','北京区域'),
+    '滨江店': ('熊小小牛排饭POKEBEAR(滨江店)','熊小小牛排饭POKEBEAR(滨江店)','杭州区域'),
     '望京店': ('熊小小牛排饭POKEBEAR（望京店）','熊小小牛排饭POKEBEAR(望京店)','北京区域'),
     '保利中心店': ('熊小小牛排饭POKEBEAR（保利中心店）','熊小小牛排饭POKEBEAR(保利中心店)','成都区域'),
     '银泰城店': ('熊小小牛排饭POKEBEAR（银泰城店）','熊小小牛排饭POKEBEAR(银泰城店)','成都区域'),
@@ -38,6 +40,46 @@ def wait_snapshot(page, target, platform, date, count=None, previous=None):
         page.wait_for_timeout(400)
     raise RuntimeError(f'Stale/incomplete order page: {platform} {date}')
 
+def open_meituan_order_calendar(view):
+    from playwright.sync_api import TimeoutError, expect
+
+    control = view.get_by_placeholder('开始时间')
+    guide = view.locator('[class*="guideModal_"]').get_by_text('我知道了', exact=True)
+    expect(control).to_be_enabled(timeout=11000)
+    for timeout in (2500, 4500):
+        if guide.is_visible():
+            guide.click(timeout=6000)
+        try:
+            control.click(timeout=timeout)
+            return
+        except TimeoutError:
+            if not guide.is_visible():
+                raise
+    raise RuntimeError('订单日期筛选仍被页面引导挡住')
+
+
+def wait_order_total(page, view, platform, date):
+    mt = platform == 'mt'
+    fields = ('开始时间', '结束时间') if mt else ('开始日期', '结束日期')
+    for _ in range(75):
+        text = view.locator('body').last.inner_text()
+        count_text = text if mt else view.locator('.ant-pagination-total-text').first
+        if not mt:
+            count_text = count_text.inner_text() if count_text.count() else ''
+        count = re.search(r'共\s*(\d+)\s*单' if mt else r'\d+', count_text)
+        ids = identifiers(text, platform)
+        verified = all(view.get_by_placeholder(label).first.input_value(timeout=2000)[:10] == date
+                       for label in fields if view.get_by_placeholder(label).count())
+        if count and ids and check_dates(text, platform, date):
+            return text, int(count[1] if mt else count[0])
+        if verified and not ids and (not count or int(count[1] if mt else count[0]) == 0):
+            controls_present = all(view.get_by_placeholder(label).count() for label in fields)
+            if controls_present and re.search(r'(?m)^(暂无订单|暂无数据|没有符合条件的订单)$', text):
+                return text, 0
+        page.wait_for_timeout(400)
+    raise RuntimeError(f'无法核对订单数：{platform} {date}')
+
+
 def collect(page, key, platform, dates):
     mt = platform == 'mt'
     target = STORES[key][0 if mt else 1]
@@ -53,10 +95,10 @@ def collect(page, key, platform, dates):
             page.get_by_text(target,exact=True).first.evaluate('(e)=>e.click()')
         page.wait_for_timeout(1200)
     if mt:
-        page.goto('https://e.waimai.meituan.com/#/new_fe/orderbusiness', wait_until='domcontentloaded')
-        page.wait_for_timeout(1500)
-        page.get_by_text('全部订单',exact=False).first.click()
-        page.reload(wait_until='domcontentloaded')
+        all_orders = page.get_by_text('全部订单', exact=True).first
+        if not all_orders.count():
+            page.get_by_text('订单管理', exact=False).first.click()
+        all_orders.evaluate('(e) => e.click()')
     else:
         if '/order__querying' not in page.url:
             page.get_by_text('订单管理', exact=True).first.click()
@@ -64,8 +106,8 @@ def collect(page, key, platform, dates):
         page.reload(wait_until='domcontentloaded')
     for _ in range(100):
         candidates = [f for f in page.frames if f != page.main_frame and '/orderbusiness' in f.url] if mt else [page]
-        if candidates and candidates[0].get_by_placeholder('开始时间' if mt else '开始日期').count():
-            view = candidates[0]
+        view = next((frame for frame in candidates if frame.get_by_placeholder('开始时间' if mt else '开始日期').count()), None)
+        if view is not None:
             break
         page.wait_for_timeout(400)
     else:
@@ -74,7 +116,10 @@ def collect(page, key, platform, dates):
         view.get_by_text('我知道了',exact=True).first.evaluate('(e)=>e.click()')
     assert page.locator('body').first.inner_text().splitlines()[0 if mt else 2] == target
     for date in dates:
-        view.get_by_placeholder('开始时间' if mt else '开始日期').click()
+        if mt:
+            open_meituan_order_calendar(view)
+        else:
+            view.get_by_placeholder('开始日期').click()
         if mt:
             for _ in range(2):
                 view.locator('td:not(.disabled)').get_by_text(str(int(date[-2:])),exact=True).first.click()
@@ -90,12 +135,9 @@ def collect(page, key, platform, dates):
             first=view.locator('.ant-pagination-item-1')
             if first.count() and 'ant-pagination-item-active' not in (first.get_attribute('class') or ''):
                 first.click()
-        text = wait_snapshot(page,view,platform,date)
-        page.wait_for_timeout(1500)
-        text = view.locator('body').last.inner_text()
-        total = int(re.search(r'共\s*(\d+)\s*单',text)[1]) if mt else int(re.search(r'\d+',view.locator('.ant-pagination-total-text').inner_text())[0])
+        _, total = wait_order_total(page, view, platform, date)
         size = 10 if mt else 20
-        rec = dict(store=key,platform='美团' if mt else '饿了么',date=date,captured_at=dt.datetime.now().isoformat(),store_header=target,total=total,pages=[])
+        rec = dict(store=key,platform='美团' if mt else '饿了么',date=date,captured_at=dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec='seconds'),store_header=target,total=total,pages=[])
         seen = set()
         print(key, date, platform, 'total', total, file=sys.stderr, flush=True)
         previous = None

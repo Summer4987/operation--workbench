@@ -29,7 +29,7 @@ def normalize(name, costs):
     return name
 
 
-def parse_record(rec,costs):
+def parse_record(rec,costs,*,normalize_name=normalize):
     mt=rec['platform']=='美团'
     orders=[]
     for page in rec['pages']:
@@ -46,8 +46,8 @@ def parse_record(rec,costs):
                     if not match:continue
                     quantity=int(match[1]);raw=lines[i-1];parts=[]
                     if i+1<len(lines) and re.search(r' x\d+',lines[i+1]):
-                        parts=[dict(name=normalize(n.strip(),costs),quantity=int(q)) for n,q in re.findall(r'([^，]+?) x(\d+)',lines[i+1])]
-                    items.append(dict(raw_name=raw,name=normalize(raw,costs),quantity=quantity,parts=parts))
+                        parts=[dict(name=normalize_name(n.strip(),costs),quantity=int(q)) for n,q in re.findall(r'([^，]+?) x(\d+)',lines[i+1])]
+                    items.append(dict(raw_name=raw,name=normalize_name(raw,costs),quantity=quantity,parts=parts))
                 assert sum(sum(p['quantity'] for p in it['parts']) if it['parts'] else it['quantity'] for it in items)==int(expected[2])
                 order_id=re.search(r'订单编号：(\d+)',text)[1]
                 order_time=re.search(r'(\d\d-\d\d [\d:]+)下单',text)[1]
@@ -57,8 +57,8 @@ def parse_record(rec,costs):
                 for match in re.finditer(r'([^\n]+)\nx(\d+)\n¥([\d.]+)',text):
                     raw,q,price=match.groups();q=int(q)
                     following=next((l for l in text[match.end():].splitlines() if l.strip()),'')
-                    parts=[dict(name=normalize(n,costs),quantity=q) for n in following[2:].split('/')] if following.startswith('套餐') else []
-                    items.append(dict(raw_name=raw,name=normalize(raw,costs),quantity=q,parts=parts))
+                    parts=[dict(name=normalize_name(n,costs),quantity=q) for n in following[2:].split('/')] if following.startswith('套餐') else []
+                    items.append(dict(raw_name=raw,name=normalize_name(raw,costs),quantity=q,parts=parts))
                 assert sum(it['quantity'] for it in items)==int(expected[2])
                 order_id=re.search(r'单号:\n(\d+)',text)[1]
                 order_time=re.search(r'下单时间: ([^\n]+)',text)[1]

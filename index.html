@@ -23,6 +23,7 @@
               <a href="#direct-daily">直营店日报看板</a>
               <a href="#direct-reviews">直营店评价看板</a>
               <a href="#direct-messages">直营门店消息复盘</a>
+              <a href="#direct-order-margin">直营店当日毛利率分析</a>
             </div>
           </section>
 
@@ -32,6 +33,7 @@
               <a class="nav-home active" href="#overview">门店实时数据看板</a>
               <a href="#daily">门店日报看板</a>
               <a href="#reviews">门店评价看板</a>
+              <a href="#store-order-margin">门店毛利率分析</a>
             </div>
           </section>
 
@@ -223,6 +225,16 @@
         </section>
 
 
+        <section class="center-section" id="direct-order-margin" hidden>
+          <div class="section-head"><p>直营店运营数据中心</p><h2>直营店当日毛利率分析</h2></div>
+          <article class="module wide-module" data-order-margin="direct"></article>
+        </section>
+
+        <section class="center-section" id="store-order-margin" hidden>
+          <div class="section-head"><p>门店运营数据中心</p><h2>门店毛利率分析</h2></div>
+          <article class="module wide-module" data-order-margin="other"></article>
+        </section>
+
         <section class="center-section" id="promo-roi">
           <div class="section-head"><p>全品牌推广中心</p><h2>推广 ROI 复盘</h2></div>
           <article class="module wide-module">
@@ -396,5 +408,6 @@
     <script src="./workbench-data.js?v=20260615-fresh-alerts"></script>
     <script src="./workbench.js?v=20261119-promo-roi"></script>
     <script src="./eleme-bidding.js?v=20261126-1"></script>
+    <script src="./order-margin.js?v=20261127"></script>
   </body>
 </html>
