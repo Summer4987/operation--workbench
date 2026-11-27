@@ -126,7 +126,10 @@ def choose_context(page, value: str, expected_url_pattern: str) -> None:
     if option is None:
         raise RuntimeError(f"门店切换器没有找到上下文：{value}")
     option.click()
-    page.wait_for_url(expected_url_pattern, timeout=30_000)
+    # Third-party assets can keep the full load event pending after the
+    # business document and selected route are ready. Callers still validate
+    # the selected organization and required business data before using it.
+    page.wait_for_url(expected_url_pattern, wait_until="domcontentloaded", timeout=30_000)
     page.wait_for_timeout(1_500)
 
 

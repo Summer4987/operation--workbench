@@ -53,7 +53,7 @@ class ModernContextTest(unittest.TestCase):
                 choose_context(page, '93331264__RC_CASCADER_SPLIT__' + target, '**/expected/**')
             group.click.assert_called_once()
             option.click.assert_called_once()
-            page.wait_for_url.assert_called_once_with('**/expected/**', timeout=30000)
+            page.wait_for_url.assert_called_once_with('**/expected/**', wait_until='domcontentloaded', timeout=30000)
 
     def test_nationwide_option_can_arrive_after_brand_selection(self):
         from unittest.mock import Mock, patch
