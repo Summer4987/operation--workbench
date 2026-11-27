@@ -1141,9 +1141,9 @@ async function runExecutionPreview(config, args) {
             return Boolean(box && (box.checked || box.closest('.ant-checkbox')?.className.includes('ant-checkbox-checked') || tr.className.includes('ant-table-row-selected')));
           };
           const checkedRows = Array.from(document.querySelectorAll('tbody tr,.ant-table-row'))
-            .filter((tr) => /ID[：:]\s*\d+/.test(textOf(tr)))
+            .filter((tr) => /ID[：:]\\s*\\d+/.test(textOf(tr)))
             .filter((tr, i, all) => all.indexOf(tr) === i && rowChecked(tr));
-          const checkedIds = [...new Set(checkedRows.map((tr) => (textOf(tr).match(/ID[：:]\s*(\d+)/) || [])[1]))];
+          const checkedIds = [...new Set(checkedRows.map((tr) => (textOf(tr).match(/ID[：:]\\s*(\\d+)/) || [])[1]))];
           if (checkedIds.length !== 1 || checkedIds[0] !== String(row.shopId)) {
             return { ok: false, store: row.store, shopId: row.shopId, rowText, checkedIds, error: '勾选的门店不止目标门店（' + checkedIds.length + '家），禁止批量设置', saved: false };
           }
