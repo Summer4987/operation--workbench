@@ -122,6 +122,38 @@ test('direct parsing supports multi-line and Chinese quantities but skips cancel
  assert.equal(r.items.length,2);assert.equal(r.items[0].quantity,100);assert.equal(r.inbound_date,'2026-10-22');
  assert.equal(parseDirectInbound('不要入库拌饭汁24件',catalog,'2026-10-21'),null);
 });
+test('the reported next-Monday request creates a reservation with the correct date and both SKUs',async t=>{
+ const root=temp(t),book=new ExcelJS.Workbook();
+ await book.xlsx.readFile(template);
+ updateInboundCatalog(book);
+ const refreshed=path.join(root,'refreshed.xlsx');
+ await book.xlsx.writeFile(refreshed);
+ const config={WECOM_INBOUND_RUNTIME_TEMPLATE:refreshed};
+ const {catalog}=await readInboundTemplate(config);
+ const raw='预约下周一入库：牛五花牛排20件，安格斯牛肉丁10件，给我Excel文件';
+ const direct=parseDirectInbound(raw,catalog,'2026-11-27');
+ assert.deepEqual(direct,{inbound_date:'2026-11-30',items:[
+  {product:'LDXXX0001',quantity:20,unit:'件'},
+  {product:'LDXXX00016',quantity:10,unit:'件'},
+ ]});
+ const {file}=await createInbound(direct,raw,config,root,'2026-11-27');
+ await book.xlsx.readFile(file);
+ const sheet=book.getWorksheet('Sheet1');
+ for(const [row,sku,quantity] of [[2,'LDXXX0001',20],[3,'LDXXX00016',10]]){
+  assert.equal(sheet.getCell('A'+row).value.toISOString(),'2026-11-30T00:00:00.000Z');
+  assert.equal(sheet.getCell('E'+row).value,sku);
+  assert.equal(sheet.getCell('I'+row).value,quantity);
+  assert.equal(sheet.getCell('J'+row).value,'件');
+ }
+ assert.equal(sheet.getCell('E4').value,null);
+});
+test('weekly dates follow Monday-based weeks and reject conflicting dates',()=>{
+ assert.equal(inboundDate('下周一入库','2026-11-29'),'2026-11-30');
+ assert.equal(inboundDate('下星期一入库','2026-11-30'),'2026-12-07');
+ assert.equal(inboundDate('本周日入库','2026-12-31'),'2027-01-03');
+ assert.equal(inboundDate('下周一，2026-11-30入库','2026-11-27'),'2026-11-30');
+ assert.throws(()=>inboundDate('下周一和12月1日入库','2026-11-27'),/入库日期有多批/);
+});
 test('a generated attachment survives a later model timeout',async t=>{
  let calls=0;const a=new Assistant({},temp(t),{llm:async()=>{
   if(calls++)return new Promise(()=>{});

@@ -67,15 +67,31 @@ function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value) throw Error('入库日期无效，请按YYYY-MM-DD填写');
   return value;
 }
+
+const inboundDatePattern = /(?<full>\d{4})[-/.年](?<month>\d{1,2})[-/.月](?<day>\d{1,2})日?|(?<!\d)(?<shortMonth>\d{1,2})月(?<shortDay>\d{1,2})日?|(?<relative>今天|明天|后天)|(?<week>本|这|下下|下)(?:周|星期|礼拜)(?<weekday>[一二三四五六日天])/g;
+
 export function inboundDate(raw, today) {
-  const dates=[...raw.matchAll(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/g)].map(m=>`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`);
-  if(new Set(dates).size>1 || (raw.includes('明天')&&raw.includes('后天')))throw Error('入库日期有多批，请按不同日期分开发送');
-  const match=raw.match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/);
-  if(match) return validDate(`${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}`);
-  const short=raw.match(/(?<!\d)(\d{1,2})月(\d{1,2})日?/);
-  if(short)return validDate(`${today.slice(0,4)}-${short[1].padStart(2,'0')}-${short[2].padStart(2,'0')}`);
-  const offset=raw.includes('后天')?2:raw.includes('明天')?1:0;
-  return validDate(new Date(Date.parse(today+'T00:00:00Z')+offset*86400000).toISOString().slice(0,10));
+  const base = new Date(validDate(today) + 'T00:00:00Z');
+  const dates = new Set();
+  for (const {groups: date} of raw.matchAll(inboundDatePattern)) {
+    if (date.full || date.shortMonth) {
+      const year = date.full || today.slice(0, 4);
+      const month = (date.month || date.shortMonth).padStart(2, '0');
+      const day = (date.day || date.shortDay).padStart(2, '0');
+      dates.add(validDate(`${year}-${month}-${day}`));
+      continue;
+    }
+    const fromToday = date.relative
+      ? ['今天', '明天', '后天'].indexOf(date.relative)
+      : ({本: 0, 这: 0, 下: 7, 下下: 14}[date.week]
+        + '一二三四五六日'.indexOf(date.weekday.replace('天', '日')) + 1
+        - (base.getUTCDay() || 7));
+    const resolved = new Date(base);
+    resolved.setUTCDate(base.getUTCDate() + fromToday);
+    dates.add(resolved.toISOString().slice(0, 10));
+  }
+  if (dates.size > 1) throw Error('入库日期有多批，请按不同日期分开发送');
+  return dates.values().next().value ?? today;
 }
 
 function chineseNumber(word){
@@ -92,8 +108,9 @@ function chineseNumber(word){
 // Clear reservation requests do not require a network round trip to an LLM.
 export function parseDirectInbound(raw,catalog,today){
   if(!/入库|易代仓/.test(raw)||/不要|不入库|不是|取消|撤销|改成|改为|修改|删除|增加|减少|追加|查阅|查询|记录|统计/.test(raw))return null;
-  const removeInstructions=s=>s.replace(/(?:生成|制作|做|发|给我|一份|一个|请|帮我|表格|表|预约|明天|后天|今天|预计|入库|成都易代仓|易代仓|Excel|excel|文件|附件|到货|日期|时间|品名|数量|商品|[：:。！？!?])/g,'').trim().replace(/^(?:和|及|以及)/,'').trim();
-  const body=raw.replace(/\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}日?/g,'').replace(/\d{1,2}月\d{1,2}日?/g,'');
+  const date=inboundDate(raw,today);
+  const removeInstructions=s=>s.replace(/(?:生成|制作|做|发|给我|一份|一个|请|帮我|表格|表|预约|预计|入库|成都易代仓|易代仓|Excel|excel|文件|附件|到货|日期|时间|品名|数量|商品|[：:。！？!?])/g,'').trim().replace(/^(?:和|及|以及)/,'').trim();
+  const body=raw.replace(inboundDatePattern,'');
   const items=[];
   for(const segment of body.split(/[\n，,；;、]/)){
     if(!removeInstructions(segment))continue;
@@ -113,7 +130,7 @@ export function parseDirectInbound(raw,catalog,today){
     if(removeInstructions(segment.slice(previousEnd)))return null;
   }
   if(!items.length)return null;
-  return {inbound_date:inboundDate(raw,today),items};
+  return {inbound_date:date,items};
 }
 
 export async function createInbound(args, raw, config, root, today) {
@@ -123,7 +140,7 @@ export async function createInbound(args, raw, config, root, today) {
   if(args.inbound_date && args.inbound_date!==date) throw Error('入库日期与原文不一致，请确认预计入库日期');
   const warehouse=args.warehouse||'成都易代仓';
   if(warehouse!=='成都易代仓'&&!raw.includes(warehouse)) throw Error('入库仓库必须来自你的原文');
-  const segments=raw.split(/[\n，,；;]/).map(normalize).map(s=>s.replace(/[零〇一二两三四五六七八九十百千万]+(?=件|箱|袋|个|斤|公斤|千克|kg|瓶)/g,word=>String(chineseNumber(word))));
+  const segments=raw.replace(inboundDatePattern,'').split(/[\n，,；;]/).map(normalize).map(s=>s.replace(/[零〇一二两三四五六七八九十百千万]+(?=件|箱|袋|个|斤|公斤|千克|kg|瓶)/g,word=>String(chineseNumber(word))));
   const records=args.items.map(item=>{
     const product=matchInboundProduct(loaded.catalog,item.product);
     const qty=item.quantity;
