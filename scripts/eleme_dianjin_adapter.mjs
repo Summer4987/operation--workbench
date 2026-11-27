@@ -1136,11 +1136,16 @@ async function runExecutionPreview(config, args) {
           }
 
           // 批量按钮会作用于所有勾选行：确认只勾选了目标门店，否则不打开弹窗。
+          const rowChecked = (tr) => {
+            const box = tr.querySelector('input[type="checkbox"]');
+            return Boolean(box && (box.checked || box.closest('.ant-checkbox')?.className.includes('ant-checkbox-checked') || tr.className.includes('ant-table-row-selected')));
+          };
           const checkedRows = Array.from(document.querySelectorAll('tbody tr,.ant-table-row'))
             .filter((tr) => /ID[：:]\s*\d+/.test(textOf(tr)))
-            .filter((tr) => tr.querySelector('input[type="checkbox"]')?.checked);
-          if (checkedRows.length !== 1 || checkedRows[0] !== targetRow) {
-            return { ok: false, store: row.store, shopId: row.shopId, rowText, error: '勾选的门店不止目标门店（' + checkedRows.length + '家），禁止批量设置', saved: false };
+            .filter((tr, i, all) => all.indexOf(tr) === i && rowChecked(tr));
+          const checkedIds = [...new Set(checkedRows.map((tr) => (textOf(tr).match(/ID[：:]\s*(\d+)/) || [])[1]))];
+          if (checkedIds.length !== 1 || checkedIds[0] !== String(row.shopId)) {
+            return { ok: false, store: row.store, shopId: row.shopId, rowText, checkedIds, error: '勾选的门店不止目标门店（' + checkedIds.length + '家），禁止批量设置', saved: false };
           }
           const opened = await clickButtonByText(actionButton);
           if (!opened) return { ok: false, store: row.store, shopId: row.shopId, rowText, error: '没有找到' + actionButton + '按钮' };
