@@ -31,14 +31,28 @@ def check_dates(text, platform, date):
     times = re.findall(r'(\d\d-\d\d) [\d:]+下单' if platform == 'mt' else r'下单时间: (\d\d-\d\d) ', text)
     return bool(times) and all(t == date[5:] for t in times)
 
-def wait_snapshot(page, target, platform, date, count=None, previous=None):
+def order_total(view, platform, text):
+    if platform == 'mt':
+        match = re.search(r'共\s*(\d+)\s*单', text)
+        return int(match[1]) if match else None
+    control = view.locator('.ant-pagination-total-text').first
+    match = re.search(r'\d+', control.inner_text()) if control.count() else None
+    return int(match[0]) if match else None
+
+
+def wait_snapshot(page, target, platform, date, count=None, previous=None, total=None):
     for _ in range(100):
         text = target.locator('body').last.inner_text()
         ids = identifiers(text, platform)
-        if ids and check_dates(text, platform, date) and (count is None or len(ids) == count) and (previous is None or ids[0] != previous):
-            return text
+        if ids and check_dates(text, platform, date) and (previous is None or ids[0] != previous):
+            observed = order_total(target, platform, text)
+            if total is not None and observed is not None and observed != total:
+                raise RuntimeError(f'订单总数在分页期间变化：{platform} {date}')
+            if count is None or len(ids) == count:
+                return text
         page.wait_for_timeout(400)
     raise RuntimeError(f'Stale/incomplete order page: {platform} {date}')
+
 
 def open_meituan_order_calendar(view):
     from playwright.sync_api import TimeoutError, expect
@@ -59,24 +73,24 @@ def open_meituan_order_calendar(view):
 
 
 def wait_order_total(page, view, platform, date):
-    mt = platform == 'mt'
-    fields = ('开始时间', '结束时间') if mt else ('开始日期', '结束日期')
+    fields = ('开始时间', '结束时间') if platform == 'mt' else ('开始日期', '结束日期')
+    previous = None
     for _ in range(75):
         text = view.locator('body').last.inner_text()
-        count_text = text if mt else view.locator('.ant-pagination-total-text').first
-        if not mt:
-            count_text = count_text.inner_text() if count_text.count() else ''
-        count = re.search(r'共\s*(\d+)\s*单' if mt else r'\d+', count_text)
+        count = order_total(view, platform, text)
         ids = identifiers(text, platform)
-        verified = all(view.get_by_placeholder(label).first.input_value(timeout=2000)[:10] == date
-                       for label in fields if view.get_by_placeholder(label).count())
-        if count and ids and check_dates(text, platform, date):
-            return text, int(count[1] if mt else count[0])
-        if verified and not ids and (not count or int(count[1] if mt else count[0]) == 0):
-            controls_present = all(view.get_by_placeholder(label).count() for label in fields)
-            if controls_present and re.search(r'(?m)^(暂无订单|暂无数据|没有符合条件的订单)$', text):
-                return text, 0
-        page.wait_for_timeout(400)
+        controls = [view.get_by_placeholder(label).first for label in fields]
+        verified = all(control.count() and control.input_value(timeout=2000)[:10] == date for control in controls)
+        sample = None
+        if verified and count is not None and 0 < len(ids) <= count and check_dates(text, platform, date):
+            sample = (count, tuple(ids))
+        elif verified and not ids and count in (None, 0):
+            if re.search(r'(?m)^(暂无订单|暂无数据|没有符合条件的订单)$', text):
+                sample = (0, ())
+        if sample is not None and sample == previous:
+            return text, sample[0]
+        previous = sample
+        page.wait_for_timeout(1800 if sample is not None else 400)
     raise RuntimeError(f'无法核对订单数：{platform} {date}')
 
 
@@ -146,7 +160,7 @@ def collect(page, key, platform, dates):
         for number in range(1,(total+size-1)//size+1):
             if number > 1:
                 view.locator('a[aria-label="Next"]' if mt else '.ant-pagination-next button').click()
-            text = wait_snapshot(page,view,platform,date,min(size,total-size*(number-1)),previous)
+            text = wait_snapshot(page,view,platform,date,min(size,total-size*(number-1)),previous,total)
             ids = identifiers(text,platform)
             assert not seen.intersection(ids), 'Duplicate pagination IDs'
             seen.update(ids)
