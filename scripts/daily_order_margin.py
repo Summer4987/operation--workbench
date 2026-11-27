@@ -258,10 +258,7 @@ def notify_complete(root, output, day):
     marker = output / "days" / f"{day['date']}.notified"
     if marker.exists():
         return
-    profit = sum(Decimal(row["profit"]) for row in day["rows"])
-    income = sum(Decimal(row["income"]) for row in day["rows"])
-    rate = f"{profit / income:.2%}" if income else "—"
-    text = (f"结论：{day['date']} 毛利分析任务完成，11 家门店双平台毛利 {profit:,.2f} 元，毛利率 {rate}。\n"
+    text = (f"结论：{day['date']} 毛利分析任务完成，11 家门店的双平台结果已同步到看板。\n"
             "原因：订单已抓取，并按确认的成本表完成核算。\n"
             "下一步：到直营店运营数据中心和门店运营数据中心查看明细。\n"
             f"时间：{now():%Y-%m-%d %H:%M}（北京时间）")
