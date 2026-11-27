@@ -1159,9 +1159,13 @@ async function runExecutionPreview(config, args) {
             const assistantSwitches = () => Array.from(modal.querySelectorAll('.ant-switch,button[role="switch"]')).filter(visible);
             const isOn = (el) => el.getAttribute('aria-checked') === 'true' || String(el.className || '').includes('ant-switch-checked');
             if (/出价助手/.test(textOf(modal))) {
-              for (const sw of assistantSwitches().filter(isOn)) {
-                await clickElement(sw);
-                await wait(700);
+              // 只用一次原生 click 拨动开关：clickElement 会同时派发合成 click 和 el.click()，开关会被拨两次又回到开启。
+              for (let attempt = 0; attempt < 2 && assistantSwitches().some(isOn); attempt += 1) {
+                for (const sw of assistantSwitches().filter(isOn)) {
+                  sw.scrollIntoView({ block: 'center', inline: 'center' });
+                  sw.click();
+                  await wait(700);
+                }
               }
               if (assistantSwitches().some(isOn)) {
                 return { ok: false, store: row.store, shopId: row.shopId, rowText, modal: snapshotModal(), error: '出价助手开关无法确认为关闭，禁止保存', saved: false };
