@@ -58,6 +58,28 @@ def test_eleme_selects_nationwide_brand_before_collection(monkeypatch, visible_s
     assert "/app/unit/" not in collector.ELEME_URL
 
 
+@pytest.mark.parametrize(
+    "same_url, document_loaded",
+    [(True, False), (False, False), (False, True)],
+)
+def test_eleme_analysis_opens_a_fresh_document(same_url, document_loaded):
+    from unittest.mock import Mock
+    from scripts import realtime_order_income as collector
+
+    previous_url = collector.ELEME_URL if same_url else collector.NEUTRAL_CONTEXT_URL
+    page = Mock(url=previous_url)
+    page.goto.return_value = object() if document_loaded else None
+    collector.open_eleme_realtime_page(page, 90_000)
+    if same_url:
+        page.goto.assert_not_called()
+    else:
+        page.goto.assert_called_once_with(collector.ELEME_URL, wait_until="commit", timeout=45_000)
+    if document_loaded:
+        page.reload.assert_not_called()
+    else:
+        page.reload.assert_called_once_with(wait_until="commit", timeout=45_000)
+
+
 @pytest.fixture(autouse=True)
 def isolated_auth_state(tmp_path, monkeypatch):
     from scripts import realtime_order_income as collector

@@ -798,6 +798,14 @@ def ensure_eleme_nationwide_context(page) -> None:
     log("饿了么：已确认全国门店范围")
 
 
+def open_eleme_realtime_page(page, timeout_ms: int) -> None:
+    timeout = min(timeout_ms, 45_000)
+    # An existing analysis tab can stay on the same document, so it won't
+    # issue the first ranking request again until the document is reloaded.
+    if page.url == ELEME_URL or page.goto(ELEME_URL, wait_until="commit", timeout=timeout) is None:
+        page.reload(wait_until="commit", timeout=timeout)
+
+
 def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
     page, _ = page_for_platform(context, ELEME_URL, ["melody.shop.ele.me"])
     page.set_default_timeout(10_000)
@@ -853,7 +861,7 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
         log("饿了么：开始")
         page.on("request", on_request)
         log("饿了么：进入实时门店页")
-        page.goto(ELEME_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
+        open_eleme_realtime_page(page, timeout_ms)
         page.wait_for_timeout(18_000)
         require_eleme_nationwide_context(page)
         dismiss_eleme_blocking_overlays(page)
