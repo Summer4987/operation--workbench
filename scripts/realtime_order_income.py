@@ -31,16 +31,15 @@ from chrome_cdp_reports import (  # noqa: E402
 import platform_account_access as account_access
 
 try:
-    from .ensure_eleme_headquarters_context import GROUP_ID, NEUTRAL_CONTEXT_URL, choose_context
+    from .ensure_eleme_headquarters_context import GROUP_ID, NEUTRAL_CONTEXT_URL, choose_context, has_visible_switcher
 except ImportError:
-    from ensure_eleme_headquarters_context import GROUP_ID, NEUTRAL_CONTEXT_URL, choose_context
+    from ensure_eleme_headquarters_context import GROUP_ID, NEUTRAL_CONTEXT_URL, choose_context, has_visible_switcher
 
 
 ELEME_URL = (
     f"https://melody.shop.ele.me/app/chain/{GROUP_ID}/store-analysis"
     "#app.chainshop.store-analysis?path=1&otherParams=%7B%22needShopList%22%3A%22%22%2C%22isCheckAll%22%3Afalse%7D"
 )
-ELEME_STATS_CENTER_URL = ELEME_URL
 MEITUAN_URL = "https://e.waimai.meituan.com/#https://waimaieapp.meituan.com/igate/bizdata/business"
 OUTPUT_DIR = ROOT / "outputs" / "realtime_order_income"
 LATEST_PATH = OUTPUT_DIR / "latest.json"
@@ -769,21 +768,38 @@ def click_eleme_store_analysis(page) -> None:
 
 
 def require_eleme_nationwide_context(page) -> None:
-    label = " ".join(page.locator('div[class*="shopSwitcher"]').all_inner_texts())
-    if f"/app/chain/{GROUP_ID}/" not in page.url or "全国" not in label:
+    auth_reason = page_auth_block_reason(page, "饿了么")
+    if auth_reason:
+        raise auth_guard.PlatformAuthBlocked(auth_reason)
+    route = urlsplit(page.url)
+    labels = page.locator('div[class*="shopSwitcher"]:visible').all_inner_texts()
+    # An expanded switcher also contains the unselected nationwide option.
+    selected_brands = [label.split("\n", 1)[0].split("|", 1)[0].strip().casefold() for label in labels]
+    if (
+        route.hostname != "melody.shop.ele.me"
+        or not route.path.startswith(f"/app/chain/{GROUP_ID}/")
+        or "熊小小牛排饭pokebear（全国）" not in selected_brands
+    ):
         raise RuntimeError("淘宝闪购实时采集门店范围未确认全国，停止读取，保留上一份成功数据。")
 
 
 def ensure_eleme_nationwide_context(page) -> None:
-    page.goto(NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
-    page.wait_for_timeout(3000)
-    choose_context(page, f"{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}", f"**/app/chain/{GROUP_ID}/**")
+    if urlsplit(page.url).hostname != "melody.shop.ele.me" or not has_visible_switcher(page):
+        page.goto(NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
+        page.wait_for_timeout(3000)
+    try:
+        choose_context(page, f"{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}", f"**/app/chain/{GROUP_ID}/**")
+    except Exception as exc:
+        auth_reason = page_auth_block_reason(page, "饿了么")
+        if auth_reason:
+            raise auth_guard.PlatformAuthBlocked(auth_reason) from exc
+        raise
     require_eleme_nationwide_context(page)
     log("饿了么：已确认全国门店范围")
 
 
 def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
-    page, is_new = page_for_platform(context, ELEME_URL, ["melody.shop.ele.me", "lsycm.alibaba.com"])
+    page, _ = page_for_platform(context, ELEME_URL, ["melody.shop.ele.me"])
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(min(timeout_ms, 30_000))
     # The unit data-center menu silently switches back to the legal entity.
@@ -832,40 +848,25 @@ def scrape_eleme(context, timeout_ms: int) -> list[dict[str, Any]]:
             for key, value in (request.headers or {}).items()
             if key.lower() not in {"accept-encoding", "content-length", "cookie", "host"}
         }
-        save_eleme_rank_request(captured_rank_request)
 
     try:
         log("饿了么：开始")
         page.on("request", on_request)
         log("饿了么：进入实时门店页")
-        try:
-            page.goto("about:blank", wait_until="commit", timeout=10_000)
-            page.wait_for_timeout(800)
-        except Exception:
-            pass
         page.goto(ELEME_URL, wait_until="commit", timeout=min(timeout_ms, 45_000))
-        try:
-            page.reload(wait_until="commit", timeout=min(timeout_ms, 45_000))
-        except Exception:
-            pass
         page.wait_for_timeout(18_000)
         require_eleme_nationwide_context(page)
-        auth_reason = page_auth_block_reason(page, "饿了么")
-        if auth_reason:
-            auth_guard.block("饿了么", auth_reason, page.url)
-            raise auth_guard.PlatformAuthBlocked(auth_reason)
         dismiss_eleme_blocking_overlays(page)
         if not captured_rank_request:
             try:
                 log("饿了么：未捕获门店接口，尝试进入门店分析")
-                page.goto(ELEME_STATS_CENTER_URL, wait_until="commit", timeout=min(timeout_ms, 30_000))
-                page.wait_for_timeout(5000)
                 click_eleme_store_analysis(page)
                 page.wait_for_timeout(18_000)
-                require_eleme_nationwide_context(page)
             except Exception:
                 page.wait_for_timeout(3000)
-        require_eleme_nationwide_context(page)
+            require_eleme_nationwide_context(page)
+        if captured_rank_request:
+            save_eleme_rank_request(captured_rank_request)
         if captured_rank_request and direct_api:
             try:
                 log("饿了么：用登录态补拉分页接口")

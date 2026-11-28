@@ -20,7 +20,8 @@ from scripts.realtime_order_income import (
 def test_eleme_scope_rejects_company_even_with_data_visible():
     from unittest.mock import Mock
     from scripts import realtime_order_income as collector
-    page = Mock(url="https://melody.shop.ele.me/app/unit/stats__center")
+    page = Mock(url="https://melody.shop.ele.me/app/unit/stats__center", frames=[])
+    page.evaluate.return_value = ""
     page.locator.return_value.all_inner_texts.return_value = ["成都熊小小餐饮管理有限公司"]
     with pytest.raises(RuntimeError, match="未确认全国"):
         collector.require_eleme_nationwide_context(page)
@@ -29,23 +30,30 @@ def test_eleme_scope_rejects_company_even_with_data_visible():
 def test_eleme_scope_requires_both_nationwide_label_and_brand_route():
     from unittest.mock import Mock
     from scripts import realtime_order_income as collector
-    page = Mock(url=collector.ELEME_URL)
-    page.locator.return_value.all_inner_texts.return_value = ["熊小小牛排饭pokebear（全国）"]
+    page = Mock(url=collector.ELEME_URL, frames=[])
+    page.evaluate.return_value = ""
+    page.locator.return_value.all_inner_texts.return_value = ["熊小小牛排饭pokebear（全国） | 熊小小牛排饭pokebear"]
     collector.require_eleme_nationwide_context(page)
-    page.locator.return_value.all_inner_texts.return_value = ["成都区域"]
+    page.locator.return_value.all_inner_texts.return_value = ["成都区域\n熊小小牛排饭pokebear（全国）"]
     with pytest.raises(RuntimeError, match="未确认全国"):
         collector.require_eleme_nationwide_context(page)
 
 
-def test_eleme_selects_nationwide_brand_before_collection(monkeypatch):
+@pytest.mark.parametrize("visible_switcher", [True, False])
+def test_eleme_selects_nationwide_brand_before_collection(monkeypatch, visible_switcher):
     from unittest.mock import Mock
     from scripts import realtime_order_income as collector
-    page = Mock(url=collector.ELEME_URL)
-    page.locator.return_value.all_inner_texts.return_value = ["熊小小（全国）"]
+    page = Mock(url=collector.ELEME_URL, frames=[])
+    page.evaluate.return_value = ""
+    page.locator.return_value.all_inner_texts.return_value = ["熊小小牛排饭pokebear（全国）"]
     choose = Mock()
     monkeypatch.setattr(collector, "choose_context", choose)
+    monkeypatch.setattr(collector, "has_visible_switcher", lambda page: visible_switcher)
     collector.ensure_eleme_nationwide_context(page)
-    page.goto.assert_called_once_with(collector.NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
+    if visible_switcher:
+        page.goto.assert_not_called()
+    else:
+        page.goto.assert_called_once_with(collector.NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
     choose.assert_called_once_with(page, f"{collector.GROUP_ID}__RC_CASCADER_SPLIT__{collector.GROUP_ID}", f"**/app/chain/{collector.GROUP_ID}/**")
     assert "/app/unit/" not in collector.ELEME_URL
 
