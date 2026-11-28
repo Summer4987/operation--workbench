@@ -767,7 +767,7 @@ def click_eleme_store_analysis(page) -> None:
         click_text(page, "门店分析", timeout=3000)
 
 
-def require_eleme_nationwide_context(page) -> None:
+def require_eleme_nationwide_context(page, *, require_brand_route: bool = True) -> None:
     auth_reason = page_auth_block_reason(page, "饿了么")
     if auth_reason:
         raise auth_guard.PlatformAuthBlocked(auth_reason)
@@ -777,7 +777,7 @@ def require_eleme_nationwide_context(page) -> None:
     selected_brands = [label.split("\n", 1)[0].split("|", 1)[0].strip().casefold() for label in labels]
     if (
         route.hostname != "melody.shop.ele.me"
-        or not route.path.startswith(f"/app/chain/{GROUP_ID}/")
+        or (require_brand_route and not route.path.startswith(f"/app/chain/{GROUP_ID}/"))
         or "熊小小牛排饭pokebear（全国）" not in selected_brands
     ):
         raise RuntimeError("淘宝闪购实时采集门店范围未确认全国，停止读取，保留上一份成功数据。")
@@ -788,13 +788,15 @@ def ensure_eleme_nationwide_context(page) -> None:
         page.goto(NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
         page.wait_for_timeout(3000)
     try:
-        choose_context(page, f"{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}", f"**/app/chain/{GROUP_ID}/**")
+        # The account dashboard can keep its original URL after selecting
+        # "全部". The analysis page is where we require the branded route.
+        choose_context(page, f"{GROUP_ID}__RC_CASCADER_SPLIT__{GROUP_ID}", None)
     except Exception as exc:
         auth_reason = page_auth_block_reason(page, "饿了么")
         if auth_reason:
             raise auth_guard.PlatformAuthBlocked(auth_reason) from exc
         raise
-    require_eleme_nationwide_context(page)
+    require_eleme_nationwide_context(page, require_brand_route=False)
     log("饿了么：已确认全国门店范围")
 
 

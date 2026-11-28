@@ -43,7 +43,7 @@ def test_eleme_scope_requires_both_nationwide_label_and_brand_route():
 def test_eleme_selects_nationwide_brand_before_collection(monkeypatch, visible_switcher):
     from unittest.mock import Mock
     from scripts import realtime_order_income as collector
-    page = Mock(url=collector.ELEME_URL, frames=[])
+    page = Mock(url="https://melody.shop.ele.me/app/chain/-1/dashboard", frames=[])
     page.evaluate.return_value = ""
     page.locator.return_value.all_inner_texts.return_value = ["熊小小牛排饭pokebear（全国）"]
     choose = Mock()
@@ -54,7 +54,9 @@ def test_eleme_selects_nationwide_brand_before_collection(monkeypatch, visible_s
         page.goto.assert_not_called()
     else:
         page.goto.assert_called_once_with(collector.NEUTRAL_CONTEXT_URL, wait_until="domcontentloaded", timeout=30_000)
-    choose.assert_called_once_with(page, f"{collector.GROUP_ID}__RC_CASCADER_SPLIT__{collector.GROUP_ID}", f"**/app/chain/{collector.GROUP_ID}/**")
+    choose.assert_called_once_with(page, f"{collector.GROUP_ID}__RC_CASCADER_SPLIT__{collector.GROUP_ID}", None)
+    with pytest.raises(RuntimeError, match="未确认全国"):
+        collector.require_eleme_nationwide_context(page)
     assert "/app/unit/" not in collector.ELEME_URL
 
 

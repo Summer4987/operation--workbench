@@ -85,7 +85,7 @@ def open_switcher(page):
     return switcher
 
 
-def choose_context(page, value: str, expected_url_pattern: str) -> None:
+def choose_context(page, value: str, expected_url_pattern: str | re.Pattern[str] | None) -> None:
     open_switcher(page)
     # The cascader can reopen on another legal entity/region. Select the
     # nationwide group in the left column first so its store options are
@@ -129,7 +129,8 @@ def choose_context(page, value: str, expected_url_pattern: str) -> None:
     # Third-party assets can keep the full load event pending after the
     # business document and selected route are ready. Callers still validate
     # the selected organization and required business data before using it.
-    page.wait_for_url(expected_url_pattern, wait_until="domcontentloaded", timeout=30_000)
+    if expected_url_pattern is not None:
+        page.wait_for_url(expected_url_pattern, wait_until="domcontentloaded", timeout=30_000)
     page.wait_for_timeout(1_500)
 
 
